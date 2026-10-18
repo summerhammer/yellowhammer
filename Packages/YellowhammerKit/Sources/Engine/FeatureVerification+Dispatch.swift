@@ -211,7 +211,12 @@ extension FeatureVerification {
             let directory = (held?.isHeld == true ? held?.path : nil) ?? repo.path
             let branch = try act.journal.resolvedFeatureBranch(feature: context.feature, repository: name)
             return VerificationRepository(
-                name: name, directory: directory, featureBranch: branch?.name ?? "not recorded"
+                name: name, directory: directory, featureBranch: branch?.name ?? "not recorded",
+                checkResults: try act.journal.checkRuns(featureID: context.feature.id, repository: name).map {
+                    VerificationCheckResult(
+                        command: $0.command, judgedCommit: $0.judgedCommit, exitStatus: $0.exitStatus
+                    )
+                }
             )
         }
         return InstructionBase(

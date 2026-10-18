@@ -295,10 +295,11 @@ public enum JournalEvent: Equatable, Sendable {
     /// The engine-run Check ran over an Attempt's work (P8.5), pass or fail or declared none. `output` is
     /// what it printed, already capped by the runner; it is empty or nil when nothing ran. `judgedCommit`
     /// is the worker commit the Check judged: a passing Check writes no Round, so this event is the only
-    /// place a Check's result is tied to a commit. `nil` on events written before it was recorded.
+    /// place a Check's result is tied to a commit. `command` is the actual executed command, never current
+    /// configuration. Both are nil on events written before they were recorded.
     case checkRan(
         cardID: Int64, issueID: String, attemptID: Int64, result: CheckRunResult, exitStatus: Int32?, output: String?,
-        judgedCommit: String?
+        judgedCommit: String?, command: String? = nil
     )
 
     /// The fence → WIP-commit → preserve → reset sequence preserved an Attempt's work under a git ref
@@ -427,11 +428,11 @@ public enum JournalEvent: Equatable, Sendable {
     )
     /// Verification judged this Cycle's Definition of Done clause by clause (roadmap P10.5): once per
     /// Cycle. Counts only — never a pass/fail headline; the per-clause verdicts are in the report.
-    case featureVerified(cycleID: Int64, met: Int, unmet: Int, unresolved: Int)
-    /// A Feature was returned to the Operator for unmet or unresolved clauses (roadmap P10.6): appended
+    case featureVerified(cycleID: Int64, met: Int, unmet: Int, unresolved: Int, notChecked: Int = 0)
+    /// A Feature was returned to the Operator for unmet, unresolved or not checked clauses (roadmap P10.6): appended
     /// only on the Feature's first transition into `returned`. Counts only — the per-clause detail is
     /// in the return comment.
-    case featureReturned(cycleID: Int64, featureIssueID: String, unmet: Int, unresolved: Int)
+    case featureReturned(cycleID: Int64, featureIssueID: String, unmet: Int, unresolved: Int, notChecked: Int = 0)
     /// A verified Feature's Cycle was archived (roadmap P10.7): appended only on the Cycle's first
     /// archival. `detachedCards` counts the Blocked Cards detached from the Feature Issue in the same
     /// pass, left for later adoption.

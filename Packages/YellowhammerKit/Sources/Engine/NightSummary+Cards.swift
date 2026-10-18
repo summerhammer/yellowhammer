@@ -45,7 +45,7 @@ extension NightSummary {
         let history = try journal.attemptHistory(cardID: card.id)
         // Built from the events already read: `nightEvents` is read once per section, by design.
         let checkRuns: [(cardID: Int64, run: CheckRunRecord)] = events.compactMap { record in
-            guard case .checkRan(let cardID, _, _, _, _, _, _) = record.event,
+            guard case .checkRan(let cardID, _, _, _, _, _, _, _) = record.event,
                 let run = CheckRunRecord(record) else { return nil }
             return (cardID, run)
         }
@@ -68,7 +68,7 @@ extension NightSummary {
                 match = attemptID
             case .routeRetried(let recordCardID, _, let attemptID, _, _) where recordCardID == cardID:
                 match = attemptID
-            case .checkRan(let recordCardID, _, let attemptID, _, _, _, _) where recordCardID == cardID:
+            case .checkRan(let recordCardID, _, let attemptID, _, _, _, _, _) where recordCardID == cardID:
                 match = attemptID
             default:
                 match = nil

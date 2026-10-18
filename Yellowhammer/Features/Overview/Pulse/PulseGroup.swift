@@ -111,10 +111,11 @@ extension FeatureInFlight {
 }
 
 extension VerificationCounts {
-    /// `4 of 22 clauses unmet` (`, 1 unresolved` when any), or `all 22 clauses met`.
+    /// `4 of 22 clauses unmet` (`, 1 unresolved` when any, `, 1 not checked` when any), or `all 22 clauses met`.
     var summary: String {
-        guard unmet + unresolved > 0 else { return "all \(total) clauses met" }
+        guard unmet + unresolved + notChecked > 0 else { return "all \(total) clauses met" }
         let unresolvedNote = unresolved > 0 ? ", \(unresolved) unresolved" : ""
-        return "\(unmet) of \(total) clauses unmet\(unresolvedNote)"
+        let notCheckedNote = notChecked > 0 ? ", \(notChecked) not checked" : ""
+        return "\(unmet) of \(total) clauses unmet\(unresolvedNote)\(notCheckedNote)"
     }
 }

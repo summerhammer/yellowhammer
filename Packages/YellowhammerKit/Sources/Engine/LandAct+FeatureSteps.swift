@@ -69,7 +69,10 @@ extension LandAct {
             record(.skipped("all clauses met"), step: .returnFeature, repository: nil, context: context)
             return await archiveWhenAnyRepositoryPushed(featureContext, feature: feature, context: context)
         }
-        record(.skipped("clauses unmet"), step: .archiveCycle, repository: nil, context: context)
+        record(
+            .skipped("Verification did not confirm every clause"),
+            step: .archiveCycle, repository: nil, context: context
+        )
         return await runReturnFeature(featureContext, verdict: verdict, context: context)
     }
 

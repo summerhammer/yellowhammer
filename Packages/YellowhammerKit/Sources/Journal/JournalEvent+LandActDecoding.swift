@@ -10,12 +10,14 @@ extension JournalEvent {
         case .featureVerified:
             .featureVerified(
                 cycleID: try reader.int64("cycle_id"), met: try reader.int("met"),
-                unmet: try reader.int("unmet"), unresolved: try reader.int("unresolved")
+                unmet: try reader.int("unmet"), unresolved: try reader.int("unresolved"),
+                notChecked: try reader.optionalInt("not_checked", default: 0)
             )
         case .featureReturned:
             .featureReturned(
                 cycleID: try reader.int64("cycle_id"), featureIssueID: try reader.require("feature_issue_id"),
-                unmet: try reader.int("unmet"), unresolved: try reader.int("unresolved")
+                unmet: try reader.int("unmet"), unresolved: try reader.int("unresolved"),
+                notChecked: try reader.optionalInt("not_checked", default: 0)
             )
         case .cycleArchived:
             try decodeCycleArchived(reader)
@@ -99,21 +101,26 @@ extension JournalEvent {
 
     /// The `featureVerified` event's payload: counts only.
     var featureVerifiedPayload: [String: String]? {
-        guard case .featureVerified(let cycleID, let met, let unmet, let unresolved) = self else { return nil }
+        guard case .featureVerified(let cycleID, let met, let unmet, let unresolved, let notChecked) = self else {
+            return nil
+        }
         return [
-            "cycle_id": String(cycleID), "met": String(met), "unmet": String(unmet), "unresolved": String(unresolved)
+            "cycle_id": String(cycleID), "met": String(met), "unmet": String(unmet), "unresolved": String(unresolved),
+            "not_checked": String(notChecked)
         ]
     }
 
     /// The `featureReturned` event's payload: the Feature Issue id and counts only — the per-clause
     /// detail is in the return comment, not the Journal.
     var featureReturnedPayload: [String: String]? {
-        guard case .featureReturned(let cycleID, let featureIssueID, let unmet, let unresolved) = self else {
+        guard case .featureReturned(let cycleID, let featureIssueID, let unmet, let unresolved, let notChecked) = self
+        else {
             return nil
         }
         return [
             "cycle_id": String(cycleID), "feature_issue_id": featureIssueID,
-            "unmet": String(unmet), "unresolved": String(unresolved)
+            "unmet": String(unmet), "unresolved": String(unresolved),
+            "not_checked": String(notChecked)
         ]
     }
 

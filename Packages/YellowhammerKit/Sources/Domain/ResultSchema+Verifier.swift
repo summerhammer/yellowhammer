@@ -22,7 +22,7 @@ extension ResultSchema {
                 "properties": {
                   "issue_id": { "type": "string" },
                   "cid": { "type": "string" },
-                  "verdict": { "enum": ["met", "unmet"] },
+                  "verdict": { "enum": ["met", "unmet", "not checked"] },
                   "what_was_checked": { "type": "string" },
                   "interpretation": { "type": "string" }
                 }

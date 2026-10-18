@@ -23,14 +23,37 @@ public struct FeatureRollUpBlock {
     /// new Card (its drafted title stands in for it, as the block names a titled Card by title).
     public static func largestRendering(of prototypes: [RollUpMember], repositories: [String]) -> String {
         let members = prototypes.map { longestMember($0) }
-        let candidates = [false, true].map { lanesPushed in
+        var candidates = [false, true].map { lanesPushed in
             FeatureRollUpBlock(rollUp: FeatureRollUp(
                 members: members, lanesPushed: lanesPushed, verificationPassed: false,
                 unmetClauseCount: members.count,
+                notCheckedClauseCount: members.count,
                 mergedFraction: MergedFraction(mergedCount: 0, totalCount: repositories.count),
                 conflictingRepositories: repositories, noPullRequestRepositories: repositories,
                 issueStanding: .authoring
             )).render()
+        }
+        // The longest member lines are blocked or waiting, which mask Verification's longer
+        // closed-half slot. Measure that slot with Done members, keeping the longest member lines
+        // underneath it: the description budget must cover both independently.
+        let done = members.map { member in
+            var member = member
+            member.state = .done
+            return member
+        }
+        let verification = FeatureRollUp(
+            members: done, lanesPushed: true, verificationPassed: false,
+            unmetClauseCount: members.count, notCheckedClauseCount: members.count,
+            mergedFraction: MergedFraction(mergedCount: 0, totalCount: repositories.count),
+            conflictingRepositories: repositories, noPullRequestRepositories: repositories,
+            issueStanding: .authoring
+        )
+        if let longest = candidates.max(by: { $0.count < $1.count }) {
+            let lines = longest.split(separator: "\n", omittingEmptySubsequences: false).dropFirst()
+            candidates.append(
+                (["**\(verification.sentence)**\(verification.conflictsSuffix)\(verification.noPullRequestSuffix)"]
+                    + lines.map(String.init)).joined(separator: "\n")
+            )
         }
         return candidates.max { $0.count < $1.count } ?? ""
     }

@@ -37,6 +37,8 @@ struct VerificationReportTests {
         #expect(VerificationReport.line(for: clause(verdict: .unmet)).contains(" · [machine-found] · unmet · "))
         let unresolved = VerificationReport.line(for: clause(verdict: .unresolved))
         #expect(unresolved.contains(" · [machine-found] · unresolved · "))
+        let notChecked = VerificationReport.line(for: clause(verdict: .notChecked))
+        #expect(notChecked.contains(" · [machine-found] · not checked · "))
         let authored = VerificationReport.line(for: clause(provenance: "Author-supplied"))
         #expect(authored.contains(" · [Author-supplied] · met · "))
     }
@@ -80,10 +82,18 @@ struct VerificationReportTests {
         #expect(lines.last?.hasPrefix("Known limitation:") == true)
     }
 
-    @Test("unmetOrUnresolved is every clause the report did not find met")
+    @Test("unmetOrUnresolved is every clause the report did not find met, excluding not checked")
     func unmetOrUnresolved() {
-        #expect(mixedReport.unmetOrUnresolved.map(\.cid) == ["c1", "c2"])
-        #expect(mixedReport.unmetOrUnresolved.map(\.verdict) == [.unmet, .unresolved])
+        let reportWithNotChecked = VerificationReport(clauses: [
+            clause("FEAT-1", "c1", verdict: .met),
+            clause("BACK-1", "c1", verdict: .unmet),
+            clause("BACK-1", "c2", verdict: .unresolved),
+            clause("BACK-1", "c3", verdict: .notChecked)
+        ])
+        #expect(reportWithNotChecked.unmetOrUnresolved.map(\.cid) == ["c1", "c2"])
+        #expect(reportWithNotChecked.unmetOrUnresolved.map(\.verdict) == [.unmet, .unresolved])
+        #expect(reportWithNotChecked.notChecked.map(\.cid) == ["c3"])
+        #expect(reportWithNotChecked.notChecked.map(\.verdict) == [.notChecked])
     }
 }
 
@@ -148,5 +158,28 @@ struct VerificationPullRequestBodyTests {
         for body in [complete, partial] {
             #expect(body.contains(PullRequestBody.mergeCommitRecommendation))
         }
+    }
+
+    @Test("A Partial Landing names not checked clauses in line 2 when present, excluded from unmet list")
+    func line2NamesNotCheckedClauses() throws {
+        let reportWithNotChecked = VerificationReport(clauses: [
+            clause("FEAT-1", "c1", verdict: .met),
+            clause("BACK-1", "c1", verdict: .unmet),
+            clause("BACK-1", "c2", verdict: .unresolved),
+            clause("BACK-1", "c3", verdict: .notChecked),
+            clause("BACK-1", "c4", verdict: .notChecked)
+        ])
+        let body = PullRequestBody.render(bodyInput(cards: [doneCard, blockedCard], report: reportWithNotChecked))
+        let expectedLine2 = "2 Definition of Done clauses remain unmet, 2 Definition of Done clauses were not checked"
+            + "; 1 unfinished Cards are carried forward and auto-Blocked awaiting Adoption."
+        #expect(body.contains(expectedLine2))
+        let unmetSection = try #require(
+            body.components(separatedBy: "Definition of Done clauses unmet:\n").dropFirst().first?
+                .components(separatedBy: "\n\n").first
+        )
+        #expect(unmetSection.components(separatedBy: "\n").count == 2)
+        let notCheckedClauseLine = "BACK-1 c3 · Returns 404 for a missing id. · Spec Citation (epic/story)"
+            + " · [machine-found] · not checked"
+        #expect(body.contains(notCheckedClauseLine))
     }
 }

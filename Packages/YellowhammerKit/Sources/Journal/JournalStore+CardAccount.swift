@@ -14,13 +14,30 @@ public struct CheckRunRecord: Equatable, Sendable {
     /// The worker commit the Check judged; `nil` for an event written before it was recorded.
     public let judgedCommit: String?
     public let occurredAt: Date
+    /// The actual command executed, nil for legacy events or a declared-none Check.
+    public let command: String?
+
+    public init(
+        eventID: Int64, attemptID: Int64, result: CheckRunResult, exitStatus: Int32?, output: String?,
+        judgedCommit: String?, occurredAt: Date, command: String? = nil
+    ) {
+        self.eventID = eventID
+        self.attemptID = attemptID
+        self.result = result
+        self.exitStatus = exitStatus
+        self.output = output
+        self.judgedCommit = judgedCommit
+        self.occurredAt = occurredAt
+        self.command = command
+    }
 }
 
 extension CheckRunRecord {
     /// The run `record` is, or `nil` when the event is not a `checkRan`.
     public init?(_ record: JournalEventRecord) {
-        guard case .checkRan(_, _, let attemptID, let result, let exitStatus, let output, let judgedCommit) =
-            record.event
+        guard case .checkRan(
+            _, _, let attemptID, let result, let exitStatus, let output, let judgedCommit, let command
+        ) = record.event
         else {
             return nil
         }
@@ -31,7 +48,8 @@ extension CheckRunRecord {
             exitStatus: exitStatus,
             output: output,
             judgedCommit: judgedCommit,
-            occurredAt: record.occurredAt
+            occurredAt: record.occurredAt,
+            command: command
         )
     }
 }
@@ -75,9 +93,29 @@ extension JournalStore {
         try read { db in try Self.checkRuns(db, cardID: cardID) }
     }
 
+    /// Real Check runs for this Feature's Work Cards in a repository, in append order.
+    /// Declaring `check = none` records no executed command and supplies no Verification evidence.
+    public func checkRuns(featureID: Int64, repository: String) throws -> [CheckRunRecord] {
+        try read { db in
+            let cardIDs = Set(try Int64.fetchAll(
+                db,
+                sql: """
+                SELECT card.id FROM card JOIN cycle ON card.cycle_id = cycle.id
+                WHERE cycle.feature_id = ? AND card.repository = ?
+                """,
+                arguments: [featureID, repository]
+            ))
+            return try Self.events(db, ofType: .checkRan).compactMap { record in
+                guard case .checkRan(let cardID, _, _, let result, _, _, _, _) = record.event,
+                      cardIDs.contains(cardID), result != .declaredNone else { return nil }
+                return CheckRunRecord(record)
+            }
+        }
+    }
+
     private static func checkRuns(_ db: Database, cardID: Int64) throws -> [CheckRunRecord] {
         try events(db, ofType: .checkRan).compactMap { record in
-            guard case .checkRan(let recordCardID, _, _, _, _, _, _) = record.event, recordCardID == cardID else {
+            guard case .checkRan(let recordCardID, _, _, _, _, _, _, _) = record.event, recordCardID == cardID else {
                 return nil
             }
             return CheckRunRecord(record)

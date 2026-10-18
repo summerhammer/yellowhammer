@@ -170,3 +170,71 @@ func verifiedFeatureVerdictLine() throws {
 
     #expect(pulse.night?.verdictLine == "Feature YLH-350 verified — all 12 clauses met")
 }
+
+@Test("A returned Feature with not checked clauses appends ', <x> not checked' to verdictLine and tally")
+func returnedFeatureWithNotCheckedClauses() throws {
+    let fixture = ReturnFixture()
+    let journal = try fixture.open()
+    let feature = try insertFeature(journal, issueID: featureIssueID)
+    let run = RunID()
+    _ = try journal.claimActLease(act: .land, runID: run, mode: .real, now: epoch)
+    let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .land, runID: run, now: epoch)
+    try journal.write { db in
+        try db.execute(
+            sql: "UPDATE feature SET issue_id_for_display = 'YLH-355', state = 'returned' WHERE id = ?",
+            arguments: [feature.featureID]
+        )
+        try db.execute(
+            sql: "UPDATE cycle SET landed_at = ? WHERE id = ?",
+            arguments: [JournalStore.timestamp(epoch), feature.cycleID]
+        )
+    }
+    let clauses = (1...18).map { clause($0, .met) }
+        + (19...22).map { clause($0, .unmet) }
+        + (23...24).map { clause($0, .notChecked) }
+    try journal.recordFeatureVerification(
+        NewFeatureVerification(
+            featureID: feature.featureID, cycleID: feature.cycleID, route: nil, nightID: opening.night.id, runID: run,
+            clauses: clauses
+        ),
+        now: epoch
+    )
+    try journal.append(
+        .featureVerified(cycleID: feature.cycleID, met: 18, unmet: 4, unresolved: 0, notChecked: 2),
+        act: .land, runID: run, nightID: opening.night.id, now: epoch.addingTimeInterval(1)
+    )
+    try journal.append(
+        .featureReturned(
+            cycleID: feature.cycleID,
+            featureIssueID: featureIssueID,
+            unmet: 4,
+            unresolved: 0,
+            notChecked: 2
+        ),
+        act: .land, runID: run, nightID: opening.night.id, now: epoch.addingTimeInterval(2)
+    )
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch.addingTimeInterval(10))
+
+    #expect(pulse.feature?.verification == VerificationCounts(met: 18, unmet: 4, unresolved: 0, notChecked: 2))
+    #expect(pulse.feature?.verification?.total == 24)
+    #expect(pulse.night?.verdictLine == "Feature YLH-355 returned — 4 of 24 clauses unmet, 2 not checked")
+}
+
+@Test("A Feature with not checked clauses is never reported as verified all met")
+func featureWithNotCheckedClausesIsNotAllMet() throws {
+    let fixture = ReturnFixture()
+    let journal = try fixture.open()
+    let feature = try insertFeature(journal, issueID: featureIssueID)
+    let run = RunID()
+    _ = try journal.claimActLease(act: .land, runID: run, mode: .real, now: epoch)
+    let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .land, runID: run, now: epoch)
+    try journal.append(
+        .featureVerified(cycleID: feature.cycleID, met: 12, unmet: 0, unresolved: 0, notChecked: 1),
+        act: .land, runID: run, nightID: opening.night.id, now: epoch.addingTimeInterval(1)
+    )
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch.addingTimeInterval(10))
+
+    #expect(pulse.night?.verdictLine == nil)
+}

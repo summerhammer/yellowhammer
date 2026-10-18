@@ -93,6 +93,16 @@ struct PayloadReader: Sendable {
         return value
     }
 
+    func optionalInt(_ key: String, default fallback: Int = 0) throws -> Int {
+        guard let payload, let text = payload[key] else {
+            return fallback
+        }
+        guard let value = Int(text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return value
+    }
+
     func optionalDate(_ key: String) throws -> Date? {
         guard let payload, let text = payload[key] else {
             return nil

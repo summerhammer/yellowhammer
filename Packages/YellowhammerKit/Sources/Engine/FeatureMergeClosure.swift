@@ -109,11 +109,13 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
             )
         }
         let verification = try journal.featureVerification(cycleID: cycleID)
-        let unmetClauses = verification?.clauses.filter { $0.verdict != .met } ?? []
+        let unmetClauses = verification?.clauses.filter { $0.verdict == .unmet || $0.verdict == .unresolved } ?? []
+        let notCheckedClauses = verification?.clauses.filter { $0.verdict == .notChecked } ?? []
         let triagedNight = try journal.night(id: computed.triagedNightID)
         let comment = FeatureMergeClosureComment(
             landings: landings, carriedForward: carriedForwardCards, acceptedCards: computed.acceptedCards,
-            unmetClauses: unmetClauses, triagedNightStart: triagedNight?.nightStart ?? context.night.nightStart,
+            unmetClauses: unmetClauses, notCheckedClauses: notCheckedClauses,
+            triagedNightStart: triagedNight?.nightStart ?? context.night.nightStart,
             observingNightStart: context.night.nightStart
         ).body()
 

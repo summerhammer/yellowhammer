@@ -36,11 +36,16 @@ public struct FeatureRollUpMaintenance: Sendable {
         let pushedForMerge = try journal.pushedRepositories(featureID: feature.id)
         let mergedInN = Set(observation?.merged ?? []).intersection(pushedForMerge).count
         let verification = try journal.featureVerification(cycleID: cycleID)
+        let unmetCount = verification.map { record in
+            record.clauses.count { $0.verdict == .unmet || $0.verdict == .unresolved }
+        }
+        let notCheckedCount = verification?.clauses.count { $0.verdict == .notChecked } ?? 0
         let rollUp = FeatureRollUp(
             members: try members(feature: feature, cycleID: cycleID),
             lanesPushed: try journal.isCycleLanded(cycleID: cycleID),
             verificationPassed: verification?.clauses.allSatisfy { $0.verdict == .met } ?? false,
-            unmetClauseCount: verification?.clauses.count { $0.verdict != .met },
+            unmetClauseCount: unmetCount,
+            notCheckedClauseCount: notCheckedCount,
             mergedFraction: MergedFraction(mergedCount: mergedInN, totalCount: pushedForMerge.count),
             conflictingRepositories: Array(conflicts.keys),
             noPullRequestRepositories: try journal.noPushedBranchRepositories(featureID: feature.id),
@@ -224,7 +229,7 @@ public struct FeatureRollUpMaintenance: Sendable {
             (featureIssueID, cycleID)
         case .cycleArchived(let cycleID, let featureIssueID, _, _):
             (featureIssueID, cycleID)
-        case .featureReturned(let cycleID, let featureIssueID, _, _):
+        case .featureReturned(let cycleID, let featureIssueID, _, _, _):
             (featureIssueID, cycleID)
         default:
             nil

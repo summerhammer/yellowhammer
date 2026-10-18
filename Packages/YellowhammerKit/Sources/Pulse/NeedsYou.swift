@@ -99,7 +99,7 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
     }
 }
 
-/// A Feature returned to the Operator because its Verification left clauses unmet or unresolved.
+/// A Feature returned to the Operator because its Verification left clauses unmet, unresolved or not checked.
 public struct ReturnedFeature: Identifiable, Equatable, Sendable {
     /// The Feature Issue's Linear issue id, as the Journal records it.
     public let id: String
@@ -123,17 +123,19 @@ public struct ReturnedFeature: Identifiable, Equatable, Sendable {
     }
 }
 
-/// How many of a Feature's Definition of Done clauses a Verification judged met, unmet and unresolved.
+/// How many of a Feature's Definition of Done clauses a Verification judged met, unmet, unresolved and not checked.
 public struct VerificationCounts: Equatable, Sendable {
     public var met: Int
     public var unmet: Int
     public var unresolved: Int
+    public var notChecked: Int
 
-    public var total: Int { met + unmet + unresolved }
+    public var total: Int { met + unmet + unresolved + notChecked }
 
-    public init(met: Int, unmet: Int, unresolved: Int) {
+    public init(met: Int, unmet: Int, unresolved: Int, notChecked: Int = 0) {
         self.met = met
         self.unmet = unmet
         self.unresolved = unresolved
+        self.notChecked = notChecked
     }
 }

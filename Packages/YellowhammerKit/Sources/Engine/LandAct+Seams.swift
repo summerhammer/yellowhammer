@@ -179,7 +179,7 @@ public struct LandActFeatureContext: Sendable {
     }
 }
 
-/// A two-way Verification verdict (P10.5): every Definition of Done clause met, or unmet clauses present.
+/// A two-way Verification verdict (P10.5): every Definition of Done clause met, or clauses requiring a return.
 public struct VerificationVerdict: Equatable, Sendable {
     public let allClausesMet: Bool
     /// The clauses found `unmet`, as `<issue> <cid>`.
@@ -187,11 +187,20 @@ public struct VerificationVerdict: Equatable, Sendable {
     /// The clauses whose Spec Citation no longer resolves, as `<issue> <cid>`: work for the Specification
     /// Author, not unfinished code.
     public let unresolvedClauses: [String]
+    /// The clauses that could not be checked in this environment, as `<issue> <cid>`: checks that never ran,
+    /// not unfinished work.
+    public let notCheckedClauses: [String]
 
-    public init(allClausesMet: Bool, unmetClauses: [String] = [], unresolvedClauses: [String] = []) {
+    public init(
+        allClausesMet: Bool,
+        unmetClauses: [String] = [],
+        unresolvedClauses: [String] = [],
+        notCheckedClauses: [String] = []
+    ) {
         self.allClausesMet = allClausesMet
         self.unmetClauses = unmetClauses
         self.unresolvedClauses = unresolvedClauses
+        self.notCheckedClauses = notCheckedClauses
     }
 }
 

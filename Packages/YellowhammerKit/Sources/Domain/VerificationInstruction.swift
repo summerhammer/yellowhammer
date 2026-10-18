@@ -15,17 +15,36 @@ public struct VerificationClause: Equatable, Sendable {
     }
 }
 
+/// One Check result recorded for a Feature's Work Cards, never reconstructed from current configuration.
+public struct VerificationCheckResult: Equatable, Sendable {
+    /// Legacy events may lack the actual command or judged commit; absence is not evidence of success.
+    public let command: String?
+    public let judgedCommit: String?
+    public let exitStatus: Int32?
+
+    public init(command: String?, judgedCommit: String?, exitStatus: Int32?) {
+        self.command = command
+        self.judgedCommit = judgedCommit
+        self.exitStatus = exitStatus
+    }
+}
+
 /// A repository the Feature touched: where its finished code is, and the Feature Branch holding it.
 public struct VerificationRepository: Equatable, Sendable {
     public let name: String
     /// The directory holding the finished code: the held Worktree when one is held, else the repository.
     public let directory: String
     public let featureBranch: String
+    /// The Journal's Check results for this Feature and repository, in append order.
+    public let checkResults: [VerificationCheckResult]
 
-    public init(name: String, directory: String, featureBranch: String) {
+    public init(
+        name: String, directory: String, featureBranch: String, checkResults: [VerificationCheckResult] = []
+    ) {
         self.name = name
         self.directory = directory
         self.featureBranch = featureBranch
+        self.checkResults = checkResults
     }
 }
 
@@ -78,11 +97,25 @@ public struct VerificationInstruction: Equatable, Sendable {
         """
         ## Rules
 
-        This pass is read-only: change nothing. Judge each clause below individually, against its Spec \
-        Citation in the specification source and the finished code in the repositories. For every clause \
-        state what you checked and the interpretation of the clause you verified it under. Report `met` \
-        or `unmet` for each clause and never an aggregate verdict such as "passed". Report every clause \
-        listed, and no other.
+        This pass is read-only: change nothing. You read the specification source and the finished code in \
+        the repositories you are given, and may run commands that change nothing. You are guaranteed \
+        neither network access nor a writable directory; whether you have either depends on your Route. \
+        Judge each clause below individually, against its Spec Citation in the specification source and the \
+        finished code in the repositories. For every clause state what you checked and the interpretation of \
+        the clause you verified it under. Report `met`, `unmet` or `not checked` for each clause and never \
+        an aggregate verdict such as "passed". Report `not checked` when you could not perform the check the \
+        clause needs in your environment, naming in `what_was_checked` the capability that was missing: \
+        network access, a writable directory, or a tool. Report every clause listed, and no other.
+
+        Use the recorded Check results below to judge clauses they cover, on any Route. Resolve the head \
+        of each Feature Branch you judge. A record whose judged commit is not that head cannot decide a \
+        clause: name the stale record beside the clause in `what_was_checked`. A legacy record with an \
+        unavailable command, judged commit or exit status cannot establish what ran successfully at that head.
+
+        Report every build or test clause no recorded Check covers, naming the command it would need in \
+        `what_was_checked`, so the Operator sees the gap in the Repo's Check command. Judge it when your \
+        environment can check it; otherwise report `not checked`, naming that command and the missing \
+        capability. A declared `check = none` supplies no Check result and covers no clause.
         """
     }
 
@@ -101,6 +134,16 @@ public struct VerificationInstruction: Equatable, Sendable {
             lines.append("- \(repository.name)")
             lines.append("  Finished code: \(repository.directory)")
             lines.append("  Feature Branch: \(repository.featureBranch)")
+            if repository.checkResults.isEmpty {
+                lines.append("  Recorded Check results: none")
+            } else {
+                lines.append("  Recorded Check results (Journal append order):")
+                for result in repository.checkResults {
+                    lines.append("  - Command: \(result.command ?? "not recorded")")
+                    lines.append("    Judged commit: \(result.judgedCommit ?? "not recorded")")
+                    lines.append("    Exit status: \(result.exitStatus.map(String.init) ?? "not recorded")")
+                }
+            }
         }
         return lines.joined(separator: "\n")
     }
@@ -113,7 +156,7 @@ public struct VerificationInstruction: Equatable, Sendable {
         CLI Adapter persists it; do not create or edit a result file with tools. It must declare \
         `"schema": "\(RunPass.verifier.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for \
         this pass: reported, failed. `reported` carries `clauses`, one entry per clause with `issue_id`, \
-        `cid`, `verdict` (`met` or `unmet`), `what_was_checked` and `interpretation`; `failed` carries \
+        `cid`, `verdict` (`met`, `unmet` or `not checked`), `what_was_checked` and `interpretation`; `failed` carries \
         `reason`. Ending without a final structured response is treated as a crash.
         """
     }

@@ -1,12 +1,14 @@
 /// How one Definition of Done clause fared in Verification (roadmap P10.5; spec:
 /// verification/verify-a-feature-clause-by-clause). `met` and `unmet` are judgements — the verifier's,
-/// or the engine's for a clause whose Card did not complete. `unresolved` is only ever the engine's: the
+/// or the engine's for a clause whose Card did not complete. `not checked` is the verifier's judgement
+/// for a clause whose check it could not perform in its environment. `unresolved` is only ever the engine's: the
 /// clause's Spec Citation no longer resolves, which is work for the Specification Author, not unfinished
 /// code. The verifier is never asked to say it.
 public enum ClauseVerdict: String, CaseIterable, Equatable, Sendable {
     case met
     case unmet
     case unresolved
+    case notChecked = "not checked"
 }
 
 /// One clause the verifier judged. Clause ids are unique only within their issue, so the identity is the
@@ -14,7 +16,7 @@ public enum ClauseVerdict: String, CaseIterable, Equatable, Sendable {
 public struct VerifiedClause: Equatable, Sendable {
     public let cid: String
     public let issueID: String
-    /// Only ``ClauseVerdict/met`` or ``ClauseVerdict/unmet``.
+    /// ``ClauseVerdict/met``, ``ClauseVerdict/unmet``, or ``ClauseVerdict/notChecked``.
     public let verdict: ClauseVerdict
     /// What the verifier looked at in the finished code, non-empty.
     public let whatWasChecked: String

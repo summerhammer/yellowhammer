@@ -245,7 +245,8 @@ struct CardRunCheckRoundTests {
             let attemptID = try #require(try world.attempts("BACK-1").first).id
             #expect(ran == [.checkRan(
                 cardID: try #require(world.cardIDs["BACK-1"]), issueID: "BACK-1", attemptID: attemptID,
-                result: testCase.kind, exitStatus: testCase.status, output: testCase.output, judgedCommit: workerCommit
+                result: testCase.kind, exitStatus: testCase.status, output: testCase.output, judgedCommit: workerCommit,
+                command: testCase.kind == .declaredNone ? nil : testCase.check.description
             )])
             // The step names the outcome's kind, never its output.
             let stepDetails = try world.journal.events(ofType: .cardRunStep).compactMap { record -> String? in

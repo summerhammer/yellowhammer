@@ -53,7 +53,8 @@ extension PulseSnapshot {
         VerificationCounts(
             met: record.clauses.count { $0.verdict == .met },
             unmet: record.clauses.count { $0.verdict == .unmet },
-            unresolved: record.clauses.count { $0.verdict == .unresolved }
+            unresolved: record.clauses.count { $0.verdict == .unresolved },
+            notChecked: record.clauses.count { $0.verdict == .notChecked }
         )
     }
 }

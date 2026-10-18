@@ -29,9 +29,14 @@ public struct VerificationReport: Equatable, Sendable {
         self.init(clauses: record.clauses)
     }
 
-    /// The clauses that are not `met`: what the Feature is returned holding.
+    /// The clauses that are `unmet` or `unresolved`: what the Feature is returned holding.
     public var unmetOrUnresolved: [ClauseVerificationRecord] {
-        clauses.filter { $0.verdict != .met }
+        clauses.filter { $0.verdict == .unmet || $0.verdict == .unresolved }
+    }
+
+    /// The clauses whose check could not be performed in this environment.
+    public var notChecked: [ClauseVerificationRecord] {
+        clauses.filter { $0.verdict == .notChecked }
     }
 
     // MARK: - Line

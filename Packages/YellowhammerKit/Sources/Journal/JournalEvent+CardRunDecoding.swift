@@ -75,7 +75,8 @@ extension JournalEvent {
             result: result,
             exitStatus: reader.payload?["exit_status"].flatMap { Int32($0) },
             output: reader.payload?["output"],
-            judgedCommit: reader.payload?["judged_commit"]
+            judgedCommit: reader.payload?["judged_commit"],
+            command: reader.payload?["command"]
         )
     }
 }

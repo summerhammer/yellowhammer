@@ -27,6 +27,9 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
     /// The recorded Verification's unmet or unresolved clauses, if the Feature was ever verified before
     /// the merge closed it. Usually empty: a merge closure is unverified.
     public let unmetClauses: [ClauseVerificationRecord]
+    /// The recorded Verification's not checked clauses, if the Feature was ever verified before
+    /// the merge closed it.
+    public let notCheckedClauses: [ClauseVerificationRecord]
     /// The Night whose morning the merge concluded, per the triaged-Night rule.
     public let triagedNightStart: NightStart
     /// The Night the merge was actually observed on.
@@ -34,19 +37,21 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
 
     public init(
         landings: [String: String], carriedForward: [CarriedForwardCard], acceptedCards: [String],
-        unmetClauses: [ClauseVerificationRecord], triagedNightStart: NightStart, observingNightStart: NightStart
+        unmetClauses: [ClauseVerificationRecord], notCheckedClauses: [ClauseVerificationRecord] = [],
+        triagedNightStart: NightStart, observingNightStart: NightStart
     ) {
         self.landings = landings
         self.carriedForward = carriedForward
         self.acceptedCards = acceptedCards
         self.unmetClauses = unmetClauses
+        self.notCheckedClauses = notCheckedClauses
         self.triagedNightStart = triagedNightStart
         self.observingNightStart = observingNightStart
     }
 
     /// The comment body: the closed-by-merge headline, the merged repositories, any still-unmet clauses
-    /// (omitted when there are none), what carried forward, what was accepted, and the observation's own
-    /// limitation.
+    /// (omitted when there are none), any not-checked clauses, what carried forward, what was accepted,
+    /// and the observation's own limitation.
     public func body() -> String {
         var lines = [
             """
@@ -66,6 +71,12 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
             lines.append("")
             lines.append("## Still unmet")
             lines += unmetClauses.map { "- " + VerificationReport.line(for: $0) }
+        }
+
+        if !notCheckedClauses.isEmpty {
+            lines.append("")
+            lines.append("## Not checked (checks that never ran)")
+            lines += notCheckedClauses.map { "- " + VerificationReport.line(for: $0) }
         }
 
         lines.append("")
