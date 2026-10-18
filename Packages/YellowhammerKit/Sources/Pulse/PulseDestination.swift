@@ -20,7 +20,8 @@ public enum PulseSelection: Hashable, Sendable {
 /// gesture itself stays in Linear or GitHub.
 ///
 /// `nightCard`, `linearIssue` and `pullRequest` carry the URL the Journal recorded and open it in the
-/// default browser, or the vendor's app, through `openURL`. The app composes no URL of its own.
+/// default browser, or the vendor's app, through `openURL`. Authoring decisions without a recorded
+/// URL may use Linear's canonical issue URL from a validated recorded UUID.
 public enum PulseDestination: Hashable, Sendable {
     case inspector(PulseSelection)
     /// A Night's account, by the Night's row id, opened with its playhead at `at`: where a Failure Notice starts.

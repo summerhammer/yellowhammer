@@ -7,8 +7,8 @@ import Testing
 
 // Every failure event reads in the Night's account with its reason as detail, never the bare event name, and
 // a failure is a problem for the playhead's "from problem to problem" step
-// (app/land-on-the-sidebar-and-pulse#failure-line). A halt and a usage limit are decisions and deferrals, not
-// failures, so they are worded and not marked.
+// (app/land-on-the-sidebar-and-pulse#failure-line). Authoring decisions are actionable problems;
+// usage limits remain deferrals.
 
 private let moment = Date(timeIntervalSince1970: 1_790_000_000)
 
@@ -139,14 +139,15 @@ struct NightAccountFailureWordingTests {
         #expect(!step(.openPullRequest, "a", .notWired, nil).isProblem)
     }
 
-    @Test("An Authoring Halt is worded with its cause and is not a problem")
+    @Test("An Authoring Halt is worded with its cause and is an actionable problem")
     func authoringHalted() {
         let words = failureEntry(
             .featureAuthoringHalted(name: "Sync", reasonKind: "contract-outside-project", detail: "elsewhere")
         )
         #expect(words.headline == "Authoring the Feature “Sync” halted")
         #expect(words.detail == "it names a repository outside this Project: elsewhere")
-        #expect(!words.isProblem)
+        #expect(words.isProblem)
+        #expect(words.failedAct == nil)
         let unknown = failureEntry(.featureAuthoringHalted(name: "Sync", reasonKind: "something-new", detail: nil))
         #expect(unknown.detail == "something-new")
         let seam = failureEntry(

@@ -1,32 +1,37 @@
 import Domain
 import Foundation
 
-/// Needs you: the Project's decision Cards, Blocked and Waiting on You alike, and a Feature returned to the
-/// Operator with unmet clauses (verification/return-a-feature-with-unmet-clauses), which is in the same
-/// disposition as a Work Card that needs them.
+/// Needs you: the Project's decision Cards, Blocked and Waiting on You alike, open Authoring Halts and
+/// Refusals, and a Feature returned to the Operator with unmet clauses
+/// (verification/return-a-feature-with-unmet-clauses). Each needs an Operator turn.
 public struct NeedsYou: Equatable, Sendable {
     public var cards: [DecisionCard]
+    public var authoringDecisions: [AuthoringDecision]
     /// The in-flight Feature when its state is `returned`; nil otherwise.
     public var returnedFeature: ReturnedFeature?
 
-    public init(cards: [DecisionCard], returnedFeature: ReturnedFeature? = nil) {
+    public init(
+        cards: [DecisionCard], returnedFeature: ReturnedFeature? = nil,
+        authoringDecisions: [AuthoringDecision] = []
+    ) {
         self.cards = cards
+        self.authoringDecisions = authoringDecisions
         self.returnedFeature = returnedFeature
     }
 
-    /// Waiting on You Cards, plus the returned Feature, which is Waiting on You too.
+    /// Waiting on You Cards, the returned Feature, and open authoring decisions.
     public var waitingOnYouCount: Int {
-        cards.count { $0.state == .waitingOnYou } + (returnedFeature == nil ? 0 : 1)
+        cards.count { $0.state == .waitingOnYou } + (returnedFeature == nil ? 0 : 1) + authoringDecisions.count
     }
 
-    /// Whether nothing needs the Operator: no decision Card and no returned Feature.
+    /// Whether no Card, returned Feature or authoring decision needs the Operator.
     public var isEmpty: Bool {
-        cards.isEmpty && returnedFeature == nil
+        cards.isEmpty && returnedFeature == nil && authoringDecisions.isEmpty
     }
 
-    /// Everything that needs the Operator: the decision Cards and the returned Feature.
+    /// Everything that needs the Operator: Cards, the returned Feature and authoring decisions.
     public var count: Int {
-        cards.count + (returnedFeature == nil ? 0 : 1)
+        cards.count + (returnedFeature == nil ? 0 : 1) + authoringDecisions.count
     }
 
     /// Blocked Cards counted by Block Reason, most frequent first.

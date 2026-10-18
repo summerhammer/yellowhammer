@@ -25,7 +25,8 @@ extension NightAccount.Entry {
             headline: words.headline,
             detail: words.detail,
             isProblem: NightAccount.isProblem(record),
-            failedAct: NightAccount.isProblem(record) ? record.act : nil
+            failedAct: NightAccount.isProblem(record) && !NightAccount.isAuthoringDecision(record.type)
+                ? record.act : nil
         )
     }
 }
@@ -147,14 +148,19 @@ extension NightAccount {
         .worktreeNameCollision,
         .boardScopeUnresolved, .rateBudgetExhausted, .authoringInvariantBroken, .worktreeLost,
         .worktreeReconciliationFailed, .featureAuthoringFailed, .featureBreakdownRejected, .featureSelectionFailed,
-        .mainlineConflictDetected, .readinessCheckFailed, .waitingOnYouUnbacked
+        .mainlineConflictDetected, .readinessCheckFailed, .waitingOnYouUnbacked,
+        .featureAuthoringHalted, .authoringHaltOpened, .authoringHaltRepeated, .refusalOpened, .refusalRepeated
     ]
+
+    static func isAuthoringDecision(_ type: JournalEventType) -> Bool {
+        [.featureAuthoringHalted, .authoringHaltOpened, .authoringHaltRepeated, .refusalOpened, .refusalRepeated]
+            .contains(type)
+    }
 
     /// Whether the event is a problem the account puts first. Agrees with `JournalFailures` where they
     /// overlap: an `actIncomplete`, and a `repoLaneEnded` that records a failure. A Check declared none
     /// ran nothing, so only a failed Check is one; likewise only a failed land step and only an Attempt that
-    /// hard-failed. An Authoring Halt and a usage limit are decisions and deferrals, not failures, so they
-    /// are not (morning-report/disclose-a-failure).
+    /// hard-failed. Authoring decisions are actionable problems without being failed Acts; usage limits remain deferrals.
     static func isProblem(_ record: JournalEventRecord) -> Bool {
         switch record.event {
         case .actIncomplete: true
