@@ -1,4 +1,5 @@
 import ArgumentParser
+import Config
 import Domain
 @testable import EngineCommand
 import Foundation
@@ -171,4 +172,67 @@ func rootCommandParsesProbeAll() throws {
     let probeShort = try #require(parsedShort as? ProbeCommand)
     #expect(probeShort.cli == nil)
     #expect(probeShort.all == true)
+}
+
+// MARK: - Probe Route (issue #577)
+
+private func codexRoute(_ model: String, _ effort: String) -> Route {
+    Route(cli: "codex", model: model, effort: effort)!
+}
+
+@Test("With no flags the probe uses the first base Routing Table Route naming the CLI")
+func probeRouteComesFromRoutingTable() throws {
+    let machine = MachineConfiguration(
+        cliAdapters: [],
+        routingTable: [
+            RoutingEntry(kind: .any, route: Route(cli: "claude", model: "opus", effort: "high")!),
+            RoutingEntry(
+                kind: .any, route: Route(cli: "claude", model: "sonnet", effort: "low")!,
+                fallbacks: [codexRoute("gpt-6.1-sol", "low")]
+            )
+        ]
+    )
+    let (route, source) = try ProbeCommand.resolveRoute(cli: "codex", model: nil, effort: nil, machine: machine)
+    #expect(route == codexRoute("gpt-6.1-sol", "low"))
+    #expect(source == .routingTable)
+}
+
+@Test("A flag wins over the Routing Table field it names, and the other field still comes from the table")
+func probeRouteFlagsOverrideTable() throws {
+    let machine = MachineConfiguration(
+        cliAdapters: [], routingTable: [RoutingEntry(route: codexRoute("gpt-6.1-sol", "medium"))]
+    )
+    let partial = try ProbeCommand.resolveRoute(cli: "codex", model: "x", effort: nil, machine: machine)
+    #expect(partial.route == codexRoute("x", "medium"))
+    #expect(partial.source == .routingTable)
+    let full = try ProbeCommand.resolveRoute(cli: "codex", model: "x", effort: "y", machine: machine)
+    #expect(full.route == codexRoute("x", "y"))
+    #expect(full.source == .flags)
+}
+
+@Test("With no Route naming the CLI, or no machine file, the built-in pair is probed")
+func probeRouteFallsBackToBuiltInDefault() throws {
+    let other = MachineConfiguration(
+        cliAdapters: [], routingTable: [RoutingEntry(route: Route(cli: "claude", model: "opus", effort: "high")!)]
+    )
+    for machine in [other, nil] {
+        let (route, source) = try ProbeCommand.resolveRoute(cli: "codex", model: nil, effort: nil, machine: machine)
+        #expect(route == codexRoute("gpt-5.5", "low"))
+        #expect(source == .builtInDefault)
+    }
+}
+
+@Test("A CLI with no built-in pair and no table Route still needs --model")
+func probeRouteUnknownCLINeedsModel() {
+    #expect(throws: (any Error).self) {
+        try ProbeCommand.resolveRoute(cli: "other", model: nil, effort: nil, machine: nil)
+    }
+}
+
+@Test("The retry hint names the Route probed and the flags to retry with")
+func probeRetryHintNamesRouteAndFlags() {
+    let hint = ProbeCommand.retryHint(route: codexRoute("gpt-5.5", "low"), source: .builtInDefault)
+    #expect(hint.contains("codex / gpt-5.5 / low"))
+    #expect(hint.contains("--model"))
+    #expect(hint.contains("--effort"))
 }
