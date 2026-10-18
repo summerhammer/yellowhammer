@@ -73,7 +73,23 @@ public struct UnifiedLogPromptSource: PromptSource {
 /// The unified-log watch of one run: a `/usr/bin/log stream` child writing NDJSON to a private
 /// temporary file, which ``drain()`` reads on from where it last stopped. A file, not a pipe, so
 /// nothing has to read in the background between polls.
+///
+/// The stream runs under ``watchdogScript``, in a process group of its own, so a `yh` that dies without
+/// running Swift code (SIGKILL, a kernel kill, a crash) takes the stream down with it (#579): nothing
+/// resident is left behind.
 actor PromptWatch: PromptWatching {
+    /// `sh -c` script: `$1` is the pid of the process the stream must not outlive, `$2` the file it writes,
+    /// and `$3…` the stream command. Polls once a second; when the watched process or the stream is gone it
+    /// ends the stream and deletes the file, which only the watchdog is left to do after a SIGKILL.
+    static let watchdogScript = """
+        watched=$1; output=$2; shift 2
+        "$@" &
+        stream=$!
+        while kill -0 "$watched" 2>/dev/null && kill -0 "$stream" 2>/dev/null; do sleep 1; done
+        kill "$stream" 2>/dev/null
+        rm -f "$output"
+        """
+
     private let pid: pid_t
     private let output: URL
     private var handle: FileHandle?
@@ -94,8 +110,11 @@ actor PromptWatch: PromptWatching {
         else { return nil }
 
         let spawned = ProcessGroup.spawn(
-            executable: "/usr/bin/log",
-            arguments: ["stream", "--style", "ndjson", "--predicate", UnifiedLogPromptSource.predicate],
+            executable: "/bin/sh",
+            arguments: [
+                "-c", watchdogScript, "sh", String(getpid()), output.path,
+                "/usr/bin/log", "stream", "--style", "ndjson", "--predicate", UnifiedLogPromptSource.predicate
+            ],
             environment: ProcessInfo.processInfo.environment,
             worktreePath: "/",
             outputPath: nil,
@@ -146,7 +165,8 @@ actor PromptWatch: PromptWatching {
         return events
     }
 
-    /// SIGTERMs `log`, reaps it (SIGKILL after a second), and deletes its file.
+    /// SIGTERMs the watchdog's process group (it leads one: the shell, `log` and its `sleep`), reaps the
+    /// shell (SIGKILL to the group after a second), and deletes the file.
     func stop() async {
         defer {
             try? handle?.close()
@@ -155,14 +175,14 @@ actor PromptWatch: PromptWatching {
         }
         guard !stopped else { return }
         stopped = true
-        kill(pid, SIGTERM)
+        ProcessGroup.signal(group: pid, SIGTERM)
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: .seconds(1))
         while clock.now < deadline {
             if ProcessGroup.reapNonBlocking(pid: pid) != nil { return }
             await AgentCLIProcess.sleepThroughCancellation(for: .milliseconds(10))
         }
-        kill(pid, SIGKILL)
+        ProcessGroup.signal(group: pid, SIGKILL)
         ProcessGroup.reapBlocking(pid: pid)
     }
 }
