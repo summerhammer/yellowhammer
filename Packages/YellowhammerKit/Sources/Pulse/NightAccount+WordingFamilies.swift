@@ -99,7 +99,7 @@ extension NightWording {
                 headline: "\(card(cardID)): Attempt ended",
                 detail: "\(outcome) on \(route.description)\(routeExcluded ? "; Route excluded" : "")"
             )
-        case .checkRan(let cardID, _, _, let result, let exitStatus, _, _):
+        case .checkRan(let cardID, _, _, let result, let exitStatus, _, _, _):
             NightWords(
                 headline: "\(card(cardID)): \(checkWords(result))",
                 detail: exitStatus.map { "Exit status \($0)" }

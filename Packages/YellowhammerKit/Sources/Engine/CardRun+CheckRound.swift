@@ -92,12 +92,12 @@ extension CardRun {
         case .passed(let printed):
             event = .checkRan(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .passed, exitStatus: 0,
-                output: printed, judgedCommit: commit
+                output: printed, judgedCommit: commit, command: frame.check.description
             )
         case .failed(let printed, let status):
             event = .checkRan(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .failed, exitStatus: status,
-                output: printed, judgedCommit: commit
+                output: printed, judgedCommit: commit, command: frame.check.description
             )
         case .declaredNone:
             event = .checkRan(

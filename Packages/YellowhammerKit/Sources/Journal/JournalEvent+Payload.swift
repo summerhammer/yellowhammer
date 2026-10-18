@@ -329,7 +329,8 @@ extension JournalEvent {
             .featureSelectionFailed:
             authoringFaultPayload
         case .checkRan(
-            let cardID, let issueID, let attemptID, let result, let exitStatus, let output, let judgedCommit
+            let cardID, let issueID, let attemptID, let result, let exitStatus, let output,
+            let judgedCommit, let command
         ):
             {
                 var dict: [String: String] = [
@@ -345,6 +346,7 @@ extension JournalEvent {
                 if let judgedCommit {
                     dict["judged_commit"] = judgedCommit
                 }
+                if let command { dict["command"] = command }
                 return dict
             }()
         case .attemptWorkPreserved(let cardID, let issueID, let attemptID, let ref, let commit, let resetTo):

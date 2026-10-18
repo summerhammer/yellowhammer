@@ -295,10 +295,11 @@ public enum JournalEvent: Equatable, Sendable {
     /// The engine-run Check ran over an Attempt's work (P8.5), pass or fail or declared none. `output` is
     /// what it printed, already capped by the runner; it is empty or nil when nothing ran. `judgedCommit`
     /// is the worker commit the Check judged: a passing Check writes no Round, so this event is the only
-    /// place a Check's result is tied to a commit. `nil` on events written before it was recorded.
+    /// place a Check's result is tied to a commit. `command` is the actual executed command, never current
+    /// configuration. Both are nil on events written before they were recorded.
     case checkRan(
         cardID: Int64, issueID: String, attemptID: Int64, result: CheckRunResult, exitStatus: Int32?, output: String?,
-        judgedCommit: String?
+        judgedCommit: String?, command: String? = nil
     )
 
     /// The fence → WIP-commit → preserve → reset sequence preserved an Attempt's work under a git ref

@@ -47,11 +47,11 @@ func checkRanRoundTrips() throws {
     let events: [JournalEvent] = [
         .checkRan(
             cardID: 7, issueID: "BACK-1", attemptID: 3, result: .passed, exitStatus: 0, output: "ok\n",
-            judgedCommit: "b763aff"
+            judgedCommit: "b763aff", command: "swift test --filter \"Check Tests\""
         ),
         .checkRan(
             cardID: 7, issueID: "BACK-1", attemptID: 3, result: .failed, exitStatus: 127, output: "line\n\"quoted\"\n",
-            judgedCommit: nil
+            judgedCommit: nil, command: "pnpm --filter relay test"
         ),
         .checkRan(
             cardID: 7, issueID: "BACK-1", attemptID: 3, result: .declaredNone, exitStatus: nil, output: nil,
@@ -66,11 +66,11 @@ func checkRanRoundTrips() throws {
 
     #expect(records.map(\.event) == events)
     #expect(Set(events.compactMap { event -> CheckRunResult? in
-        if case .checkRan(_, _, _, let result, _, _, _) = event { result } else { nil }
+        if case .checkRan(_, _, _, let result, _, _, _, _) = event { result } else { nil }
     }) == Set(CheckRunResult.allCases))
 }
 
-@Test("A checkRan payload written before judged_commit existed decodes with a nil judgedCommit")
+@Test("A legacy checkRan payload decodes without inventing its command or judged commit")
 func checkRanWithoutJudgedCommitDecodes() throws {
     let directory = FileManager.default.temporaryDirectory
         .appending(component: "yh-journal-checkran-legacy-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -94,6 +94,7 @@ func checkRanWithoutJudgedCommitDecodes() throws {
     }
 
     let records = try journal.events(ofType: .checkRan)
+    #expect(records.first.flatMap(CheckRunRecord.init)?.command == nil)
 
     #expect(records.map(\.event) == [
         .checkRan(
