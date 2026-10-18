@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.21.0](https://github.com/summerhammer/yellowhammer/compare/v0.20.0...v0.21.0) (2026-10-18)
+
+
+### Features
+
+* **engine:** give the selection pass the Project's board state from the Journal ([02c9883](https://github.com/summerhammer/yellowhammer/commit/02c98831399e7897ec8cda25ecf8e766d8d1aca8)), closes [#556](https://github.com/summerhammer/yellowhammer/issues/556)
+* **probe:** measure whether read-only passes can reach the Keychain, Yellowhammer's state or Linear ([46bc8ab](https://github.com/summerhammer/yellowhammer/commit/46bc8ab2c70713b6dfad6f9b47cfdb85cfe1e49f)), closes [#557](https://github.com/summerhammer/yellowhammer/issues/557)
+* **verification:** report clauses that could not be checked ([#586](https://github.com/summerhammer/yellowhammer/issues/586)) ([3f8f195](https://github.com/summerhammer/yellowhammer/commit/3f8f195d1058671c69027de30b1b5d92f7a4c6fa))
+
+
+### Bug Fixes
+
+* **app:** surface open authoring halts and refusals in Pulse ([b947ec0](https://github.com/summerhammer/yellowhammer/commit/b947ec0cb3716fe3874ce273dd9dc312080d3c2f)), closes [#572](https://github.com/summerhammer/yellowhammer/issues/572)
+* **dispatch:** deny codex read-only passes the configuration directory ([ee97472](https://github.com/summerhammer/yellowhammer/commit/ee97472b94a1336d734474d7fe365dcb44358797)), closes [#557](https://github.com/summerhammer/yellowhammer/issues/557)
+* **dispatch:** end a pass at once when a macOS Keychain prompt is attributed to it ([603462f](https://github.com/summerhammer/yellowhammer/commit/603462f4006eda1250de1f71b043db0f2f876e5d)), closes [#555](https://github.com/summerhammer/yellowhammer/issues/555)
+* **dispatch:** end a pass's log stream when yh dies without cleanup ([c5f4fce](https://github.com/summerhammer/yellowhammer/commit/c5f4fce3241164fd7bbcd40cacc8dc87ec078659)), closes [#579](https://github.com/summerhammer/yellowhammer/issues/579)
+* **doctor:** report a dev.yellowhammer Keychain item whose access or partition list was widened ([2b3225f](https://github.com/summerhammer/yellowhammer/commit/2b3225fee8d2aa609362dbf3a58d5474a46e8889)), closes [#573](https://github.com/summerhammer/yellowhammer/issues/573)
+* **probe:** default the probe Route to one the Routing Table names ([bfa30ed](https://github.com/summerhammer/yellowhammer/commit/bfa30ed36562bf71e3360c30bf18566ab9f45072))
+
 ## [0.20.0](https://github.com/summerhammer/yellowhammer/compare/v0.19.0...v0.20.0) (2026-10-17)
 
 
