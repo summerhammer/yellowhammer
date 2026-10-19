@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.22.0](https://github.com/summerhammer/yellowhammer/compare/v0.21.0...v0.22.0) (2026-10-19)
+
+
+### Features
+
+* **agents:** add investigate-night-outcome skill ([044b9b2](https://github.com/summerhammer/yellowhammer/commit/044b9b2fe3b0c3be9f4ee7e94b733f7757eec749))
+* **agents:** add investigate-night-readiness skill and Night Readiness Auditor agent ([37e43a5](https://github.com/summerhammer/yellowhammer/commit/37e43a5b95d415d16fe7d5f01fc86b27069ddb84)), closes [#587](https://github.com/summerhammer/yellowhammer/issues/587)
+* **agents:** tighten investigate-night-readiness against a live run ([22d8033](https://github.com/summerhammer/yellowhammer/commit/22d8033c38e170f257d59628e3adc376dcfef627))
+* **app:** Pulse shows the next scheduled Act and when the upcoming Night starts ([4df0be6](https://github.com/summerhammer/yellowhammer/commit/4df0be6985cac5cdfba89fa0081182c98c9e0c76)), closes [#588](https://github.com/summerhammer/yellowhammer/issues/588)
+* **app:** Setup wizard footer tells the Operator to answer Deny to an agent pass's Keychain dialog ([dcbfbed](https://github.com/summerhammer/yellowhammer/commit/dcbfbed3af10ca79d13b0544d72e3592d11ef0ac))
+* **verification:** attribute 'not checked' clauses to a Repo's declared check = none ([a687642](https://github.com/summerhammer/yellowhammer/commit/a6876424bf7e5751ab614e565df511b0c78c7c53))
+
+
+### Bug Fixes
+
+* **ci:** prevent spec checker from hanging on usage ([a104e21](https://github.com/summerhammer/yellowhammer/commit/a104e21e6ceedac282ad2282cf5e1a3914150b5a)), closes [#589](https://github.com/summerhammer/yellowhammer/issues/589)
+
 ## [0.21.0](https://github.com/summerhammer/yellowhammer/compare/v0.20.0...v0.21.0) (2026-10-18)
 
 
