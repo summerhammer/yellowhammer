@@ -1,6 +1,6 @@
 ---
-name: investigate-night-outcome
-description: Investigate how a Night actually went for one Yellowhammer Project, or for every registered Project, and give a brief report (verdict, what shipped, what is stuck, what failed and why) that the Operator can drill into. Use when the Operator asks how the Night went, what happened overnight, why a Card is Blocked or a Feature came back, whether a Night ran at all, or for a morning summary of Yellowhammer — even if they never say "investigate". Strictly read-only. Counterpart of investigate-night-readiness, which looks forward; this one looks back.
+name: yh-investigate-night-outcome
+description: Investigate how a Night actually went for one Yellowhammer Project, or for every registered Project, and give a brief report (verdict, what shipped, what is stuck, what failed and why) that the Operator can drill into. Use when the Operator asks how the Night went, what happened overnight, why a Card is Blocked or a Feature came back, whether a Night ran at all, or for a morning summary of Yellowhammer — even if they never say "investigate". Strictly read-only. Counterpart of yh-investigate-night-readiness, which looks forward; this one looks back.
 ---
 
 # Investigate Night outcome
@@ -168,4 +168,4 @@ Drill-downs may be longer but stay structured; offer the next-level drill rather
 - If the installed build is older than the Journal's schema (or newer), `sqlite3` still reads it, but
   column names may differ: on a "no such column" error, run `.schema <table>` and adapt, and say so.
 - This skill reports; it does not fix. Hand readiness questions for *tonight* to
-  `investigate-night-readiness`.
+  `yh-investigate-night-readiness`.
