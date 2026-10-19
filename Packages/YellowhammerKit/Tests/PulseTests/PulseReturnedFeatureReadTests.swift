@@ -238,3 +238,54 @@ func featureWithNotCheckedClausesIsNotAllMet() throws {
 
     #expect(pulse.night?.verdictLine == nil)
 }
+
+@Test("A returned Feature's not checked tally names the repository whose Attempts ran under check = none")
+func returnedFeatureNotCheckedNamesNoCheckRepository() throws {
+    let fixture = ReturnFixture()
+    let journal = try fixture.open()
+    let feature = try insertFeature(journal, issueID: featureIssueID)
+    let darwin = try insertCard(
+        journal, cycleID: feature.cycleID, issueID: "C-1", repository: "darwin", state: .done, order: 1
+    )
+    let backend = try insertCard(
+        journal, cycleID: feature.cycleID, issueID: "C-2", repository: "backend", state: .done, order: 2
+    )
+    let run = RunID()
+    _ = try journal.claimActLease(act: .land, runID: run, mode: .real, now: epoch)
+    let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .land, runID: run, now: epoch)
+    try journal.recordAttempt(cardID: darwin, route: route(), checkDeclaredNone: true, runID: run, now: epoch)
+    try journal.recordAttempt(cardID: backend, route: route(), checkDeclaredNone: false, runID: run, now: epoch)
+    try journal.write { db in
+        try db.execute(
+            sql: "UPDATE feature SET state = 'returned', issue_id_for_display = 'YLH-360' WHERE id = ?",
+            arguments: [feature.featureID]
+        )
+        try db.execute(
+            sql: "UPDATE cycle SET landed_at = ? WHERE id = ?",
+            arguments: [JournalStore.timestamp(epoch), feature.cycleID]
+        )
+    }
+    try journal.recordFeatureVerification(
+        NewFeatureVerification(
+            featureID: feature.featureID, cycleID: feature.cycleID, route: nil, nightID: opening.night.id, runID: run,
+            clauses: [clause(1, .met), clause(2, .notChecked)]
+        ),
+        now: epoch
+    )
+
+    #expect(try journal.repositoriesDeclaringNoCheck(cycleID: feature.cycleID) == ["darwin"])
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch.addingTimeInterval(10))
+
+    let counts = try #require(pulse.feature?.verification)
+    #expect(counts.noCheckRepositories == ["darwin"])
+    let hint = try #require(counts.notCheckedHint)
+    #expect(hint.hasPrefix("1 not checked: `darwin` declares `check = none`"))
+    #expect(hint.contains("set its Check in the Project's configuration"))
+}
+
+@Test("Without a not checked clause, a declared check = none adds no hint")
+func noHintWithoutNotCheckedClauses() {
+    let counts = VerificationCounts(met: 3, unmet: 1, unresolved: 0, noCheckRepositories: ["darwin"])
+    #expect(counts.notCheckedHint == nil)
+    #expect(VerificationCounts(met: 3, unmet: 0, unresolved: 0, notChecked: 1).notCheckedHint == nil)
+}

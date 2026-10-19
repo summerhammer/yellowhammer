@@ -115,6 +115,7 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
         let comment = FeatureMergeClosureComment(
             landings: landings, carriedForward: carriedForwardCards, acceptedCards: computed.acceptedCards,
             unmetClauses: unmetClauses, notCheckedClauses: notCheckedClauses,
+            noCheckRepositories: try journal.repositoriesDeclaringNoCheck(cycleID: cycleID),
             triagedNightStart: triagedNight?.nightStart ?? context.night.nightStart,
             observingNightStart: context.night.nightStart
         ).body()

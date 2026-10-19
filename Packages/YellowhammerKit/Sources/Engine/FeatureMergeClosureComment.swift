@@ -30,6 +30,8 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
     /// The recorded Verification's not checked clauses, if the Feature was ever verified before
     /// the merge closed it.
     public let notCheckedClauses: [ClauseVerificationRecord]
+    /// The repositories that declared `check = none`: why a `not checked` build or test clause had no Check.
+    public let noCheckRepositories: [String]
     /// The Night whose morning the merge concluded, per the triaged-Night rule.
     public let triagedNightStart: NightStart
     /// The Night the merge was actually observed on.
@@ -38,15 +40,21 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
     public init(
         landings: [String: String], carriedForward: [CarriedForwardCard], acceptedCards: [String],
         unmetClauses: [ClauseVerificationRecord], notCheckedClauses: [ClauseVerificationRecord] = [],
-        triagedNightStart: NightStart, observingNightStart: NightStart
+        noCheckRepositories: [String] = [], triagedNightStart: NightStart, observingNightStart: NightStart
     ) {
         self.landings = landings
         self.carriedForward = carriedForward
         self.acceptedCards = acceptedCards
         self.unmetClauses = unmetClauses
         self.notCheckedClauses = notCheckedClauses
+        self.noCheckRepositories = noCheckRepositories
         self.triagedNightStart = triagedNightStart
         self.observingNightStart = observingNightStart
+    }
+
+    private var notCheckedHeading: String {
+        let reason = NoCheckAttribution.headingNote(repositories: noCheckRepositories)
+        return "## Not checked (checks that never ran" + (reason.map { "; \($0)" } ?? "") + ")"
     }
 
     /// The comment body: the closed-by-merge headline, the merged repositories, any still-unmet clauses
@@ -75,7 +83,7 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
 
         if !notCheckedClauses.isEmpty {
             lines.append("")
-            lines.append("## Not checked (checks that never ran)")
+            lines.append(notCheckedHeading)
             lines += notCheckedClauses.map { "- " + VerificationReport.line(for: $0) }
         }
 

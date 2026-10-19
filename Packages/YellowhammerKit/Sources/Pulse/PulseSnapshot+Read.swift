@@ -170,7 +170,7 @@ extension PulseSnapshot {
                 key: inFlight.feature.issueIDForDisplay ?? inFlight.feature.issueKey,
                 url: inFlight.feature.issueURL
             ),
-            verification: verification.map(counts(of:))
+            verification: try verification.map { try counts(of: $0, journal, cycleID: inFlight.cycleID) }
         )
     }
 

@@ -203,6 +203,7 @@ extension FeatureVerification {
         for card in cards where card.state != .shelved && !card.isRemovedFromBoard {
             names.insert(card.repository)
         }
+        let noCheckRepositories = Set(try act.journal.repositoriesDeclaringNoCheck(cycleID: context.cycleID))
         let touched = try names.sorted().map { name -> VerificationRepository in
             guard let repo = repositories.workingRepo(named: name) else {
                 throw VerificationFault(reason: "the Feature touched repository \"\(name)\", which is not configured")
@@ -216,7 +217,8 @@ extension FeatureVerification {
                     VerificationCheckResult(
                         command: $0.command, judgedCommit: $0.judgedCommit, exitStatus: $0.exitStatus
                     )
-                }
+                },
+                checkDeclaredNone: noCheckRepositories.contains(name)
             )
         }
         return InstructionBase(

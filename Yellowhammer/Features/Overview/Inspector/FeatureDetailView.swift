@@ -48,6 +48,11 @@ struct FeatureDetailView: View {
             if let verification = feature.verification {
                 Section("Verification") {
                     Text(verification.summary).accessibilityIdentifier("feature-detail-verification")
+                    if let hint = verification.notCheckedHint {
+                        Text(hint)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("feature-detail-not-checked-hint")
+                    }
                 }
             }
             if feature.lanes.isEmpty {

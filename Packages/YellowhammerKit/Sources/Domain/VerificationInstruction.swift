@@ -37,14 +37,18 @@ public struct VerificationRepository: Equatable, Sendable {
     public let featureBranch: String
     /// The Journal's Check results for this Feature and repository, in append order.
     public let checkResults: [VerificationCheckResult]
+    /// The Repo's configuration declares `check = none`: the Engine ran no Check here, and none is recorded.
+    public let checkDeclaredNone: Bool
 
     public init(
-        name: String, directory: String, featureBranch: String, checkResults: [VerificationCheckResult] = []
+        name: String, directory: String, featureBranch: String, checkResults: [VerificationCheckResult] = [],
+        checkDeclaredNone: Bool = false
     ) {
         self.name = name
         self.directory = directory
         self.featureBranch = featureBranch
         self.checkResults = checkResults
+        self.checkDeclaredNone = checkDeclaredNone
     }
 }
 
@@ -116,6 +120,12 @@ public struct VerificationInstruction: Equatable, Sendable {
         `what_was_checked`, so the Operator sees the gap in the Repo's Check command. Judge it when your \
         environment can check it; otherwise report `not checked`, naming that command and the missing \
         capability. A declared `check = none` supplies no Check result and covers no clause.
+
+        When a repository below is marked `Check: none`, its build or test clauses have no Check because \
+        the Repo's configuration chose none, not because your environment is broken. For such a clause you \
+        cannot check, `what_was_checked` must open with that configuration choice, in these words: \
+        "\(NoCheckAttribution.verifierLead(repository: "<name>"))" Name the command it would need next, \
+        and the capability your environment lacked last, as secondary detail.
         """
     }
 
@@ -134,6 +144,7 @@ public struct VerificationInstruction: Equatable, Sendable {
             lines.append("- \(repository.name)")
             lines.append("  Finished code: \(repository.directory)")
             lines.append("  Feature Branch: \(repository.featureBranch)")
+            if repository.checkDeclaredNone { lines.append("  Check: none (declared `check = none`)") }
             if repository.checkResults.isEmpty {
                 lines.append("  Recorded Check results: none")
             } else {

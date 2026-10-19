@@ -79,6 +79,12 @@ private struct FeatureHeader: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("feature-verification")
+                if let hint = verification.notCheckedHint {
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("feature-verification-not-checked-hint")
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

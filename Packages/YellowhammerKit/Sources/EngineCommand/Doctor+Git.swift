@@ -13,6 +13,7 @@ extension Doctor {
                 findings.append(await checkWorkTree(
                     path: repo.path, subject: "Project \(project.id.rawValue) repo \(repo.name)", project: project.id
                 ))
+                if let note = noCheckFinding(repo: repo, project: project.id) { findings.append(note) }
             }
             if let specSource = project.specSource {
                 findings.append(await checkWorkTree(

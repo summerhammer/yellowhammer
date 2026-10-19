@@ -46,7 +46,17 @@ extension PulseSnapshot {
 
     /// The verdict tally of the Cycle's recorded Verification; nil when none is recorded.
     private static func verificationCounts(_ journal: JournalStore, cycleID: Int64) throws -> VerificationCounts? {
-        try journal.featureVerification(cycleID: cycleID).map(counts(of:))
+        try journal.featureVerification(cycleID: cycleID).map { try counts(of: $0, journal, cycleID: cycleID) }
+    }
+
+    /// The tally, with the repositories that declared `check = none` when any clause was not checked.
+    static func counts(of record: FeatureVerificationRecord, _ journal: JournalStore, cycleID: Int64) throws
+        -> VerificationCounts {
+        var counts = counts(of: record)
+        if counts.notChecked > 0 {
+            counts.noCheckRepositories = try journal.repositoriesDeclaringNoCheck(cycleID: cycleID)
+        }
+        return counts
     }
 
     static func counts(of record: FeatureVerificationRecord) -> VerificationCounts {

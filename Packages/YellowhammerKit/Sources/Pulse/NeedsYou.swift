@@ -129,13 +129,24 @@ public struct VerificationCounts: Equatable, Sendable {
     public var unmet: Int
     public var unresolved: Int
     public var notChecked: Int
+    /// The repositories whose Attempts ran under a declared `check = none`: why a `not checked` clause had no Check.
+    public var noCheckRepositories: [String]
 
     public var total: Int { met + unmet + unresolved + notChecked }
 
-    public init(met: Int, unmet: Int, unresolved: Int, notChecked: Int = 0) {
+    /// An actionable line when `not checked` clauses exist and a repository declared `check = none`.
+    public var notCheckedHint: String? {
+        guard notChecked > 0, let hint = NoCheckAttribution.hint(repositories: noCheckRepositories) else {
+            return nil
+        }
+        return "\(notChecked) not checked: \(hint)"
+    }
+
+    public init(met: Int, unmet: Int, unresolved: Int, notChecked: Int = 0, noCheckRepositories: [String] = []) {
         self.met = met
         self.unmet = unmet
         self.unresolved = unresolved
         self.notChecked = notChecked
+        self.noCheckRepositories = noCheckRepositories
     }
 }

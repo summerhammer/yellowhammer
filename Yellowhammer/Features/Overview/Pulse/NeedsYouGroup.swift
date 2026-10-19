@@ -90,7 +90,8 @@ private struct ReturnedFeatureRow: View {
     private var line: String {
         let name = returned.issueIDForDisplay ?? returned.id
         guard let verification = returned.verification else { return "Feature \(name) returned" }
-        return "Feature \(name) returned — \(verification.summary)"
+        let hint = verification.notCheckedHint.map { ". \($0)" } ?? ""
+        return "Feature \(name) returned — \(verification.summary)\(hint)"
     }
 }
 

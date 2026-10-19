@@ -55,15 +55,19 @@ public struct FeatureReturnComment: Equatable, Sendable {
     /// Every pull request recorded for this Feature, keyed by repository.
     public let pullRequests: [String: PullRequestRecord]
     public let issues: [String: IssueDisplay]
+    /// The repositories that declared `check = none`: why a `not checked` build or test clause had no Check.
+    public let noCheckRepositories: [String]
 
     public init(
         clauses: [ClauseVerificationRecord],
         pullRequests: [String: PullRequestRecord],
-        issues: [String: IssueDisplay] = [:]
+        issues: [String: IssueDisplay] = [:],
+        noCheckRepositories: [String] = []
     ) {
         self.clauses = clauses
         self.pullRequests = pullRequests
         self.issues = issues
+        self.noCheckRepositories = noCheckRepositories
     }
 
     public init(
@@ -78,14 +82,18 @@ public struct FeatureReturnComment: Equatable, Sendable {
         record: FeatureVerificationRecord,
         pullRequests: [String: PullRequestRecord],
         feature: FeatureRecord,
-        cards: [CardRecord] = []
+        cards: [CardRecord] = [],
+        noCheckRepositories: [String] = []
     ) {
         var issues: [String: IssueDisplay] = [:]
         issues[feature.issueID] = IssueDisplay(feature: feature)
         for card in cards {
             issues[card.issueID] = IssueDisplay(card: card)
         }
-        self.init(clauses: record.clauses, pullRequests: pullRequests, issues: issues)
+        self.init(
+            clauses: record.clauses, pullRequests: pullRequests, issues: issues,
+            noCheckRepositories: noCheckRepositories
+        )
     }
 
     private struct UniqueClauseKey: Hashable {
@@ -206,8 +214,10 @@ public struct FeatureReturnComment: Equatable, Sendable {
 
         if !notChecked.isEmpty {
             lines.append("")
+            let reason = NoCheckAttribution.headingNote(repositories: noCheckRepositories)
             lines.append(
-                "## Not checked clauses (checks that never ran, not unfinished work)"
+                "## Not checked clauses (checks that never ran, not unfinished work"
+                    + (reason.map { "; \($0)" } ?? "") + ")"
             )
             lines += notChecked.map { "- " + line(for: $0) }
         }
