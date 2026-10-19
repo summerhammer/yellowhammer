@@ -73,7 +73,7 @@ extension Schedule {
 }
 
 extension TimeOfDay {
-    var minutesSinceMidnight: Int { hour * 60 + minute }
+    public var minutesSinceMidnight: Int { hour * 60 + minute }
 }
 
 extension Calendar {

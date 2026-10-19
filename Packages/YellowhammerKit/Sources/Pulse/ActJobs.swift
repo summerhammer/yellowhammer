@@ -7,12 +7,21 @@ import Domain
 public struct ActJobs: Equatable, Sendable {
     /// Labels of jobs with a running process.
     private let aliveLabels: Set<String>
+    /// Labels of every job `launchctl list` printed, alive or not. Nil when `launchctl` was not read.
+    private let loadedLabels: Set<String>?
 
-    /// No job is alive.
+    /// No job is alive, and nothing was read about which are loaded.
     public static let none = ActJobs(aliveLabels: [])
 
-    public init(aliveLabels: Set<String>) {
+    public init(aliveLabels: Set<String>, loadedLabels: Set<String>? = nil) {
         self.aliveLabels = aliveLabels
+        self.loadedLabels = loadedLabels
+    }
+
+    /// Whether all three of this Project's Act jobs are loaded in `launchd`; nil when `launchctl` was not read.
+    public func areLoaded(projectID: ProjectID) -> Bool? {
+        guard let loadedLabels else { return nil }
+        return Act.allCases.allSatisfy { loadedLabels.contains($0.launchdLabel(projectID: projectID)) }
     }
 
     /// True when any of this Project's three Act jobs is alive. Labels match exactly, so another
@@ -26,11 +35,13 @@ public struct ActJobs: Equatable, Sendable {
     /// lines are ignored.
     public static func parse(launchctlList output: String) -> ActJobs {
         var alive: Set<String> = []
+        var loaded: Set<String> = []
         for line in output.split(whereSeparator: \.isNewline) {
             let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
-            guard columns.count == 3, let pid = Int(columns[0]), pid > 0 else { continue }
-            alive.insert(String(columns[2]))
+            guard columns.count == 3 else { continue }
+            if columns[0] == "-" || Int(columns[0]) != nil { loaded.insert(String(columns[2])) }
+            if let pid = Int(columns[0]), pid > 0 { alive.insert(String(columns[2])) }
         }
-        return ActJobs(aliveLabels: alive)
+        return ActJobs(aliveLabels: alive, loadedLabels: loaded)
     }
 }

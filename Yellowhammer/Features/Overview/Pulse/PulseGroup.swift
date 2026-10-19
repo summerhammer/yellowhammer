@@ -71,8 +71,9 @@ enum PulseGroup: String, CaseIterable, Identifiable {
         return [feature.issueIDForDisplay ?? feature.id, rollUp].joined(separator: " · ")
     }
 
-    static func summary(of night: NightPulse?) -> String {
-        night?.state.rawValue ?? "No Night yet"
+    static func summary(of night: NightPulse?, scheduled: ScheduledNight? = nil) -> String {
+        if let night { return night.state.rawValue }
+        return scheduled?.startLine ?? "No Night yet"
     }
 
     static func summary(of health: [HealthFlag]?) -> String {
@@ -93,6 +94,26 @@ extension Now {
     var nextActLine: String {
         guard let nextAct else { return "next Act unknown" }
         return "next Act \(nextAct.act.rawValue) \(nextAct.at.formatted(date: .omitted, time: .shortened))"
+    }
+}
+
+extension ScheduledNight {
+    private static func time(_ date: Date) -> String { date.formatted(date: .omitted, time: .shortened) }
+
+    /// `starts 00:30`, or `window open` once the window has opened with no Night recorded.
+    var startLine: String { isOpen ? "window open" : "starts \(Self.time(startsAt))" }
+
+    /// `Upcoming Night starts 00:30 (00:30 – 06:30)`.
+    var detailLine: String {
+        let window = "\(Self.time(startsAt)) – \(Self.time(endsAt))"
+        return isOpen
+            ? "Night window is open until \(Self.time(endsAt)); no Night recorded yet"
+            : "Upcoming Night starts \(Self.time(startsAt)) (\(window))"
+    }
+
+    /// Set only when `launchctl` was read and the Project's LaunchAgents are not all loaded.
+    var schedulerNotice: String? {
+        agentsLoaded == false ? "LaunchAgents not installed: run yh setup --install-jobs" : nil
     }
 }
 

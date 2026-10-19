@@ -67,7 +67,10 @@ private struct PulseSummaryFigure: View {
             let rollUp = feature.rollupState?.rawValue ?? "rollup state unknown"
             return ("\(progress.done)/\(progress.total)", "Cards · \(rollUp)")
         case .night:
-            guard let night = pulse.night else { return ("—", "no Night yet") }
+            guard let night = pulse.night else {
+                guard let scheduled = pulse.scheduledNight else { return ("—", "no Night yet") }
+                return ("—", scheduled.startLine)
+            }
             return (night.state.rawValue, "started \(night.startedAt.formatted(date: .omitted, time: .shortened))")
         case .health:
             guard let health = pulse.health else { return ("—", "yh doctor not read") }

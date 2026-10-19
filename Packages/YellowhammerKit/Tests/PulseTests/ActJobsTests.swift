@@ -32,6 +32,20 @@ func matchesLabelsExactly() throws {
 
 @Test("Empty output and header-only output have no job alive")
 func emptyOutput() {
-    #expect(ActJobs.parse(launchctlList: "") == .none)
-    #expect(ActJobs.parse(launchctlList: "PID\tStatus\tLabel\n") == .none)
+    #expect(ActJobs.parse(launchctlList: "") == ActJobs(aliveLabels: [], loadedLabels: []))
+    #expect(ActJobs.parse(launchctlList: "PID\tStatus\tLabel\n") == ActJobs(aliveLabels: [], loadedLabels: []))
+}
+
+@Test("A Project's jobs are loaded only when all three Acts are listed, alive or not")
+func loadedJobs() throws {
+    let id = try #require(ProjectID(rawValue: "acme"))
+    let listing = """
+    PID\tStatus\tLabel
+    -\t0\tdev.yellowhammer.acme.author
+    -\t0\tdev.yellowhammer.acme.build
+    123\t0\tdev.yellowhammer.acme.land
+    """
+    #expect(ActJobs.parse(launchctlList: listing).areLoaded(projectID: id) == true)
+    #expect(ActJobs.parse(launchctlList: "PID\tStatus\tLabel\n").areLoaded(projectID: id) == false)
+    #expect(ActJobs.none.areLoaded(projectID: id) == nil)
 }

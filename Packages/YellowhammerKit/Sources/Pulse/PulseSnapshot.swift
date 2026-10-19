@@ -14,14 +14,19 @@ public struct PulseSnapshot: Equatable, Sendable {
     /// Journal failures plus `yh doctor` flags. Nil means doctor was not read and no Journal
     /// failures were found; empty means doctor ran and raised none.
     public var health: [HealthFlag]?
+    /// The Night window the Project's `[schedule]` puts next, or open now. Config's fact, never the Journal's:
+    /// nil when no schedule was read for this Pulse.
+    public var scheduledNight: ScheduledNight?
 
     public init(
         needsYou: NeedsYou,
         now: Now,
         feature: FeatureInFlight?,
         night: NightPulse?,
-        health: [HealthFlag]?
+        health: [HealthFlag]?,
+        scheduledNight: ScheduledNight? = nil
     ) {
+        self.scheduledNight = scheduledNight
         self.needsYou = needsYou
         self.now = now
         self.feature = feature
@@ -64,8 +69,8 @@ public struct Now: Equatable, Sendable {
     public var status: ProjectStatus
     /// The Act held by the Journal's current unexpired lease, with its best available start time.
     public var runningAct: RunningAct?
-    /// Nil from a Journal read: the next Act needs the Config schedule and `launchd`, neither of which the
-    /// Journal holds.
+    /// Nil from a Journal read: the next Act comes from the Config schedule, which the Journal does not hold.
+    /// `LandingSnapshot.read` fills it.
     public var nextAct: ScheduledAct?
     public var attempts: [RunningAttempt]
 

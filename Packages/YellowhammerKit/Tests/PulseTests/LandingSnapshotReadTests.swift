@@ -125,7 +125,7 @@ func landingMissingJournal() throws {
     let landing = fixture.read(configuration, asOf: epoch)
 
     let alpha = try #require(landing.projects.first)
-    #expect(alpha.pulse == PulseSnapshot.empty)
+    #expect(alpha.pulse.withoutSchedule == PulseSnapshot.empty)
     #expect(alpha.journalFailure == nil)
     #expect(alpha.status == .idle)
     #expect(!FileManager.default.fileExists(atPath: try fixture.journalURL("alpha").path))
@@ -148,9 +148,9 @@ func landingUnreadableJournal() throws {
     let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
     let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
     #expect(alpha.journalFailure != nil)
-    #expect(alpha.pulse == PulseSnapshot.empty)
+    #expect(alpha.pulse.withoutSchedule == PulseSnapshot.empty)
     #expect(beta.journalFailure == nil)
-    #expect(beta.pulse == PulseSnapshot.empty)
+    #expect(beta.pulse.withoutSchedule == PulseSnapshot.empty)
 }
 
 @Test("A seeded Journal reads into the Project's Pulse, and asOf is carried through")
@@ -178,12 +178,12 @@ func landingSeededJournal() throws {
     #expect(expected.now.status == .working)
     #expect(expected.needsYou.cards.map(\.id) == ["ALPHA-1"])
     #expect(expected.feature?.id == "ALPHA-F")
-    #expect(alpha.pulse == expected)
+    #expect(alpha.pulse.withoutSchedule == expected)
     #expect(alpha.journalFailure == nil)
     #expect(alpha.status == .working)
     #expect(landing.asOf == asOf)
     let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
-    #expect(beta.pulse == PulseSnapshot.empty)
+    #expect(beta.pulse.withoutSchedule == PulseSnapshot.empty)
 }
 
 /// Alpha: a Feature, a Blocked Card, and a Card with a running Attempt. No Act Lease is left held.
@@ -235,8 +235,8 @@ func landingBlendsNothing() throws {
 
     let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
     let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
-    #expect(alpha.pulse == expectedAlpha)
-    #expect(beta.pulse == expectedBeta)
+    #expect(alpha.pulse.withoutSchedule == expectedAlpha)
+    #expect(beta.pulse.withoutSchedule == expectedBeta)
     #expect(alpha.repos == ["backend", "web"])
     #expect(beta.repos == ["api"])
     #expect(alpha.status == .idle)
@@ -533,4 +533,28 @@ func landingFailureMark() throws {
         nightStart: nextNight, mode: .real, act: .author, runID: later, now: epoch.addingTimeInterval(90_000)
     )
     #expect(fixture.read(configuration, asOf: epoch.addingTimeInterval(90_001)).projects.first?.failureMark == nil)
+}
+
+extension PulseSnapshot {
+    /// The Journal's part of a landing Pulse: what `LandingSnapshot.read` adds from Config is dropped.
+    fileprivate var withoutSchedule: PulseSnapshot {
+        var copy = self
+        copy.now.nextAct = nil
+        copy.scheduledNight = nil
+        return copy
+    }
+}
+
+@Test("A Project's Pulse carries its next scheduled Act and Night from its [schedule]")
+func landingCarriesSchedule() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    let configuration = try fixture.load()
+
+    let landing = fixture.read(configuration, actJobs: .none, asOf: epoch)
+
+    let pulse = try #require(landing.project(ProjectID(rawValue: "alpha"))).pulse
+    let nextAct = try #require(pulse.now.nextAct)
+    #expect(nextAct.at > epoch)
+    #expect(pulse.scheduledNight?.agentsLoaded == nil)
 }

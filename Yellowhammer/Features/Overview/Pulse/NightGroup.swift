@@ -14,10 +14,12 @@ import SwiftUI
 /// event (spec: morning-report/disclose-a-failure).
 struct NightGroup: View {
     let night: NightPulse?
+    /// The window Config schedules; what an absent Night says instead of a bare "No Night yet".
+    var scheduled: ScheduledNight?
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        PulseCard(group: .night, summary: PulseGroup.summary(of: night)) {
+        PulseCard(group: .night, summary: PulseGroup.summary(of: night, scheduled: scheduled)) {
             if let night {
                 if let link = night.nightCard {
                     Button { openDestination(.nightCard(link.url)) } label: {
@@ -76,6 +78,17 @@ struct NightGroup: View {
                 Label("No Night yet", systemImage: "moon.zzz")
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("night-absence")
+            }
+            if let scheduled {
+                if night?.state != .running {
+                    Label(scheduled.detailLine, systemImage: "clock")
+                        .accessibilityIdentifier("night-scheduled")
+                }
+                if let notice = scheduled.schedulerNotice {
+                    Label(notice, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("night-scheduler-notice")
+                }
             }
         }
         .accessibilityIdentifier("pulse-night")

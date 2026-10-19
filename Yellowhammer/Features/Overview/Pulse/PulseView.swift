@@ -50,7 +50,7 @@ struct PulseView: View {
         case .needsYou: NeedsYouGroup(needsYou: pulse.needsYou, inspected: inspected)
         case .now: NowGroup(now: pulse.now, asOf: asOf, inspected: inspected)
         case .feature: FeatureGroup(feature: pulse.feature, inspected: inspected)
-        case .night: NightGroup(night: pulse.night)
+        case .night: NightGroup(night: pulse.night, scheduled: pulse.scheduledNight)
         case .health:
             HealthGroup(
                 health: pulse.health, deliverNow: deliverNow, canDeliverNow: canDeliverNow,
