@@ -1,6 +1,6 @@
 ---
-name: investigate-night-readiness
-description: Audit whether the installed Yellowhammer app and every configured Project (or one named Project) are ready for an unattended Night, and report a READY / WARNING / BLOCKED verdict with exact remediation commands. Use when the Operator asks whether tonight's Night will run, whether Yellowhammer is healthy or set up right, before leaving the Mac for the night, after an upgrade or a re-install, or why a Night might not start — even if they never say "audit" or "readiness". Strictly read-only. For what already happened overnight, use investigate-night-outcome instead.
+name: yh-investigate-night-readiness
+description: Audit whether the installed Yellowhammer app and every configured Project (or one named Project) are ready for an unattended Night, and report a READY / WARNING / BLOCKED verdict with exact remediation commands. Use when the Operator asks whether tonight's Night will run, whether Yellowhammer is healthy or set up right, before leaving the Mac for the night, after an upgrade or a re-install, or why a Night might not start — even if they never say "audit" or "readiness". Strictly read-only. For what already happened overnight, use yh-investigate-night-outcome instead.
 ---
 
 # Investigate Night readiness
