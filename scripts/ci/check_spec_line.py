@@ -18,6 +18,7 @@ their traceability is the Feature's Definition of Done, whose clauses cite the s
 and the body quotes each unmet clause's citation.
 """
 
+import argparse
 import os
 import re
 import sys
@@ -133,16 +134,34 @@ def check_spec_line(body):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Check a pull request body for spec traceability.",
+        epilog=(
+            "Flags override PR_TITLE, PR_HEAD_REF and PR_BODY, including empty values. "
+            "Without --body or a non-empty PR_BODY, read piped stdin. Examples:\n"
+            "  PR_TITLE='fix: example' PR_BODY='Spec-Exempt: CI maintenance' python3 %(prog)s\n"
+            "  printf 'Spec-Exempt: CI maintenance\\n' | python3 %(prog)s --title 'fix: example'"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--title", help="PR title (defaults to PR_TITLE)")
+    parser.add_argument("--head-ref", help="PR head branch (defaults to PR_HEAD_REF)")
+    parser.add_argument("--body", help="PR body (defaults to PR_BODY, then piped stdin)")
+    args = parser.parse_args()
+
     reason = exemption_reason(
-        os.environ.get("PR_TITLE", "").strip(), os.environ.get("PR_HEAD_REF", "").strip()
+        (args.title if args.title is not None else os.environ.get("PR_TITLE", "")).strip(),
+        (args.head_ref if args.head_ref is not None else os.environ.get("PR_HEAD_REF", "")).strip(),
     )
     if reason:
         print(f"✓ Spec traceability not required: {reason}")
         return 0
 
-    # Read PR body from environment or stdin
-    body = os.environ.get("PR_BODY", "").strip()
-    if not body:
+    # An explicitly supplied empty --body must not fall back to another source.
+    body = (args.body if args.body is not None else os.environ.get("PR_BODY", "")).strip()
+    if args.body is None and not body:
+        if sys.stdin.isatty():
+            parser.error("missing PR body: pass --body, set PR_BODY, or pipe the body to stdin")
         body = sys.stdin.read().strip()
 
     is_valid, matched_lines, error_messages = check_spec_line(body)

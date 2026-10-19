@@ -4,6 +4,8 @@ Unit tests for check_spec_line.py
 """
 
 import importlib.util
+import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -227,6 +229,108 @@ class TestExemptionReason(unittest.TestCase):
 
     def test_yh_alone_is_not_exempt(self):
         self.assertIsNone(self.reason("feat: x", "yh"))
+
+
+class TestCommandLine(unittest.TestCase):
+    """Exercise input selection and non-blocking usage through the executable."""
+
+    valid_body = "Spec-Exempt: CI maintenance"
+
+    def run_checker(self, *args, env=None, **kwargs):
+        child_env = os.environ.copy()
+        for name in ("PR_TITLE", "PR_HEAD_REF", "PR_BODY"):
+            child_env.pop(name, None)
+        child_env.update(env or {})
+        if "stdin" not in kwargs:
+            kwargs.setdefault("input", "")
+        return subprocess.run(
+            [sys.executable, str(script_path), *args],
+            env=child_env, capture_output=True, text=True, timeout=5, **kwargs,
+        )
+
+    def run_with_open_pipe(self, *args, **kwargs):
+        # Keep the writer open: a premature stdin.read() would wait indefinitely.
+        read_fd, write_fd = os.pipe()
+        try:
+            return self.run_checker(*args, stdin=read_fd, **kwargs)
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+
+    def test_help_does_not_wait_for_stdin(self):
+        for flag in ("--help", "-h"):
+            with self.subTest(flag=flag):
+                result = self.run_with_open_pipe(flag)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for text in ("--title", "--head-ref", "--body", "PR_BODY", "piped stdin"):
+                    self.assertIn(text, result.stdout)
+
+    @unittest.skipUnless(hasattr(os, "openpty"), "requires a pseudo-terminal")
+    def test_missing_body_on_terminal_fails_without_reading(self):
+        master_fd, slave_fd = os.openpty()
+        try:
+            result = self.run_checker("--title", "fix: example", stdin=slave_fd)
+        finally:
+            os.close(master_fd)
+            os.close(slave_fd)
+        self.assertNotEqual(result.returncode, 0)
+        for text in ("--body", "PR_BODY", "pipe"):
+            self.assertIn(text, result.stderr)
+
+    def test_cli_and_environment_inputs_are_equivalent(self):
+        cli = self.run_checker("--title", "fix: example", "--head-ref", "feature", "--body", self.valid_body)
+        env = self.run_checker(env={"PR_TITLE": "fix: example", "PR_HEAD_REF": "feature", "PR_BODY": self.valid_body})
+        self.assertEqual(cli.returncode, 0, cli.stderr)
+        self.assertEqual((cli.returncode, cli.stdout, cli.stderr), (env.returncode, env.stdout, env.stderr))
+
+    def test_cli_body_overrides_environment(self):
+        result = self.run_checker("--body", self.valid_body, env={"PR_BODY": "invalid"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_empty_cli_body_does_not_read_stdin_or_use_environment(self):
+        result = self.run_with_open_pipe("--body", "", env={"PR_BODY": self.valid_body})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("No valid spec traceability line", result.stderr)
+
+    def test_cli_title_overrides_environment_including_empty(self):
+        for title in ("fix: example", ""):
+            with self.subTest(title=title):
+                result = self.run_checker("--title", title, env={"PR_TITLE": "docs: exempt"})
+                self.assertEqual(result.returncode, 1)
+
+    def test_cli_head_ref_overrides_environment_including_empty(self):
+        for branch in ("feature", ""):
+            with self.subTest(branch=branch):
+                result = self.run_checker("--head-ref", branch, env={"PR_HEAD_REF": "release-please--main"})
+                self.assertEqual(result.returncode, 1)
+
+    def test_exemptions_do_not_read_stdin(self):
+        for env in ({"PR_TITLE": "docs: exempt"}, {"PR_HEAD_REF": "release-please--main"}, {"PR_HEAD_REF": "feature/yh-example"}):
+            with self.subTest(env=env):
+                result = self.run_with_open_pipe(env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_cli_can_select_title_and_branch_exemptions(self):
+        for args in (("--title", "docs: exempt"), ("--head-ref", "feature/yh-example")):
+            with self.subTest(args=args):
+                result = self.run_with_open_pipe(*args, env={"PR_TITLE": "fix: example", "PR_HEAD_REF": "feature"})
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_unknown_flag_fails_without_reading_stdin(self):
+        result = self.run_with_open_pipe("--unknown")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unrecognized arguments", result.stderr)
+
+    def test_closed_empty_stdin_fails(self):
+        result = self.run_checker()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("No valid spec traceability line", result.stderr)
+
+    def test_piped_body_is_valid_with_unset_or_empty_environment_body(self):
+        for env in ({}, {"PR_BODY": ""}):
+            with self.subTest(env=env):
+                result = self.run_checker(input=self.valid_body, env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":
