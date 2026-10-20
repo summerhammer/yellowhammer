@@ -241,6 +241,17 @@ extension JournalStore {
         }
     }
 
+    /// The board copy a Delta Read last observed for `issueID`, if it is still remembered (observations
+    /// older than the overlap are forgotten unless a build Act has yet to reconcile them).
+    public func observedIssue(_ issueID: String) throws -> BoardObject? {
+        try read { db in
+            guard let payload = try String.fetchOne(
+                db, sql: "SELECT payload FROM board_issue_seen WHERE issue_id = ?", arguments: [issueID]
+            ) else { return nil }
+            return try? JSONDecoder().decode(BoardObject.self, from: Data(payload.utf8))
+        }
+    }
+
     /// Which of `commentIDs` a Delta Read already recorded.
     public func observedCommentIDs(_ commentIDs: [String]) throws -> Set<String> {
         guard !commentIDs.isEmpty else { return [] }

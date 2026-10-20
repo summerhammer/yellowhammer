@@ -15,6 +15,9 @@ public struct OutboxDelivery: Equatable, Sendable {
         case alreadyApplied(BoardObjectID)
         /// Never sent: the description could not be fenced.
         case aborted(reason: String)
+        /// Never sent: the board no longer held the condition the write was decided against (a human moved
+        /// the issue), so its cached value is not applied. The Delta Read recomputes from the board.
+        case superseded(reason: String)
         /// Sent and refused for good, or given up after repeated transient failures. Recorded for the Night Summary.
         case failed(reason: String)
         /// Still pending: re-attempted on a later delivery.

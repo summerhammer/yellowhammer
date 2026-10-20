@@ -46,6 +46,20 @@ public struct ParsedClause: Equatable, Sendable {
     }
 }
 
+/// Input inside a Managed Block that a human edited into something Yellowhammer cannot read as the field it
+/// sits in. It is retained on the board exactly as written and never imported: importing what could be read
+/// of it would drop the rest (spec: board-projection / maintain-the-managed-block, field ownership).
+public struct InvalidBlockInput: Equatable, Sendable {
+    /// The supported input field: `scope` or `definition of done`.
+    public var field: String
+    public var reason: String
+
+    public init(field: String, reason: String) {
+        self.field = field
+        self.reason = reason
+    }
+}
+
 /// Everything ``CardManagedBlockParser`` recovers from a rendered Managed Block's text.
 public struct ParsedCardBlock: Equatable, Sendable {
     public var briefProse: String?
@@ -54,16 +68,26 @@ public struct ParsedCardBlock: Equatable, Sendable {
     /// The board's copy of the Card's declared scope: nil when no `**Scope:**` line was found, and
     /// `[]` when it read `_none declared_`.
     public var scope: [String]?
+    /// The supported input fields whose text could not be read; see ``InvalidBlockInput``.
+    public var invalid: [InvalidBlockInput]
+    /// Whether the block has a `### Definition of Done` section at all. Without one `clauses` is empty
+    /// because nothing was read, which is not the same as the Operator emptying the list.
+    public var hasDefinitionOfDoneSection: Bool
 
     public init(
         briefProse: String?, transcriptions: [ParsedTranscription], clauses: [ParsedClause],
-        scope: [String]? = nil
+        scope: [String]? = nil, invalid: [InvalidBlockInput] = [], hasDefinitionOfDoneSection: Bool = true
     ) {
+        self.hasDefinitionOfDoneSection = hasDefinitionOfDoneSection
         self.briefProse = briefProse
         self.transcriptions = transcriptions
         self.clauses = clauses
         self.scope = scope
+        self.invalid = invalid
     }
+
+    /// The field's name, when ``invalid`` names it.
+    public func isInvalid(_ field: String) -> Bool { invalid.contains { $0.field == field } }
 }
 
 /// Parses the text ``CardManagedBlock/render()`` produces, round-tripping the Architectural Brief's
@@ -82,7 +106,28 @@ public enum CardManagedBlockParser {
         let transcriptions = parseTranscriptions(lines: structuralLines)
         let clauses = parseClauses(lines: lines)
         let scope = parseScope(lines: structuralLines)
-        return ParsedCardBlock(briefProse: briefProse, transcriptions: transcriptions, clauses: clauses, scope: scope)
+        var invalid: [InvalidBlockInput] = []
+        if let scope, scope.contains(where: \.isEmpty) {
+            invalid.append(InvalidBlockInput(
+                field: "scope", reason: "the `**Scope:**` line has an empty path; list paths separated by commas"
+            ))
+        }
+        let unreadable = unreadableClauseLines(lines: lines)
+        if !unreadable.isEmpty {
+            invalid.append(InvalidBlockInput(
+                field: "definition of done",
+                reason: "\(unreadable.count) line(s) under `### Definition of Done` are not clause lines "
+                    + "(`- [ ] text (citation)`): \(unreadable.map { "`\($0)`" }.joined(separator: ", "))"
+            ))
+        }
+        let masked = maskedLineIndices(lines)
+        let hasSection = lines.indices.contains {
+            !masked.contains($0) && lines[$0].trimmingCharacters(in: .whitespaces) == dodHeading
+        }
+        return ParsedCardBlock(
+            briefProse: briefProse, transcriptions: transcriptions, clauses: clauses, scope: scope, invalid: invalid,
+            hasDefinitionOfDoneSection: hasSection
+        )
     }
 
     // MARK: - Scope
@@ -249,6 +294,26 @@ public enum CardManagedBlockParser {
             index += 1
         }
         return results
+    }
+
+    /// The lines under the Definition of Done heading that are neither a clause nor blank nor the empty
+    /// marker: text a human typed there that ``parseClauses(lines:)`` would silently drop, and the
+    /// reconciliation would then read as every clause deleted.
+    private static func unreadableClauseLines(lines: [String]) -> [String] {
+        let masked = maskedLineIndices(lines)
+        guard let headingIndex = lines.indices.first(where: {
+            !masked.contains($0) && lines[$0].trimmingCharacters(in: .whitespaces) == dodHeading
+        }) else {
+            return []
+        }
+        var unreadable: [String] = []
+        for index in lines.indices.dropFirst(headingIndex + 1) where !masked.contains(index) {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("### ") { break }
+            if trimmed.isEmpty || trimmed == noClausesLine { continue }
+            if parseClauseLine(trimmed) == nil { unreadable.append(trimmed) }
+        }
+        return unreadable
     }
 
     /// Parses one `- [ ] <!-- yh:clause:<cid> --> text (citation)` line. The `<!-- yh:clause:... -->`

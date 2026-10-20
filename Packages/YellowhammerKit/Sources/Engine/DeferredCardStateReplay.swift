@@ -61,7 +61,7 @@ enum DeferredCardStateReplay {
         let posted = outcomes.filter {
             switch $0 {
             case .posted: true
-            case .unchanged, .deferred, .failed: false
+            case .unchanged, .deferred, .failed, .superseded: false
             }
         }.count
         try context.journal.append(

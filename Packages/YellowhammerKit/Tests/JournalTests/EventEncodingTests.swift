@@ -36,7 +36,8 @@ func eventTypeRawValues() {
         "AuthoringPredecessorIndeterminate", "ObservedReleaseRecorded", "AuthoringReleaseGateHeld",
         "PredecessorWalkSkippedReleasedFeature",
         "PredecessorAncestryObserved", "MainlineConflictDetected",
-        "ManagedBlockDelimiterBroken", "ManagedBlockOverBudget", "NotificationDeliveryFailed", "RateBudgetExhausted",
+        "ManagedBlockDelimiterBroken", "ManagedBlockOverBudget", "BoardWriteSuperseded",
+        "ManagedBlockInputImported", "ManagedBlockInputInvalid", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
         "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "NightCardCompletionDeferred",
         "BoardWriteFailed", "OutboxGroupRolledBack",
@@ -90,6 +91,27 @@ func verifiedFeatureMergeObservedRoundTrips() throws {
     let records = try journal.events(ofType: .verifiedFeatureMergeObserved)
 
     #expect(records.map(\.event) == [full, empty])
+}
+
+@Test("The board-write and Managed Block input events round-trip, with and without their optional fields")
+func inputPreservationEventsRoundTrip() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let events: [JournalEvent] = [
+        .boardWriteSuperseded(
+            clientID: UUID(), operation: "issueUpdate", issueID: "issue-1", expectedState: "s-1", observedState: "s-2"
+        ),
+        .boardWriteSuperseded(
+            clientID: UUID(), operation: "issueUpdate", issueID: nil, expectedState: nil, observedState: nil
+        ),
+        .managedBlockInputImported(issueID: "issue-1", fields: "scope, brief"),
+        .managedBlockInputInvalid(issueID: "issue-1", reason: "definition of done: an unreadable line")
+    ]
+    for event in events {
+        _ = try journal.append(event, act: .build, runID: RunID(), now: epoch)
+    }
+
+    #expect(try journal.events().map(\.event) == events)
 }
 
 @Test("actStarted event round-trips")

@@ -2,9 +2,10 @@ import Domain
 import Foundation
 import GRDB
 
-/// The delivery state of an Outbox entry: pending, applied, failed, or aborted (never sent).
+/// The delivery state of an Outbox entry: pending, applied, failed, aborted (never sent), or superseded
+/// (never sent because the condition that justified it no longer held on the board).
 public enum OutboxEntryState: String, Sendable {
-    case pending, applied, failed, aborted
+    case pending, applied, failed, aborted, superseded
 }
 
 /// One accepted board write as the Journal holds it.
@@ -23,6 +24,11 @@ public struct OutboxEntry: Equatable, Sendable {
     public let sentAt: Date?
     public let lastError: String?
     public let result: String?
+    /// The board workflow state id Yellowhammer last knew for the issue when it decided this write: the
+    /// condition re-checked immediately before delivery. Nil for a write that carries no condition.
+    public let expectedStateID: String?
+    /// The issue's `updated_at` revision when that state was observed, kept as evidence; never a trigger.
+    public let expectedRevision: Date?
 }
 
 /// What the Engine asks the Journal to accept.
@@ -33,6 +39,9 @@ public struct OutboxDraft: Equatable, Sendable {
     public var payload: String
     public var cardID: Int64?
     public var groupID: String?
+    /// See ``OutboxEntry/expectedStateID``.
+    public var expectedStateID: String?
+    public var expectedRevision: Date?
 
     public init(
         clientID: UUID,
@@ -40,7 +49,9 @@ public struct OutboxDraft: Equatable, Sendable {
         operation: String,
         payload: String,
         cardID: Int64? = nil,
-        groupID: String? = nil
+        groupID: String? = nil,
+        expectedStateID: String? = nil,
+        expectedRevision: Date? = nil
     ) {
         self.clientID = clientID
         self.issueID = issueID
@@ -48,6 +59,8 @@ public struct OutboxDraft: Equatable, Sendable {
         self.payload = payload
         self.cardID = cardID
         self.groupID = groupID
+        self.expectedStateID = expectedStateID
+        self.expectedRevision = expectedRevision
     }
 }
 
@@ -80,8 +93,8 @@ extension JournalStore {
                     sql: """
                     INSERT OR IGNORE INTO outbox
                     (client_id, issue_id, operation, payload, run_id, created_at, state, attempt_count,
-                     card_id, group_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     card_id, group_id, expected_state_id, expected_revision)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     arguments: [
                         draft.clientID.uuidString.lowercased(),
@@ -93,7 +106,9 @@ extension JournalStore {
                         OutboxEntryState.pending.rawValue,
                         0,
                         draft.cardID,
-                        draft.groupID
+                        draft.groupID,
+                        draft.expectedStateID,
+                        draft.expectedRevision.map { JournalStore.timestamp(JournalStore.stored($0)) }
                     ]
                 )
 
@@ -295,38 +310,6 @@ extension JournalStore {
         }
     }
 
-    /// Upsert into the managed_block table (issue_id PK, last_posted_hash, posted_at).
-    public func recordManagedBlockPosted(
-        issueID: String,
-        hash: String,
-        now: Date = Date()
-    ) throws {
-        let now = JournalStore.stored(now)
-        try write { db in
-            try db.execute(
-                sql: """
-                INSERT OR REPLACE INTO managed_block (issue_id, last_posted_hash, posted_at)
-                VALUES (?, ?, ?)
-                """,
-                arguments: [issueID, hash, JournalStore.timestamp(now)]
-            )
-        }
-    }
-
-    /// Fetch the last posted hash for a managed block by issue_id.
-    public func managedBlockLastPostedHash(issueID: String) throws -> String? {
-        try read { db in
-            guard let row = try Row.fetchOne(
-                db,
-                sql: "SELECT last_posted_hash FROM managed_block WHERE issue_id = ?",
-                arguments: [issueID]
-            ) else {
-                return nil
-            }
-            return row["last_posted_hash"]
-        }
-    }
-
     // MARK: - Private Helpers
 
     private static func fetchOutboxByClientID(_ db: Database, clientID: UUID) throws -> OutboxEntry? {
@@ -339,7 +322,7 @@ extension JournalStore {
         return try Self.outboxEntry(from: row, id: id)
     }
 
-    private static func fetchOutboxByID(_ db: Database, id: Int64) throws -> OutboxEntry? {
+    static func fetchOutboxByID(_ db: Database, id: Int64) throws -> OutboxEntry? {
         let sql = "SELECT * FROM outbox WHERE id = ?"
         guard let row = try Row.fetchOne(db, sql: sql, arguments: [id]) else {
             return nil
@@ -374,9 +357,14 @@ extension JournalStore {
         let attemptCount: Int = row["attempt_count"]
         let lastError: String? = row["last_error"]
         let result: String? = row["result"]
+        let expectedStateID: String? = row["expected_state_id"]
 
         let createdAt = try JournalStore.date(row["created_at"], onError: onError)
         let sentAt = try (row["sent_at"] as String?).map { text in
+            try JournalStore.date(text, onError: onError)
+        }
+
+        let expectedRevision = try (row["expected_revision"] as String?).map { text in
             try JournalStore.date(text, onError: onError)
         }
 
@@ -394,7 +382,9 @@ extension JournalStore {
             createdAt: createdAt,
             sentAt: sentAt,
             lastError: lastError,
-            result: result
+            result: result,
+            expectedStateID: expectedStateID,
+            expectedRevision: expectedRevision
         )
     }
 }

@@ -252,9 +252,9 @@ func taggedClauseEditsReconcile() async throws {
     let clauses = try scenario.journal.clauses(issueID: scenario.issueOne)
     #expect(clauses.count == 1)
     #expect(clauses[0].cid == "c1")
-    // The clause's identity is preserved: an edit invalidates it (its stored text is the Journal's, not
-    // the board's) but only the citation's location_id is actually updated on a citation edit.
-    #expect(clauses[0].text == "Original text")
+    // The clause's identity is preserved: an edit invalidates it, and the Operator's text is the clause's
+    // text from then on (the Board owns the Definition of Done, so a rewrite renders it, not the authored one).
+    #expect(clauses[0].text == "Edited text")
     #expect(clauses[0].locationID == "resolvable/other")
     #expect(clauses[0].invalidated == true)
     #expect(clauses[0].citationProvenance == "Author-supplied")

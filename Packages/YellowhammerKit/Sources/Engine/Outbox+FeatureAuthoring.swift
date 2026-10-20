@@ -20,6 +20,22 @@ enum FeatureAuthoringProse {
         replacement.replaceSubrange(from.lowerBound..<to.upperBound, with: region)
         return replacement
     }
+
+    /// The text between the region's markers as a rewrite wrote it, or nil when the description has no
+    /// well-formed region.
+    static func current(in description: String) -> String? {
+        guard description.components(separatedBy: start).count == 2,
+              description.components(separatedBy: end).count == 2,
+              let from = description.range(of: start), let to = description.range(of: end),
+              from.upperBound <= to.lowerBound else { return nil }
+        var text = description[from.upperBound..<to.lowerBound]
+        if text.first == "\n" { text = text.dropFirst() }
+        if text.last == "\n" { text = text.dropLast() }
+        return String(text)
+    }
+
+    /// The Journal key under which the hash of the region Yellowhammer last wrote is kept.
+    static func regionKey(_ issue: BoardObjectID) -> String { "feature-authoring:\(issue.rawValue)" }
 }
 
 extension Outbox {
@@ -46,6 +62,19 @@ extension Outbox {
               let composed = FeatureAuthoringProse.replace(in: description, prose: prose) else {
             return .unfenced(.featureAuthoringMalformed)
         }
+        // The Feature's brief and Definition of Done are the Operator's to edit. A region that no longer holds
+        // what Yellowhammer last wrote carries such an edit: re-authoring does not replace it.
+        let regionKey = FeatureAuthoringProse.regionKey(issue)
+        if let current = FeatureAuthoringProse.current(in: description), current != prose,
+           let written = try journal.managedBlockLastPostedHash(issueID: regionKey),
+           written != ManagedBlockFence.sha256(current) {
+            return .inputInvalid(
+                field: "Feature brief and Definition of Done",
+                reason: "the Feature's authored brief and Definition of Done were edited on the board; the edit "
+                    + "was kept as written and the re-authored text was not written over it",
+                blockHash: ManagedBlockFence.sha256(current)
+            )
+        }
         if let descriptionBudget, !descriptionBudget.fits(composed) {
             return .overBudget(
                 length: descriptionBudget.measure(composed), budget: descriptionBudget, renderingAloneFits: false
@@ -60,6 +89,9 @@ extension Outbox {
         try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
         if object?.archivedAt != nil { throw OutboxError.archivedIssue(issue) }
         _ = try await board.updateIssue(issue, BoardIssueChange(description: composed))
+        try journal.recordManagedBlockPosted(
+            issueID: regionKey, hash: ManagedBlockFence.sha256(prose), now: clock()
+        )
         return .fenced(
             ManagedBlockFence.Replacement(description: composed, preservedProse: composedParts.preservedProse),
             renderedHash: parts.blockHash

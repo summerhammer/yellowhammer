@@ -66,6 +66,16 @@ extension JournalEvent {
             try Self.decodeMainlineConflictDetected(reader)
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken(issueID: try reader.require("issue_id"))
+        case .boardWriteSuperseded:
+            .boardWriteSuperseded(
+                clientID: try reader.uuid("client_id"), operation: try reader.require("operation"),
+                issueID: reader.payload?["issue_id"], expectedState: reader.payload?["expected_state"],
+                observedState: reader.payload?["observed_state"]
+            )
+        case .managedBlockInputImported:
+            .managedBlockInputImported(issueID: try reader.require("issue_id"), fields: try reader.require("fields"))
+        case .managedBlockInputInvalid:
+            .managedBlockInputInvalid(issueID: try reader.require("issue_id"), reason: try reader.require("reason"))
         case .managedBlockOverBudget:
             .managedBlockOverBudget(
                 issueID: try reader.require("issue_id"), length: try reader.int("length"),

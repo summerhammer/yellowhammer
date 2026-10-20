@@ -43,6 +43,10 @@ public struct BoardStateProjection: Sendable {
         case posted(CardRecord, OutboxDelivery)
         case deferred(CardRecord, OutboxDelivery)
         case failed(CardRecord, OutboxDelivery)
+        /// The board no longer held the state this write was decided against — a human moved the issue — so
+        /// the write was not applied. The Journal's record of it as posted is closed (nothing is reposted
+        /// over the human's move) and the Delta Read imports what the human did.
+        case superseded(CardRecord, OutboxDelivery)
     }
 
     /// Writes `transition` to the Journal, then posts the board write it implies. Never throws for a
@@ -76,8 +80,11 @@ public struct BoardStateProjection: Sendable {
             return .unchanged(record)
         }
 
+        // The board holds the state the Journal had before this transition (once every earlier write has landed):
+        // that is what this write is decided against, however the Journal came by it.
         return try await post(
-            record: record, state: transition.state, blockReason: transition.blockReason, assignee: assignee
+            record: record, state: transition.state, blockReason: transition.blockReason, assignee: assignee,
+            decidedAgainst: current.state
         )
     }
 
@@ -176,7 +183,8 @@ public struct BoardStateProjection: Sendable {
     // MARK: - Private
 
     private func post(
-        record: CardRecord, state: CardState, blockReason: BlockReason?, assignee: BoardObjectID?
+        record: CardRecord, state: CardState, blockReason: BlockReason?, assignee: BoardObjectID?,
+        decidedAgainst: CardState? = nil
     ) async throws -> Outcome {
         let issue = BoardObjectID(rawValue: record.issueID)
         var change = scope.labels.change(cardType: .workCard, state: state, blockReason: blockReason)
@@ -187,7 +195,8 @@ public struct BoardStateProjection: Sendable {
 
         let key = Self.stateKey(issueID: record.issueID, version: record.stateVersion)
         let write = OutboxWrite(
-            key: key, write: .updateIssue(issue: issue, change: change, undo: nil), cardID: record.id
+            key: key, write: .updateIssue(issue: issue, change: change, undo: nil), cardID: record.id,
+            expectedState: decidedAgainst.flatMap { scope.states[$0] }
         )
         let delivery = try await outbox.post(write)
         return try await outcome(for: delivery, record: record, key: key)
@@ -198,10 +207,25 @@ public struct BoardStateProjection: Sendable {
         case .applied, .alreadyApplied:
             try journal.recordCardBoardState(cardID: record.id, version: record.stateVersion, runID: outbox.runID)
             return .posted(record, delivery)
+        case .superseded:
+            try journal.recordCardBoardState(cardID: record.id, version: record.stateVersion, runID: outbox.runID)
+            return .superseded(record, delivery)
         case .deferred(.behindAnotherEntry):
-            if let entry = try journal.outboxEntry(clientID: outbox.clientID(for: key)), entry.state == .applied {
-                try journal.recordCardBoardState(cardID: record.id, version: record.stateVersion, runID: outbox.runID)
-                return .posted(record, delivery)
+            if let entry = try journal.outboxEntry(clientID: outbox.clientID(for: key)) {
+                if entry.state == .applied {
+                    try journal.recordCardBoardState(
+                        cardID: record.id, version: record.stateVersion, runID: outbox.runID
+                    )
+                    return .posted(record, delivery)
+                }
+                if entry.state == .superseded {
+                    try journal.recordCardBoardState(
+                        cardID: record.id, version: record.stateVersion, runID: outbox.runID
+                    )
+                    return .superseded(record, OutboxDelivery(
+                        entry: entry, outcome: .superseded(reason: entry.lastError ?? "superseded")
+                    ))
+                }
             }
             return .deferred(record, delivery)
         case .deferred:

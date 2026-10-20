@@ -9,21 +9,36 @@ extension Outbox {
     /// whose whole replaced description fits is the one written, and its own hash is what is recorded;
     /// when none fits the write is refused (``Performed/overBudget(length:budget:renderingAloneFits:)``).
     /// A targeted line update, which has no ladder, is refused the same way when it does not fit.
+    /// The fresh block with every line starting `prefix` replaced by `line`, appended last.
+    private static func patchingLine(
+        _ line: String, prefix: String, in description: String?
+    ) -> Result<String, ManagedBlockFence.Failure> {
+        switch ManagedBlockFence.parts(of: description) {
+        case .failure(let failure):
+            return .failure(failure)
+        case .success(let parts):
+            var lines = parts.block.split(separator: "\n", omittingEmptySubsequences: false)
+                .map(String.init).filter { !$0.hasPrefix(prefix) }
+            if parts.block.isEmpty { lines = [] }
+            lines.append(line)
+            return .success(lines.joined(separator: "\n"))
+        }
+    }
+
     func performManagedBlock(
         issue: BoardObjectID, renderings: [String], replacingPrefix prefix: String? = nil, entry: OutboxEntry
     ) async throws -> Performed {
         let snapshot = try await board.issueDescription(issue)
         var renderings = renderings
+        // A targeted line update keeps the rest of the fresh block as read, so it cannot erase an edit; a
+        // full rendering can, and imports what the description holds first.
+        if prefix == nil, let held = try importFreshInput(from: snapshot, issue: issue, renderings: renderings) {
+            return held
+        }
         if let prefix, let line = renderings.first {
-            switch ManagedBlockFence.parts(of: snapshot.description) {
-            case .failure(let failure):
-                return .unfenced(failure)
-            case .success(let parts):
-                var lines = parts.block.split(separator: "\n", omittingEmptySubsequences: false)
-                    .map(String.init).filter { !$0.hasPrefix(prefix) }
-                if parts.block.isEmpty { lines = [] }
-                lines.append(line)
-                renderings = [lines.joined(separator: "\n")]
+            switch Self.patchingLine(line, prefix: prefix, in: snapshot.description) {
+            case .failure(let failure): return .unfenced(failure)
+            case .success(let patched): renderings = [patched]
             }
         }
         var mostCompacted: (length: Int, rendering: String)?

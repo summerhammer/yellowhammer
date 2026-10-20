@@ -267,7 +267,7 @@ extension EngineInvocation {
             switch try await outbox.post(write).outcome {
             case .applied, .alreadyApplied, .deferred:
                 return true
-            case .aborted, .failed:
+            case .aborted, .failed, .superseded:
                 return false
             }
         } catch {

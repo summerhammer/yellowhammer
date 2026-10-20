@@ -47,6 +47,19 @@ public struct ManagedBlockMaintenance: Sendable {
     /// (trashed, or archived while in play; OQ142) is treated the same way, returning
     /// `.notMaintained(.removedFromBoard)`: nothing is posted to it.
     public func maintain(card: CardRecord, brief: ArchitecturalBrief) async throws -> Outcome {
+        let first = try await maintainOnce(card: card, brief: brief, keySuffix: "")
+        // The rewrite imported a human's edit the Journal had not seen (``Outbox/importFreshInput``), so the
+        // rendering it carried is stale: render once more from the Journal as it now stands and post that.
+        guard case .posted(_, let block, _) = first, case .superseded = block.outcome else { return first }
+        let current = try journal.card(id: card.id)
+        let refreshed = ArchitecturalBrief(
+            prose: try journal.architecturalBriefProse(cardID: card.id) ?? "",
+            transcriptions: try journal.transcriptionBlocks(cardID: card.id).map(\.block)
+        )
+        return try await maintainOnce(card: current, brief: refreshed, keySuffix: ":imported:\(block.entry.id)")
+    }
+
+    private func maintainOnce(card: CardRecord, brief: ArchitecturalBrief, keySuffix: String) async throws -> Outcome {
         // Shelved: abort pending entries and return early
         if card.state == .shelved {
             try journal.abortPendingOutboxEntries(
@@ -72,7 +85,7 @@ public struct ManagedBlockMaintenance: Sendable {
         }
 
         // Accept the block write
-        let blockKey = "block:\(card.issueID):\(hash)"
+        let blockKey = "block:\(card.issueID):\(hash)\(keySuffix)"
         let issueID = BoardObjectID(rawValue: card.issueID)
         let blockWrite = renderings.count == 1
             ? BoardWrite.rewriteManagedBlock(issue: issueID, rendered: renderings[0])
@@ -80,6 +93,10 @@ public struct ManagedBlockMaintenance: Sendable {
         let blockOutboxWrite = OutboxWrite(key: blockKey, write: blockWrite, cardID: card.id)
 
         let blockDelivery = try await outbox.post(blockOutboxWrite)
+        // Superseded by an import: the labels follow the rendering that replaces it.
+        if case .superseded = blockDelivery.outcome {
+            return .posted(hash: hash, block: blockDelivery, labels: nil)
+        }
 
         var labelDelivery: OutboxDelivery?
 

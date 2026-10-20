@@ -96,7 +96,7 @@ public struct DeltaRead: Sendable {
             }
         }
 
-        let pendingWrites = Set(try journal.pendingOutboxEntries().compactMap(\.issueID))
+        let pendingWrites = Dictionary(grouping: try journal.pendingOutboxEntries()) { $0.issueID ?? "" }
         let preservedProseHashes = try lastPreservedProseHashes()
         for object in objects {
             try recordDisplay(of: object)
@@ -197,26 +197,12 @@ public struct DeltaRead: Sendable {
         }
 
         let stateDiffers = try reconcileState(
-            card: &card, boardState: boardState, pendingWrites: inputs.pendingWrites, replayed: inputs.replayed,
+            card: &card, boardState: boardState, pending: inputs.pendingWrites[card.issueID] ?? [],
+            replayed: inputs.replayed,
             into: &report
         )
 
-        var change = CardChange(
-            card: card, object: object, stateDiffers: stateDiffers, managedBlockEdited: nil, proseEdited: nil,
-            delimitersBroken: nil, repositoryOnBoard: nil
-        )
-        switch ManagedBlockFence.parts(of: object.description) {
-        case .failure(let failure):
-            change.delimitersBroken = failure
-        case .success(let parts):
-            if let posted = try journal.managedBlockLastPostedHash(issueID: card.issueID) {
-                change.managedBlockEdited = parts.blockHash != posted
-            }
-            if let preserved = inputs.preservedProseHashes[card.issueID] {
-                change.proseEdited = parts.preservedProseHash != preserved
-            }
-            change.repositoryOnBoard = Self.repository(inBlock: parts.block)
-        }
+        let change = try describeManagedBlock(card: card, object: object, stateDiffers: stateDiffers, inputs: inputs)
         if let named = change.repositoryOnBoard, let reason = invariantBreakReason(card: card, named: named) {
             report.invariantBreaks.append(InvariantBreak(card: card, reason: reason))
             if !inputs.replayed {
@@ -231,7 +217,7 @@ public struct DeltaRead: Sendable {
     private func reconcileState(
         card: inout CardRecord,
         boardState: BoardWorkflowState,
-        pendingWrites: Set<String>,
+        pending: [OutboxEntry],
         replayed: Bool,
         into report: inout DeltaReadReport
     ) throws -> Bool {
@@ -255,7 +241,11 @@ public struct DeltaRead: Sendable {
             report.reopened.append(card)
             return false
         case (_, false):
-            guard boardState.name != card.state.rawValue, !pendingWrites.contains(card.issueID) else { return false }
+            guard boardState.name != card.state.rawValue else { return false }
+            // A write of ours still on its way to the board is not the Operator's doing; a board that holds
+            // neither the state it was decided against nor its target means a human moved the issue, and the
+            // write is superseded so the human's state is read as input rather than hidden behind it.
+            if try supersedingStalePendingWrites(of: &card, pending: pending, boardState: boardState) { return false }
             if try reReadyIfBlocked(card: &card, boardState: boardState, into: &report) {
                 return false
             }
@@ -314,17 +304,6 @@ public struct DeltaRead: Sendable {
         return nil
     }
 
-    /// The hash of the prose each issue's last Managed Block write preserved, from the audit events.
-    private func lastPreservedProseHashes() throws -> [String: String] {
-        var hashes: [String: String] = [:]
-        for record in try journal.events(ofType: .managedBlockWritten) {
-            if case .managedBlockWritten(let issueID, let preservedProseHash, _) = record.event {
-                hashes[issueID] = preservedProseHash
-            }
-        }
-        return hashes
-    }
-
     // The repository line parser for the Card's Managed Block (roadmap P5.6; issue #446) lives in
     // DeltaRead+Repository.swift, split out to keep this file under the file-length limit.
 
@@ -337,7 +316,8 @@ public struct DeltaRead: Sendable {
 
 /// What reconciling one known Card needs beside the Card and its board copy.
 struct CardInputs {
-    var pendingWrites: Set<String>
+    /// The Outbox entries still pending, by the issue they address.
+    var pendingWrites: [String: [OutboxEntry]]
     var preservedProseHashes: [String: String]
     /// The board copy is a revision an earlier author or land read observed and left for the build Act.
     var replayed: Bool

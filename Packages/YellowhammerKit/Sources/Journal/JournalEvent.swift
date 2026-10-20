@@ -110,6 +110,20 @@ public enum JournalEvent: Equatable, Sendable {
     /// changes, no Block Reason.
     case mainlineConflictDetected(featureIssueID: String, repository: String, paths: [String])
     case managedBlockDelimiterBroken(issueID: String)
+    /// A pending state- or input-affecting write was not delivered because the board no longer held the
+    /// condition that justified it (a human moved the issue): the write is superseded, never applied from
+    /// its cached value, and the Delta Read recomputes from the board's current state
+    /// (board-projection / write-board-updates-through-the-outbox, "revalidate the originating condition").
+    /// `expected` is the workflow state id Yellowhammer last knew; `observed` the one the board held.
+    case boardWriteSuperseded(
+        clientID: UUID, operation: String, issueID: String?, expectedState: String?, observedState: String?
+    )
+    /// Input a human edited inside a Card's Managed Block (`fields` names what changed: `scope`, `brief`,
+    /// `definition of done`) was imported into the Journal before the block was rendered again.
+    case managedBlockInputImported(issueID: String, fields: String)
+    /// A human's edit inside a Card's Managed Block could not be read as supported input. The text is
+    /// retained on the board untouched, the rewrite is not made, and `reason` is surfaced once per revision.
+    case managedBlockInputInvalid(issueID: String, reason: String)
     /// A Managed Block rewrite was refused: the whole description, composed after the fence replace,
     /// would be `length` long against the Board Connection's description `budget`, even in the most
     /// compacted rendering. Both are in the board's unit. The description was left untouched.

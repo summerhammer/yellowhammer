@@ -51,6 +51,12 @@ extension JournalEvent {
             .mainlineConflictDetected
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken
+        case .boardWriteSuperseded:
+            .boardWriteSuperseded
+        case .managedBlockInputImported:
+            .managedBlockInputImported
+        case .managedBlockInputInvalid:
+            .managedBlockInputInvalid
         case .managedBlockOverBudget:
             .managedBlockOverBudget
         case .notificationDeliveryFailed:
