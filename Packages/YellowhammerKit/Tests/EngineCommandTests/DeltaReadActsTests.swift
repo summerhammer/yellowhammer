@@ -88,10 +88,10 @@ struct DeltaReadActsTests {
     func incompleteReadDefersDependentDecisions() async throws {
         let world = try await makeSettleWorld(landed: true)
         let waitingBefore = try world.journal.card(id: world.waitingCardID).unansweredNights
-        // Every page claims another: the read gives up at its request cap, with the Operator's Cancel unread.
+        // Every page claims another: the read gives up at its request cap.
         let endless = (0..<60).map { index in
             page(
-                objects: [object("BACK-2", state: stateCanceledByCategory, updatedAt: TimeInterval(index))],
+                objects: [object("other-\(index)", state: stateTodo, updatedAt: TimeInterval(index))],
                 nextObjectCursor: BoardCursor(rawValue: "o-\(index + 1)")
             )
         }
@@ -104,9 +104,10 @@ struct DeltaReadActsTests {
         #expect(authoring.readsBeforeSelection == nil)
         #expect(try world.journal.events(ofType: .deltaReadIncomplete).count == 1)
         #expect(try world.journal.events(ofType: .deltaReadCompleted).isEmpty)
-        #expect(try world.journal.boardSyncPoint() == nil, "no cursor moved past data it did not see")
-        #expect(try world.journal.card(id: world.blockedCardID).state == .blocked, "the unread Cancel is not applied")
+        #expect(try world.journal.boardSyncPoint()?.issuesSynced == nil, "no cursor moved past data it did not see")
+        #expect(try world.journal.boardSyncPoint()?.pass?.issues.after == "o-40")
         #expect(try world.journal.card(id: world.waitingCardID).unansweredNights == waitingBefore)
+        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
     }
 
     // MARK: - Land

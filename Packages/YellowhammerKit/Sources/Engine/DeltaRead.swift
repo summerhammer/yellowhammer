@@ -124,10 +124,12 @@ public struct DeltaRead: Sendable {
         if let record = plan.record {
             try journal.recordBoardRead(record, runID: runID, now: clock())
         }
-        try append(.deltaReadCompleted(
-            objects: objects.count, comments: comments.count, ownComments: report.ownComments,
-            requests: requests, since: plan.since, syncPoint: plan.syncPoint
-        ))
+        if plan.completes {
+            try append(.deltaReadCompleted(
+                objects: objects.count, comments: comments.count, ownComments: report.ownComments,
+                requests: requests, since: plan.since, syncPoint: plan.syncPoint
+            ))
+        }
         return report
     }
 

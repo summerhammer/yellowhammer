@@ -5,6 +5,11 @@ import Journal
 // The Delta Read's paging, deduplication and cursors (spec: board-projection / read-board-changes-by-delta,
 // `sync-boundary`), split out of DeltaRead.swift to keep that file under the type-length limit.
 //
+// A read that hits the request cap is resumable, not sticky: it applies and stores what its pages carried,
+// checkpoints each unfinished root's `endCursor` with the `since` and horizon the pass started with, moves no
+// time cursor, and reports itself incomplete. The next Act resumes each root from its checkpoint and, once
+// every root is done, moves the cursors exactly as a one-Act read would (horizon of the pass that started it).
+//
 // Each root of the compound query — updated issues, new comments — is paged by its own `pageInfo` and
 // never requested again once its last page is in. Each has its own cursor, so a comment newer than an
 // unread issue change cannot move the issues' cursor past it. Both boundaries are inclusive and the cursor
@@ -19,6 +24,10 @@ struct DeltaPages {
     var comments: [BoardComment]
     var identity: BoardIdentity
     var requests: Int
+    /// The pass this read belongs to: its horizon, each root's `since`, resume point and latest observation.
+    var pass: BoardReadPass
+    /// Every root reached its last page; otherwise the request cap stopped the read and `pass` is checkpointed.
+    var finished: Bool
 }
 
 /// The pages of one read, deduplicated within themselves (`observed`) and against what the Journal already
@@ -28,6 +37,8 @@ struct DeltaObservations {
     var comments: [BoardComment]
     var freshObjects: [BoardObject]
     var freshComments: [BoardComment]
+    var pass: BoardReadPass
+    var finished: Bool
 }
 
 /// What a completed read persists and reports about its cursors.
@@ -40,6 +51,8 @@ struct ReadPlan {
     var record: BoardReadRecord?
     /// Board copies the build Act replays from an earlier read (their events are already in the log).
     var replayed: Set<BoardObjectID> = []
+    /// False for the partial read of an over-cap pass: it is reconciled, but not reported as a completed read.
+    var completes = true
 }
 
 extension DeltaRead {
@@ -54,29 +67,43 @@ extension DeltaRead {
         act == nil || act == .build
     }
 
-    /// Reads every page of both roots since each root's own cursor, then reconciles and records. Nothing
-    /// is applied to the Journal until the last page is in, so a refusal half-way leaves no partial
-    /// reconciliation, and the cursors do not move.
+    /// Reads every page of both roots since each root's own cursor (or resumes the checkpointed pass), then
+    /// reconciles and records. Nothing is applied until the last page is in, so a refusal half-way leaves no
+    /// partial reconciliation and no cursor moved. At the request cap what was read is applied, the pass is
+    /// checkpointed and the outcome is `.degraded`.
     public func perform() async throws -> DeltaReadOutcome {
-        let started = horizon()
         let sync = try journal.boardSyncPoint()
-
-        var issuesRoot = BoardRootRead.page(since: sync?.issuesSynced, after: nil)
-        var commentsRoot = BoardRootRead.page(since: sync?.commentsSynced, after: nil)
+        let resumed = sync?.pass
+        var pass = resumed ?? BoardReadPass(
+            horizon: horizon(), issues: BoardPassRoot(since: sync?.issuesSynced),
+            comments: BoardPassRoot(since: sync?.commentsSynced)
+        )
         var objects: [BoardObject] = []
         var comments: [BoardComment] = []
         var identity: BoardIdentity?
         var requests = 0
+        var restarted = false
 
-        while issuesRoot != .skip || commentsRoot != .skip {
-            if requests >= requestLimit {
-                return try incomplete(requests: requests)
-            }
+        while !pass.issues.done || !pass.comments.done {
+            if requests >= requestLimit { break }
             let delta: BoardDelta
             do {
-                delta = try await board.deltaRead(objects: issuesRoot, comments: commentsRoot, pageSize: pageSize)
+                delta = try await board.deltaRead(
+                    objects: Self.request(pass.issues), comments: Self.request(pass.comments), pageSize: pageSize
+                )
             } catch BoardError.rateLimited(let retryAfter, _) {
                 return try degrade(requests: requests + 1, retryAfter: retryAfter)
+            } catch BoardError.refused where requests == 0 && !restarted && resumed != nil {
+                // The board refused a checkpointed `endCursor` as stale: restart the unfinished roots from
+                // their `since`. What the lost pages carried was stored already, and dedup makes the re-read safe.
+                pass.issues.after = nil
+                pass.comments.after = nil
+                restarted = true
+                try append(.deltaReadIncomplete(
+                    requests: 1, reason: "the board refused the checkpointed page cursor; "
+                        + "the unfinished roots restart from their time cursor"
+                ))
+                continue
             } catch {
                 throw DeltaReadError.boardUnavailable(error)
             }
@@ -84,19 +111,31 @@ extension DeltaRead {
             identity = delta.identity
             objects += delta.updatedObjects
             comments += delta.newComments
-            issuesRoot = Self.nextPage(of: issuesRoot, cursor: delta.nextObjectCursor)
-            commentsRoot = Self.nextPage(of: commentsRoot, cursor: delta.nextCommentCursor)
+            Self.advance(&pass.issues, cursor: delta.nextObjectCursor, observed: delta.updatedObjects.map(\.updatedAt))
+            Self.advance(&pass.comments, cursor: delta.nextCommentCursor, observed: delta.newComments.map(\.createdAt))
         }
 
         guard let identity else { return try incomplete(requests: requests) }
-        let pages = DeltaPages(objects: objects, comments: comments, identity: identity, requests: requests)
-        return .read(try complete(pages, since: sync, started: started))
+        let finished = pass.issues.done && pass.comments.done
+        let pages = DeltaPages(
+            objects: objects, comments: comments, identity: identity, requests: requests, pass: pass,
+            finished: finished
+        )
+        let report = try complete(pages, since: sync)
+        return finished ? .read(report) : try incomplete(requests: requests)
     }
 
-    /// A root with another page is resumed after its cursor; one that has none is done and is not asked for again.
-    private static func nextPage(of root: BoardRootRead, cursor: BoardCursor?) -> BoardRootRead {
-        guard case .page(let since, _) = root, let cursor else { return .skip }
-        return .page(since: since, after: cursor)
+    /// What one request asks of a root: nothing once it is done, else its page after the checkpoint.
+    private static func request(_ root: BoardPassRoot) -> BoardRootRead {
+        root.done ? .skip : .page(since: root.since, after: root.after.map(BoardCursor.init(rawValue:)))
+    }
+
+    /// Takes a root past the page just read: to its next cursor, or to done when it had none.
+    private static func advance(_ root: inout BoardPassRoot, cursor: BoardCursor?, observed: [Date]) {
+        guard !root.done else { return }
+        root.maxObserved = later(observed.max(), root.maxObserved)
+        root.after = cursor?.rawValue
+        root.done = cursor == nil
     }
 
     private func degrade(requests: Int, retryAfter: Duration?) throws -> DeltaReadOutcome {
@@ -109,18 +148,18 @@ extension DeltaRead {
         return .degraded(reason: reason)
     }
 
-    /// The request cap was reached before the last page: an incomplete sync. Recorded, no cursor moves,
-    /// and the Act defers what depends on the observation it is missing.
+    /// The request cap was reached before the last page: an incomplete sync. Recorded; the pass is
+    /// checkpointed, no time cursor moves, and the Act defers what depends on the observation it is missing.
     private func incomplete(requests: Int) throws -> DeltaReadOutcome {
-        let reason = "the Delta Read did not reach the last page after \(requests) request(s); "
-            + "nothing read this Act is acted on and no cursor moved"
+        let reason = "the Delta Read did not reach the last page after \(requests) request(s); the next Act "
+            + "resumes it from its checkpoint, and no cursor moves until it completes"
         try append(.deltaReadIncomplete(requests: requests, reason: reason))
         return .degraded(reason: reason)
     }
 
     // MARK: - Completing
 
-    private func complete(_ pages: DeltaPages, since sync: BoardSyncPoint?, started: Date) throws -> DeltaReadReport {
+    private func complete(_ pages: DeltaPages, since sync: BoardSyncPoint?) throws -> DeltaReadReport {
         let observed = Self.latestRevisions(pages.objects)
         let observedComments = Self.distinct(pages.comments)
 
@@ -134,7 +173,8 @@ extension DeltaRead {
                 guard let seen = revisions[object.id.rawValue] else { return true }
                 return seen < object.updatedAt
             },
-            freshComments: observedComments.filter { !seenComments.contains($0.id.rawValue) }
+            freshComments: observedComments.filter { !seenComments.contains($0.id.rawValue) },
+            pass: pages.pass, finished: pages.finished
         )
 
         // The build Act also reconciles what an earlier author or land read observed and left for it.
@@ -142,8 +182,7 @@ extension DeltaRead {
             ? try pendingBuildObservations(excluding: Set(observations.freshObjects.map(\.id))) : []
         let clearsPending = ownsBuildDecisions ? !(try journal.buildPendingObservations().isEmpty) : false
         var plan = try Self.plan(
-            since: sync, started: started, observations, leavesBuildPending: !ownsBuildDecisions,
-            clearsBuildPending: clearsPending
+            since: sync, observations, leavesBuildPending: !ownsBuildDecisions, clearsBuildPending: clearsPending
         )
         plan.replayed = Set(replays.map(\.id))
         return try reconcile(
@@ -192,12 +231,12 @@ extension DeltaRead {
     /// it, held at most `syncOverlap` behind the sync horizon, and never moves backwards. A root that
     /// observed nothing keeps its cursor.
     static func plan(
-        since sync: BoardSyncPoint?, started: Date, _ seen: DeltaObservations, leavesBuildPending: Bool,
-        clearsBuildPending: Bool
+        since sync: BoardSyncPoint?, _ seen: DeltaObservations, leavesBuildPending: Bool, clearsBuildPending: Bool
     ) throws -> ReadPlan {
-        let ceiling = started.addingTimeInterval(-syncOverlap)
-        let issuesCursor = seen.objects.map(\.updatedAt).max().map { min($0, ceiling) }
-        let commentsCursor = seen.comments.map(\.createdAt).max().map { min($0, ceiling) }
+        // Cursors move only when the pass is finished, from the horizon of the read that started it.
+        let ceiling = seen.pass.horizon.addingTimeInterval(-syncOverlap)
+        let issuesCursor = seen.finished ? seen.pass.issues.maxObserved.map { min($0, ceiling) } : nil
+        let commentsCursor = seen.finished ? seen.pass.comments.maxObserved.map { min($0, ceiling) } : nil
 
         let issuesAfter = later(issuesCursor, sync?.issuesSynced)
         let commentsAfter = later(commentsCursor, sync?.commentsSynced)
@@ -205,7 +244,10 @@ extension DeltaRead {
         let before = [sync?.issuesSynced, sync?.commentsSynced].compactMap { $0 }.min()
         let after = later(issuesAfter, commentsAfter)
 
-        guard moves || !seen.freshObjects.isEmpty || !seen.freshComments.isEmpty || clearsBuildPending else {
+        let endsPass = seen.finished && sync?.pass != nil
+        guard moves || !seen.freshObjects.isEmpty || !seen.freshComments.isEmpty || clearsBuildPending
+            || endsPass || !seen.finished
+        else {
             return ReadPlan(since: before, syncPoint: after, record: nil)
         }
         let encoder = JSONEncoder()
@@ -222,12 +264,13 @@ extension DeltaRead {
                 BoardCommentObservation(commentID: $0.id.rawValue, createdAt: $0.createdAt)
             },
             leavesBuildPending: leavesBuildPending, clearsBuildPending: clearsBuildPending,
-            forgetsBefore: cursors.min().map { $0.addingTimeInterval(-86_400) }
+            forgetsBefore: cursors.min().map { $0.addingTimeInterval(-86_400) },
+            pass: seen.finished ? .clear : .set(seen.pass)
         )
-        return ReadPlan(since: before, syncPoint: after, record: record)
+        return ReadPlan(since: before, syncPoint: after, record: record, completes: seen.finished)
     }
 
-    private static func later(_ new: Date?, _ old: Date?) -> Date? {
+    static func later(_ new: Date?, _ old: Date?) -> Date? {
         switch (new, old) {
         case (let new?, let old?): max(new, old)
         case (let new?, nil): new
