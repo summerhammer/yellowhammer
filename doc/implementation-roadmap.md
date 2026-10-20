@@ -2715,7 +2715,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
   whose work landed without a settle gesture is salvaged as `feature completed`; the Night Summary names
   the merge blocker for an unsettled Feature.
 
-### [ ] P22.3 Complete paginated Delta Read in every Act
+### [x] P22.3 Complete paginated Delta Read in every Act
 - **Work** — Make every Act's Delta Read walk all pages of the board's changes, so no Card change is missed
   once the board carries fewer Yellowhammer-owned objects.
 - **Spec** — `board-projection/read-board-changes-by-delta`.
