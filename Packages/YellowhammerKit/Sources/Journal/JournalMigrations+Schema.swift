@@ -73,7 +73,7 @@ extension JournalMigrations {
             // verified-feature): `verification` when every Definition of Done clause was met, `merge`
             // when the Operator merged a Partial Landing (P10.8). Nullable — unset until a Feature closes.
             table.column("closed_by", .text)
-                .check(sql: "closed_by IN ('verification','merge')")
+                .check(sql: "closed_by IN ('verification','merge','completion')")
         }
     }
 

@@ -3,7 +3,8 @@ import Foundation
 import GRDB
 
 /// A predecessor Feature and the repositories its Cycle touches (roadmap P9.9), as read by the
-/// predecessor-ancestry gate (P9.2).
+/// predecessor-ancestry gate (P9.2). A Feature closed by native completion (`closed_by = 'completion'`,
+/// roadmap P22.2) is a predecessor like a verified or merged one; only an abandoned Feature is walked past.
 public struct PredecessorFeature: Equatable, Sendable {
     public let feature: FeatureRecord
     /// The distinct, sorted repository names this Feature's Cycle touches, from `feature_repository`
@@ -54,7 +55,7 @@ extension JournalStore {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                SELECT feature.* FROM feature
+                SELECT feature.*, cycle.landed_at AS landed_at FROM feature
                 JOIN cycle ON cycle.feature_id = feature.id
                 WHERE cycle.archived_at IS NOT NULL
                 ORDER BY feature.id DESC
@@ -68,7 +69,12 @@ extension JournalStore {
                     continue
                 }
                 let repositories = try Self.touchedRepositories(db, featureID: feature.id)
-                let pushed = try Self.pushedRepositories(db, featureID: feature.id)
+                // N is the finalized landing record's pushed set. A Feature the Board completed before
+                // its Cycle ever landed has no landing record, so nothing was pushed: N = 0, never the
+                // touched list, whose branches were never pushed or recorded (triage-the-morning).
+                let landedAt: String? = row["landed_at"]
+                let pushed = feature.closedBy == .completion && landedAt == nil
+                    ? [] : try Self.pushedRepositories(db, featureID: feature.id)
                 return PredecessorWalk(
                     predecessor: PredecessorFeature(
                         feature: feature, touchedRepositories: repositories, pushedRepositories: pushed

@@ -87,21 +87,27 @@ extension NightSummary {
 
     /// `N decisions waiting` — Cards of the in-flight Cycle currently Blocked or Waiting on You,
     /// plus unresolved Authoring Halt Feature Cards (including those left Blocked by expiry). When an
-    /// in-flight Feature has landed but this Night is not yet triaged, name the unsettled Feature.
+    /// in-flight Feature has landed but this Night is not yet triaged, name the Feature holding the slot
+    /// and each repository whose merge is still outstanding (its merge blocker).
     private static func decisionsPhrase(night: NightRecord, journal: JournalStore) throws -> String {
         var waiting = try journal.unresolvedAuthoringHaltCardCount()
         if let cycleID = try journal.inFlightCycleID() {
             waiting += try journal.laneHoles(cycleID: cycleID).count
         }
         let inFlightLanded = try journal.inFlightLandedFeature()
-        let unsettled = inFlightLanded != nil && night.triagedAt == nil
+        let heldInFlight = inFlightLanded != nil && night.triagedAt == nil
 
-        guard waiting != 0 || unsettled else {
+        guard waiting != 0 || heldInFlight else {
             return "no decisions waiting"
         }
         var phrase = "\(waiting) decision\(waiting == 1 ? "" : "s") waiting"
-        if unsettled, let feature = inFlightLanded?.feature {
-            phrase += ", held by unsettled Feature `\(feature.issueID)`"
+        if heldInFlight, let landed = inFlightLanded {
+            let landings = try journal.landings(featureID: landed.feature.id)
+            let outstanding = landed.pushedRepositories.filter { landings[$0] == nil }
+            phrase += ", Feature `\(landed.feature.issueID)` in flight"
+            if !outstanding.isEmpty {
+                phrase += " (merge outstanding in \(outstanding.joined(separator: ", ")))"
+            }
         }
         return phrase
     }

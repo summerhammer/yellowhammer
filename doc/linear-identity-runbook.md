@@ -171,7 +171,8 @@ else is touched. The new Linear project's id must then be written to `[board.lin
 Then, **once per team** the Linear project belongs to (Projects sharing a team share the result):
 
 - the `Waiting on You`, `Blocked`, `Kept in Flight` and `Abandoned` workflow states (type
-  `started`), each matched by name, case-insensitively;
+  `started`), each matched by name, case-insensitively (`Kept in Flight` and `Abandoned` are a legacy pair,
+  still provisioned until P22.8; a Feature Card settles by native Done or Cancelled);
 - the label group `Card Type` with `Feature Card`, `Work Card`, `Night Card`;
 - the label group `Block Reason` with `reviewer rejection`, `check failure`, `route failure`,
   `host crash`, `engine fault`, `operator abort`, `reply overdue`, `decision overdue`,

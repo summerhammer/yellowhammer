@@ -7,138 +7,261 @@ import GRDB
 import Repositories
 import Testing
 
-// roadmap P10.9 (spec: morning-report/triage-the-morning): the Operator's settle gesture, a tri-state
-// read of the Feature Issue's workflow state — unsettled, kept in flight, released. Never asserts
-// anything model-authored.
+// roadmap P22.2 (spec: morning-report/triage-the-morning, "Governing native disposition contract"): a
+// Feature Card is settled by its native workflow type — Done (`completed`) or Cancelled — and by nothing
+// that resets each day. Never asserts anything model-authored.
 
-@Suite("Settle a Feature (P10.9)")
+@Suite("Feature disposition by native workflow type (P22.2)")
+struct FeatureDispositionTests {
+    @Test(
+        "The native category selects the disposition",
+        arguments: [
+            (BoardWorkflowStateCategory.backlog, FeatureDisposition.backlog),
+            (.triage, .backlog),
+            (.unstarted, .ready),
+            (.started, .continuing),
+            (.completed, .completed),
+            (.shelved, .canceled)
+        ]
+    )
+    func categorySelectsTheDisposition(
+        category: BoardWorkflowStateCategory, expected: FeatureDisposition
+    ) async throws {
+        let scope = try await resolvedScope()
+        let state = BoardWorkflowState(id: BoardObjectID(rawValue: "any"), name: "Any Name", category: category)
+
+        #expect(FeatureDisposition(workflowState: state, scope: scope) == expected)
+    }
+
+    @Test("A renamed completed state is still completed: the type is the selector, not the name")
+    func renamedCompletedStateIsCompleted() async throws {
+        let scope = try await resolvedScope()
+        let state = BoardWorkflowState(id: BoardObjectID(rawValue: "x"), name: "Shipped", category: .completed)
+
+        #expect(FeatureDisposition(workflowState: state, scope: scope) == .completed)
+    }
+
+    @Test("The custom Waiting on You and Blocked states win over the generic started type")
+    func customStatesAreRecognisedFirst() async throws {
+        let scope = try await resolvedScope()
+        let waiting = BoardWorkflowState(
+            id: try scope.id(for: .waitingOnYou), name: "Waiting on You", category: .started
+        )
+        let blocked = BoardWorkflowState(id: try scope.id(for: .blocked), name: "Blocked", category: .started)
+
+        #expect(FeatureDisposition(workflowState: waiting, scope: scope) == .waitingOnYou)
+        #expect(FeatureDisposition(workflowState: blocked, scope: scope) == .blocked)
+    }
+
+    @Test("Legacy bridge: Kept in Flight reads as continuing and Abandoned as canceled, ahead of the category")
+    func legacySettleStatesBridge() async throws {
+        let scope = try await resolvedScope()
+        let kept = BoardWorkflowState(
+            id: BoardObjectID(rawValue: "k"), name: FeatureDisposition.legacySettleStateNames[0], category: .started
+        )
+        let abandoned = BoardWorkflowState(
+            id: BoardObjectID(rawValue: "a"), name: FeatureDisposition.legacySettleStateNames[1], category: .started
+        )
+
+        #expect(FeatureDisposition(workflowState: kept, scope: scope) == .continuing)
+        #expect(FeatureDisposition(workflowState: abandoned, scope: scope) == .canceled)
+    }
+
+    @Test("No state, or a state of no known category, is indeterminate")
+    func missingEvidenceIsIndeterminate() async throws {
+        let scope = try await resolvedScope()
+        let unknown = BoardWorkflowState(id: BoardObjectID(rawValue: "u"), name: "Mystery", category: nil)
+
+        #expect(FeatureDisposition(workflowState: nil, scope: scope) == .indeterminate)
+        #expect(FeatureDisposition(workflowState: unknown, scope: scope) == .indeterminate)
+    }
+
+    private func resolvedScope() async throws -> BoardStateScope {
+        try await BoardStateScope.resolve(using: try await makeBuildActBoards().provisioning)
+    }
+}
+
+@Suite("Settle a Feature by its native disposition (P22.2)")
 struct FeatureSettleGestureTests {
-    @Test("kept in flight: stays in flight, triages the previous Night, no Card or board writes")
-    func keptInFlightStaysInFlight() async throws {
+    @Test(
+        "A state that is not Done or Cancelled writes nothing, never resets, and posts nothing",
+        arguments: [
+            ("In Review", BoardWorkflowStateCategory.started),
+            (FeatureDisposition.legacySettleStateNames[0], .started),
+            ("Backlog", .backlog),
+            ("Triage", .triage),
+            ("Ready", .unstarted)
+        ]
+    )
+    func standingStatesAreLeftAlone(name: String, category: BoardWorkflowStateCategory) async throws {
         let world = try await makeSettleWorld()
-        await world.seedFeatureIssueState(SettleValue.keptInFlight.rawValue)
+        await world.seedFeatureIssueState(name, category: category)
         let context = try world.makeContext()
         let updatesBefore = await world.boards.writing.updateCalls
         let gesture = FeatureSettleGesture()
 
         try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
+        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
 
         #expect(try world.journal.inFlightFeature() != nil)
-        #expect(try settleNightTriagedAt(world.journal, nightID: world.previousNightID) != nil)
-        #expect(try settleNightTriagedAt(world.journal, nightID: context.night.id) == nil)
-
-        let events = try world.journal.events(ofType: .featureSettled)
-        #expect(events.count == 1)
-        guard case .featureSettled(let cycleID, let featureIssueID, let accepted, let triagedNightID) = events[0].event
-        else {
-            Issue.record("expected featureSettled")
-            return
-        }
-        #expect(cycleID == world.cycleID)
-        #expect(featureIssueID == "FEAT-1")
-        #expect(accepted == ["BACK-1"])
-        #expect(triagedNightID == world.previousNightID)
-
-        // No Card or board state write: every Card is exactly as seeded.
-        #expect(try world.journal.card(id: world.waitingCardID).state == .waitingOnYou)
-        #expect(try world.journal.card(id: world.blockedCardID).state == .blocked)
         #expect(await world.boards.writing.updateCalls == updatesBefore)
         #expect(await world.boards.writing.createCommentCalls == 0)
-
-        let line = NightCardMaintenance.authoringLine(for: events[0].event)
-        #expect(line?.contains("kept in flight") == true)
+        #expect(try world.journal.events(ofType: .featureCompleted).isEmpty)
+        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
+        #expect(try settleNightTriagedAt(world.journal, nightID: world.previousNightID) == nil)
+        #expect(try settleNightTriagedAt(world.journal, nightID: context.night.id) == nil)
+        #expect(try world.journal.card(id: world.waitingCardID).state == .waitingOnYou)
     }
 
-    @Test("kept in flight twice in the same Night appends nothing further")
-    func keptInFlightSameNightIsIdempotent() async throws {
-        let world = try await makeSettleWorld()
-        await world.seedFeatureIssueState(SettleValue.keptInFlight.rawValue)
-        let context = try world.makeContext()
-        let gesture = FeatureSettleGesture()
+    @Test("Waiting on You, Blocked and an unread Feature Card hold the slot and write nothing")
+    func customAndUnreadStatesHoldTheSlot() async throws {
+        let scope = try await BoardStateScope.resolve(using: try await makeBuildActBoards().provisioning)
+        for state in [CardState.waitingOnYou, .blocked] {
+            let world = try await makeSettleWorld()
+            await world.seedFeatureIssue(
+                state: BoardWorkflowState(id: try scope.id(for: state), name: state.rawValue, category: .started)
+            )
+            try await FeatureSettleGesture().settle(
+                feature: try inFlightFeature(world), cycleID: world.cycleID, context: try world.makeContext()
+            )
+            #expect(try world.journal.inFlightFeature() != nil)
+            #expect(await world.boards.writing.createCommentCalls == 0)
+        }
 
-        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-
-        #expect(try world.journal.events(ofType: .featureSettled).count == 1)
+        let unread = try await makeSettleWorld()
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(unread), cycleID: unread.cycleID, context: try unread.makeContext()
+        )
+        #expect(try unread.journal.inFlightFeature() != nil)
+        #expect(await unread.boards.writing.createCommentCalls == 0)
     }
 
-    @Test("abandon on a running Feature: salvages, archives the Cycle, never archives the Feature Issue")
-    func abandonedOnARunningFeature() async throws {
+    @Test("Done: unfinished Cards are Blocked `feature completed`, detached, counters kept, one comment")
+    func doneCarriesUnfinishedWorkForward() async throws {
         let world = try await makeSettleWorld()
         let active = try await world.seedActiveCards()
         try world.holdWorktree(repository: "backend", pushed: true)
         try world.holdWorktree(repository: "mobile", pushed: false)
-        try world.journal.recordPullRequest(
-            featureID: world.featureID, repository: "backend", url: "https://github.com/acme/backend/pull/1",
-            nightID: world.previousNightID, runID: RunID()
-        )
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
+        try await world.seedFeatureDone()
         let context = try world.makeContext()
         let feature = try inFlightFeature(world)
 
         try await FeatureSettleGesture().settle(feature: feature, cycleID: world.cycleID, context: context)
 
-        // The Waiting on You Card was auto-Blocked unanswered, its counters untouched.
+        // Todo and In Progress: Blocked `feature completed`, every counter and the history untouched.
+        for (cardID, epoch) in [(active.todo, 3), (active.inProgress, 4)] {
+            let card = try world.journal.card(id: cardID)
+            #expect(card.state == .blocked)
+            #expect(card.blockReason == BlockReason.featureCompleted.rawValue)
+            #expect(card.budgetEpoch == epoch)
+            #expect(card.stateVersion == 1)
+            #expect(card.boardStateVersion == card.stateVersion)
+        }
+        #expect(try world.journal.attemptSummary(cardID: active.inProgress).roundCount == 1)
+        // Waiting on You becomes `reply overdue`; an existing Blocked keeps its reason.
         let waiting = try world.journal.card(id: world.waitingCardID)
-        #expect(waiting.state == .blocked)
         #expect(waiting.blockReason == BlockReason.replyOverdue.rawValue)
         #expect(waiting.budgetEpoch == 2)
+        #expect(try world.journal.card(id: world.blockedCardID).blockReason == BlockReason.reviewerRejection.rawValue)
 
-        // Both Blocked Cards are detached; Done and Shelved are untouched.
-        let waitingIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-1")))
-        #expect(waitingIssue.parent == nil)
-        let blockedIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "BACK-2")))
-        #expect(blockedIssue.parent == nil)
-        let doneIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "BACK-1")))
-        #expect(doneIssue.parent == BoardObjectID(rawValue: "FEAT-1"))
+        // Every Blocked Card is detached; Done and Shelved are untouched.
+        for issueID in ["BACK-2", "BACK-3", "MOB-1", "MOB-3"] {
+            let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: issueID)))
+            #expect(issue.parent == nil)
+        }
+        let done = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "BACK-1")))
+        #expect(done.parent == BoardObjectID(rawValue: "FEAT-1"))
 
-        // Every held Worktree is released, pushed or not.
-        #expect(world.workspace.removeCalls.count == 2)
-        let worktrees = try world.journal.worktrees(featureID: world.featureID)
-        #expect(worktrees.allSatisfy { !$0.isHeld })
+        // The pushed Worktree is released; the one holding unpushed work is kept, never discarded.
+        #expect(world.workspace.removeCalls.count == 1)
+        let held = try world.journal.worktrees(featureID: world.featureID).filter(\.isHeld)
+        #expect(held.map(\.repository) == ["mobile"])
 
-        // The Cycle is archived, never with closed_by; the Feature is abandoned, not closed.
+        try await assertClosedByCompletion(world, context: context)
+        try await assertCompletionRecord(world)
+    }
+
+    /// Closed by completion, distinct from merge and Verification; not abandoned; no Night triaged.
+    private func assertClosedByCompletion(_ world: SettleWorld, context: ActContext) async throws {
         let row = try settleFeatureRow(world.journal, featureID: world.featureID)
-        #expect(row.abandonedAt != nil)
-        #expect(row.closedBy == nil)
+        #expect(row.closedBy == "completion")
+        #expect(row.abandonedAt == nil)
         #expect(try world.journal.inFlightCycleID() == nil)
-
-        // The Feature Issue itself is never archived.
+        #expect(try settleNightTriagedAt(world.journal, nightID: world.previousNightID) == nil)
+        #expect(try settleNightTriagedAt(world.journal, nightID: context.night.id) == nil)
         let featureIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "FEAT-1")))
         #expect(!featureIssue.archived)
+    }
 
-        // Exactly one narrative comment, naming the abandoned pull request and never claiming a landing.
-        #expect(await world.boards.writing.createCommentCalls == 1)
-        let featureIssueID = BoardObjectID(rawValue: "FEAT-1")
-        let comment = try #require(await world.boards.writing.comments.first { $0.issue == featureIssueID })
-        #expect(comment.body.hasPrefix("**Abandoned.**"))
-        #expect(comment.body.contains("backend"))
-        #expect(!comment.body.localizedCaseInsensitiveContains("landed this"))
-
-        // No landing was recorded by this release.
-        #expect(try world.journal.landings(featureID: world.featureID).isEmpty)
-
-        let events = try world.journal.events(ofType: .featureReleased)
-        #expect(events.count == 1)
-        guard case .featureReleased(_, _, let carried, let accepted, let abandoned, _) = events[0].event else {
-            Issue.record("expected featureReleased")
+    private func assertCompletionRecord(_ world: SettleWorld) async throws {
+        let completed = try world.journal.events(ofType: .featureCompleted)
+        #expect(completed.count == 1)
+        guard case .featureCompleted(_, _, let carried, let accepted, let kept) = completed[0].event else {
+            Issue.record("expected featureCompleted")
             return
         }
         #expect(carried == ["BACK-2", "BACK-3", "MOB-1", "MOB-3"])
         #expect(accepted == ["BACK-1"])
-        #expect(abandoned == ["backend"])
-        try await assertReleasedActiveCards(world, active: active, comment: comment.body)
+        #expect(kept == ["mobile"])
+        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
 
-        // The same author Act proceeds past the predecessor gate: the walk skips an abandoned Feature.
-        let walk = try world.journal.predecessorFeature()
-        #expect(walk.predecessor == nil)
+        // Exactly one narrative comment, naming the carried-forward work and the kept Worktree.
+        #expect(await world.boards.writing.createCommentCalls == 1)
+        let comment = try #require(await world.boards.writing.comments.first)
+        #expect(comment.body.hasPrefix("**\(FeatureCompletionComment.headline).**"))
+        for issueID in ["BACK-3", "MOB-3"] { #expect(comment.body.contains(issueID)) }
+        #expect(comment.body.contains(BlockReason.featureCompleted.rawValue))
+        #expect(comment.body.contains("mobile"))
+
+        // Unfinished work stays adoptable, with its history.
+        let adoptable = try world.journal.blockedCardsLeftByClosedFeatures().map(\.issueID)
+        #expect(adoptable.contains("BACK-3"))
+        #expect(adoptable.contains("MOB-3"))
+        #expect(!adoptable.contains("BACK-1"))
     }
 
-    @Test("A live Card Lease prevents abandon until its holder lets go")
-    func abandonedActiveCardHeldByAnotherRun() async throws {
+    @Test("Completing twice writes nothing more: one comment, one event, no further Card transitions")
+    func completingTwiceIsIdempotent() async throws {
         let world = try await makeSettleWorld()
         let active = try await world.seedActiveCards()
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
+        try await world.seedFeatureDone()
+        let context = try world.makeContext()
+        let gesture = FeatureSettleGesture()
+
+        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
+        let stateEvents = try world.journal.events(ofType: .cardStateTransitioned).count
+        let boardUpdates = await world.boards.writing.updateCalls
+        let feature = try settleFeatureRecord(world.journal, featureID: world.featureID)
+        try await gesture.settle(feature: feature, cycleID: world.cycleID, context: context)
+
+        #expect(try world.journal.events(ofType: .featureCompleted).count == 1)
+        #expect(try world.journal.events(ofType: .cycleArchived).count == 1)
+        #expect(try world.journal.events(ofType: .cardStateTransitioned).count == stateEvents)
+        #expect(await world.boards.writing.updateCalls == boardUpdates)
+        #expect(try world.journal.card(id: active.todo).stateVersion == 1)
+        #expect(await world.boards.writing.createCommentCalls == 1)
+    }
+
+    @Test("A renamed completed state behaves as Done")
+    func renamedCompletedStateCompletes() async throws {
+        let world = try await makeSettleWorld()
+        await world.seedFeatureIssueState("Shipped", category: .completed)
+
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(world), cycleID: world.cycleID, context: try world.makeContext()
+        )
+
+        let row = try settleFeatureRow(world.journal, featureID: world.featureID)
+        #expect(row.closedBy == "completion")
+        #expect(try world.journal.inFlightCycleID() == nil)
+    }
+
+    @Test("A held Card Lease defers completion to the next pass: nothing is released while work may still write")
+    func completionIsDeferredWhileACardLeaseIsHeld() async throws {
+        let world = try await makeSettleWorld()
+        let active = try await world.seedActiveCards()
+        try world.holdWorktree(repository: "backend", pushed: true)
+        try await world.seedFeatureDone()
         let context = try world.makeContext()
         let holder = RunID()
         _ = try world.journal.claimCardLease(cardID: active.todo, runID: holder)
@@ -149,16 +272,69 @@ struct FeatureSettleGestureTests {
         }
         #expect(try world.journal.card(id: active.todo).state == .todo)
         #expect(try world.journal.inFlightCycleID() == world.cycleID)
-        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
+        #expect(try world.journal.events(ofType: .featureCompleted).isEmpty)
+        #expect(world.workspace.removeCalls.isEmpty)
+        #expect(await world.boards.writing.createCommentCalls == 0)
 
         try world.journal.releaseCardLease(cardID: active.todo, runID: holder)
         try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-        #expect(try world.journal.card(id: active.todo).blockReason == BlockReason.featureAbandoned.rawValue)
-        #expect(try world.journal.events(ofType: .featureReleased).count == 1)
+        #expect(try world.journal.card(id: active.todo).blockReason == BlockReason.featureCompleted.rawValue)
+        #expect(try world.journal.events(ofType: .featureCompleted).count == 1)
+        #expect(await world.boards.writing.createCommentCalls == 1)
     }
 
-    @Test("abandon on a Partial Landing: worktree release is a no-op, abandoned repositories recorded")
-    func abandonedOnAPartialLanding() async throws {
+    @Test("Cancelled: the existing `feature abandoned` salvage, with unpushed work discarded and no closure route")
+    func cancelledAbandonsTheFeature() async throws {
+        let world = try await makeSettleWorld()
+        let active = try await world.seedActiveCards()
+        try world.holdWorktree(repository: "backend", pushed: true)
+        try world.holdWorktree(repository: "mobile", pushed: false)
+        try world.journal.recordPullRequest(
+            featureID: world.featureID, repository: "backend", url: "https://github.com/acme/backend/pull/1",
+            nightID: world.previousNightID, runID: RunID()
+        )
+        await world.seedFeatureCancelled()
+        let context = try world.makeContext()
+
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(world), cycleID: world.cycleID, context: context
+        )
+
+        for (cardID, epoch) in [(active.todo, 3), (active.inProgress, 4)] {
+            let card = try world.journal.card(id: cardID)
+            #expect(card.state == .blocked)
+            #expect(card.blockReason == BlockReason.featureAbandoned.rawValue)
+            #expect(card.budgetEpoch == epoch)
+        }
+        #expect(try world.journal.card(id: world.waitingCardID).blockReason == BlockReason.replyOverdue.rawValue)
+        #expect(world.workspace.removeCalls.count == 2)
+        let row = try settleFeatureRow(world.journal, featureID: world.featureID)
+        #expect(row.abandonedAt != nil)
+        #expect(row.closedBy == nil)
+        #expect(try world.journal.inFlightCycleID() == nil)
+        #expect(try world.journal.events(ofType: .featureCompleted).isEmpty)
+        let comment = try #require(await world.boards.writing.comments.first)
+        #expect(comment.body.hasPrefix("**Abandoned.**"))
+        #expect(comment.body.contains("backend"))
+
+        // The walk skips a cancelled Feature.
+        #expect(try world.journal.predecessorFeature().predecessor == nil)
+    }
+
+    @Test("Legacy bridge: the Abandoned state name still abandons the Feature")
+    func legacyAbandonedStateAbandons() async throws {
+        let world = try await makeSettleWorld()
+        await world.seedFeatureIssueState(FeatureDisposition.legacySettleStateNames[1], category: .started)
+
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(world), cycleID: world.cycleID, context: try world.makeContext()
+        )
+
+        #expect(try settleFeatureRow(world.journal, featureID: world.featureID).abandonedAt != nil)
+    }
+
+    @Test("A Cancelled Feature on a Partial Landing records the unlanded repositories as abandoned")
+    func cancelledOnAPartialLanding() async throws {
         let world = try await makeSettleWorld(landed: true)
         try world.journal.recordLanding(
             featureID: world.featureID, repository: "backend", mainlineCommit: "c1", evidence: .ancestry
@@ -166,212 +342,72 @@ struct FeatureSettleGestureTests {
         try world.journal.recordPullRequest(
             featureID: world.featureID, repository: "mobile", url: nil, nightID: world.previousNightID, runID: RunID()
         )
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
-        let context = try world.makeContext()
-        let feature = try inFlightFeature(world)
+        await world.seedFeatureCancelled()
 
-        try await FeatureSettleGesture().settle(feature: feature, cycleID: world.cycleID, context: context)
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(world), cycleID: world.cycleID, context: try world.makeContext()
+        )
 
         #expect(world.workspace.removeCalls.isEmpty)
-        let row = try settleFeatureRow(world.journal, featureID: world.featureID)
-        #expect(row.abandonedAt != nil)
         let events = try world.journal.events(ofType: .featureReleased)
         guard case .featureReleased(_, _, _, _, let abandoned, _) = events[0].event else {
             Issue.record("expected featureReleased")
             return
         }
-        // "backend" landed, so it is not abandoned; "mobile" has a pull request but no landing.
         #expect(abandoned == ["mobile"])
     }
-
-    @Test(
-        "kept in flight is not honoured where only abandoned is offered: a Partial Landing, or every Card Shelved",
-        arguments: [(true, false), (true, true), (false, true)]
-    )
-    func keptInFlightNotHonouredWhereOnlyAbandonedIsOffered(landed: Bool, allShelved: Bool) async throws {
-        let world = try await makeSettleWorld(landed: landed, allShelved: allShelved)
-        await world.seedFeatureIssueState(SettleValue.keptInFlight.rawValue)
-        let context = try world.makeContext()
-        let feature = try inFlightFeature(world)
-
-        try await FeatureSettleGesture().settle(feature: feature, cycleID: world.cycleID, context: context)
-
-        #expect(try world.journal.events(ofType: .featureSettled).isEmpty)
-        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
-        let notHonoured = try world.journal.events(ofType: .settleValueNotHonoured)
-        #expect(notHonoured.count == 1)
-        guard case .settleValueNotHonoured(let featureIssueID, let value, _) = notHonoured[0].event else {
-            Issue.record("expected settleValueNotHonoured")
-            return
-        }
-        #expect(featureIssueID == "FEAT-1")
-        #expect(value == SettleValue.keptInFlight.rawValue)
-        // Treated as unsettled: the one comment states only `abandoned` is offered.
-        #expect(await world.boards.writing.createCommentCalls == 1)
-        let comment = try #require(await world.boards.writing.comments.first)
-        #expect(comment.body.contains(SettleValue.abandoned.rawValue))
-        #expect(!comment.body.contains(SettleValue.keptInFlight.rawValue))
-    }
-
-    @Test("unsettled: only the keyed SettleGestureComment is posted, once")
-    func unsettledPostsOnlyTheComment() async throws {
-        let world = try await makeSettleWorld()
-        await world.seedFeatureIssueState("Some Other State")
-        let context = try world.makeContext()
-        let gesture = FeatureSettleGesture()
-
-        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-
-        #expect(try world.journal.events(ofType: .featureSettled).isEmpty)
-        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
-        #expect(await world.boards.writing.createCommentCalls == 1)
-        let comment = try #require(await world.boards.writing.comments.first)
-        #expect(comment.body.contains(SettleValue.keptInFlight.rawValue))
-        #expect(comment.body.contains(SettleValue.abandoned.rawValue))
-        #expect(!comment.body.localizedCaseInsensitiveContains("landed"))
-    }
-
-    @Test("Abandoning twice writes nothing more")
-    func abandoningTwiceIsIdempotent() async throws {
-        let world = try await makeSettleWorld()
-        let active = try await world.seedActiveCards()
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
-        let context = try world.makeContext()
-        let gesture = FeatureSettleGesture()
-
-        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-        let stateEvents = try world.journal.events(ofType: .cardStateTransitioned).count
-        let boardUpdates = await world.boards.writing.updateCalls
-        let feature = try settleFeatureRecord(world.journal, featureID: world.featureID)
-        try await gesture.settle(feature: feature, cycleID: world.cycleID, context: context)
-
-        #expect(try world.journal.events(ofType: .featureReleased).count == 1)
-        #expect(try world.journal.events(ofType: .cardStateTransitioned).count == stateEvents)
-        #expect(await world.boards.writing.updateCalls == boardUpdates)
-        #expect(try world.journal.card(id: active.todo).stateVersion == 1)
-        #expect(try world.journal.card(id: active.inProgress).stateVersion == 1)
-        #expect(await world.boards.writing.createCommentCalls == 1)
-    }
-
-    // MARK: - Helpers
 
     private func inFlightFeature(_ world: SettleWorld) throws -> FeatureRecord {
         try #require(try world.journal.inFlightFeature()).feature
     }
 }
 
-private func assertReleasedActiveCards(
-    _ world: SettleWorld, active: (todo: Int64, inProgress: Int64), comment: String
-) async throws {
-    for (cardID, epoch) in [(active.todo, 3), (active.inProgress, 4)] {
-        let card = try world.journal.card(id: cardID)
-        #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.featureAbandoned.rawValue)
-        #expect(card.budgetEpoch == epoch)
-        #expect(card.stateVersion == 1)
-        #expect(card.boardStateVersion == card.stateVersion)
-    }
-    for issueID in ["BACK-3", "MOB-3"] {
-        let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: issueID)))
-        #expect(issue.parent == nil)
-    }
-    #expect(try world.journal.attemptSummary(cardID: active.inProgress).roundCount == 1)
-    #expect(comment.contains("BACK-3"))
-    #expect(comment.contains("MOB-3"))
-    #expect(comment.contains(BlockReason.featureAbandoned.rawValue))
+@Suite("Feature completion copy and Block Reason (P22.2)")
+struct FeatureCompletionCopyTests {
+    @Test("The completion comment names carried-forward work and a kept Worktree, and claims no success")
+    func completionCommentRenders() {
+        let body = FeatureCompletionComment(
+            carriedForward: [.init(issueID: "BACK-3", blockReason: .featureCompleted)],
+            acceptedCards: ["BACK-1"], keptWorktrees: ["mobile"]
+        ).body()
 
-    let adoptable = try world.journal.blockedCardsLeftByClosedFeatures().map(\.issueID)
-    #expect(adoptable.contains("BACK-3"))
-    #expect(adoptable.contains("MOB-3"))
-    #expect(!adoptable.contains("BACK-1"))
-    #expect(!adoptable.contains("MOB-2"))
-}
+        #expect(body.hasPrefix("**Feature completed on Board; unfinished work carried forward.**"))
+        #expect(body.contains("BACK-3"))
+        #expect(body.contains("mobile"))
+        #expect(!body.localizedCaseInsensitiveContains("checks passed"))
+        #expect(!body.localizedCaseInsensitiveContains("verified"))
+    }
 
-@Suite("Author Act applies the settle seam (P10.9)")
-struct AuthorActFeatureSettleGestureTests {
-    @Test("An abandoned Feature frees the Act to author afresh, past the predecessor gate")
-    func abandonedFeatureFreesTheActToAuthorAfresh() async throws {
-        let world = try await makeSettleWorld()
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
-        let board = ActBoard(
-            reading: world.reading, writing: world.boards.writing, provisioning: world.boards.provisioning
+    @Test("`feature completed` and `feature abandoned` keep their counters on re-ready and say how to adopt or drop")
+    func blockReasonsPreserveCountersAndNameTheNextAction() {
+        #expect(!BlockReason.featureCompleted.resetsBudgetOnReReady)
+        #expect(!BlockReason.featureAbandoned.resetsBudgetOnReReady)
+        for reason in [BlockReason.featureCompleted, .featureAbandoned] {
+            #expect(reason.nextAction.contains("adopt"))
+            #expect(reason.nextAction.contains("cancel"))
+            #expect(!reason.nextAction.contains("back to Todo"))
+        }
+        #expect(BlockReason.featureCompleted.blockedNote?.contains("Feature completed on Board") == true)
+        #expect(BlockReason.featureAbandoned.blockedNote == nil)
+    }
+
+    @Test("The Night Card line for a completion names the Board, not a gesture, and the line for a cancel too")
+    func nightCardLinesNameTheBoardDisposition() throws {
+        let completed = JournalEvent.featureCompleted(
+            cycleID: 1, featureIssueID: "FEAT-1", carriedForward: ["BACK-3"], acceptedCards: [],
+            keptWorktrees: ["mobile"]
         )
-        let authoring = ScriptedFeatureAuthoring(outcome: .authored)
+        let line = try #require(NightCardMaintenance.authoringLine(for: completed))
+        #expect(line.contains("completed on the Board"))
+        #expect(line.contains("mobile"))
+        #expect(!line.localizedCaseInsensitiveContains("unsettled"))
 
-        let invocation = EngineInvocation(
-            act: .author, mode: .real, nightStart: settleObservingNightStart, journal: world.journal,
-            trigger: .scheduled, runID: RunID(), board: board, workspace: world.workspace,
-            work: AuthorAct(
-                predecessorGate: PredecessorAncestryGate(), authoring: authoring, settle: FeatureSettleGesture()
-            ).work
+        let released = JournalEvent.featureReleased(
+            cycleID: 1, featureIssueID: "FEAT-1", carriedForward: [], acceptedCards: [], abandonedRepositories: [],
+            triagedNightID: 1
         )
-        try await invocation.run()
-
-        #expect(authoring.wasCalled)
-        let events = try world.journal.events().map(\.type)
-        #expect(!events.contains(.authoringSkippedFeatureInFlight))
-        #expect(events.contains(.featureReleased))
-        let row = try settleFeatureRow(world.journal, featureID: world.featureID)
-        #expect(row.abandonedAt != nil)
-    }
-
-    @Test("A kept-in-flight Feature still skips authoring: the same quiet Night as any in-flight Feature")
-    func keptInFlightFeatureStillSkipsAuthoring() async throws {
-        let world = try await makeSettleWorld()
-        await world.seedFeatureIssueState(SettleValue.keptInFlight.rawValue)
-        let board = ActBoard(
-            reading: world.reading, writing: world.boards.writing, provisioning: world.boards.provisioning
-        )
-        let authoring = ScriptedFeatureAuthoring(outcome: .authored)
-
-        let invocation = EngineInvocation(
-            act: .author, mode: .real, nightStart: settleObservingNightStart, journal: world.journal,
-            trigger: .scheduled, runID: RunID(), board: board, workspace: world.workspace,
-            work: AuthorAct(
-                predecessorGate: PredecessorAncestryGate(), authoring: authoring, settle: FeatureSettleGesture()
-            ).work
-        )
-        try await invocation.run()
-
-        #expect(!authoring.wasCalled)
-        let events = try world.journal.events().map(\.type)
-        #expect(events.contains(.authoringSkippedFeatureInFlight))
-        #expect(events.contains(.featureSettled))
-    }
-}
-
-@Suite("SettleGestureComment and FeatureReleaseComment render (P10.9)")
-struct SettleCommentRenderingTests {
-    @Test("Both offered values state their ancestry consequence, never that abandoned work landed")
-    func bothOfferedStateConsequence() {
-        let body = SettleGestureComment(offered: [.keptInFlight, .abandoned]).body()
-        #expect(body.contains(SettleValue.keptInFlight.rawValue))
-        #expect(body.contains("Abandoned"))
-        #expect(body.contains("predecessor-ancestry"))
-        #expect(!body.localizedCaseInsensitiveContains("this Feature's work landed"))
-    }
-
-    @Test("Only abandoned offered omits kept in flight")
-    func onlyAbandonedOffered() {
-        let body = SettleGestureComment(offered: [.abandoned]).body()
-        #expect(!body.contains(SettleValue.keptInFlight.rawValue))
-        #expect(body.contains("Abandoned"))
-    }
-
-    @Test("The release comment names carried-forward Cards, accepted Cards and abandoned repositories")
-    func releaseCommentNamesEverything() {
-        let comment = FeatureReleaseComment(
-            carriedForward: [.init(issueID: "BACK-2", blockReason: .replyOverdue)],
-            acceptedCards: ["BACK-1"], abandonedRepositories: ["backend"],
-            triagedNightStart: NightStart(rawValue: "2026-09-10")!
-        )
-        let body = comment.body()
-        #expect(body.hasPrefix("**Abandoned.**"))
-        #expect(body.contains("BACK-2"))
-        #expect(body.contains("BACK-1"))
-        #expect(body.contains("backend"))
-        #expect(!body.localizedCaseInsensitiveContains("this release landed"))
+        let cancelLine = try #require(NightCardMaintenance.authoringLine(for: released))
+        #expect(cancelLine.contains("cancelled on the Board"))
     }
 }
 

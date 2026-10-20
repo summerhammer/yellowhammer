@@ -130,7 +130,7 @@ struct NightSummaryAuthoringHaltVerdictTests {
         )
     }
 
-    @Test("Distinct halted Feature Cards combine with Cycle holes and preserve the unsettled suffix")
+    @Test("Distinct halted Feature Cards combine with Cycle holes and preserve the in-flight Feature suffix")
     func haltedFeaturesCombineWithCycleHoles() throws {
         let rig = try AuthoringHaltVerdictFixture()
         let night = try rig.night("2026-10-08")
@@ -151,7 +151,7 @@ struct NightSummaryAuthoringHaltVerdictTests {
         }
         #expect(
             try NightSummary.verdictLine(night: night, journal: rig.journal)
-                == "3 decisions waiting, held by unsettled Feature `LANDED-1` · did not advance — quiet · closed"
+                == "3 decisions waiting, Feature `LANDED-1` in flight · did not advance — quiet · closed"
         )
     }
 }

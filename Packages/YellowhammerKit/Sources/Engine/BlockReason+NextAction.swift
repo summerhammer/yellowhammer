@@ -25,11 +25,22 @@ extension BlockReason {
         case .decisionOverdue:
             "make the decision the Card waits on, then move it back to Todo"
         case .featureAbandoned:
-            "move the Card back to Todo to carry the unfinished work forward"
+            "a later Feature may adopt this Card with its history; cancel the Card to drop the work"
+        case .featureCompleted:
+            "a later Feature may adopt this Card with its history; cancel the Card to drop the unfinished work"
         case .failureRecurrence:
             "fix the cause that recurred across Nights, then move the Card back to Todo"
         case .authoringDefect:
             "correct the Card's brief or Definition of Done, then move it back to Todo"
+        }
+    }
+
+    /// A sentence the Managed Block states right after the headline, for the Block Reasons whose cause
+    /// is the Feature's disposition rather than the Card's own work; nil for the rest.
+    public var blockedNote: String? {
+        switch self {
+        case .featureCompleted: "Feature completed on Board; unfinished work carried forward."
+        default: nil
         }
     }
 

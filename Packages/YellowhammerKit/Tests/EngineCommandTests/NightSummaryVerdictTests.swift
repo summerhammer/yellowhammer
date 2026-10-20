@@ -395,8 +395,8 @@ struct NightSummaryVerdictTests {
         #expect(line == "1 decision waiting · did not advance · closed")
     }
 
-    @Test("An unsettled landed Feature is named in the decisions phrase")
-    func unsettledFeatureIsNamed() async throws {
+    @Test("A landed in-flight Feature is named in the decisions phrase, with its outstanding merges")
+    func landedInFlightFeatureIsNamed() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
@@ -407,7 +407,8 @@ struct NightSummaryVerdictTests {
         }
 
         let line = try NightSummary.verdictLine(night: night, journal: journal)
-        #expect(line.contains(", held by unsettled Feature `FEAT-1`"))
+        #expect(line.contains(", Feature `FEAT-1` in flight"))
+        #expect(!line.contains("unsettled"))
     }
 
     @Test("The Verdict line's shape does not grow with the number of Cards touched this Night")

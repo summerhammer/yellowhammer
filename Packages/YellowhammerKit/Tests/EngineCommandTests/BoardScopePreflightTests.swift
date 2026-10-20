@@ -44,8 +44,8 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
         switch self {
         case .waitingOnYou: BoardProvisioner.waitingOnYouState
         case .blocked: BoardProvisioner.blockedState
-        case .keptInFlight: SettleValue.keptInFlight.rawValue
-        case .abandoned: SettleValue.abandoned.rawValue
+        case .keptInFlight: FeatureDisposition.legacySettleStateNames[0]
+        case .abandoned: FeatureDisposition.legacySettleStateNames[1]
         case .cardTypeGroup: BoardProvisioner.cardTypeGroup
         case .overrideGroup: BoardProvisioner.overrideGroup
         }
@@ -231,7 +231,7 @@ struct BoardScopePreflightTests {
         #expect(await boards.writing.createIssueCalls == 0)
 
         await boards.provisioning.seed(
-            state: SettleValue.keptInFlight.rawValue, team: teamID, category: .started
+            state: FeatureDisposition.legacySettleStateNames[0], team: teamID, category: .started
         )
         let workRan = Mutex(false)
         try await invocation(
@@ -278,7 +278,7 @@ struct BoardScopePreflightTests {
     @Test("The preflight and yh doctor name the same missing item with the same message")
     func preflightAndDoctorAgree() async throws {
         let doctorFixture = try await DoctorLinearFixture()
-        await doctorFixture.acme.remove(state: SettleValue.keptInFlight.rawValue, team: engineeringTeam.id)
+        await doctorFixture.acme.remove(state: FeatureDisposition.legacySettleStateNames[0], team: engineeringTeam.id)
         let journalFixture = try NightCardJournalFixture()
         let journal = try journalFixture.open()
         let writing = FakeWritingBoard()

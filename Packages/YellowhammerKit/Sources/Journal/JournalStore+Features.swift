@@ -2,12 +2,15 @@ import Domain
 import Foundation
 import GRDB
 
-/// Which route closed a Feature (roadmap P10.7/P10.8; spec: verification/archive-the-cycle-on-a-
-/// verified-feature): every Definition of Done clause verified met, or a Partial Landing the Operator
-/// merged (P10.8, not yet built).
+/// Which route closed a Feature (roadmap P10.7/P10.8, P22.2; spec: verification/archive-the-cycle-on-a-
+/// verified-feature, morning-report/triage-the-morning): every Definition of Done clause verified met, a
+/// Partial Landing the Operator merged, or the Operator's native Done on the Feature Card (`completion`:
+/// Board completion, which verifies and merges nothing). Cancellation is never a route: an abandoned
+/// Feature is marked by `feature.abandoned_at` instead.
 public enum FeatureClosure: String, Equatable, Sendable {
     case verification
     case merge
+    case completion
 }
 
 /// A Feature Issue as the Journal holds it.

@@ -57,11 +57,6 @@ extension EngineInvocation {
                 }
             }
         }
-        if let board, let outbox, let (feature, cycleID) = try journal.inFlightFeature() {
-            _ = try await FeatureSettleGesture.resetSettleState(
-                feature: feature, cycleID: cycleID, nightID: night.id, board: board, outbox: outbox
-            )
-        }
     }
 
     /// Posts `.closed`, or `.closedCompletionPending` when the Night Card's completion is still pending

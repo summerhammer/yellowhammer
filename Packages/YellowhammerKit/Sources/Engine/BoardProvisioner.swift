@@ -22,9 +22,9 @@ public struct BoardProvisioner {
     private static let provisionedStateCategory: BoardWorkflowStateCategory = .started
 
     /// The workflow states provisioned once per team, in this order: Waiting on You, Blocked, then
-    /// the settle group in `SettleValue`'s declaration order.
+    /// the legacy settle pair (`FeatureDisposition/legacySettleStateNames`), still provisioned until P22.8.
     private static var declaredWorkflowStates: [String] {
-        [waitingOnYouState, blockedState] + SettleValue.allCases.map(\.rawValue)
+        [waitingOnYouState, blockedState] + FeatureDisposition.legacySettleStateNames
     }
 
     /// The workflow state for unstarted work.

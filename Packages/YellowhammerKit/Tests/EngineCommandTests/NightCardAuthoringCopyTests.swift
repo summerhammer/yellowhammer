@@ -287,7 +287,7 @@ struct NightCardAuthoringCopyTests {
         #expect(!breakdownLine.contains(".."))
     }
 
-    @Test("Feature selection failure and settle value not honoured trim trailing period (issue #489)")
+    @Test("Feature selection failure trims trailing period (issue #489)")
     func failureLinesEndingInPeriodRenderSinglePeriod() throws {
         let selectionWithPeriod = JournalEvent.featureSelectionFailed(reason: "no Route left.")
         let selectionLineWithPeriod = try #require(NightCardMaintenance.authoringLine(for: selectionWithPeriod))
@@ -298,19 +298,5 @@ struct NightCardAuthoringCopyTests {
         let selectionLineWithoutPeriod = try #require(NightCardMaintenance.authoringLine(for: selectionWithoutPeriod))
         #expect(selectionLineWithoutPeriod.contains("failed: no Route left. Nothing was written to the board"))
         #expect(!selectionLineWithoutPeriod.contains(".."))
-
-        let settleWithPeriod = JournalEvent.settleValueNotHonoured(
-            featureIssueID: "FEAT-1", value: "kept in flight", reason: "already closed."
-        )
-        let settleLineWithPeriod = try #require(NightCardMaintenance.authoringLine(for: settleWithPeriod))
-        #expect(settleLineWithPeriod.contains("not honoured: already closed. Treated as unsettled."))
-        #expect(!settleLineWithPeriod.contains(".."))
-
-        let settleWithoutPeriod = JournalEvent.settleValueNotHonoured(
-            featureIssueID: "FEAT-1", value: "kept in flight", reason: "already closed"
-        )
-        let settleLineWithoutPeriod = try #require(NightCardMaintenance.authoringLine(for: settleWithoutPeriod))
-        #expect(settleLineWithoutPeriod.contains("not honoured: already closed. Treated as unsettled."))
-        #expect(!settleLineWithoutPeriod.contains(".."))
     }
 }

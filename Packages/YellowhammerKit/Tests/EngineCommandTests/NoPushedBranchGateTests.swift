@@ -159,7 +159,7 @@ struct NoPushedBranchGateTests {
             issue: BoardObject(
                 id: BoardObjectID(rawValue: "FEAT-1"), key: "FEAT-1", title: "Feature", description: nil,
                 workflowState: BoardWorkflowState(
-                    id: BoardObjectID(rawValue: "state-abandoned"), name: SettleValue.abandoned.rawValue
+                    id: BoardObjectID(rawValue: "state-abandoned"), name: "Cancelled", category: .shelved
                 ),
                 labels: [], parent: nil, url: "https://example.com/FEAT-1",
                 createdAt: outboxEpoch, updatedAt: outboxEpoch

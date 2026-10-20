@@ -40,7 +40,9 @@ points at are P15.2's concern, not this tool's.
      refuses label creation with `FORBIDDEN` — setup reports that as "the Project's Linear project
      is not visible".
    - **Create the four workflow states by hand if setup is refused them:** `Waiting on You`,
-     `Blocked`, `Kept in Flight` and `Abandoned`, all under **Started**. A same-named state in
+     `Blocked`, `Kept in Flight` and `Abandoned`, all under **Started**. (`Kept in Flight` and
+     `Abandoned` are a legacy pair, still provisioned until P22.8: a Feature Card is settled by Linear's
+     native **Done** or **Cancelled** type, not by them.) A same-named state in
      another category (such as `Abandoned` under Completed) is a collision and is never used.
      Whether team membership also lifts this refusal is unconfirmed (yellowhammer-spec#58).
    - The `Card Type` group provisions `Feature Card`, `Work Card`, and `Night Card`, none of

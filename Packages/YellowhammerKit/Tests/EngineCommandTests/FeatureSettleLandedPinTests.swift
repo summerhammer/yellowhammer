@@ -43,7 +43,7 @@ struct FeatureSettleLandedPinTests {
         let ref = LandedTipPin.ref(for: branch)
         _ = await backend.run(["update-ref", ref, commit])
         try recordLanded(world, repository: "backend", commit: commit)
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
+        await world.seedFeatureCancelled()
         let repo = Repo(name: "backend", path: backend.path, role: .backend, defaultBranch: "main")
         let context = try world.makeContext(repositories: ProjectRepositories(workingRepos: [repo]))
 
@@ -63,7 +63,7 @@ struct FeatureSettleLandedPinTests {
         // An existing directory that is not a repository: git cannot delete anything in it.
         let notARepo = TestGitRepo(name: "settle-pin-not-a-repo")
         try recordLanded(world, repository: "backend", commit: "abc123")
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
+        await world.seedFeatureCancelled()
         let repo = Repo(name: "backend", path: notARepo.path, role: .backend, defaultBranch: "main")
         let context = try world.makeContext(repositories: ProjectRepositories(workingRepos: [repo]))
 
@@ -91,7 +91,7 @@ struct FeatureSettleLandedPinTests {
     func missingCloneIsNotAFailure() async throws {
         let world = try await makeSettleWorld()
         try recordLanded(world, repository: "backend", commit: "abc123")
-        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
+        await world.seedFeatureCancelled()
         let gone = FileManager.default.temporaryDirectory
             .appending(component: "settle-pin-gone-\(UUID().uuidString)", directoryHint: .isDirectory)
         let repo = Repo(name: "backend", path: gone.path, role: .backend, defaultBranch: "main")

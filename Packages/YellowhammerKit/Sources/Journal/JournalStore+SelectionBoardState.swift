@@ -68,6 +68,8 @@ extension JournalStore {
     }
 
     private static func featureOutcome(_ feature: FeatureRecord) -> String {
+        // Board completion verifies and merges nothing, so it is never reported as landed (P22.2).
+        if feature.closedBy == .completion { return "completed on the Board" }
         if feature.closedBy != nil { return "landed" }
         if feature.abandonedAt != nil { return "abandoned" }
         return feature.state

@@ -2,12 +2,12 @@ import Domain
 import Foundation
 import GRDB
 
-// The Operator's settle gesture (roadmap P10.9; spec: morning-report/triage-the-morning): the Journal
-// writes each settle value makes. *unsettled* writes nothing here — the author Act already skips
-// authoring while a Feature is in flight, and posts only the keyed ``SettleGestureComment``.
+// A Feature Card's native disposition (roadmap P10.9, P22.2; spec: morning-report/triage-the-morning):
+// the Journal writes *completed* (native Done) and *canceled* make. Every other disposition writes
+// nothing here — the Feature simply stays in flight.
 
 extension JournalStore {
-    /// The Night being triaged by a settle write, kept in flight or released alike: the latest Night of
+    /// The Night being triaged by a Cancelled settle write: the latest Night of
     /// this Project with id less than `currentNightID`, or `currentNightID` itself when there is none
     /// earlier (the Project's first Night). Unlike ``triagedNightID(cycleID:currentNightID:)`` (roadmap
     /// P10.8's merge-closure rule, bounded by the Cycle's landing Night), the settle gesture's own rule
@@ -22,39 +22,38 @@ extension JournalStore {
         return candidate ?? currentNightID
     }
 
-    /// Records the *kept in flight* settle value (roadmap P10.9): sets `night.triaged_at` on
-    /// `settle.triagedNightID`, first write wins, and appends `.featureSettled` only when this call is
-    /// the one that wrote it — so a second Act of the same Night, recomputing the same
-    /// `triagedNightID`, appends nothing further. One write transaction, revalidating the Act Lease
-    /// first. No Card or board write: the Feature simply stays in flight.
+    /// Records a Feature Card's native Done (roadmap P22.2; spec: morning-report/triage-the-morning):
+    /// archives the Cycle with `closed_by = 'completion'` (and `feature.state = 'closed'`) and appends
+    /// `.cycleArchived` then `.featureCompleted`. One write transaction, revalidating the Act Lease first.
+    /// Never sets `night.triaged_at`: a standing native state does not mark a Night human-triaged.
+    /// Idempotent: a Cycle already archived (by this call, or by merge or Verification) is left untouched
+    /// and this returns false, appending nothing.
     @discardableResult
-    public func settleFeatureKeptInFlight(
-        _ settle: NewFeatureSettled, runID: RunID, act: Act?, nightID: Int64?, now: Date = Date()
+    public func settleFeatureCompleted(
+        _ completion: NewFeatureCompletion, runID: RunID, act: Act?, nightID: Int64?, now: Date = Date()
     ) throws -> Bool {
         try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
-
-            guard
-                let nightRow = try Row.fetchOne(
-                    db, sql: "SELECT triaged_at FROM night WHERE id = ?", arguments: [settle.triagedNightID]
-                )
-            else {
-                throw JournalError.nightUnknown(id: settle.triagedNightID)
+            guard try Self.archiveCycleRow(
+                db, cycleID: completion.cycleID, featureID: completion.featureID, closedBy: .completion, now: now
+            ) else {
+                return false
             }
-            let triagedAtText: String? = nightRow["triaged_at"]
-            guard triagedAtText == nil else { return false }
-
-            let timestamp = JournalStore.timestamp(JournalStore.stored(now))
-            try db.execute(
-                sql: "UPDATE night SET triaged_at = ? WHERE id = ?", arguments: [timestamp, settle.triagedNightID]
-            )
-
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
             _ = try Self.insertEvent(
                 db,
-                .featureSettled(
-                    cycleID: settle.cycleID, featureIssueID: settle.featureIssueID,
-                    acceptedCards: settle.acceptedCards, triagedNightID: settle.triagedNightID
+                .cycleArchived(
+                    cycleID: completion.cycleID, featureIssueID: completion.featureIssueID, closedBy: .completion,
+                    detachedCards: completion.detachedCards
+                ),
+                stamp: stamp
+            )
+            _ = try Self.insertEvent(
+                db,
+                .featureCompleted(
+                    cycleID: completion.cycleID, featureIssueID: completion.featureIssueID,
+                    carriedForward: completion.carriedForward, acceptedCards: completion.acceptedCards,
+                    keptWorktrees: completion.keptWorktrees
                 ),
                 stamp: stamp
             )
@@ -125,8 +124,7 @@ extension JournalStore {
         return true
     }
 
-    /// Sets `night.triaged_at` for `nightID` if it is still unset — first write wins, shared by both
-    /// settle values.
+    /// Sets `night.triaged_at` for `nightID` if it is still unset — first write wins.
     private static func stampNightTriagedIfUnset(_ db: Database, nightID: Int64, timestamp: String) throws {
         guard
             let nightRow = try Row.fetchOne(db, sql: "SELECT triaged_at FROM night WHERE id = ?", arguments: [nightID])
@@ -138,20 +136,28 @@ extension JournalStore {
     }
 }
 
-/// Everything recording the *kept in flight* settle value needs, bundled so
-/// ``JournalStore/settleFeatureKeptInFlight(_:runID:act:nightID:now:)`` stays under the
-/// parameter-count limit.
-public struct NewFeatureSettled: Sendable {
+/// Everything recording a Feature's native completion needs, bundled so
+/// ``JournalStore/settleFeatureCompleted(_:runID:act:nightID:now:)`` stays under the parameter-count limit.
+public struct NewFeatureCompletion: Sendable {
+    public let featureID: Int64
     public let cycleID: Int64
     public let featureIssueID: String
+    public let carriedForward: [String]
     public let acceptedCards: [String]
-    public let triagedNightID: Int64
+    public let keptWorktrees: [String]
+    public let detachedCards: Int
 
-    public init(cycleID: Int64, featureIssueID: String, acceptedCards: [String], triagedNightID: Int64) {
+    public init(
+        featureID: Int64, cycleID: Int64, featureIssueID: String, carriedForward: [String],
+        acceptedCards: [String], keptWorktrees: [String], detachedCards: Int
+    ) {
+        self.featureID = featureID
         self.cycleID = cycleID
         self.featureIssueID = featureIssueID
+        self.carriedForward = carriedForward
         self.acceptedCards = acceptedCards
-        self.triagedNightID = triagedNightID
+        self.keptWorktrees = keptWorktrees
+        self.detachedCards = detachedCards
     }
 }
 

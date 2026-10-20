@@ -253,6 +253,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         let headlineReason = blockReason.flatMap { state == .blocked ? BlockReason(rawValue: $0) : nil }
         if let headlineReason {
             lines.append(headlineReason.blockedHeadline)
+            if let note = headlineReason.blockedNote { lines.append(note) }
         }
 
         // Kind line

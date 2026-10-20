@@ -71,8 +71,8 @@ func seedDispositionLabels(
 func seedBoardScope(on board: FakeProvisioningBoard, team: BoardObjectID) async {
     await board.seed(state: BoardProvisioner.waitingOnYouState, team: team, category: .started)
     await board.seed(state: BoardProvisioner.blockedState, team: team, category: .started)
-    for value in SettleValue.allCases {
-        await board.seed(state: value.rawValue, team: team, category: .started)
+    for name in FeatureDisposition.legacySettleStateNames {
+        await board.seed(state: name, team: team, category: .started)
     }
     await board.seed(label: BoardProvisioner.overrideGroup, team: team, isGroup: true)
 }

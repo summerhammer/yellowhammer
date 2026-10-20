@@ -330,8 +330,8 @@ extension NightSummaryInstrumentedRatesTests {
             nightID: second.id, now: base.addingTimeInterval(4)
         )
         try journal.append(
-            .featureSettled(cycleID: ids.cycle, featureIssueID: "FEAT-1",
-                            acceptedCards: ["CARD-1", "CARD-2"], triagedNightID: first.id),
+            .featureCompleted(cycleID: ids.cycle, featureIssueID: "FEAT-1", carriedForward: [],
+                              acceptedCards: ["CARD-1", "CARD-2"], keptWorktrees: []),
             nightID: second.id, now: base.addingTimeInterval(4)
         )
         // A comment after acceptance must not rewrite the already-observed proxy.

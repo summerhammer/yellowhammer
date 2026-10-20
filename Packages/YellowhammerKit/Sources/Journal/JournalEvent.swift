@@ -468,14 +468,17 @@ public enum JournalEvent: Equatable, Sendable {
     case authoringHaltExpired(feature: String, issueID: String?, unansweredNights: Int, bound: Int)
     /// The Feature's next clean authoring run cleared its `open` or `expired` halt.
     case authoringHaltCleared(feature: String)
-    /// The Operator's settle gesture (roadmap P10.9; spec: morning-report/triage-the-morning) read
-    /// *kept in flight* on the Feature Issue: the Feature stays in flight. `acceptedCards` are the
-    /// Cycle's Done Cards' issue ids (sorted); `triagedNightID` names the Night whose morning was
-    /// triaged, per the settle triaged-Night rule (the latest earlier Night, or this Night itself).
-    /// Appended only when this call newly wrote `night.triaged_at` — first write wins — so a repeated
-    /// Act of the same Night appends nothing further.
-    case featureSettled(cycleID: Int64, featureIssueID: String, acceptedCards: [String], triagedNightID: Int64)
-    /// The Operator's settle gesture (roadmap P10.9) read *released*: the Feature is released,
+    /// The Feature Card reached native Done on the Board (roadmap P22.2; spec: morning-report/
+    /// triage-the-morning): the Cycle is closed with `closed_by = 'completion'`, unfinished work carried
+    /// forward. `carriedForward` and `acceptedCards` are the Cycle's Blocked and Done Cards' issue ids
+    /// (sorted); `keptWorktrees` are the repositories whose Worktree was kept because it held unpushed
+    /// work (sorted). Claims no check, Verification or merge. Appended only on the first completion —
+    /// idempotent, like ``featureClosedByMerge``. It never sets `night.triaged_at`.
+    case featureCompleted(
+        cycleID: Int64, featureIssueID: String, carriedForward: [String], acceptedCards: [String],
+        keptWorktrees: [String]
+    )
+    /// The Feature Card was Cancelled on the Board (roadmap P10.9, P22.2): the Feature is released,
     /// stop-with-salvage. `carriedForward` and `acceptedCards` are the Cycle's Blocked and Done Cards'
     /// issue ids (sorted); `abandonedRepositories` are the touched repositories with a recorded pull
     /// request but no recorded landing (sorted); `triagedNightID` is the settle triaged-Night rule's
@@ -484,10 +487,6 @@ public enum JournalEvent: Equatable, Sendable {
         cycleID: Int64, featureIssueID: String, carriedForward: [String], acceptedCards: [String],
         abandonedRepositories: [String], triagedNightID: Int64
     )
-    /// The settle gesture read a value the offered set did not include for this pass (roadmap P10.9) —
-    /// e.g. *kept in flight* read on a Partial Landing (or with every Card Shelved), where only
-    /// *abandoned* is offered. Not honoured: treated as unsettled, and nothing else is written.
-    case settleValueNotHonoured(featureIssueID: String, value: String, reason: String)
     /// A Card's unanswered-Nights clock exceeded `bound` (bounds/bound-unanswered-nights): it is being
     /// auto-Blocked. `blockReason` is `reply overdue` on the `question` route, `decision overdue` on `divergence`.
     case cardUnansweredBoundFired(

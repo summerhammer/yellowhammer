@@ -288,7 +288,7 @@ extension JournalEvent {
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             try Self.decodeAuthoringStop(type, reader)
-        case .featureSettled, .featureReleased, .settleValueNotHonoured: try Self.decodeSettle(type, reader)
+        case .featureCompleted, .featureReleased: try Self.decodeSettle(type, reader)
         case .cardUnansweredBoundFired: try Self.decodeCardUnansweredBoundFired(reader)
         case .adoptionRefused, .cardAdopted, .adoptionUntestable: try Self.decodeAdoptionEvent(type, reader)
         case .featureReselected: try Self.decodeFeatureReselected(reader)

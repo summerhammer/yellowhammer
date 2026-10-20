@@ -478,7 +478,7 @@ extension JournalEvent {
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             authoringStopPayload
-        case .featureSettled, .featureReleased, .settleValueNotHonoured: settlePayload
+        case .featureCompleted, .featureReleased: settlePayload
         case .cardUnansweredBoundFired: cardUnansweredBoundFiredPayload
         case .adoptionRefused, .cardAdopted, .adoptionUntestable: adoptionEventPayload
         case .featureReselected: featureReselectedPayload
