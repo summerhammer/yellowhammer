@@ -2723,7 +2723,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 - **Done when** — A delta larger than one page is read in full by author, build and land alike, with the
   Linear query complexity limit respected (page by 50).
 
-### [ ] P22.4 Condition-checked Outbox and managed-block input preservation
+### [x] P22.4 Condition-checked Outbox and managed-block input preservation
 - **Work** — Make an Outbox write conditional on the board field it expects to replace, and preserve the
   human-owned inputs inside a Managed Block when it is rewritten, per the field-ownership contract.
 - **Spec** — `board-projection/write-board-updates-through-the-outbox`.
