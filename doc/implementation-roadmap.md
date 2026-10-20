@@ -2739,7 +2739,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 - **Done when** — Moving a halted Feature to Todo makes the next author Act select it again, with no second
   Feature Issue and the same name.
 
-### [ ] P22.6 Halted Feature repair B: draft-children checkpoint, validate, reuse
+### [x] P22.6 Halted Feature repair B: draft-children checkpoint, validate, reuse
 - **Work** — Checkpoint a Feature's draft children during authoring, validate them on resume, and reuse the
   valid ones instead of creating them again.
 - **Spec** — `feature-authoring/select-the-next-feature`.
