@@ -72,6 +72,9 @@ disagreement is a defect in this file.
 | 17 | Linear App Installation | One public Linear app installed per workspace with PKCE; refresh, authorization halt |
 | 18 | App restructure | The main window (Sidebar, Pulse, Inspector) and the Settings window replace the legacy screens |
 | 19 | Titles, commit messages and empty lanes | Message Templates and Change Type; WIP Commit identity; reset on Waiting on You; N counts pushed branches |
+| 20 | Linear per Project | A registry of App Installations; each Project selects one |
+| 21 | Code Hosting Connections | A machine-wide registry of GitHub connections; each Project selects one |
+| 22 | Board Simplification | Two custom states and one label group; Block Reason, settlement and override leave the board |
 
 ---
 
@@ -2673,6 +2676,94 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
   test covers the deep link into Settings › Code Hosting.
 - **Status** — Done on 2026-10-08.
 
+## Phase 22 — Board Simplification
+
+Built against the *Board Simplification Ruling* (2026-10-20, accepted):
+`$SPEC_DIR/docs/requirements/rulings/2026-10-20-board-simplification-ruling.md`, with the per-field
+ownership contract in `board-projection/overview.md`
+([Field ownership and sync](https://github.com/summerhammer/yellowhammer-spec/blob/main/docs/requirements/epics/board-projection/overview.md#field-ownership-and-sync)).
+Yellowhammer's Linear footprint shrinks to two custom states plus the `Card Type` label group;
+Block Reason, settlement and the Override become Card content or Journal state instead of board
+objects. Read the ruling and the cited stories; do not restate them here.
+
+**Order.** P22.1 comes first: `DispositionLabels` throws on any absent Block Reason child, so a later
+layer that adds a `BlockReason` case would halt every board that was not re-provisioned. P22.2–P22.8
+build on it in the order listed. Existing boards keep their old labels; nothing here deletes a team label.
+
+Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
+
+### [ ] P22.1 Block Reason as card content, not a label
+- **Work** — Stop provisioning, verifying and requiring the `Block Reason` label group; `DispositionLabels`
+  needs only `Card Type` and removes any legacy Block Reason label it finds on a changed Card, never adding one.
+  A Blocked Card's Managed Block, and each Blocked member line of a Feature's roll-up, leads with the precise
+  Block Reason and a next action (exhaustive over `BlockReason`).
+- **Spec** — `board-projection/maintain-the-managed-block`, `board-projection/provision-the-board`
+  (the ruling's *no Block Reason group* point).
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A board with no Block Reason group resolves scope and provisions and verifies clean;
+  a board that still has the group loses those labels on a state change and gains none; a Blocked
+  Card's block leads with its reason and next action, distinct for check failure and reviewer rejection;
+  the parser reads old- and new-format blocks; the description budget reserves the widest Blocked headline.
+
+### [ ] P22.2 Native persistent Feature settlement
+- **Work** — Settle a Feature by Linear's native Done or Cancelled workflow types, not the daily-reset
+  settle states; keep no state that resets each day. Add the `feature completed` salvage and name the
+  merge blocker when a Feature cannot settle.
+- **Spec** — `morning-report/triage-the-morning`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A settled Feature stays settled across Nights, resolved by workflow type; a Feature
+  whose work landed without a settle gesture is salvaged as `feature completed`; the Night Summary names
+  the merge blocker for an unsettled Feature.
+
+### [ ] P22.3 Complete paginated Delta Read in every Act
+- **Work** — Make every Act's Delta Read walk all pages of the board's changes, so no Card change is missed
+  once the board carries fewer Yellowhammer-owned objects.
+- **Spec** — `board-projection/read-board-changes-by-delta`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A delta larger than one page is read in full by author, build and land alike, with the
+  Linear query complexity limit respected (page by 50).
+
+### [ ] P22.4 Condition-checked Outbox and managed-block input preservation
+- **Work** — Make an Outbox write conditional on the board field it expects to replace, and preserve the
+  human-owned inputs inside a Managed Block when it is rewritten, per the field-ownership contract.
+- **Spec** — `board-projection/write-board-updates-through-the-outbox`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A write whose precondition no longer holds is refused and re-read, not applied; an edit a
+  human made to an input field inside the block survives the next rewrite.
+
+### [ ] P22.5 Halted Feature repair A: Todo resumes the same Feature
+- **Work** — A halted Feature the Operator moves back to Todo resumes as the same Feature rather than being
+  authored afresh ([spec#113](https://github.com/summerhammer/yellowhammer-spec/issues/113)).
+- **Spec** — `feature-authoring/select-the-next-feature`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — Moving a halted Feature to Todo makes the next author Act select it again, with no second
+  Feature Issue and the same name.
+
+### [ ] P22.6 Halted Feature repair B: draft-children checkpoint, validate, reuse
+- **Work** — Checkpoint a Feature's draft children during authoring, validate them on resume, and reuse the
+  valid ones instead of creating them again.
+- **Spec** — `feature-authoring/select-the-next-feature`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A halt after some children were created resumes by reusing the valid ones and creating
+  only the missing; an invalid checkpointed child is reported, not silently reused.
+
+### [ ] P22.7 Card override as a description field
+- **Work** — Move the Card Override from the `Override` label group to a field in the Card's description,
+  read through the field-ownership contract.
+- **Spec** — `routing/resolve-a-route-for-a-card`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A Route named in the description field is the Card's Override; the label group is neither
+  provisioned nor required.
+
+### [ ] P22.8 Two-state footprint, Board Mapping, legacy migration
+- **Work** — Provision only the two Yellowhammer states and the `Card Type` group; map the board's native
+  states through a Board Mapping; migrate boards that still carry the retired labels and states without
+  deleting them.
+- **Spec** — `board-projection/provision-the-board`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A fresh board gets exactly the two-state footprint; a legacy board verifies clean and is
+  migrated by the Board Mapping; `yh doctor` reports no finding for retired objects.
+
 ---
 
 ## Traceability: story → steps
@@ -2687,16 +2778,17 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
 | `loop-state/reclaim-an-expired-lease` | P8.10, P6.8 |
 | `loop-state/reconcile-worktrees-at-act-start` | P6.8, P6.9, P6.6, P19.3, P19.5 |
 | `loop-state/record-failure-cause-recurrence` | P8.8 |
-| `board-projection/write-board-updates-through-the-outbox` | P5.4, P17.5 |
+| `board-projection/write-board-updates-through-the-outbox` | P5.4, P17.5, P22.4 |
 | `board-projection/install-the-linear-app` | P17.3, P17.4, P17.5, P17.6, P17.7, P17.8, P17.9, P18.16 |
 | `board-projection/authorize-linear-via-remote-approval` | P17.9, P18.16 |
-| `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3 |
-| `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3, P19.6, P19.7 |
+| `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3, P22.3 |
+| `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3, P19.6, P19.7, P22.1 |
+| `board-projection/provision-the-board` | P22.1, P22.8 |
 | `board-projection/check-card-readiness-at-dispatch` | P8.2, P6.4 |
-| `routing/resolve-a-route-for-a-card` | P2.4, P7.6, P9.11 |
+| `routing/resolve-a-route-for-a-card` | P2.4, P7.6, P9.11, P22.7 |
 | `routing/exclude-tried-routes-on-retry` | P7.7 |
 | `routing/add-an-agent-cli` | P2.3, P7.2, P7.3, P7.4, P7.5, P18.15 |
-| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6, P19.1, P19.6 |
+| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6, P19.1, P19.6, P22.5, P22.6 |
 | `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P9.10, P11.5 |
 | `feature-authoring/author-citable-definitions-of-done` | P9.5, P9.7, P9.8, P8.2 |
 | `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2, P19.4 |
@@ -2717,7 +2809,7 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
 | `morning-report/write-the-night-summary` | P12.1, P9.8, P19.6, P19.7 |
 | `morning-report/report-the-instrumented-rates` | P12.2 |
 | `morning-report/notify-the-operator-of-exceptions` | P12.4, P12.5 |
-| `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8 |
+| `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8, P22.2 |
 | `app/land-on-the-sidebar-and-pulse` | P18.1, P18.2, P18.3, P18.4, P18.5, P18.6, P18.7, P18.8, P18.9, P21.6 |
 | `app/scope-windows-to-a-project` | P18.1, P18.12 |
 | `app/stop-the-engine-for-a-project` | P18.10 |
