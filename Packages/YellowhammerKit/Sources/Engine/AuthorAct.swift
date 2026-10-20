@@ -85,6 +85,10 @@ public protocol FeatureAuthoring: Sendable {
 /// 5. Nothing selectable to author records the Night's idle verdict
 ///    (``JournalStore/recordAuthoringNoWorkAvailable(nightID:act:runID:)``).
 ///
+/// Right after that read, ``HaltedFeatureRepair`` observes each tracked halted Feature Card (roadmap P22.5): the
+/// Operator's move to Todo is a pending request to resume that same Feature, answered with feedback when this Act
+/// cannot act on it (steps 2 and 3), and the Card's observed state conditions the clock's Blocked write.
+///
 /// Before any of the above, this Act reconciles the Board (``PostLandingReplies``, roadmap P11.3, P22.3):
 /// a Delta Read on every author Act, which banks replies to Cards left Waiting on You in an already-landed
 /// Cycle — the only place that ever happens once no build Act fires for that Cycle again — and shelves a
@@ -148,6 +152,12 @@ public struct AuthorAct: Sendable {
             return
         }
 
+        // An existing halted Feature the Operator repaired and moved to Todo is a pending request to validate and
+        // resume, not another Night of silence (roadmap P22.5; spec: feature-authoring/select-the-next-feature,
+        // `#halted-authoring-repair`): the board is observed, and each tracked halt's Feature Card state recorded as
+        // the condition the clock's Blocked write is decided against, before the clock runs.
+        try await HaltedFeatureRepair.observe(context: context)
+
         // Every open Refusal's clock advances on every author Act of every Night, before anything else this
         // Act decides (roadmap P9.7) — including the in-flight check below, since a Refusal precedes any
         // Cycle and so is never itself the reason a Feature is in flight.
@@ -169,7 +179,7 @@ public struct AuthorAct: Sendable {
                 .authoringSkippedFeatureInFlight(featureIssueID: feature.issueID),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            try await writeBack(context: context)
+            try await skipAuthoring(because: .featureInFlight, context: context)
             return
         }
 
@@ -179,14 +189,14 @@ public struct AuthorAct: Sendable {
                 .authoringPredecessorNotLanded(featureIssueID: predecessorIssueID, repositories: repositories),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            try await writeBack(context: context)
+            try await skipAuthoring(because: .predecessorNotLanded, context: context)
             return
         case .indeterminate(let predecessorIssueID, let repositories):
             try journal.append(
                 .authoringPredecessorIndeterminate(featureIssueID: predecessorIssueID, repositories: repositories),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            try await writeBack(context: context)
+            try await skipAuthoring(because: .predecessorNotLanded, context: context)
             return
         case .landed:
             break
@@ -204,6 +214,15 @@ public struct AuthorAct: Sendable {
         case .authored, .halted, .releaseGateHeld, .refused, .authoringRolledBack, .authoringPending:
             break
         }
+        try await writeBack(context: context)
+    }
+
+    /// A quiet Night: authoring does not run, so a repair the Operator asked for is answered with the reason
+    /// (roadmap P22.5), and the Act only writes back.
+    private func skipAuthoring(
+        because reason: HaltedFeatureRepair.DeferralReason, context: ActContext
+    ) async throws {
+        try await HaltedFeatureRepair.deferPending(reason: reason, context: context)
         try await writeBack(context: context)
     }
 

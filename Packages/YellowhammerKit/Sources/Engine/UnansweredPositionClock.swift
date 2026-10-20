@@ -28,24 +28,57 @@ enum UnansweredPositionClock {
         // Act killed between the expiry and its board update is completed by the next author Act. The
         // key carries the row id: a Feature answered or cleared and later expired again is Blocked again.
         var expired = try context.journal.expiredRefusals().map {
-            ($0.featureName, $0.issueID, "feature:\($0.featureName):refusal:\($0.id):expired")
+            ExpiredPosition(issueID: $0.issueID, key: "feature:\($0.featureName):refusal:\($0.id):expired")
         }
-        expired += try context.journal.expiredAuthoringHalts().map {
-            ($0.featureName, $0.issueID, "feature:\($0.featureName):authoring-halt:\($0.id):expired")
+        for halt in try context.journal.expiredAuthoringHalts() {
+            // The Feature Card's last observed state is the condition the Blocked write is decided against. A
+            // Feature Card the Operator moved to Todo to ask for a repair — or one already completed or canceled —
+            // is theirs: expiry is recorded in the Journal and the checkpoint kept, but Blocked is never written
+            // over it (roadmap P22.5; spec: bounds/overview, overdue clock).
+            let checkpoint = try context.journal.authoringHaltCheckpoint(haltID: halt.id)
+            if let category = checkpoint?.observedCategory, category != .started { continue }
+            expired.append(ExpiredPosition(
+                issueID: halt.issueID, key: "feature:\(halt.featureName):authoring-halt:\(halt.id):expired",
+                expectedState: checkpoint?.observedStateID.map(BoardObjectID.init(rawValue:)), haltID: halt.id
+            ))
         }
         guard !expired.isEmpty, let outbox = context.outbox, let board = context.board else {
             return
         }
 
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
-        for (_, issueID, key) in expired {
-            guard let issueID else { continue }
+        for position in expired {
+            guard let issueID = position.issueID else { continue }
             var change = scope.labels.change(cardType: .featureCard, state: .blocked, blockReason: .replyOverdue)
             change.workflowState = try scope.id(for: .blocked)
             let write = OutboxWrite(
-                key: key, write: .updateIssue(issue: BoardObjectID(rawValue: issueID), change: change, undo: nil)
+                key: position.key,
+                write: .updateIssue(issue: BoardObjectID(rawValue: issueID), change: change, undo: nil),
+                expectedState: position.expectedState
             )
             _ = try await outbox.post(write)
+            if let haltID = position.haltID {
+                try context.journal.recordAuthoringHaltObservation(
+                    haltID: haltID, stateID: try scope.id(for: .blocked).rawValue, category: .started,
+                    revision: Date()
+                )
+            }
+        }
+    }
+
+    /// One expired position's board update: the issue, its idempotent Outbox key, and — for an Authoring Halt —
+    /// the Feature Card state Yellowhammer last observed there, which the write is decided against.
+    private struct ExpiredPosition {
+        var issueID: String?
+        var key: String
+        var expectedState: BoardObjectID?
+        var haltID: Int64?
+
+        init(issueID: String?, key: String, expectedState: BoardObjectID? = nil, haltID: Int64? = nil) {
+            self.issueID = issueID
+            self.key = key
+            self.expectedState = expectedState
+            self.haltID = haltID
         }
     }
 }

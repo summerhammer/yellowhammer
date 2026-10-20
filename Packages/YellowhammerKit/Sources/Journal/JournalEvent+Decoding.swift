@@ -298,7 +298,7 @@ extension JournalEvent {
             try Self.decodeLandAct(type, reader)
         case .cycleLanded: .cycleLanded(cycleID: try reader.int64("cycle_id"))
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
-            .authoringHaltCleared:
+            .authoringHaltCleared, .authoringHaltRepair:
             try Self.decodeAuthoringStop(type, reader)
         case .featureCompleted, .featureReleased: try Self.decodeSettle(type, reader)
         case .cardUnansweredBoundFired: try Self.decodeCardUnansweredBoundFired(reader)

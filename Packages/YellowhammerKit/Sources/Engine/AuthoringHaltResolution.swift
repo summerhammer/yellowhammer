@@ -2,7 +2,10 @@ import Domain
 import Foundation
 import Journal
 
-/// Resolves an Authoring Halt (roadmap P9.8; glossary: Authoring Halt). Clears the halt in the
+/// Resolves an Authoring Halt outside an authoring run (roadmap P9.8; glossary: Authoring Halt). A repaired Feature
+/// does not come through here (roadmap P22.5): its halt clears when the plan the repair validates is durably
+/// accepted, and a Feature Card completed or canceled first resolves as that disposition
+/// (``HaltedFeatureRepair``). Clears the halt in the
 /// Journal and, when the Feature Issue is known and this invocation has an Outbox and a Board,
 /// moves it out of Waiting on You — or out of Blocked, when the halt had already expired — to
 /// Todo (the contention state) with any Block Reason label removed, under one idempotent Outbox key.

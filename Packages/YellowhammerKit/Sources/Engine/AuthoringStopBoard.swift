@@ -17,7 +17,8 @@ enum AuthoringStopBoard {
     /// is handed the Feature Issue's id before the comment is posted, so the Journal row carries it.
     static func post(
         feature: FeatureName, body: String, context: ActContext,
-        reopenKey: String? = nil, commentSuffix: String? = nil, recordIssue: (String) throws -> Void
+        reopenKey: String? = nil, commentSuffix: String? = nil, recordIssue: (String) throws -> Void,
+        recordState: ((BoardObjectID) throws -> Void)? = nil
     ) async throws {
         guard let outbox = context.outbox, let board = context.board else { return }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
@@ -59,6 +60,7 @@ enum AuthoringStopBoard {
         let known = try knownIssueID(feature, context.journal)
         guard let createdID = createdID ?? known else { return }
         try recordIssue(createdID.rawValue)
+        if newlyCreated { try recordState?(waitingOnYouID) }
 
         if let reopenKey, !newlyCreated {
             var change = scope.labels.change(cardType: .featureCard, state: .waitingOnYou, blockReason: nil)
@@ -66,6 +68,7 @@ enum AuthoringStopBoard {
             _ = try await outbox.post(OutboxWrite(
                 key: reopenKey, write: .updateIssue(issue: createdID, change: change, undo: nil)
             ))
+            try recordState?(waitingOnYouID)
         }
 
         let commentStamp = commentSuffix ?? context.night.nightStart.rawValue

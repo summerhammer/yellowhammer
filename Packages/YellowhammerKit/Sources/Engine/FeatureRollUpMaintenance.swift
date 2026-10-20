@@ -267,7 +267,9 @@ public struct FeatureRollUpMaintenance: Sendable {
             )
         }
         for halt in try journal.allAuthoringHalts() {
-            guard let issueID = halt.issueID else { continue }
+            // A cleared halt with no Feature row resolved as the Feature Card's terminal disposition (roadmap
+            // P22.5): the Operator's Done or Canceled is not rewritten to "in authoring".
+            guard let issueID = halt.issueID, try !resolvedAsTerminal(halt) else { continue }
             consider(
                 ZeroCardCandidate(
                     openedNightID: halt.openedNightID, createdAt: halt.createdAt, isRefusal: false,
@@ -277,6 +279,14 @@ public struct FeatureRollUpMaintenance: Sendable {
             )
         }
         return candidates.sorted { $0.key < $1.key }.map { (issueID: $0.key, standing: $0.value.standing) }
+    }
+
+    /// Whether the halt cleared because its Feature Card was last seen completed or canceled.
+    private func resolvedAsTerminal(_ halt: AuthoringHaltRecord) throws -> Bool {
+        guard halt.state == .cleared,
+              let category = try journal.authoringHaltCheckpoint(haltID: halt.id)?.observedCategory
+        else { return false }
+        return category == .completed || category == .shelved
     }
 
     private func consider(

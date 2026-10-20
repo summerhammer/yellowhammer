@@ -68,10 +68,17 @@ extension JournalStore {
     /// of one selection share one Feature Issue, while a name selected again after its Feature closed starts
     /// a new one. ``authoringTransactionCount`` cannot serve: it also counts rolled-back transactions.
     public func authoredFeatureCount(feature name: String) throws -> Int {
-        try events(ofType: .featureAuthored).filter {
+        let authored = try events(ofType: .featureAuthored).filter {
             if case .featureAuthored(let payload) = $0.event { return payload.name == name }
             return false
         }.count
+        // A halted Feature Card completed or canceled before any Cycle (roadmap P22.5) closed its Feature Issue
+        // as surely as an authored one: the name selected again starts a new Feature Issue, never the terminal one.
+        let terminal = try events(ofType: .authoringHaltRepair).filter {
+            if case .authoringHaltRepair(let feature, "terminal", _) = $0.event { return feature == name }
+            return false
+        }.count
+        return authored + terminal
     }
 
     /// The latest recorded authoring plan with no `featureAuthored` / `featureAuthoringFailed` after it

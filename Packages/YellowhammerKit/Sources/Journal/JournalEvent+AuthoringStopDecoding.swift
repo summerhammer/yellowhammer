@@ -41,6 +41,12 @@ extension JournalEvent {
             return dict
         case .authoringHaltCleared(let feature):
             return ["feature": feature]
+        case .authoringHaltRepair(let feature, let step, let detail):
+            var dict = ["feature": feature, "step": step]
+            if let detail {
+                dict["detail"] = detail
+            }
+            return dict
         default:
             return nil
         }
@@ -65,6 +71,10 @@ extension JournalEvent {
             return .authoringHaltExpired(
                 feature: feature, issueID: reader.payload?["issue_id"],
                 unansweredNights: try reader.int("unanswered_nights"), bound: try reader.int("bound")
+            )
+        case .authoringHaltRepair:
+            return .authoringHaltRepair(
+                feature: feature, step: try reader.require("step"), detail: reader.payload?["detail"]
             )
         default:
             return .authoringHaltCleared(feature: feature)

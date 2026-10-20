@@ -94,6 +94,11 @@ public struct FeatureRollUpBlock {
 
     public func render() -> String {
         var lines = ["**\(rollUp.sentence)**\(rollUp.conflictsSuffix)\(rollUp.noPullRequestSuffix)"]
+        // A Blocked halted Feature Card leads with its Block Reason and the repair to make (roadmap P22.5).
+        if rollUp.members.isEmpty, case .unanswered(.halt) = rollUp.issueStanding {
+            lines.insert(BlockReason.haltedFeatureHeadline, at: 0)
+            lines.insert("", at: 1)
+        }
         guard !rollUp.members.isEmpty else {
             return lines.joined(separator: "\n")
         }

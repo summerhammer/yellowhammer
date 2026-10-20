@@ -486,6 +486,13 @@ public enum JournalEvent: Equatable, Sendable {
     case authoringHaltExpired(feature: String, issueID: String?, unansweredNights: Int, bound: Int)
     /// The Feature's next clean authoring run cleared its `open` or `expired` halt.
     case authoringHaltCleared(feature: String)
+    /// A step of repairing an existing halted Feature (roadmap P22.5; spec: feature-authoring/
+    /// select-the-next-feature, `#halted-authoring-repair`): `step` is `requested` (the Operator moved the
+    /// Feature Card to Todo), `deferred` (another Feature occupies the slot, or the predecessor has not
+    /// landed), `resumed` (validation runs), `stage` (a model stage runs because its output is missing; `detail`
+    /// says why), `invalid` (the cause still holds), `terminal` (the Feature Card was completed or canceled
+    /// before any Cycle) or `accepted`. `detail` names the reason.
+    case authoringHaltRepair(feature: String, step: String, detail: String?)
     /// The Feature Card reached native Done on the Board (roadmap P22.2; spec: morning-report/
     /// triage-the-morning): the Cycle is closed with `closed_by = 'completion'`, unfinished work carried
     /// forward. `carriedForward` and `acceptedCards` are the Cycle's Blocked and Done Cards' issue ids

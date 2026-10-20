@@ -121,6 +121,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case authoringHaltRepeated = "AuthoringHaltRepeated"
     case authoringHaltExpired = "AuthoringHaltExpired"
     case authoringHaltCleared = "AuthoringHaltCleared"
+    case authoringHaltRepair = "AuthoringHaltRepair"
     case featureCompleted = "FeatureCompleted"
     case featureReleased = "FeatureReleased"
     case cardUnansweredBoundFired = "CardUnansweredBoundFired"

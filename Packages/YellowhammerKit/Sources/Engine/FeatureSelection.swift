@@ -99,7 +99,7 @@ public struct FeatureSelection: FeatureAuthoring {
     }
 
     public func selectAndAuthor(_ context: ActContext) async throws -> FeatureAuthoringOutcome {
-        if let transaction, let resumed = try await transaction.resumeUnfinished(context) {
+        if let resumed = try await resumeEarlierWork(context) {
             return resumed
         }
         guard let repositories = context.repositories, !repositories.workingRepos.isEmpty else {
@@ -147,7 +147,7 @@ public struct FeatureSelection: FeatureAuthoring {
             case .noSelectableFeature:
                 return .noWorkAvailable
             case .halted(let feature, let cause):
-                return try await recordHalt(feature: feature, cause: cause, context: context)
+                return try await recordHalt(feature: feature, cause: cause, selection: nil, context: context)
             case .selected(let selected):
                 if let stop = try await handleSelected(selected, scope: scope, walk: &walk, context: context) {
                     return stop
@@ -168,7 +168,7 @@ public struct FeatureSelection: FeatureAuthoring {
 
     /// What a `.selected` outcome is validated against: this Project's repositories, the Blocked Cards
     /// adoption may take, and the consumers the release gate holds tonight.
-    private struct SelectionScope {
+    struct SelectionScope {
         let repositories: ProjectRepositories
         let candidates: [AdoptionCandidate]
         let held: [HeldConsumer]
@@ -205,7 +205,7 @@ public struct FeatureSelection: FeatureAuthoring {
         return nil
     }
 
-    private static func specificationSource(_ repositories: ProjectRepositories) throws -> ProjectSpecificationSource {
+    static func specificationSource(_ repositories: ProjectRepositories) throws -> ProjectSpecificationSource {
         switch repositories.specificationSourceLookup {
         case .none:
             throw FeatureSelectionError.noSpecificationSource
@@ -216,7 +216,7 @@ public struct FeatureSelection: FeatureAuthoring {
         }
     }
 
-    private static func specificationMainline(
+    static func specificationMainline(
         _ source: ProjectSpecificationSource, mainlines: ResolvedMainlines
     ) -> ResolvedMainline? {
         switch source {
@@ -230,17 +230,27 @@ public struct FeatureSelection: FeatureAuthoring {
     /// Validates what the selector returned, engine-side, in the order the story requires: the forced
     /// name must match, the repositories must resolve to this Project's own, and adoption is narrowed
     /// to real candidates before anything is recorded.
-    private func validateAndRecord(
-        _ selected: SelectedFeature, scope: SelectionScope, reselectionDepth: Int, context: ActContext
+    ///
+    /// `repairing` is the Operator's Todo on this Feature's halt (roadmap P22.5): the Feature was chosen by an
+    /// earlier selection, so the forced-name check does not apply. `ignoringFaultBound` is set only for an
+    /// `authoringRepeatedlyFaulted` halt, which is not re-halted on the very faults it was recorded for — the
+    /// Todo is the intervention that halt waits for.
+    func validateAndRecord(
+        _ selected: SelectedFeature, scope: SelectionScope, reselectionDepth: Int, repairing: Bool = false,
+        ignoringFaultBound: Bool = false, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         let repositories = scope.repositories
         let candidates = scope.candidates
-        if let named = context.trigger.namedFeature, named != selected.name {
+        if !repairing, let named = context.trigger.namedFeature, named != selected.name {
             throw FeatureSelectionError.namedFeatureIgnored(named: named, selected: selected.name)
         }
         let sortedRepositories = Set(selected.repositories).sorted()
+        let checkpointed = SelectedFeature(
+            name: selected.name, reasoning: selected.reasoning, sequence: selected.sequence,
+            repositories: sortedRepositories, adoptedCardIssueIDs: selected.adoptedCardIssueIDs
+        )
         if let cause = Self.haltCause(forRepositories: sortedRepositories, in: repositories) {
-            return try await recordHalt(feature: selected.name, cause: cause, context: context)
+            return try await recordHalt(feature: selected.name, cause: cause, selection: checkpointed, context: context)
         }
         let holding = scope.held.filter { sortedRepositories.contains($0.consumer) }
         if let held = try recordReleaseGateHold(selected, holding: holding, context: context) {
@@ -271,11 +281,11 @@ public struct FeatureSelection: FeatureAuthoring {
         )
 
         let faults = try context.journal.authoringFaultCount(feature: validated.name)
-        if !context.trigger.isForced, faults.count >= consecutiveAuthoringFaultsMax {
+        if !ignoringFaultBound, !context.trigger.isForced, faults.count >= consecutiveAuthoringFaultsMax {
             return try await recordHalt(
                 feature: validated.name,
                 cause: .authoringRepeatedlyFaulted(count: faults.count, lastReason: faults.lastReason),
-                context: context
+                selection: validated, context: context
             )
         }
         guard let transaction else {
@@ -287,7 +297,7 @@ public struct FeatureSelection: FeatureAuthoring {
     /// Appends one `authoringReleaseGateHeld` per held consumer the selected Feature touches and returns
     /// ``FeatureAuthoringOutcome/releaseGateHeld``; nil when it touches none. Runs after the seam halt and
     /// before `.featureSelected` is recorded, so nothing is recorded as selected.
-    private func recordReleaseGateHold(
+    func recordReleaseGateHold(
         _ selected: SelectedFeature, holding: [HeldConsumer], context: ActContext
     ) throws -> FeatureAuthoringOutcome? {
         guard !holding.isEmpty else { return nil }
@@ -306,7 +316,7 @@ public struct FeatureSelection: FeatureAuthoring {
     /// Why the selected `repositories` (sorted) cannot be authored: none were determined, one is outside this
     /// Project, or the Feature spans a declared Repo Dependency — checked in that order, before
     /// `.featureSelected` is recorded. Nil when authoring may go on.
-    private static func haltCause(
+    static func haltCause(
         forRepositories sorted: [String], in repositories: ProjectRepositories
     ) -> AuthoringHaltCause? {
         guard !sorted.isEmpty else { return .repositoriesUndetermined }
@@ -332,8 +342,8 @@ public struct FeatureSelection: FeatureAuthoring {
     /// Records a halt durably and routes it to Waiting on You, through the halt path
     /// ``AuthoringTransaction`` shares for the unreadable contract (roadmap P9.6).
     private func recordHalt(
-        feature: FeatureName, cause: AuthoringHaltCause, context: ActContext
+        feature: FeatureName, cause: AuthoringHaltCause, selection: SelectedFeature?, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
-        try await AuthoringHalt.record(feature: feature, cause: cause, context: context)
+        try await AuthoringHalt.record(feature: feature, cause: cause, selection: selection, context: context)
     }
 }
