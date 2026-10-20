@@ -2731,7 +2731,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 - **Done when** — A write whose precondition no longer holds is refused and re-read, not applied; an edit a
   human made to an input field inside the block survives the next rewrite.
 
-### [ ] P22.5 Halted Feature repair A: Todo resumes the same Feature
+### [x] P22.5 Halted Feature repair A: Todo resumes the same Feature
 - **Work** — A halted Feature the Operator moves back to Todo resumes as the same Feature rather than being
   authored afresh ([spec#113](https://github.com/summerhammer/yellowhammer-spec/issues/113)).
 - **Spec** — `feature-authoring/select-the-next-feature`.
