@@ -149,10 +149,13 @@ struct ContractOverlapTests {
         #expect(!events.contains { $0.type == .featureAuthoringAccepted })
         let feature = try authoringSelection().name
         #expect(try rig.journal.authoringFaultCount(feature: feature).count < 1)
-        // The halt's own Waiting on You write is the only board write: no Card, no Feature row.
+        // The halt's own Waiting on You write and the breakdown's draft Work Cards (roadmap P22.6) are the only board
+        // writes: no Card, no Feature row.
         #expect(try tableRowCount(rig.journal, table: "card") == 0)
         #expect(try tableRowCount(rig.journal, table: "feature") == 0)
-        #expect(await rig.boards.writing.liveIssues.map(\.title) == ["FEAT-1"])
+        let issues = await rig.boards.writing.liveIssues
+        #expect(issues.filter { $0.parent == nil }.map(\.title) == ["FEAT-1"])
+        #expect(Set(issues.filter { $0.parent != nil }.map(\.title)) == ["Backend one", "Mobile one"])
         let halted = try #require(events.first { $0.type == .featureAuthoringHalted })
         guard case .featureAuthoringHalted(_, let kind, let detail) = halted.event else {
             Issue.record("expected featureAuthoringHalted")

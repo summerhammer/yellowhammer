@@ -38,7 +38,8 @@ extension AuthoringTransaction {
     /// drafting's widest Route.
     func measuredPlan(
         _ breakdown: FeatureBreakdown, for selection: SelectedFeature,
-        citations resolution: AuthoringCitationResolution, transcriptions: [[TranscriptionBlock]], context: ActContext
+        citations resolution: AuthoringCitationResolution, transcriptions: [[TranscriptionBlock]],
+        repairing snapshot: HaltRepairSnapshot? = nil, context: ActContext
     ) async throws -> (plan: AuthoringPlan, violation: AuthoringBudgetViolation?) {
         guard let board = context.board else { throw AuthoringTransactionError.noBoard }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
@@ -51,13 +52,15 @@ extension AuthoringTransaction {
         }
         let known = try AuthoringStopBoard.knownIssueID(selection.name, context.journal)
         let existing = known.flatMap { $0.rawValue == stopCreated ? $0 : nil }
-        let planner = AuthoringPlanner(
+        var planner = AuthoringPlanner(
             selection: selection, breakdown: breakdown, scope: scope, attempt: attempt,
             nightID: context.night.id, journal: context.journal, citations: resolution,
             transcriptions: transcriptions,
             existingFeatureIssueID: existing, stopCreateKey: stopCreateKey
         )
-        let plan = try planner.plan()
+        planner.draftChildren = snapshot?.draftChildren ?? []
+        var plan = try planner.plan()
+        plan.repairSnapshot = snapshot
         guard let budget = board.descriptionBudget else { return (plan, nil) }
         let violation = try AuthoringDescriptionBudget(budget: budget, longestRoute: drafting.widestRoute).violation(
             plan: plan, planner: planner, breakdown: breakdown, transcriptions: transcriptions,

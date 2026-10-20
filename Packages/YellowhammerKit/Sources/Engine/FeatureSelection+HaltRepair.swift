@@ -92,7 +92,17 @@ extension FeatureSelection {
             case .stopped(let outcome): return try await conclude(outcome, request, context: context)
             }
         }
-        if Self.haltCause(forRepositories: Set(selection.repositories).sorted(), in: repositories) == nil {
+        try journal.recordAuthoringRepairDiagnostic(haltID: halt.id, diagnostic: nil)
+        var snapshot: HaltRepairSnapshot?
+        if checkpoint.breakdown != nil {
+            // The checkpoint holds the breakdown: the Operator's repair is what is on the Board now — the Feature
+            // Card and its draft children — and nothing needs a model (roadmap P22.6).
+            snapshot = try await HaltRepairSnapshot.take(halt: halt, checkpoint: checkpoint, context: context)
+            if let snapshot, !snapshot.problems.isEmpty {
+                _ = try AuthoringTransaction.invalidRepair(snapshot, diagnostics: snapshot.problems, context: context)
+                return try await conclude(.halted, request, context: context)
+            }
+        } else if Self.haltCause(forRepositories: Set(selection.repositories).sorted(), in: repositories) == nil {
             // The breakdown is not part of the checkpoint (it is rebuilt, not reused), so it is the stage that runs.
             try journal.recordAuthoringRepairStep(
                 feature: feature, step: "stage",
@@ -102,7 +112,8 @@ extension FeatureSelection {
         }
         let outcome = try await validateAndRecord(
             selection, scope: scope, reselectionDepth: 0, repairing: true,
-            ignoringFaultBound: halt.causeKind == "authoring-repeatedly-faulted", context: context
+            ignoringFaultBound: halt.causeKind == "authoring-repeatedly-faulted", repairSnapshot: snapshot,
+            context: context
         )
         return try await conclude(outcome, request, context: context)
     }
@@ -205,13 +216,15 @@ extension FeatureSelection {
             feature: feature, step: "invalid", detail: current.causeKind,
             nightID: context.night.id, act: context.act, runID: context.runID
         )
+        let found = try journal.authoringHaltCheckpoint(haltID: halt.id)?.repairDiagnostic
+        let diagnostic = found.map { "\n\nWhat to fix:\n\($0)" } ?? ""
         try await HaltedFeatureRepair.postCommentOnce(
             key: HaltedFeatureRepair.commentKey(halt: halt, seq: seq, kind: "invalid"), issue: issue,
             body: """
                 Repair of Feature '\(feature)' is not accepted: the halt still holds, so the Feature stays halted \
-                and keeps its checkpoint.
+                and keeps its checkpoint, its drafts and your edits.
 
-                \(current.content)
+                \(current.content)\(diagnostic)
                 """,
             context: context
         )

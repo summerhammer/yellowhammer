@@ -32,6 +32,9 @@ enum HaltedFeatureRepair {
                   let object = try await board.reading.issue(BoardObjectID(rawValue: issueID)),
                   object.archivedAt == nil, !object.isTrashed
             else { continue }
+            // A halt whose draft children were not all posted (a crash between the checkpoint and the creates)
+            // finishes posting them here (roadmap P22.6); a draft already created is never created again.
+            try await HaltDrafts.ensurePosted(halt: halt, context: context)
             try journal.recordAuthoringHaltObservation(
                 haltID: halt.id, stateID: object.workflowState.id.rawValue, category: object.workflowState.category,
                 revision: object.updatedAt, authoritative: true
@@ -113,9 +116,15 @@ enum HaltedFeatureRepair {
             )
             return .authoringPending
         }
+        var detail = "Feature Card revision \(ISO8601DateFormatter().string(from: object.updatedAt))"
+        if let snapshot = plan.repairSnapshot {
+            guard let admitted = try await admit(snapshot, feature: feature, issue: issue, context: context) else {
+                return .authoringPending
+            }
+            detail += admitted
+        }
         try journal.recordAuthoringRepairStep(
-            feature: feature, step: "admitted",
-            detail: "Feature Card revision \(ISO8601DateFormatter().string(from: object.updatedAt))",
+            feature: feature, step: "admitted", detail: detail,
             nightID: context.night.id, act: context.act, runID: context.runID
         )
         return nil

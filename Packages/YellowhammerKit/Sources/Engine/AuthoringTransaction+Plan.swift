@@ -17,6 +17,9 @@ struct AuthoringPlan: Equatable {
     let record: FeatureAuthoringAcceptedPayload
     /// The halted Feature's existing Feature Issue this plan continues instead of creating one (roadmap P22.5).
     var reusedFeatureIssue: BoardObjectID?
+    /// The repaired halted Feature's snapshot this plan was validated against (roadmap P22.6): re-read just
+    /// before the plan is accepted.
+    var repairSnapshot: HaltRepairSnapshot?
 }
 
 /// Builds one authoring transaction's group. `attempt` is the number of earlier authoring transactions
@@ -40,6 +43,9 @@ struct AuthoringPlanner {
         existingFeatureIssueID == nil ? "feature:\(prefix):create" : stopCreateKey
     }
     let existingFeatureIssueID: BoardObjectID?
+    /// The repaired halted Feature's draft child each drafted Card IS, aligned by index with `breakdown.cards`
+    /// (roadmap P22.6); a Card whose entry is nil — or every Card, when this is empty — is created.
+    var draftChildren: [RepairedDraftChild?] = []
     /// The key the stop that opened `existingFeatureIssueID` created it under (``AuthoringStopBoard/createKey(_:_:)``).
     let stopCreateKey: String
 
@@ -163,14 +169,30 @@ struct AuthoringPlanner {
         for (index, draft) in breakdown.cards.enumerated() {
             let order = nextOrder[draft.repository, default: 0] + 1
             nextOrder[draft.repository] = order
-            let key = "card:\(prefix):\(draft.repository):\(order):create"
+            let child = draftChildren.indices.contains(index) ? draftChildren[index] : nil
+            let key = "card:\(prefix):\(draft.repository):\(order):\(child == nil ? "create" : "adopt-draft")"
             let clauses = Self.mint(citations.cardClauses[index])
             let blocks = transcriptions[index]
             let plannedTranscriptions = Self.mintTranscriptions(blocks)
             planned.append(PlannedCard(
                 key: key, repository: draft.repository, kind: draft.kind.description, order: order,
-                title: draft.title, clauses: clauses, brief: draft.brief, transcriptions: plannedTranscriptions
+                title: draft.title, clauses: clauses, brief: draft.brief, transcriptions: plannedTranscriptions,
+                existingIssueID: child?.issue.rawValue, declaredScope: child?.scope ?? []
             ))
+            if let child {
+                // The draft IS the Work Card: its Managed Block is rewritten to the accepted rendering (which
+                // takes the draft headline away) and it moves to Todo, keeping its issue id and its place under
+                // the Feature Card. Nothing is created, so a replay finds the same issue.
+                var change = scope.labels.change(cardType: .workCard, state: .todo, blockReason: nil)
+                change.workflowState = todo
+                writes.append(OutboxWrite(key: "\(key):block", write: .rewriteManagedBlock(
+                    issue: child.issue, rendered: Self.cardBlock(draft, clauses: clauses, transcriptions: blocks)
+                )))
+                writes.append(OutboxWrite(key: key, write: .updateIssue(
+                    issue: child.issue, change: change, undo: BoardIssueChange(workflowState: child.priorState)
+                )))
+                continue
+            }
             writes.append(OutboxWrite(key: key, write: .createIssue(
                 BoardIssueDraft(
                     team: scope.team, title: draft.title,
@@ -233,14 +255,23 @@ struct AuthoringPlanner {
     private static func cardDescription(
         _ draft: CardDraft, clauses: [PlannedClause], transcriptions: [TranscriptionBlock]
     ) -> String {
+        ManagedBlockFence.initialDescription(
+            rendered: cardBlock(draft, clauses: clauses, transcriptions: transcriptions)
+        ) + "\n\n" + draft.unitOfWork
+    }
+
+    /// What sits between the Managed Block delimiters of a freshly authored Work Card (roadmap P22.6: also what
+    /// a repaired draft is rewritten to).
+    static func cardBlock(
+        _ draft: CardDraft, clauses: [PlannedClause], transcriptions: [TranscriptionBlock]
+    ) -> String {
         var lines = ["### Architectural Brief", draft.brief]
         for block in transcriptions {
             lines.append(contentsOf: Self.transcriptionLines(block))
         }
         lines.append("")
         lines.append(contentsOf: ["### Definition of Done"] + definitionOfDoneLines(clauses))
-        let rendered = lines.joined(separator: "\n")
-        return ManagedBlockFence.initialDescription(rendered: rendered) + "\n\n" + draft.unitOfWork
+        return lines.joined(separator: "\n")
     }
 
     /// Renders one freshly transcribed Transcription Block via the shared formatter (roadmap P9.6), so
