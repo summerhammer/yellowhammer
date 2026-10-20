@@ -1,5 +1,5 @@
 {
-  "originHash" : "61e5061479cfd305d230fe3c917c0261b896d3be9442e8810fe07aedd60a91db",
+  "originHash" : "85669ef6a785e9c6aa584b9def790d509619254d003a34ffa86d5b2298cd76d0",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-subprocess",
       "state" : {
-        "revision" : "55d30558b8b12c0343793421328fe81a4919c776",
-        "version" : "1.0.1"
+        "revision" : "dbe21bd7dfd4ffef8c32588918542a8abfa1b54c",
+        "version" : "1.0.2"
       }
     },
     {
