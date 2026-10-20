@@ -2692,7 +2692,7 @@ build on it in the order listed. Existing boards keep their old labels; nothing 
 
 Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 
-### [ ] P22.1 Block Reason as card content, not a label
+### [x] P22.1 Block Reason as card content, not a label
 - **Work** — Stop provisioning, verifying and requiring the `Block Reason` label group; `DispositionLabels`
   needs only `Card Type` and removes any legacy Block Reason label it finds on a changed Card, never adding one.
   A Blocked Card's Managed Block, and each Blocked member line of a Feature's roll-up, leads with the precise
