@@ -244,6 +244,8 @@ extension JournalEvent {
             .authoringHaltExpired
         case .authoringHaltCleared:
             .authoringHaltCleared
+        case .authoringHaltRepair:
+            .authoringHaltRepair
         case .featureCompleted:
             .featureCompleted
         case .featureReleased:

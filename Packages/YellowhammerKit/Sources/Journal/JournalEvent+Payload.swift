@@ -490,7 +490,7 @@ extension JournalEvent {
             .verifiedFeatureMergeObserved, .noPushedBranchOutcome, .landedPinFailed:
             landActPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
-            .authoringHaltCleared:
+            .authoringHaltCleared, .authoringHaltRepair:
             authoringStopPayload
         case .featureCompleted, .featureReleased: settlePayload
         case .cardUnansweredBoundFired: cardUnansweredBoundFiredPayload

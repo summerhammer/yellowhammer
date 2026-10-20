@@ -15,6 +15,8 @@ struct FeatureDescriptionSection: Equatable {
 struct AuthoringPlan: Equatable {
     let writes: [OutboxWrite]
     let record: FeatureAuthoringAcceptedPayload
+    /// The halted Feature's existing Feature Issue this plan continues instead of creating one (roadmap P22.5).
+    var reusedFeatureIssue: BoardObjectID?
 }
 
 /// Builds one authoring transaction's group. `attempt` is the number of earlier authoring transactions
@@ -73,7 +75,8 @@ struct AuthoringPlanner {
                 nightID: nightID, cards: cards, adoptions: adoptions,
                 featureClauses: featureClauses, uncitableClauses: uncitable,
                 repositories: selection.repositories
-            )
+            ),
+            reusedFeatureIssue: existingFeatureIssueID
         )
     }
 

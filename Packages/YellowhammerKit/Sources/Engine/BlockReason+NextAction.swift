@@ -44,6 +44,17 @@ extension BlockReason {
         }
     }
 
+    /// What the Operator does next for a Feature Card Blocked by an expired Authoring Halt (roadmap P22.5; spec:
+    /// feature-authoring/select-the-next-feature, `#halted-authoring-repair`): the Card's own next action reads
+    /// "answer the Card's question", which is not what a halted Feature waits for.
+    public static let haltedFeatureNextAction =
+        "repair this Feature (and its Cards) in Linear, then move it to Todo to have it validated and resumed"
+
+    /// The first line of a Blocked halted Feature Card's Managed Block: its Block Reason and the repair to make.
+    public static var haltedFeatureHeadline: String {
+        "**Blocked — \(BlockReason.replyOverdue.rawValue).** Next: \(haltedFeatureNextAction)"
+    }
+
     /// The first line of a Blocked Card's Managed Block: the precise reason and the next action.
     public var blockedHeadline: String {
         "**Blocked — \(rawValue).** Next: \(nextAction)"

@@ -61,10 +61,15 @@ extension JournalStore {
     ///   for the record only.
     /// - Otherwise a new `open` row is inserted and `authoringHaltOpened` appended.
     ///
+    /// The halt's repair checkpoint (``AuthoringHaltCheckpoint``) is written in the same transaction as the row,
+    /// strictly before any board write exposes the halted Feature Card; `selection` is the accepted
+    /// authoring output that exists at that point, nil when the halt arose before the selector chose one.
+    ///
     /// Never touches a Refusal or any consecutive count.
     @discardableResult
     public func recordAuthoringHalt(
-        feature: FeatureName, causeKind: String, detail: String? = nil, content: String, nightID: Int64,
+        feature: FeatureName, causeKind: String, detail: String? = nil, content: String,
+        selection: SelectedFeature? = nil, nightID: Int64,
         act: Act? = nil, runID: RunID? = nil, now: Date = Date()
     ) throws -> AuthoringHaltOutcome {
         try write { db in
@@ -84,6 +89,7 @@ extension JournalStore {
                     arguments: [content, causeKind, id]
                 )
                 _ = try Self.insertEvent(db, repeated, stamp: stamp)
+                try Self.refreshHaltCheckpoint(db, haltID: id, detail: detail, selection: selection)
                 let record = try Self.authoringHaltRecord(from: try Self.fetchAuthoringHaltRow(db, id: id))
                 return AuthoringHaltOutcome(record: record, newlyOpened: false, alreadyExpired: false)
             }
@@ -108,6 +114,9 @@ extension JournalStore {
                 arguments: [feature.rawValue, causeKind, content, nightID, JournalStore.timestamp(stamp.now)]
             )
             let id = db.lastInsertedRowID
+            try Self.insertHaltCheckpoint(
+                db, haltID: id, connection: linearWorkspace.rawValue, detail: detail, selection: selection
+            )
             _ = try Self.insertEvent(
                 db, .authoringHaltOpened(feature: feature.rawValue, causeKind: causeKind, detail: detail),
                 stamp: stamp

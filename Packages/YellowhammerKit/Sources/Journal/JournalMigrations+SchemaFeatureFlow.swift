@@ -167,6 +167,33 @@ extension JournalMigrations {
         )
     }
 
+    /// The Authoring Halt's repair checkpoint (roadmap P22.5; spec: feature-authoring/select-the-next-feature,
+    /// `#halted-authoring-repair`), one row per halt, written in the same transaction that opens the halt —
+    /// strictly before the Feature Card is created or re-entered on the board. It holds what a later author Act
+    /// needs to resume the SAME Feature without selecting again: the Board Connection, a local transaction
+    /// identity, the cause's exact failing references, every accepted authoring output that exists at that point
+    /// (the selection; a later phase extends the row with draft children) and the Feature Card's last observed
+    /// workflow state — the durable condition every halt-related Feature Issue state write is decided against,
+    /// kept here because the Delta Read's observation store forgets. The `repair_*` columns are the Operator's
+    /// Todo request: a counter that moves once per move into Todo, whether it is still pending, and the
+    /// request the last validation handled.
+    static func createAuthoringHaltCheckpointTable(_ db: Database) throws {
+        try db.create(table: "authoring_halt_checkpoint") { table in
+            table.column("halt_id", .integer).primaryKey()
+                .references("authoring_halt", column: "id", onDelete: .cascade)
+            table.column("board_connection", .text).notNull()
+            table.column("transaction_id", .text).notNull()
+            table.column("cause_detail", .text)
+            table.column("selection", .text)
+            table.column("observed_state_id", .text)
+            table.column("observed_category", .text)
+            table.column("observed_at", .text)
+            table.column("repair_seq", .integer).notNull().defaults(to: 0)
+            table.column("repair_pending", .integer).notNull().defaults(to: 0)
+            table.column("repair_handled_seq", .integer).notNull().defaults(to: 0)
+        }
+    }
+
     /// The predecessor gate's own durable state (roadmap P9.9; spec: feature-authoring/
     /// select-the-next-feature, third story): the repositories a Feature touches, recorded at
     /// selection time rather than derived from its Cards (a Card's repository row can disappear —

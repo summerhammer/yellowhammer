@@ -195,6 +195,8 @@ extension NightCardMaintenance {
                 Authoring halted for Feature `\(name)`: \(reasonKind)\(named). Waiting on You: requires \
                 an Operator turn to clear.
                 """
+        case .authoringHaltRepair(let name, let step, let detail):
+            return haltRepairLine(feature: name, step: step, detail: detail)
         case .refusalOpened(let name, _, let clauses, let depth),
             .refusalRepeated(let name, _, let clauses, let depth):
             let named = clauses.isEmpty ? "" : " Uncitable clauses: \(clauses)."
@@ -295,5 +297,30 @@ extension NightCardMaintenance {
             return String(string.dropLast())
         }
         return string
+    }
+}
+
+extension NightCardMaintenance {
+    /// One step of repairing a halted Feature (roadmap P22.5): accepted, deferred (and why) or invalid (and why).
+    /// Never a halt of its own and never an authoring fault: a quiet Night.
+    static func haltRepairLine(feature: String, step: String, detail: String?) -> String? {
+        let why = detail.map { " (\($0))" } ?? ""
+        switch step {
+        case "requested":
+            return "Feature `\(feature)` was moved to Todo for repair: it is validated, not authored again."
+        case "deferred":
+            return "Repair of Feature `\(feature)` was deferred\(why); it stays as the Operator set it."
+        case "invalid":
+            return """
+                Repair of Feature `\(feature)` was not accepted\(why): it stays halted, with no Attempt and no \
+                authoring fault.
+                """
+        case "accepted":
+            return "Repair of Feature `\(feature)` was accepted: it continues as the same Feature\(why)."
+        case "terminal":
+            return "Halted Feature `\(feature)` was \(detail ?? "closed") on the Board: the halt resolved, no Cycle."
+        default:
+            return nil
+        }
     }
 }

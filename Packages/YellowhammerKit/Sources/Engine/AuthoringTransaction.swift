@@ -117,7 +117,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
                 feature: selection.name, cause: .contractUnreadable(contracts: transcriptions.unreadable),
-                context: context
+                selection: selection, context: context
             )
         }
 
@@ -136,6 +136,12 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         )
         if let violation {
             return try await rejectBreakdown([violation.reason], for: selection, context: context)
+        }
+        // Immediately before acceptance, a Feature Card this plan continues is read again: one the Operator
+        // completed or canceled while authoring ran is theirs, never moved back to Todo by the plan's write, and
+        // its halt resolves as that terminal disposition (roadmap P22.5).
+        if let stopped = try await HaltedFeatureRepair.revalidateBeforeAcceptance(plan, context: context) {
+            return stopped
         }
         let journal = context.journal
         _ = try journal.acceptOutbox(
@@ -156,7 +162,8 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         let overlaps = ContractOverlapCheck.overlaps(in: breakdown)
         guard !overlaps.isEmpty else { return nil }
         return try await AuthoringHalt.record(
-            feature: selection.name, cause: .breakdownConsumesOwnFeatureWork(overlaps: overlaps), context: context
+            feature: selection.name, cause: .breakdownConsumesOwnFeatureWork(overlaps: overlaps),
+            selection: selection, context: context
         )
     }
 
@@ -183,7 +190,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             return try await recordFault(
                 feature: selection.name, reason: error.description,
                 event: .featureBreakdownRejected(name: selection.name.rawValue, reason: error.description),
-                context: context
+                selection: selection, context: context
             )
         }
     }
@@ -197,7 +204,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         return try await recordFault(
             feature: selection.name, reason: reasons.joined(separator: "; "),
             event: .featureBreakdownRejected(name: selection.name.rawValue, reason: reasons.joined(separator: "; ")),
-            context: context
+            selection: selection, context: context
         )
     }
 
@@ -233,7 +240,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
                 let outcome = try await recordFault(
                     feature: selection.name, reason: fault.reason,
                     event: .featureBreakdownRejected(name: selection.name.rawValue, reason: fault.reason),
-                    context: context
+                    selection: selection, context: context
                 )
                 return .stopped(outcome)
             }
@@ -249,7 +256,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// an ordinary run leaves the next selection to apply the Bound.
     private func recordFault(
         feature: FeatureName, reason: String, event: JournalEvent,
-        operationKey: String? = nil, context: ActContext
+        operationKey: String? = nil, selection: SelectedFeature? = nil, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         let faults = try context.journal.recordAuthoringFault(
             feature: feature, reason: reason,
@@ -263,7 +270,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             return try await AuthoringHalt.record(
                 feature: feature,
                 cause: .authoringRepeatedlyFaulted(count: faults.count, lastReason: faults.lastReason),
-                context: context
+                selection: selection, context: context
             )
         }
         return .authoringRolledBack

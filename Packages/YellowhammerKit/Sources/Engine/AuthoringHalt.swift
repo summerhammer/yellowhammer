@@ -16,8 +16,10 @@ import Journal
 /// Blocked, no re-create into Waiting on You and no repeated comment. Repeated authoring faults append
 /// the forced run's result even after expiry, keeping the existing state.
 enum AuthoringHalt {
+    /// `selection` is the accepted selection the halt arose after, kept in the halt's checkpoint so a repaired
+    /// Feature resumes without selecting again (roadmap P22.5); nil when the selector halted before choosing one.
     static func record(
-        feature: FeatureName, cause: AuthoringHaltCause, context: ActContext
+        feature: FeatureName, cause: AuthoringHaltCause, selection: SelectedFeature? = nil, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         try context.journal.append(
             .featureAuthoringHalted(name: feature.rawValue, reasonKind: cause.kind, detail: cause.detail),
@@ -25,7 +27,7 @@ enum AuthoringHalt {
         )
         let outcome = try context.journal.recordAuthoringHalt(
             feature: feature, causeKind: cause.kind, detail: cause.detail, content: cause.description,
-            nightID: context.night.id, act: context.act, runID: context.runID
+            selection: selection, nightID: context.night.id, act: context.act, runID: context.runID
         )
         let repeatedFault: Bool
         if case .authoringRepeatedlyFaulted = cause { repeatedFault = true } else { repeatedFault = false }
@@ -35,10 +37,17 @@ enum AuthoringHalt {
             : nil
         try await AuthoringStopBoard.post(
             feature: feature, body: cause.description, context: context, reopenKey: reopenKey,
-            commentSuffix: repeatedFault ? context.runID.rawValue : nil
-        ) {
-            try context.journal.recordAuthoringHaltIssue(feature: feature, issueID: $0)
-        }
+            commentSuffix: repeatedFault ? context.runID.rawValue : nil,
+            recordIssue: { try context.journal.recordAuthoringHaltIssue(feature: feature, issueID: $0) },
+            // The Feature Card is Waiting on You after this post, so that is the state every later halt-related
+            // write is decided against (roadmap P22.5) until the board is read again.
+            recordState: { state in
+                guard let halt = try context.journal.authoringHalts(feature: feature).last else { return }
+                try context.journal.recordAuthoringHaltObservation(
+                    haltID: halt.id, stateID: state.rawValue, category: .started, revision: Date()
+                )
+            }
+        )
         return .halted
     }
 }
