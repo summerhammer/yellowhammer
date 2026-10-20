@@ -248,6 +248,13 @@ public struct CardManagedBlock: Equatable, Sendable {
     func render(compaction: AttemptsCompaction) -> String {
         var lines: [String] = []
 
+        // Blocked headline: the precise Block Reason and the next action lead the managed content, so
+        // the State line below does not repeat the reason.
+        let headlineReason = blockReason.flatMap { state == .blocked ? BlockReason(rawValue: $0) : nil }
+        if let headlineReason {
+            lines.append(headlineReason.blockedHeadline)
+        }
+
         // Kind line
         lines.append("**Kind:** `\(kind)`")
 
@@ -263,7 +270,7 @@ public struct CardManagedBlock: Equatable, Sendable {
 
         // State line
         var stateLine: String
-        if let blockReason = blockReason {
+        if let blockReason = blockReason, headlineReason == nil {
             stateLine = "**State:** \(state.rawValue) — \(blockReason)"
         } else {
             stateLine = "**State:** \(state.rawValue)"

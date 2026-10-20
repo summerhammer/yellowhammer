@@ -53,8 +53,8 @@ struct DoctorBoardProvisioningTests {
         let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
 
         let failures = findings.linear("acme", subject: "provisioning").filter { $0.severity == .failure }
-        // Four workflow states and three label groups; a missing group's labels are covered by the group.
-        #expect(failures.count == 7)
+        // Four workflow states and two label groups; a missing group's labels are covered by the group.
+        #expect(failures.count == 6)
         #expect(failures.contains { $0.message.contains("group label `Card Type` (team ENG) is missing") })
         #expect(failures.contains { $0.message.contains("group label `Override` (team ENG) is missing") })
         #expect(!failures.contains { $0.message.contains("Night Card") })
@@ -62,15 +62,15 @@ struct DoctorBoardProvisioningTests {
         #expect(await fixture.acme.creates == 0)
     }
 
-    @Test("An upgrade's missing authoring defect label is read-only until repaired, then repair is idempotent")
+    @Test("A missing label is read-only until repaired, then repair is idempotent")
     func missingUpgradeLabel() async throws {
         let fixture = try await DoctorLinearFixture()
-        await fixture.acme.remove(label: "authoring defect", team: engineeringTeam.id)
+        await fixture.acme.remove(label: "Night Card", team: engineeringTeam.id)
         let before = await fixture.acme.creates
         let project = ProjectID(rawValue: "alpha")
         let missing = await fixture.doctor(projectFilter: project).run()
         #expect(missing.linear("acme", subject: "provisioning").contains {
-            $0.severity == .failure && $0.message.contains("authoring defect")
+            $0.severity == .failure && $0.message.contains("Night Card")
                 && $0.message.contains("yh doctor --fix --check linear")
         })
         #expect(await fixture.acme.creates == before)
@@ -148,14 +148,14 @@ struct DoctorBoardProvisioningTests {
     @Test("Repair reports a refused create and preserves a colliding label")
     func refusedAndCollision() async throws {
         let fixture = try await DoctorLinearFixture()
-        await fixture.acme.remove(label: "authoring defect", team: engineeringTeam.id)
-        await fixture.acme.script(.refuse(.forbidden("forbidden")), for: "authoring defect")
+        await fixture.acme.remove(label: "Night Card", team: engineeringTeam.id)
+        await fixture.acme.script(.refuse(.forbidden("forbidden")), for: "Night Card")
         let project = ProjectID(rawValue: "alpha")
         let refused = await fixture.doctor(projectFilter: project, fix: true).run()
         #expect(refused.linear("acme", subject: "provisioning").contains {
             $0.severity == .failure && $0.message.contains("permission refused")
         })
-        let existing = await fixture.acme.seed(label: "authoring defect", team: engineeringTeam.id)
+        let existing = await fixture.acme.seed(label: "Night Card", team: engineeringTeam.id)
         let collision = await fixture.doctor(projectFilter: project, fix: true).run()
         #expect(collision.linear("acme", subject: "provisioning").contains {
             $0.severity == .failure && $0.message.contains("rename or delete")
@@ -166,12 +166,12 @@ struct DoctorBoardProvisioningTests {
     @Test("A refused child in a newly created group remains an unfinished repair step")
     func createdGroupRefusedChild() async throws {
         let fixture = try await DoctorLinearFixture(provisionAcme: false)
-        await fixture.acme.script(.refuse(.forbidden("cannot create child")), for: "authoring defect")
+        await fixture.acme.script(.refuse(.forbidden("cannot create child")), for: "Night Card")
         let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha"), fix: true).run()
         let provisioning = findings.linear("acme", subject: "provisioning")
         #expect(provisioning.count == 1)
         #expect(provisioning.first?.severity == .failure)
-        #expect(provisioning.first?.message.contains("authoring defect") == true)
+        #expect(provisioning.first?.message.contains("Night Card") == true)
         #expect(provisioning.first?.message.contains("permission refused") == true)
     }
 

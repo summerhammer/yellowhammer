@@ -169,7 +169,8 @@ public struct FeatureRollUpBlock {
 
     private func reasonSuffix(_ card: RollUpMember) -> String {
         if card.state == .blocked, let blockReason = card.blockReason {
-            return " (\(blockReason))"
+            let next = BlockReason(rawValue: blockReason).map { " · next: \($0.nextAction)" } ?? ""
+            return " (\(blockReason))\(next)"
         }
         if card.state == .waitingOnYou, let waitingReason = card.waitingReason {
             return " (\(waitingReason.rawValue))"

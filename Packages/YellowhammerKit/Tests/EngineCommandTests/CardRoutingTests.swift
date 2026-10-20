@@ -146,7 +146,7 @@ struct CardRoutingTests {
 
         let issueState = try #require(await boards.writing.issue(issue))
         #expect(issueState.workflowState == scope.states[.blocked])
-        #expect(issueState.labels.contains(try #require(boards.ids["route failure"])))
+        #expect(issueState.labels == [try #require(boards.ids[CardType.workCard.rawValue])])
     }
 
     @Test("Without a Board the Blocked transition is written to the Journal alone")

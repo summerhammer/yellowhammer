@@ -181,10 +181,10 @@ struct ExpiredLeaseSweepOperatorAbortTests {
         let reclaimed = try journal.card(id: card.cardID)
         #expect(reclaimed.state == .blocked)
         #expect(reclaimed.blockReason == BlockReason.operatorAbort.rawValue)
-        // The board, not only the Journal: the issue is Blocked and carries the `operator abort` label.
+        // The board, not only the Journal: the issue is Blocked; the reason is Card content, not a label.
         let issue = try #require(await boards.writing.issue(BoardObjectID(rawValue: card.issueID)))
         #expect(issue.workflowState == scope.states[.blocked])
-        #expect(issue.labels.contains(try #require(boards.ids["operator abort"])))
+        #expect(issue.labels == [try #require(boards.ids[CardType.workCard.rawValue])])
 
         let comment = try #require(await boards.writing.comments.first { $0.issue.rawValue == card.issueID })
         #expect(comment.body.hasPrefix(
