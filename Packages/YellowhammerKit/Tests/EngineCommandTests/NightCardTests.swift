@@ -33,12 +33,13 @@ struct NightCardJournalFixture: ~Copyable {
     }
 }
 
-/// Seeds a team with a complete disposition-label catalogue (every declared child of Card Type and
-/// Block Reason, since ``DispositionLabels`` requires all of them) and returns the minted label ids,
-/// keyed by name.
+/// Seeds a team with a complete disposition-label catalogue (every declared child of Card Type, which
+/// ``DispositionLabels`` requires; with `legacyBlockReason`, the retired Block Reason group and one child
+/// per reason too) and returns the minted label ids, keyed by name.
 @discardableResult
 func seedDispositionLabels(
-    on board: FakeProvisioningBoard, team: BoardObjectID, includeNightCard: Bool = true
+    on board: FakeProvisioningBoard, team: BoardObjectID, includeNightCard: Bool = true,
+    legacyBlockReason: Bool = false
 ) async throws -> [String: BoardObjectID] {
     await board.seed(label: BoardProvisioner.cardTypeGroup, team: team, isGroup: true)
     let cardTypeGroupID = try await board.labels(team: team).first {
@@ -48,12 +49,14 @@ func seedDispositionLabels(
     for child in BoardProvisioner.cardTypeChildren where child != CardType.nightCard.rawValue || includeNightCard {
         await board.seed(label: child, team: team, parent: cardTypeGroupID)
     }
-    await board.seed(label: BoardProvisioner.blockReasonGroup, team: team, isGroup: true)
-    let blockReasonGroupID = try await board.labels(team: team).first {
-        $0.name == BoardProvisioner.blockReasonGroup && $0.isGroup
-    }!.id
-    for child in BoardProvisioner.blockReasonChildren {
-        await board.seed(label: child, team: team, parent: blockReasonGroupID)
+    if legacyBlockReason {
+        await board.seed(label: BoardProvisioner.blockReasonGroup, team: team, isGroup: true)
+        let blockReasonGroupID = try await board.labels(team: team).first {
+            $0.name == BoardProvisioner.blockReasonGroup && $0.isGroup
+        }!.id
+        for reason in BlockReason.allCases {
+            await board.seed(label: reason.rawValue, team: team, parent: blockReasonGroupID)
+        }
     }
     for label in try await board.labels(team: team) {
         ids[label.name] = label.id

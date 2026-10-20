@@ -126,7 +126,7 @@ struct ManagedBlockMaintenanceTests {
 
     // MARK: - Labels
 
-    @Test("Disposition labels: one Block Reason at a time, one card type, and none once the Card is re-readied")
+    @Test("Disposition labels: one card type, and a legacy Block Reason label is removed, never added")
     func labelGroupExclusivity() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -141,9 +141,10 @@ struct ManagedBlockMaintenanceTests {
 
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let blocked = try #require(await board.issue(issue)?.labels)
-        #expect(blocked == [labels.cardType[.workCard]!, labels.blockReason[.checkFailure]!])
+        #expect(blocked == [labels.cardType[.workCard]!])
         let description = try #require(await board.issue(issue)?.description)
-        #expect(description.contains("**State:** Blocked — check failure"))
+        #expect(description.contains(ManagedBlockFence.start + "\n**Blocked — check failure.** Next: "))
+        #expect(description.contains("**State:** Blocked"))
 
         try setCard(journal, cardID, state: .todo, blockReason: nil)
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)

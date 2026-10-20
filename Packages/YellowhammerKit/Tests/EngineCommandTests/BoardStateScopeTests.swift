@@ -101,10 +101,10 @@ struct BoardStateScopeTests {
         }
     }
 
-    @Test("Feature contention change moves to contention state and strips block reason labels")
+    @Test("Feature contention change moves to contention state and strips legacy block reason labels")
     func featureContentionChangeSetsStateAndLabels() async throws {
         let provisioning = board()
-        let ids = try await seedDispositionLabels(on: provisioning, team: scopeTeam.id)
+        let ids = try await seedDispositionLabels(on: provisioning, team: scopeTeam.id, legacyBlockReason: true)
         await provisioning.seed(state: "Todo", team: scopeTeam.id, category: .unstarted)
         await provisioning.seed(state: "In Progress", team: scopeTeam.id, category: .started)
         await provisioning.seed(state: "Done", team: scopeTeam.id, category: .completed)

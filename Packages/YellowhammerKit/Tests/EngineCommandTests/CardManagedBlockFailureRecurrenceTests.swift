@@ -23,7 +23,7 @@ func recurrenceRendersUnderTheState() throws {
     ).render()
     let lines = rendered.components(separatedBy: "\n")
 
-    let state = try #require(lines.firstIndex(of: "**State:** Blocked — failure recurrence"))
+    let state = try #require(lines.firstIndex(of: "**State:** Blocked"))
     #expect(lines[state + 1] == "**Failure-Cause Recurrence:** failure cause `hard failure (exit status 2)` " +
         "recurred across 2 Nights — a design conversation, not a rerun")
     #expect(!rendered.contains("Triage"))

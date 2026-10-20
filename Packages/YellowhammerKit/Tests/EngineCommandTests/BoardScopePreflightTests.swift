@@ -8,7 +8,7 @@ import Testing
 
 // Every Act resolves the Project's board scope before it creates the Night Card or does any work
 // (spec rulings OQ85, OQ136; issue #353): the four provisioned `started` workflow states, the
-// `Card Type` and `Block Reason` label groups with their children, and the `Override` group. An
+// `Card Type` label group with its children, and the `Override` group. An
 // unresolved item halts the Act with one Journal event naming it, `.actIncomplete`, and the local
 // *halted* notification — once per Night.
 
@@ -36,7 +36,7 @@ private final class NotificationRecorder: Sendable {
 
 /// One member of the board scope, how to take it off a complete board, and how a refusal names it.
 enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
-    case waitingOnYou, blocked, keptInFlight, abandoned, cardTypeGroup, blockReasonChild, overrideGroup
+    case waitingOnYou, blocked, keptInFlight, abandoned, cardTypeGroup, overrideGroup
 
     var testDescription: String { name }
 
@@ -47,7 +47,6 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
         case .keptInFlight: SettleValue.keptInFlight.rawValue
         case .abandoned: SettleValue.abandoned.rawValue
         case .cardTypeGroup: BoardProvisioner.cardTypeGroup
-        case .blockReasonChild: BoardProvisioner.blockReasonChildren[0]
         case .overrideGroup: BoardProvisioner.overrideGroup
         }
     }
@@ -57,7 +56,6 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
         switch self {
         case .waitingOnYou, .blocked, .keptInFlight, .abandoned: "workflow state `\(name)` (team ENG)"
         case .cardTypeGroup, .overrideGroup: "group label `\(name)` (team ENG)"
-        case .blockReasonChild: "label `\(name)` in group `Block Reason` (team ENG)"
         }
     }
 
@@ -65,7 +63,7 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
         switch self {
         case .waitingOnYou, .blocked, .keptInFlight, .abandoned:
             await board.remove(state: name, team: teamID)
-        case .cardTypeGroup, .blockReasonChild, .overrideGroup:
+        case .cardTypeGroup, .overrideGroup:
             await board.remove(label: name, team: teamID)
         }
     }

@@ -4,7 +4,10 @@ import Foundation
 /// The declared provisioning scope for a Linear project.
 ///
 /// These constants define the state name and label groups that Yellowhammer provisions
-/// at setup time. The `Override` label group (G-17 as amended by OQ126, roadmap P7.6) is provisioned
+/// at setup time. Only the `Card Type` group is provisioned for every Project: Block Reason is a
+/// Journal cause rendered into the Card's Managed Block, not a label (Board Simplification Ruling
+/// 2026-10-20), so a board that still has the legacy `Block Reason` group is neither verified nor
+/// edited here, and none of its labels is deleted. The `Override` label group (G-17 as amended by OQ126, roadmap P7.6) is provisioned
 /// with the merged Routing Table's Routes when one is given, and refreshed by re-running provisioning
 /// after the table changes: a Route it no longer names keeps its label, because nothing ever clears an
 /// Override. The per-axis groups `Override CLI`, `Override Model` and `Override Effort` that earlier
@@ -37,9 +40,9 @@ public struct BoardProvisioner {
     public static let cardTypeGroup = "Card Type"
     public static let cardTypeChildren = CardType.allCases.map(\.rawValue)
 
-    /// Block Reason label group and its children.
+    /// The legacy Block Reason label group's name. No longer provisioned or verified; read only so
+    /// ``DispositionLabels`` can remove its labels from a Card on a board that still has them.
     public static let blockReasonGroup = "Block Reason"
-    public static let blockReasonChildren = BlockReason.allCases.map(\.rawValue)
 
     /// A label group to be provisioned. Internal, not private: shared with the label-group
     /// provisioning in `BoardProvisioner+Labels.swift`, split out to stay under the file-length limit.
@@ -55,8 +58,7 @@ public struct BoardProvisioner {
 
     /// The label groups provisioned for every Project.
     private static let labelGroups = [
-        LabelGroupDeclaration(name: cardTypeGroup, children: cardTypeChildren),
-        LabelGroupDeclaration(name: blockReasonGroup, children: blockReasonChildren)
+        LabelGroupDeclaration(name: cardTypeGroup, children: cardTypeChildren)
     ]
 
     /// The `Override` label group, with the merged Routing Table's Routes as its children (OQ126).

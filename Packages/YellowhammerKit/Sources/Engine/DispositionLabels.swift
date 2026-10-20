@@ -1,7 +1,10 @@
 import Domain
 import Foundation
 
-/// Label management for Card disposition: card type and block reason.
+/// Label management for Card disposition. The `Card Type` group is required; the `Block Reason` group is
+/// optional legacy: Block Reason is a Journal cause shown in the Card's Managed Block, never a label
+/// (Board Simplification Ruling 2026-10-20), so a board that still carries the group has its children
+/// removed from a changed Card and never receives one.
 public struct DispositionLabels: Equatable, Sendable {
     public var cardType: [CardType: BoardObjectID]
     public var blockReason: [BlockReason: BoardObjectID]
@@ -12,8 +15,9 @@ public struct DispositionLabels: Equatable, Sendable {
     }
 
     /// Resolves from the labels a team exposes: the child of the group named
-    /// BoardProvisioner.cardTypeGroup / blockReasonGroup, matched case-insensitively.
-    /// Throws DispositionLabelsError.missing(group:label:) naming the first missing one.
+    /// BoardProvisioner.cardTypeGroup, matched case-insensitively; the legacy Block Reason group's
+    /// children are resolved when present, and their absence is never an error.
+    /// Throws DispositionLabelsError.missing(group:label:) naming the first missing Card Type child.
     public init(labels: [BoardLabel]) throws {
         var cardTypeMap: [CardType: BoardObjectID] = [:]
         var blockReasonMap: [BlockReason: BoardObjectID] = [:]
@@ -58,19 +62,14 @@ public struct DispositionLabels: Equatable, Sendable {
             throw DispositionLabelsError.missing(group: BoardProvisioner.cardTypeGroup, label: type.rawValue)
         }
 
-        // Verify we have all block reasons
-        for reason in BlockReason.allCases where blockReasonMap[reason] == nil {
-            throw DispositionLabelsError.missing(group: BoardProvisioner.blockReasonGroup, label: reason.rawValue)
-        }
-
         self.cardType = cardTypeMap
         self.blockReason = blockReasonMap
     }
 
     /// The change that puts exactly the right labels on an issue: adds `cardType`'s child label and
-    /// removes the other card-type children; adds the one Block Reason label when `state` is Blocked
-    /// with a known reason, and removes every other Block Reason label (the Block Reason group is only
-    /// ever non-empty on a Blocked issue).
+    /// removes the other card-type children, and removes every legacy Block Reason label the board
+    /// still carries. It never adds one: the Block Reason is the Card's content, not a label.
+    /// `state` and `blockReason` stay in the signature so callers read the same either way.
     public func change(cardType: CardType, state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
         var change = BoardIssueChange()
 
@@ -84,13 +83,9 @@ public struct DispositionLabels: Equatable, Sendable {
             }
         }
 
-        // Block Reason: add the one if the issue is Blocked with a known reason, remove every other.
-        let effectiveReason = state == .blocked ? blockReason : nil
-        if let effectiveReason, let reasonID = self.blockReason[effectiveReason] {
-            change.addLabels.append(reasonID)
-        }
+        // Legacy Block Reason labels: remove every one the board still carries, add none.
         for reason in BlockReason.allCases {
-            if reason != effectiveReason, let reasonID = self.blockReason[reason] {
+            if let reasonID = self.blockReason[reason] {
                 change.removeLabels.append(reasonID)
             }
         }
