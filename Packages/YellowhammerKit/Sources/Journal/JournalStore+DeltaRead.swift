@@ -5,7 +5,50 @@ import GRDB
 /// Where each root of the Delta Read has been read up to (spec: board-projection /
 /// read-board-changes-by-delta, `sync-boundary`). The roots are independent: a comment newer than an
 /// unread issue change never moves the issues' cursor past it.
+/// One root of a resumable pass: where its pages resume and how far it has been observed.
+public struct BoardPassRoot: Codable, Equatable, Sendable {
+    /// The `since` the pass started this root with; kept for every resumed request.
+    public var since: Date?
+    /// The Linear `endCursor` the pass reached; nil before its first page.
+    public var after: String?
+    /// The root reached `hasNextPage == false`.
+    public var done: Bool
+    /// The latest board timestamp observed in this root during the pass.
+    public var maxObserved: Date?
+
+    public init(since: Date?, after: String? = nil, done: Bool = false, maxObserved: Date? = nil) {
+        self.since = since
+        self.after = after
+        self.done = done
+        self.maxObserved = maxObserved
+    }
+}
+
+/// A Delta Read that hit the request cap, checkpointed (spec: sync-boundary): resumed by the next Act under
+/// the same `since` and horizon; the time cursors move only when every root is done.
+public struct BoardReadPass: Codable, Equatable, Sendable {
+    /// The sync horizon captured when the pass started.
+    public var horizon: Date
+    public var issues: BoardPassRoot
+    public var comments: BoardPassRoot
+
+    public init(horizon: Date, issues: BoardPassRoot, comments: BoardPassRoot) {
+        self.horizon = horizon
+        self.issues = issues
+        self.comments = comments
+    }
+}
+
+/// What a read does to the checkpoint.
+public enum BoardPassChange: Equatable, Sendable {
+    case keep
+    case set(BoardReadPass)
+    case clear
+}
+
 public struct BoardSyncPoint: Equatable, Sendable {
+    /// The checkpoint of an unfinished pass, if any.
+    public let pass: BoardReadPass?
     /// The board's own timestamp the updated-issues root has been read to; nil before it was read.
     public let issuesSynced: Date?
     /// The board's own timestamp the new-comments root has been read to; nil before it was read.
@@ -69,12 +112,15 @@ public struct BoardReadRecord: Equatable, Sendable {
     public var clearsBuildPending: Bool
     /// Observations older than this are forgotten: the overlap that needs deduplicating is behind them.
     public var forgetsBefore: Date?
+    /// The checkpoint after this read.
+    public var pass: BoardPassChange
 
     public init(
         issuesSynced: Date?, commentsSynced: Date?, issues: [BoardIssueObservation],
         comments: [BoardCommentObservation], leavesBuildPending: Bool, clearsBuildPending: Bool,
-        forgetsBefore: Date?
+        forgetsBefore: Date?, pass: BoardPassChange = .keep
     ) {
+        self.pass = pass
         self.issuesSynced = issuesSynced
         self.commentsSynced = commentsSynced
         self.issues = issues
@@ -112,17 +158,26 @@ extension JournalStore {
             let issues = Self.later(record.issuesSynced, existing?.issuesSynced)
             let comments = Self.later(record.commentsSynced, existing?.commentsSynced)
             let storedNow = Self.stored(now)
+            let pass: BoardReadPass?
+            switch record.pass {
+            case .keep: pass = existing?.pass
+            case .set(let new): pass = new
+            case .clear: pass = nil
+            }
+            let passText = try pass.map { String(bytes: try JSONEncoder().encode($0), encoding: .utf8) ?? "{}" }
             try db.execute(
                 sql: """
-                INSERT OR REPLACE INTO board_sync (id, issues_synced, comments_synced, read_at, run_id)
-                VALUES (1, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO board_sync (id, issues_synced, comments_synced, read_pass, read_at, run_id)
+                VALUES (1, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
-                    issues.map(Self.syncTimestamp), comments.map(Self.syncTimestamp),
+                    issues.map(Self.syncTimestamp), comments.map(Self.syncTimestamp), passText,
                     Self.timestamp(storedNow), runID.rawValue
                 ]
             )
-            return BoardSyncPoint(issuesSynced: issues, commentsSynced: comments, readAt: storedNow, runID: runID)
+            return BoardSyncPoint(
+                pass: pass, issuesSynced: issues, commentsSynced: comments, readAt: storedNow, runID: runID
+            )
         }
     }
 
@@ -251,7 +306,15 @@ extension JournalStore {
         let runIDText: String? = row["run_id"]
 
         let readAt = try Self.date(readAtText) { JournalError.boardSyncUnreadable }
+        let passText: String? = row["read_pass"]
+        let pass = try passText.map { text -> BoardReadPass in
+            guard let pass = try? JSONDecoder().decode(BoardReadPass.self, from: Data(text.utf8)) else {
+                throw JournalError.boardSyncUnreadable
+            }
+            return pass
+        }
         return BoardSyncPoint(
+            pass: pass,
             issuesSynced: try issuesText.map(Self.parseSyncTimestamp),
             commentsSynced: try commentsText.map(Self.parseSyncTimestamp),
             readAt: readAt,

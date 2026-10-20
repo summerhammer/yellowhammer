@@ -24,7 +24,10 @@ extension JournalMigrations {
     /// new comments) has been read up to, moved only after every page of both roots was processed.
     /// `board_issue_seen` and `board_comment_seen` are the observations: an issue by id with the
     /// `updated_at` revision last observed, a comment by id. They make a re-read of the overlap
-    /// idempotent. An issue row also keeps the board copy (`payload`, JSON) and `build_pending`: set
+    /// idempotent. `read_pass` checkpoints a read that stopped at the request cap: each unfinished root's
+    /// `endCursor`, the `since` and horizon the pass started with, and the latest timestamp observed so far,
+    /// so the next Act resumes instead of restarting and the cursors advance only when the pass completes.
+    /// An issue row also keeps the board copy (`payload`, JSON) and `build_pending`: set
     /// when a read that does not own the Card's build decisions (author, land) observed a revision,
     /// cleared when the build Act has reconciled it, so no Act consumes another Act's observation.
     static func createBoardSyncTable(_ db: Database) throws {
@@ -33,6 +36,8 @@ extension JournalMigrations {
                 .check(sql: "id = 1")
             table.column("issues_synced", .text)
             table.column("comments_synced", .text)
+            // JSON: the checkpoint of a read that hit the request cap (BoardReadPass); nil between passes.
+            table.column("read_pass", .text)
             table.column("read_at", .text).notNull()
             table.column("run_id", .text)
         }

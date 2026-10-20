@@ -238,8 +238,8 @@ struct DeltaReadPagingTests {
         #expect(try journal.observedIssueRevisions(["f-1", "f-2"]).isEmpty)
     }
 
-    @Test("Reaching the request cap is an incomplete sync: recorded, no cursor moves, nothing is applied")
-    func requestCapIsAnIncompleteSync() async throws {
+    @Test("Reaching the request cap checkpoints the pass: recorded, applied so far, no time cursor moves")
+    func requestCapCheckpointsThePass() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let cardID = try insertCard(journal, issueID: "card-1", state: .todo)
@@ -263,12 +263,94 @@ struct DeltaReadPagingTests {
 
         #expect(reason.contains("did not reach the last page"))
         #expect(await board.calls.count == 2)
-        #expect(try journal.boardSyncPoint() == nil)
-        #expect(try journal.card(id: cardID).state == .todo)
-        let events = try journal.events(ofType: .deltaReadIncomplete)
-        #expect(events.count == 1)
+        let sync = try #require(try journal.boardSyncPoint())
+        #expect(sync.issuesSynced == nil && sync.commentsSynced == nil, "no time cursor moved")
+        #expect(sync.pass?.issues.after == "o-3")
+        #expect(sync.pass?.issues.done == false)
+        #expect(sync.pass?.comments.done == true)
+        #expect(try journal.card(id: cardID).state == .shelved, "the pages read are applied, once")
+        #expect(try journal.observedIssueRevisions(["f-2"]).count == 1)
+        #expect(try journal.events(ofType: .deltaReadIncomplete).count == 1)
         #expect(try journal.events(ofType: .deltaReadCompleted).isEmpty)
         #expect(try journal.events(ofType: .rateBudgetExhausted).isEmpty)
+    }
+
+    @Test("An over-cap read resumes across Acts, each page requested once, the cursor moves on the last Act only")
+    func overCapReadResumesAcrossActs() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let pages = (1...5).map { number in
+            page(
+                objects: [object("f-\(number)", state: stateTodo, updatedAt: TimeInterval(number))],
+                comments: number == 1 ? [comment("c-1", on: "f-1", author: humanAuthor, createdAt: 9)] : [],
+                nextObjectCursor: number < 5 ? BoardCursor(rawValue: "o-\(number + 1)") : nil
+            )
+        }
+        let board = FakeReadingBoard(pages)
+
+        var outcomes: [Bool] = []
+        for act in 0..<3 {
+            let (read, _) = try readerLeased(journal, board: board, requestLimit: 2)
+            let outcome = try await read.perform()
+            if case .read = outcome { outcomes.append(true) } else { outcomes.append(false) }
+            let sync = try #require(try journal.boardSyncPoint())
+            if act < 2 {
+                #expect(sync.issuesSynced == nil, "the cursor does not move before the pass completes")
+                #expect(try journal.events(ofType: .deltaReadCompleted).isEmpty)
+            }
+            #expect(try journal.releaseActLease(runID: read.runID))
+        }
+
+        #expect(outcomes == [false, false, true])
+        let calls = await board.calls
+        #expect(calls.map(\.objectsAfter) == [
+            nil, BoardCursor(rawValue: "o-2"), BoardCursor(rawValue: "o-3"),
+            BoardCursor(rawValue: "o-4"), BoardCursor(rawValue: "o-5")
+        ], "every page is requested exactly once; each Act resumes from the checkpoint")
+        #expect(calls.map(\.skippedComments) == [false, true, true, true, true])
+        #expect(try journal.observedIssueRevisions((1...5).map { "f-\($0)" }).count == 5, "nothing lost")
+        let sync = try #require(try journal.boardSyncPoint())
+        #expect(sync.issuesSynced == at(5))
+        #expect(sync.commentsSynced == at(9))
+        #expect(sync.pass == nil)
+        #expect(try journal.events(ofType: .deltaReadCompleted).count == 1)
+        #expect(try journal.events(ofType: .deltaReadIncomplete).count == 2)
+    }
+
+    @Test("A checkpointed cursor the board refuses as stale restarts that root from its time cursor")
+    func staleCheckpointRestartsTheRoot() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let first = FakeReadingBoard([
+            page(
+                objects: [object("f-1", state: stateTodo, updatedAt: 1)],
+                nextObjectCursor: BoardCursor(rawValue: "o-2")
+            )
+        ])
+        let (firstRead, _) = try readerLeased(journal, board: first, requestLimit: 1)
+        _ = try await firstRead.perform()
+        #expect(try journal.releaseActLease(runID: firstRead.runID))
+        #expect(try journal.boardSyncPoint()?.pass?.issues.after == "o-2")
+
+        let second = FakeReadingBoard([
+            .failure(.refused("invalid cursor")),
+            page(objects: [
+                object("f-1", state: stateTodo, updatedAt: 1), object("f-2", state: stateTodo, updatedAt: 2)
+            ])
+        ])
+        let (secondRead, _) = try readerLeased(journal, board: second)
+        guard case .read(let report) = try await secondRead.perform() else {
+            Issue.record("expected the restarted read to complete")
+            return
+        }
+
+        let calls = await second.calls
+        #expect(calls.map(\.objectsAfter) == [BoardCursor(rawValue: "o-2"), nil])
+        #expect(calls.map(\.since) == [nil, nil], "the restart keeps the pass's since")
+        #expect(report.unknownObjects.map(\.id.rawValue) == ["f-2"], "f-1 was stored by the first Act")
+        #expect(try journal.events(ofType: .deltaReadIncomplete).count == 2, "the restart is recorded")
+        let sync = try #require(try journal.boardSyncPoint())
+        #expect(sync.issuesSynced == at(2) && sync.pass == nil)
     }
 
     // MARK: - Tracked state
