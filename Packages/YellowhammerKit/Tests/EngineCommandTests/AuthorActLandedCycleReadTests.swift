@@ -155,29 +155,30 @@ struct AuthorActLandedCycleReadTests {
         #expect(await world.boards.writing.writes(to: BoardObjectID(rawValue: "BACK-2"), since: baseline).isEmpty)
     }
 
-    @Test("No Delta Read with no Feature in flight and nothing Waiting on You in a landed Cycle")
-    func noReadWithNothingInFlightAndNothingToBank() async throws {
+    @Test("The author Act reads the board even with no Feature in flight and nothing Waiting on You")
+    func readsWithNothingInFlightAndNothingToBank() async throws {
         let world = try await makeSettleWorld(inFlight: false, landed: true)
         try resolveWaitingCard(world)
-        let reading = FakeReadingBoard([])
+        let reading = FakeReadingBoard([page()])
         try await reading.readThrough(world.boards)
         let authoring = CandidateRecordingAuthoring()
 
         try await authorAct(world, reading: reading, authoring: authoring).run()
 
-        #expect(await reading.calls.isEmpty)
+        #expect(await reading.calls.count == 1, "every Act reconciles the Board before it decides (P22.3)")
         #expect(authoring.candidates == ["BACK-2"])
     }
 
-    @Test("No Delta Read while an unlanded Cycle is in flight: that read stays the build Act's")
-    func noReadWhileAnUnlandedCycleIsInFlight() async throws {
+    @Test("While an unlanded Cycle is in flight the author Act reads, but the Cards stay the build Act's")
+    func readsWhileAnUnlandedCycleIsInFlight() async throws {
         let world = try await makeSettleWorld(landed: false)
         await world.seedFeatureIssueState(FeatureDisposition.legacySettleStateNames[0])
         let authoring = CandidateRecordingAuthoring()
 
         try await authorAct(world, reading: world.reading, authoring: authoring).run()
 
-        #expect(await world.reading.calls.isEmpty)
+        #expect(await world.reading.calls.count == 1)
+        #expect(try world.journal.events(ofType: .deltaReadCompleted).count <= 1)
         #expect(try world.journal.events(ofType: .featureCompleted).isEmpty)
         #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
     }

@@ -47,7 +47,9 @@ struct LandActDeferredCardStateReplayTests {
         try journal.releaseCardLease(cardID: staleCardID, runID: runID)
         #expect(try journal.card(id: staleCardID).boardStateVersion == nil)
 
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
+        )
         let act = LandAct()
         let invocation = EngineInvocation(
             // Forced: the stale Card sitting In Progress makes the scheduled trigger's own

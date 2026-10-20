@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Which of those it is, and what its state means, is decided above the Board Port; this is only what
 /// the board reported.
-public struct BoardObject: Equatable, Sendable {
+public struct BoardObject: Equatable, Sendable, Codable {
     public var id: BoardObjectID
     /// The human identifier, such as `ENG-123`.
     public var key: String
@@ -56,7 +56,7 @@ public struct BoardObject: Equatable, Sendable {
 }
 
 /// A workflow state as the board names it. The name is what carries `Waiting on You`.
-public struct BoardWorkflowState: Hashable, Sendable {
+public struct BoardWorkflowState: Hashable, Sendable, Codable {
     public var id: BoardObjectID
     public var name: String
     /// Yellowhammer's vocabulary for what the vendor's state `type` means; nil when the vendor
@@ -81,7 +81,7 @@ public struct BoardWorkflowState: Hashable, Sendable {
 /// Yellowhammer's vocabulary for a workflow state's category, translated from the board's own by an
 /// adapter (an adapter translates, never decides). Linear spells its cancelled type `canceled`; this
 /// enum keeps Yellowhammer's own spelling.
-public enum BoardWorkflowStateCategory: String, Sendable, CaseIterable {
+public enum BoardWorkflowStateCategory: String, Sendable, CaseIterable, Codable {
     case triage
     case backlog
     case unstarted

@@ -177,6 +177,10 @@ public enum JournalEvent: Equatable, Sendable {
         objects: Int, comments: Int, ownComments: Int, requests: Int,
         since: Date?, syncPoint: Date?
     )
+    /// A Delta Read stopped before its last page (the request cap) and moved no cursor: the observations
+    /// it did not reach stay unseen, and every decision depending on them is deferred
+    /// (board-projection / read-board-changes-by-delta, `sync-boundary`).
+    case deltaReadIncomplete(requests: Int, reason: String)
     /// A Journal-side Card state transition (roadmap P5.8): the state, waiting reason and block reason
     /// the Card holds after it, bumping `card.state_version` in the same write.
     case cardStateTransitioned(

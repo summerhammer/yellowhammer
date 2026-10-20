@@ -87,7 +87,9 @@ struct RehearsalIsolationTests {
         let boards = try await makeBoards()
         let bindBoard: (Config.Configuration, ProjectConfiguration) throws -> ActBoard = { _, project in
             bound.append(project.linearProject)
-            return ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+            return ActBoard(
+                reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
+            )
         }
 
         // A real Night is open, with a Feature in flight, a Work Card one unanswered Night in and an open Refusal.

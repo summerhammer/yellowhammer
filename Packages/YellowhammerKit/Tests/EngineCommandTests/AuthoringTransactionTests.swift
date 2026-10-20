@@ -112,7 +112,7 @@ struct AuthoringTransactionTests {
         let rig = try await AuthoringRig()
         await rig.boards.writing.script(.refuse(.refused("Linear reports the title is invalid")), for: "Backend two")
         let board = ActBoard(
-            reading: FakeReadingBoard([]), writing: rig.boards.writing, provisioning: rig.boards.provisioning
+            reading: FakeReadingBoard.quiet(), writing: rig.boards.writing, provisioning: rig.boards.provisioning
         )
 
         try await EngineInvocation(

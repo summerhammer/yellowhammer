@@ -167,6 +167,8 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .deltaReadIncomplete(let requests, let reason):
+            ["reason": reason, "requests": String(requests)]
         case .cardStateTransitioned(let cardID, let issueID, let from, let to, let waitingReason, let blockReason):
             {
                 var dict: [String: String] = [

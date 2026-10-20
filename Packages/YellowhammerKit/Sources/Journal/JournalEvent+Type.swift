@@ -99,6 +99,8 @@ extension JournalEvent {
             .authoringInvariantBroken
         case .deltaReadCompleted:
             .deltaReadCompleted
+        case .deltaReadIncomplete:
+            .deltaReadIncomplete
         case .cardStateTransitioned:
             .cardStateTransitioned
         case .waitingOnYouUnbacked:

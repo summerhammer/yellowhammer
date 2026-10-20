@@ -5,8 +5,10 @@ import Journal
 /// What one Delta Read concluded, or that it could not read.
 public enum DeltaReadOutcome: Equatable, Sendable {
     case read(DeltaReadReport)
-    /// The board refused for its rate budget before the read completed. Nothing read this Act was acted
-    /// on, no sync point moved, and the degradation was recorded as installation-wide.
+    /// The read did not complete: the board refused for its rate budget (recorded as installation-wide),
+    /// or the request cap was reached before the last page (recorded as an incomplete Delta Read). Nothing
+    /// read this Act was acted on and no cursor moved, so the caller defers every decision that depends on
+    /// the observation it is missing (settlement, overdue clocks, selection, merge closure effects).
     case degraded(reason: String)
 }
 
@@ -14,12 +16,12 @@ public enum DeltaReadOutcome: Equatable, Sendable {
 /// authoritative for loop state: what is reported here was reconciled against it, never adopted from
 /// the board — except Shelved, the one state Yellowhammer reads and never writes.
 public struct DeltaReadReport: Equatable, Sendable {
-    /// The sync point the read started from; nil for a first read.
+    /// The earliest of the per-root cursors the read started from; nil for a first read.
     public var since: Date?
-    /// The sync point recorded after the read: the latest board timestamp seen, or `since` unchanged
-    /// when nothing had changed.
+    /// The latest of the per-root cursors after the read: each root's cursor is the latest board timestamp
+    /// observed in it, held behind the read's sync horizon, and unchanged when the root saw nothing.
     public var syncPoint: Date?
-    /// How many requests the read cost. One, unless a page overflowed.
+    /// How many requests the read cost. One, unless a root had more than one page.
     public var requests: Int
     /// Every known Card that appeared among the updated objects, with what was observed on it.
     public var cardChanges: [CardChange]
@@ -214,15 +216,11 @@ public struct InvariantBreak: Equatable, Sendable {
 public enum DeltaReadError: Error, Equatable, Sendable, CustomStringConvertible {
     /// The board could not be read for a reason other than its rate budget. Nothing was acted on.
     case boardUnavailable(BoardError)
-    /// Pages kept coming past any plausible number; the read stopped rather than loop.
-    case tooManyPages(requests: Int)
 
     public var description: String {
         switch self {
         case .boardUnavailable(let error):
             "the Delta Read could not complete, so this Act acts on nothing it read: \(error)"
-        case .tooManyPages(let requests):
-            "the Delta Read stopped after \(requests) requests without reaching the last page"
         }
     }
 }

@@ -129,6 +129,8 @@ extension JournalEvent {
             try Self.decodeAuthoringInvariantBroken(reader)
         case .deltaReadCompleted:
             try Self.decodeDeltaReadCompleted(reader)
+        case .deltaReadIncomplete:
+            .deltaReadIncomplete(requests: try reader.int("requests"), reason: try reader.require("reason"))
         case .cardStateTransitioned:
             try Self.decodeCardStateTransitioned(reader)
         case .waitingOnYouUnbacked:

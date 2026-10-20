@@ -32,7 +32,7 @@ func deltaRead(
     guard case .claimed = claim else { throw JournalError.actLeaseLost(runID: runID, holder: nil) }
     let read = DeltaRead(
         journal: journal, board: board, runID: runID, act: .build, repositories: repositories,
-        installation: installation, clock: clock.read
+        installation: installation, clock: clock.read, horizon: { .distantFuture }
     )
     return (read, runID)
 }

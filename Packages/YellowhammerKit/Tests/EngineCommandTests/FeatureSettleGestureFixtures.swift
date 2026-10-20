@@ -208,7 +208,7 @@ func makeSettleWorld(
     let previousNightID = try openAndCloseSettleNight(journal, nightStart: settlePreviousNightStart)
 
     return SettleWorld(
-        fixture: fixture, journal: journal, boards: boards, reading: FakeReadingBoard([]),
+        fixture: fixture, journal: journal, boards: boards, reading: FakeReadingBoard.quiet(2),
         workspace: FakeSettleWorkspace(), featureID: featureID, cycleID: cycleID, previousNightID: previousNightID,
         doneCardID: cards.doneCardID, waitingCardID: cards.waitingCardID, blockedCardID: cards.blockedCardID,
         shelvedCardID: cards.shelvedCardID

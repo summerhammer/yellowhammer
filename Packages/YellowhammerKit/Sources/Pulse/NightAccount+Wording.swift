@@ -146,7 +146,7 @@ extension NightAccount {
         .nightOpenedAndDied, .leaseReclaimed, .cardLeaseReclaimed, .notificationDeliveryFailed,
         .boardWriteFailed, .outboxGroupRolledBack, .managedBlockDelimiterBroken, .managedBlockOverBudget,
         .worktreeNameCollision,
-        .boardScopeUnresolved, .rateBudgetExhausted, .authoringInvariantBroken, .worktreeLost,
+        .boardScopeUnresolved, .rateBudgetExhausted, .deltaReadIncomplete, .authoringInvariantBroken, .worktreeLost,
         .worktreeReconciliationFailed, .featureAuthoringFailed, .featureBreakdownRejected, .featureSelectionFailed,
         .mainlineConflictDetected, .readinessCheckFailed, .waitingOnYouUnbacked,
         .featureAuthoringHalted, .authoringHaltOpened, .authoringHaltRepeated, .refusalOpened, .refusalRepeated
@@ -230,6 +230,7 @@ struct NightWording {
 
     func words(for event: JournalEvent) -> NightWords {
         lifecycle(event) ?? night(event) ?? infrastructure(event) ?? infrastructureFailures(event) ?? cards(event)
-            ?? authoring(event) ?? landing(event) ?? NightWords(headline: NightAccount.plainName(of: event.type))
+            ?? incompleteRead(event) ?? authoring(event) ?? landing(event)
+            ?? NightWords(headline: NightAccount.plainName(of: event.type))
     }
 }

@@ -11,9 +11,9 @@ public struct BoardDelta: Equatable, Sendable {
     /// Who the board says Yellowhammer is, read in the same request, so a comment's author can be
     /// matched against it without a second call.
     public var identity: BoardIdentity
-    /// Board objects updated after the sync point, oldest update first.
+    /// Board objects updated at or after the root's `since` (inclusive: the caller deduplicates the overlap).
     public var updatedObjects: [BoardObject]
-    /// Comments created after the sync point, oldest first.
+    /// Comments created at or after the root's `since` (inclusive: the caller deduplicates the overlap).
     public var newComments: [BoardComment]
     /// Where the next page of updated objects starts; nil when there is none.
     public var nextObjectCursor: BoardCursor?

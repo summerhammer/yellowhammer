@@ -84,6 +84,12 @@ extension NightWording {
         }
     }
 
+    /// A Delta Read that stopped before its last page (the request cap) and moved no cursor.
+    func incompleteRead(_ event: JournalEvent) -> NightWords? {
+        guard case .deltaReadIncomplete(_, let reason) = event else { return nil }
+        return NightWords(headline: "Not all of Linear's changes were read", detail: reason)
+    }
+
     /// Repo Lanes, Attempts, Checks and Card states. A Check's output is never read.
     func cards(_ event: JournalEvent) -> NightWords? {
         switch event {

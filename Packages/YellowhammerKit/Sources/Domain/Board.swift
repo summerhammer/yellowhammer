@@ -13,11 +13,14 @@ public protocol Board: Sendable {
     /// `updatedSince` when it is given.
     func objects(updatedSince: Date?, after: BoardCursor?, pageSize: Int) async throws(BoardError) -> BoardPage
 
-    /// The Delta Read: board objects updated and comments created after `since`, in this Project's
-    /// Linear project, from **one** request. `since` nil reads everything. Each page of either list is
-    /// resumed from its own cursor; the identity rides along in the same request.
+    /// One page of the Delta Read: board objects updated and comments created at or after each root's own
+    /// `since`, in this Project's Linear project, from **one** request. A `since` of nil reads that root
+    /// from the beginning. Each root is paged on its own (spec: board-projection / read-board-changes-by-delta,
+    /// `sync-boundary`): a root already read to its last page is `.skip`, so it is never requested again
+    /// and costs nothing in the request. A skipped root answers an empty list and no cursor; the identity
+    /// rides along in every request.
     func deltaRead(
-        since: Date?, objectsAfter: BoardCursor?, commentsAfter: BoardCursor?, pageSize: Int
+        objects: BoardRootRead, comments: BoardRootRead, pageSize: Int
     ) async throws(BoardError) -> BoardDelta
 
     /// The identity the board resolves Yellowhammer's calls to — the registered application, never an Operator.
@@ -67,13 +70,27 @@ extension Board {
     /// The page size the spec's compound document names: `first: 50` on each root.
     public static var deltaPageSize: Int { 50 }
 
+    /// Both roots from the same `since`, each resumed from its own cursor: the shape of a first request
+    /// (nil cursors) and of a caller that has no per-root state.
     public func deltaRead(
-        since: Date?, objectsAfter: BoardCursor? = nil, commentsAfter: BoardCursor? = nil
+        since: Date?, objectsAfter: BoardCursor? = nil, commentsAfter: BoardCursor? = nil,
+        pageSize: Int = Self.deltaPageSize
     ) async throws(BoardError) -> BoardDelta {
         try await deltaRead(
-            since: since, objectsAfter: objectsAfter, commentsAfter: commentsAfter, pageSize: Self.deltaPageSize
+            objects: .page(since: since, after: objectsAfter),
+            comments: .page(since: since, after: commentsAfter),
+            pageSize: pageSize
         )
     }
+}
+
+/// What one request asks of one root of the Delta Read (objects or comments).
+public enum BoardRootRead: Equatable, Sendable {
+    /// The root is not requested: it was read to its last page already, or is not wanted.
+    case skip
+    /// The root's items changed at or after `since` (inclusive: the caller deduplicates the overlap),
+    /// resumed after `after` when the root has more pages.
+    case page(since: Date?, after: BoardCursor?)
 }
 
 /// Who the board says Yellowhammer is.

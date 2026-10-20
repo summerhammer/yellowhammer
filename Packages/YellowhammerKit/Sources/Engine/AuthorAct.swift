@@ -85,12 +85,14 @@ public protocol FeatureAuthoring: Sendable {
 /// 5. Nothing selectable to author records the Night's idle verdict
 ///    (``JournalStore/recordAuthoringNoWorkAvailable(nightID:act:runID:)``).
 ///
-/// Before any of the above, the Refusal clock advances (``UnansweredPositionClock``, P9.7) and this Act
-/// reads the board for an already-landed Cycle and banks replies to Cards left Waiting on You in it
-/// (``PostLandingReplies``, roadmap P11.3) — the only place that ever happens once no build Act fires
-/// for that Cycle again. That read also comes before steps 2–4, so a Card the Operator cancelled is
-/// Shelved before anything closes, settles or selects (issue #559). If it degrades, none of steps 2–5
-/// runs: the Act only writes back.
+/// Before any of the above, this Act reconciles the Board (``PostLandingReplies``, roadmap P11.3, P22.3):
+/// a Delta Read on every author Act, which banks replies to Cards left Waiting on You in an already-landed
+/// Cycle — the only place that ever happens once no build Act fires for that Cycle again — and shelves a
+/// Card the Operator cancelled before anything closes, settles or selects (issue #559). Only then do the
+/// Refusal clock (``UnansweredPositionClock``, P9.7) and the unanswered-Nights clock advance. If the read
+/// did not complete (rate budget, or the request cap), none of that runs, and none of steps 2–5: no clock
+/// advances, and the Act only writes back what an earlier step already accepted (a deferred Card state
+/// write is not replayed over a board that was not read).
 ///
 /// Each of steps 2, 3 and 5 (and a halt inside step 4) is a quiet Night, not a failure: the Act returns
 /// normally (the invocation records `ActEnded`) and the reason is put on the Night Card right away,
@@ -132,22 +134,25 @@ public struct AuthorAct: Sendable {
     public func run(_ context: ActContext) async throws {
         let journal = context.journal
 
-        // Every open Refusal's clock advances on every author Act of every Night, before anything
-        // else this Act does (roadmap P9.7) — including the in-flight check below, since a Refusal
-        // precedes any Cycle and so is never itself the reason a Feature is in flight.
-        try await UnansweredPositionClock.run(context: context, unansweredNightsMax: unansweredNightsMax)
-
-        // Once a Feature has landed, no build Act ever fires again (P10.1) and so nothing else reads
-        // the board for that Cycle's Cards — the author Act reads it itself, banks replies (roadmap
-        // P11.3), and then spends the unanswered-Nights clock for those same Cards (roadmap P11.4),
-        // strictly before the predecessor gate below, whose merge closure auto-Blocks a Waiting on You
-        // Card and would otherwise carry an unbanked reply, or an unspent Night, forward as lost. The
-        // merge closure, the settle gesture and selection then see the Operator's Cancels (issue #559);
-        // a degraded read decides none of them this Act.
-        guard try await runPostLandingRepliesAndClock(context: context) != .degraded else {
-            try await writeBack(context: context)
+        // The Board is reconciled first (roadmap P22.3; spec: board-projection/read-board-changes-by-delta,
+        // `sync-boundary`): every clock, the settle gesture, the predecessor gate and selection decide on a
+        // board that was read. Once a Feature has landed, no build Act ever fires again (P10.1), so nothing
+        // else reads the board for that Cycle's Cards — this read banks replies to Cards left Waiting on You
+        // in it (roadmap P11.3), strictly before the predecessor gate below, whose merge closure auto-Blocks a
+        // Waiting on You Card and would otherwise carry an unbanked reply, or an unspent Night, forward as
+        // lost. The merge closure, the settle gesture and selection then see the Operator's Cancels (issue
+        // #559). A read that did not complete decides none of them this Act: no clock advances, nothing is
+        // closed, settled or selected, and the Act only writes back what was already accepted.
+        guard try await reconcileBoard(context: context) != .degraded else {
+            try await writeBack(context: context, boardRead: false)
             return
         }
+
+        // Every open Refusal's clock advances on every author Act of every Night, before anything else this
+        // Act decides (roadmap P9.7) — including the in-flight check below, since a Refusal precedes any
+        // Cycle and so is never itself the reason a Feature is in flight.
+        try await UnansweredPositionClock.run(context: context, unansweredNightsMax: unansweredNightsMax)
+        try await spendLandedCycleClock(context: context)
 
         // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
         // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate
@@ -222,34 +227,36 @@ public struct AuthorAct: Sendable {
         return try await predecessorGate.check(context)
     }
 
-    /// Reads the board for a landed Cycle and banks replies to Cards left Waiting on You after their
-    /// Feature has landed (``PostLandingReplies``, roadmap P11.3; issue #559), then spends the
-    /// unanswered-Nights clock for those same Cards (``UnansweredCardClock``, roadmap P11.4) — skipped
-    /// only when the read degraded, since an unread answer must never be charged as silence, but spent
-    /// when no Board is bound at all, exactly like the Refusal clock. Returns what the read did, so a
-    /// degraded read stops the Act. Split out of ``run(_:)`` to keep that function within the length limit.
-    private func runPostLandingRepliesAndClock(context: ActContext) async throws -> PostLandingRepliesOutcome {
-        let postLandingOutcome = try await PostLandingReplies.run(
-            context: context, unansweredNightsMax: unansweredNightsMax
-        )
-        guard postLandingOutcome != .degraded else { return postLandingOutcome }
+    /// Reads the board (``PostLandingReplies``, roadmap P11.3, P22.3; issue #559) and banks the replies it
+    /// finds. Returns what the read did, so a degraded one stops the Act. Split out of ``run(_:)`` to keep
+    /// that function within the length limit.
+    private func reconcileBoard(context: ActContext) async throws -> PostLandingRepliesOutcome {
+        try await PostLandingReplies.run(context: context, unansweredNightsMax: unansweredNightsMax)
+    }
+
+    /// Spends the unanswered-Nights clock for the Cards left Waiting on You in a landed Cycle (roadmap
+    /// P11.4): only after the board was read, since an unread answer must never be charged as silence.
+    private func spendLandedCycleClock(context: ActContext) async throws {
         let landedCycleIDs = try context.journal.landedCycleIDsWithWaitingOnYouCards()
         try await UnansweredCardClock.run(
             cycleIDs: landedCycleIDs, unansweredNightsMax: unansweredNightsMax, context: context
         )
-        return postLandingOutcome
     }
 
     /// Puts a quiet reason (or the idle verdict) on the Night Card right away, replays any Card state
     /// write a merge closure or the settle gesture's release deferred (``DeferredCardStateReplay``,
     /// issue #96 — this Act dispatches no Card, so nothing else ever retries one), then delivers
     /// pending Outbox entries. A deferred or failed delivery must not fail the Act — the Outbox (or the
-    /// next Act's own replay) tries again later.
-    private func writeBack(context: ActContext) async throws {
+    /// next Act's own replay) tries again later. The replay of a deferred Card state write is a decision
+    /// about what the board should hold, so it waits for a completed read (`boardRead`); the delivery of
+    /// entries an earlier step already accepted does not.
+    private func writeBack(context: ActContext, boardRead: Bool = true) async throws {
         if let nightCard = context.nightCard {
             try await nightCard.recordAuthoring(night: context.night)
         }
-        try await DeferredCardStateReplay.run(context: context)
+        if boardRead {
+            try await DeferredCardStateReplay.run(context: context)
+        }
         guard let outbox = context.outbox else { return }
         _ = try await outbox.deliverPending()
     }

@@ -189,7 +189,9 @@ struct FeatureSelectionHaltTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBuildActBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
+        )
         let feature = try #require(FeatureName(rawValue: "FEAT-1"))
         let selector = ScriptedFeatureSelector(
             outcome: .halted(feature: feature, cause: .repositoriesUndetermined)

@@ -141,12 +141,13 @@ struct BuildActTests {
         #expect(order.filter { $0 == .repoLaneStarted }.count == 2)
         #expect(order.filter { $0 == .repoLaneEnded }.count == 2)
 
-        // Order: lease sweep before repost, repost before the Delta Read, the Delta Read before lanes.
+        // Order: lease sweep before the Delta Read, the Delta Read before the repost (the Board is reconciled
+        // before the Journal's state is written onto it), the repost before lanes.
         #expect(index(of: .cardLeaseReclaimed)! < index(of: .expiredCardLeasesSwept)!)
-        #expect(index(of: .expiredCardLeasesSwept)! < index(of: .boardStateReposted)!)
-        #expect(index(of: .boardStateReposted)! < index(of: .cardShelved)!)
+        #expect(index(of: .expiredCardLeasesSwept)! < index(of: .cardShelved)!)
         #expect(index(of: .cardShelved)! < index(of: .deltaReadCompleted)!)
-        #expect(index(of: .deltaReadCompleted)! < index(of: .repoLanesDerived)!)
+        #expect(index(of: .deltaReadCompleted)! < index(of: .boardStateReposted)!)
+        #expect(index(of: .boardStateReposted)! < index(of: .repoLanesDerived)!)
         #expect(index(of: .repoLanesDerived)! < order.firstIndex(of: .repoLaneStarted)!)
         #expect(order.last == .actEnded)
         // Both lanes started before the Act ended, and each lane ended after it started.

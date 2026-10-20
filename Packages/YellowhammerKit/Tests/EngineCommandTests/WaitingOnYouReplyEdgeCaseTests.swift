@@ -69,9 +69,9 @@ struct WaitingOnYouReplyEdgeCaseTests {
         let boardID = try #require(world.questionCommentBoardID)
 
         let replyComment = comment("reply-1", on: "BACK-1", author: humanAuthor, parent: boardID.rawValue)
-        // Scripted twice: simulates the same comment read again because an earlier Act crashed before
-        // the sync point moved.
-        let reading = FakeReadingBoard([page(comments: [replyComment]), page(comments: [replyComment])])
+        // Scripted three times: the same comment is read again by the next Act's overlap, and again after a
+        // simulated crash that lost the observation before the cursor moved.
+        let reading = FakeReadingBoard(Array(repeating: page(comments: [replyComment]), count: 3))
 
         guard case .read(let firstReport) = try await world.deltaRead(night: world.night, reading: reading).perform()
         else {
@@ -87,7 +87,21 @@ struct WaitingOnYouReplyEdgeCaseTests {
             Issue.record("expected a read")
             return
         }
-        #expect(secondReport.waitingOnYouReplies.count == 1, "the replay resolves to the same row")
+        #expect(secondReport.waitingOnYouReplies.isEmpty, "the overlap re-reads the comment and drops it")
+        #expect(try journal.unappliedCardReplies().count == 1, "still exactly one row")
+
+        // A crash after the reply was recorded but before the observation and cursor were: the comment is
+        // read as new again, and recording it resolves to the same row.
+        try journal.write { db in
+            try db.execute(sql: "DELETE FROM board_comment_seen")
+            try db.execute(sql: "DELETE FROM board_sync")
+        }
+        guard case .read(let thirdReport) = try await world.deltaRead(night: world.night, reading: reading).perform()
+        else {
+            Issue.record("expected a read")
+            return
+        }
+        #expect(thirdReport.waitingOnYouReplies.count == 1, "the replay resolves to the same row")
         #expect(try journal.unappliedCardReplies().count == 1, "still exactly one row")
         #expect(try journal.events(ofType: .waitingOnYouReplyRecorded).count == 1, "no duplicate event")
 

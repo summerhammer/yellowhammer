@@ -15,7 +15,8 @@ import Testing
 /// `makeSelectionContext` (FeatureSelectionFixtures.swift) is fixed to one Night, so this variant takes
 /// `nightStart` explicitly.
 private func refusalTestContext(
-    _ journal: JournalStore, nightStart: NightStart, boards: NightCardTestBoards, previous: RunID? = nil
+    _ journal: JournalStore, nightStart: NightStart, boards: NightCardTestBoards, previous: RunID? = nil,
+    reading: FakeReadingBoard = .quiet(3)
 ) throws -> (context: ActContext, runID: RunID) {
     if let previous {
         try journal.releaseActLease(runID: previous)
@@ -26,7 +27,7 @@ private func refusalTestContext(
     }
     let opening = try journal.openNight(nightStart: nightStart, mode: .rehearsal, act: .author, runID: runID)
     let outbox = Outbox(journal: journal, board: boards.writing, runID: runID, act: .author, nightID: opening.night.id)
-    let actBoard = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+    let actBoard = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
     let context = ActContext(
         act: .author, mode: .rehearsal, trigger: .forced, runID: runID, journal: journal,
         night: opening.night, outbox: outbox, board: actBoard, mainlines: selectionMainlines(),
@@ -101,6 +102,50 @@ struct RefusalLifecycleTests {
         let updated = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == issueID })
         #expect(try await updated.workflowState == blockedStateID(boards))
         #expect(updated.labels == [try #require(boards.ids[CardType.featureCard.rawValue])])
+    }
+
+    @Test("A Night whose Delta Read was refused does not spend the Refusal's clock; the next completed read does")
+    func refusedReadLeavesTheRefusalClockUnspent() async throws {
+        let thin = try authoringBreakdown()
+        let thinFeature = FeatureBreakdown(
+            definitionOfDone: [DefinitionOfDoneClauseDraft(text: "Uncitable", citation: "epic/ghost")],
+            cards: thin.cards
+        )
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let feature = try #require(FeatureName(rawValue: "FEAT-1"))
+        let selection = FeatureSelection(
+            selector: ScriptedFeatureSelector(outcome: .selected(try authoringSelection())),
+            transaction: AuthoringTransaction(
+                drafting: ScriptedBreakdown(thinFeature), citations: FakeCitationResolver(),
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
+            ),
+            reselectionsMax: 0
+        )
+        let authorAct = AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 3)
+
+        let (context1, run1) = try refusalTestContext(
+            journal, nightStart: try #require(NightStart(rawValue: "2026-09-15")), boards: boards
+        )
+        try await authorAct.run(context1)
+        #expect(try #require(try journal.refusals(feature: feature).last).unansweredNights == 0)
+
+        let refused = FakeReadingBoard([.failure(.rateLimited(retryAfter: nil, budget: nil))])
+        let (context2, run2) = try refusalTestContext(
+            journal, nightStart: try #require(NightStart(rawValue: "2026-09-16")), boards: boards,
+            previous: run1, reading: refused
+        )
+        try await authorAct.run(context2)
+        let afterRefusedRead = try #require(try journal.refusals(feature: feature).last)
+        #expect(afterRefusedRead.state == .open)
+        #expect(afterRefusedRead.unansweredNights == 0, "a Night that could not read the Board is not silence")
+
+        let (context3, _) = try refusalTestContext(
+            journal, nightStart: try #require(NightStart(rawValue: "2026-09-17")), boards: boards, previous: run2
+        )
+        try await authorAct.run(context3)
+        #expect(try #require(try journal.refusals(feature: feature).last).unansweredNights == 1)
     }
 
     /// Asserts the Feature Issue landed in Waiting on You with a comment naming the halt's content —

@@ -2,40 +2,51 @@ import Domain
 import Foundation
 
 extension LinearAdapter {
-    /// The Delta Read: board objects updated and comments created after `since`, in this Project's
-    /// Linear project, from **one** request.
+    /// The Delta Read: board objects updated and comments created at or after each root's `since`, in this
+    /// Project's Linear project, from **one** request. A skipped root is left out of the document
+    /// (`@include(if: false)`), so a root that is already exhausted is never requested again and an
+    /// unrequested connection adds nothing to the query's complexity. Both boundaries are inclusive
+    /// (`gte`): the caller deduplicates the overlap, so an item stamped exactly at the last read's boundary
+    /// is read twice rather than lost.
     public func deltaRead(
-        since: Date?, objectsAfter: BoardCursor?, commentsAfter: BoardCursor?, pageSize: Int
+        objects: BoardRootRead, comments: BoardRootRead, pageSize: Int
     ) async throws(BoardError) -> BoardDelta {
-        let issueFilter = buildIssueFilter(since: since)
-        let commentFilter = buildCommentFilter(since: since)
-
         var variables: [String: any Sendable] = [
             "projectId": linearProjectID,
-            "issueFilter": issueFilter,
-            "commentFilter": commentFilter,
-            "first": pageSize
+            "first": pageSize,
+            "includeIssues": false,
+            "includeComments": false,
+            "issueFilter": buildIssueFilter(since: nil),
+            "commentFilter": buildCommentFilter(since: nil)
         ]
-        if let objectsAfter {
-            variables["issuesAfter"] = objectsAfter.rawValue
+        if case .page(let since, let after) = objects {
+            variables["includeIssues"] = true
+            variables["issueFilter"] = buildIssueFilter(since: since)
+            if let after {
+                variables["issuesAfter"] = after.rawValue
+            }
         }
-        if let commentsAfter {
-            variables["commentsAfter"] = commentsAfter.rawValue
+        if case .page(let since, let after) = comments {
+            variables["includeComments"] = true
+            variables["commentFilter"] = buildCommentFilter(since: since)
+            if let after {
+                variables["commentsAfter"] = after.rawValue
+            }
         }
 
         let payload: LinearDeltaPayload = try await perform(LinearGraphQL.deltaReadQuery, variables: variables)
 
-        let updatedObjects = payload.updatedIssues.nodes.map(Self.boardObject)
-        let newComments = payload.newComments.nodes.map { comment in
+        let updatedObjects = (payload.updatedIssues?.nodes ?? []).map(Self.boardObject)
+        let newComments = (payload.newComments?.nodes ?? []).map { comment in
             mapBoardComment(comment, viewerID: payload.viewer.id)
         }
 
-        let nextObjectCursor = payload.updatedIssues.pageInfo.hasNextPage
-            ? payload.updatedIssues.pageInfo.endCursor.map(BoardCursor.init)
-            : nil
-        let nextCommentCursor = payload.newComments.pageInfo.hasNextPage
-            ? payload.newComments.pageInfo.endCursor.map(BoardCursor.init)
-            : nil
+        let nextObjectCursor = payload.updatedIssues.flatMap { issues in
+            issues.pageInfo.hasNextPage ? issues.pageInfo.endCursor.map(BoardCursor.init) : nil
+        }
+        let nextCommentCursor = payload.newComments.flatMap { comments in
+            comments.pageInfo.hasNextPage ? comments.pageInfo.endCursor.map(BoardCursor.init) : nil
+        }
 
         return BoardDelta(
             identity: BoardIdentity(id: BoardObjectID(rawValue: payload.viewer.id), name: payload.viewer.name),
@@ -49,7 +60,7 @@ extension LinearAdapter {
     private func buildIssueFilter(since: Date?) -> [String: any Sendable] {
         var filter: [String: any Sendable] = ["project": ["id": ["eq": linearProjectID]]] // glossary:ignore GL001
         if let since {
-            filter["updatedAt"] = ["gt": LinearGraphQL.timestampString(since)]
+            filter["updatedAt"] = ["gte": LinearGraphQL.timestampString(since)]
         }
         return filter
     }
@@ -58,7 +69,7 @@ extension LinearAdapter {
         let scope: [String: any Sendable] = ["project": ["id": ["eq": linearProjectID]]] // glossary:ignore GL001
         var filter: [String: any Sendable] = ["issue": scope]
         if let since {
-            filter["createdAt"] = ["gt": LinearGraphQL.timestampString(since)]
+            filter["createdAt"] = ["gte": LinearGraphQL.timestampString(since)]
         }
         return filter
     }

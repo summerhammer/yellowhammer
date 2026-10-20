@@ -279,7 +279,9 @@ struct AuthorActCycleArchiveTests {
         try journal.releaseActLease(runID: runID)
 
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
+        )
         let gate = ScriptedPredecessorGate(outcome: .landed)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 

@@ -68,10 +68,11 @@ struct DeltaReadTests {
         #expect(try journal.boardSyncPoint()?.lastSync == deltaEpoch.addingTimeInterval(7.5))
     }
 
-    @Test("A page that overflows is followed by its cursor, per root")
+    @Test("Each root is paged by its own cursor and an exhausted root is never requested again")
     func pagesFollowCursors() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
+        // Issues take three pages, comments one: the comments root is done after the first request.
         let board = FakeReadingBoard([
             page(
                 objects: [object("f-1", state: stateTodo, updatedAt: 1)],
@@ -80,9 +81,9 @@ struct DeltaReadTests {
             ),
             page(
                 objects: [object("f-2", state: stateTodo, updatedAt: 3)],
-                nextCommentCursor: BoardCursor(rawValue: "c-2")
+                nextObjectCursor: BoardCursor(rawValue: "o-3")
             ),
-            page(comments: [comment("c-2", on: "f-2", author: humanAuthor, createdAt: 4)])
+            page(objects: [object("f-3", state: stateTodo, updatedAt: 4)])
         ])
         let (read, _) = try deltaRead(journal, board: board)
 
@@ -93,11 +94,42 @@ struct DeltaReadTests {
 
         #expect(report.requests == 3)
         let calls = await board.calls
-        #expect(calls.map(\.objectsAfter) == [nil, BoardCursor(rawValue: "o-2"), nil])
-        #expect(calls.map(\.commentsAfter) == [nil, nil, BoardCursor(rawValue: "c-2")])
-        #expect(report.unknownObjects.count == 2)
-        #expect(report.humanComments.count == 2)
-        #expect(report.syncPoint == deltaEpoch.addingTimeInterval(4))
+        #expect(calls.map(\.objectsAfter) == [nil, BoardCursor(rawValue: "o-2"), BoardCursor(rawValue: "o-3")])
+        #expect(calls.map(\.skippedComments) == [false, true, true])
+        #expect(calls.map(\.skippedObjects) == [false, false, false])
+        #expect(report.unknownObjects.map(\.id.rawValue) == ["f-1", "f-2", "f-3"])
+        #expect(report.humanComments.map(\.comment.id.rawValue) == ["c-1"], "the first comments page is read once")
+        #expect(try journal.events(ofType: .humanCardComment).isEmpty)
+        let sync = try #require(try journal.boardSyncPoint())
+        #expect(sync.issuesSynced == deltaEpoch.addingTimeInterval(4))
+        #expect(sync.commentsSynced == deltaEpoch.addingTimeInterval(2))
+    }
+
+    @Test("A comments root with more pages than the issues root is paged on its own too")
+    func commentsPageOnTheirOwn() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeReadingBoard([
+            page(
+                objects: [object("f-1", state: stateTodo, updatedAt: 1)],
+                comments: [comment("c-1", on: "f-1", author: humanAuthor, createdAt: 2)],
+                nextCommentCursor: BoardCursor(rawValue: "c-2")
+            ),
+            page(comments: [comment("c-2", on: "f-1", author: humanAuthor, createdAt: 3)])
+        ])
+        let (read, _) = try deltaRead(journal, board: board)
+
+        guard case .read(let report) = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+
+        #expect(report.requests == 2)
+        let calls = await board.calls
+        #expect(calls.map(\.skippedObjects) == [false, true])
+        #expect(calls.map(\.commentsAfter) == [nil, BoardCursor(rawValue: "c-2")])
+        #expect(report.unknownObjects.count == 1)
+        #expect(report.humanComments.map(\.comment.id.rawValue) == ["c-1", "c-2"])
     }
 
     // MARK: - Self-comment filtering

@@ -189,7 +189,9 @@ struct FeatureSelectionTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBuildActBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
+        )
         let selector = ScriptedFeatureSelector(outcome: .noSelectableFeature)
         let selection = FeatureSelection(selector: selector)
 
