@@ -18,14 +18,34 @@ extension JournalMigrations {
         }
     }
 
-    /// The `board_sync` table tracks the last Delta Read sync point.
+    /// The Delta Read's durable state (spec: board-projection / read-board-changes-by-delta, `sync-boundary`).
+    ///
+    /// `board_sync` is the one row of per-root cursors: the board timestamp each root (updated issues,
+    /// new comments) has been read up to, moved only after every page of both roots was processed.
+    /// `board_issue_seen` and `board_comment_seen` are the observations: an issue by id with the
+    /// `updated_at` revision last observed, a comment by id. They make a re-read of the overlap
+    /// idempotent. An issue row also keeps the board copy (`payload`, JSON) and `build_pending`: set
+    /// when a read that does not own the Card's build decisions (author, land) observed a revision,
+    /// cleared when the build Act has reconciled it, so no Act consumes another Act's observation.
     static func createBoardSyncTable(_ db: Database) throws {
         try db.create(table: "board_sync") { table in
             table.column("id", .integer).primaryKey()
                 .check(sql: "id = 1")
-            table.column("last_sync", .text).notNull()
+            table.column("issues_synced", .text)
+            table.column("comments_synced", .text)
             table.column("read_at", .text).notNull()
             table.column("run_id", .text)
+        }
+        try db.create(table: "board_issue_seen") { table in
+            table.column("issue_id", .text).primaryKey()
+            table.column("updated_at", .text).notNull()
+            table.column("payload", .text).notNull()
+            table.column("build_pending", .integer).notNull().defaults(to: 0)
+                .check(sql: "build_pending IN (0, 1)")
+        }
+        try db.create(table: "board_comment_seen") { table in
+            table.column("comment_id", .text).primaryKey()
+            table.column("created_at", .text).notNull()
         }
     }
 

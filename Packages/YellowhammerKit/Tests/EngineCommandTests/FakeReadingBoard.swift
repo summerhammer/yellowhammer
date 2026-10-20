@@ -13,10 +13,16 @@ actor FakeReadingBoard: Board {
     static let identity = BoardIdentity(id: BoardObjectID(rawValue: "yellowhammer-app"), name: "Yellowhammer")
 
     struct Call: Equatable, Sendable {
+        /// The updated-issues root's `since`.
         var since: Date?
+        /// The new-comments root's `since`.
+        var commentsSince: Date?
         var objectsAfter: BoardCursor?
         var commentsAfter: BoardCursor?
         var pageSize: Int
+        /// The request left that root out: it was read to its last page already.
+        var skippedObjects = false
+        var skippedComments = false
     }
 
     private var replies: [Result<BoardDelta, BoardError>]
@@ -39,6 +45,12 @@ actor FakeReadingBoard: Board {
 
     init(_ replies: [Result<BoardDelta, BoardError>]) {
         self.replies = replies
+    }
+
+    /// A board with nothing to report to `reads` Delta Reads, for an Act that must read the board before it
+    /// decides (roadmap P22.3) but whose test is about something else.
+    static func quiet(_ reads: Int = 1) -> FakeReadingBoard {
+        FakeReadingBoard(Array(repeating: page(), count: reads))
     }
 
     /// Seeds `object` for a later ``issue(_:)`` call, keyed by its id.
@@ -89,12 +101,34 @@ actor FakeReadingBoard: Board {
     }
 
     func deltaRead(
-        since: Date?, objectsAfter: BoardCursor?, commentsAfter: BoardCursor?, pageSize: Int
+        objects: BoardRootRead, comments: BoardRootRead, pageSize: Int
     ) async throws(BoardError) -> BoardDelta {
-        calls.append(Call(since: since, objectsAfter: objectsAfter, commentsAfter: commentsAfter, pageSize: pageSize))
+        var call = Call(pageSize: pageSize)
+        if case .page(let since, let after) = objects {
+            call.since = since
+            call.objectsAfter = after
+        } else {
+            call.skippedObjects = true
+        }
+        if case .page(let since, let after) = comments {
+            call.commentsSince = since
+            call.commentsAfter = after
+        } else {
+            call.skippedComments = true
+        }
+        calls.append(call)
         guard !replies.isEmpty else { throw .unreachable("no scripted reply") }
         switch replies.removeFirst() {
         case .success(var delta):
+            // A root the request skipped answers nothing, whatever the script holds for it.
+            if call.skippedObjects {
+                delta.updatedObjects = []
+                delta.nextObjectCursor = nil
+            }
+            if call.skippedComments {
+                delta.newComments = []
+                delta.nextCommentCursor = nil
+            }
             delta.updatedObjects = await overlaid(delta.updatedObjects)
             return delta
         case .failure(let error): throw error

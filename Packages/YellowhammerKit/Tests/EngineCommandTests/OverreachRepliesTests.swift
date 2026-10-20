@@ -28,12 +28,13 @@ func overreachRepliesAreRecordedOnly(landed: Bool) async throws {
                 parent: questionComment.rawValue, createdAt: 3_700)
     ]
     let reading = FakeReadingBoard([page(comments: comments), page(comments: comments)])
-    for _ in 0..<2 {
+    for pass in 0..<2 {
         guard case .read(let report) = try await world.deltaRead(night: night, reading: reading).perform() else {
             Issue.record("expected Delta Read")
             return
         }
-        #expect(report.waitingOnYouReplies.map(\.disposition) == [.overreach, .overreach])
+        // The second read sees the same comments again and deduplicates them by comment id (P22.3).
+        #expect(report.waitingOnYouReplies.map(\.disposition) == (pass == 0 ? [.overreach, .overreach] : []))
         #expect(report.waitingOnYouReplies.allSatisfy { $0.questionID == nil })
         try await WaitingOnYouReplies.apply(
             context: world.context(night: night, reading: reading), unansweredNightsMax: 3

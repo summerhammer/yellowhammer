@@ -1,7 +1,8 @@
 import Domain
 import Foundation
-import LinearAdapter
 import Testing
+
+@testable import LinearAdapter
 
 @Suite("Linear delta read requests")
 struct LinearDeltaReadRequestTests {
@@ -40,7 +41,7 @@ struct LinearDeltaReadRequestTests {
         #expect((commentProject["id"] as? [String: Any])?["eq"] as? String == Fixture.linearProjectID)
     }
 
-    @Test("With since given, both filters carry the gt clause with fractional timestamp")
+    @Test("With since given, both filters carry the inclusive gte clause with fractional timestamp")
     func sinceLessThanClause() async throws {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
         let since = Date(timeIntervalSince1970: 1_789_000_000.5)
@@ -53,11 +54,11 @@ struct LinearDeltaReadRequestTests {
         let commentFilter = try #require(variables["commentFilter"] as? [String: Any])
 
         let issueUpdatedAt = try #require(issueFilter["updatedAt"] as? [String: Any])
-        let issueGt = try #require(issueUpdatedAt["gt"] as? String)
+        let issueGt = try #require(issueUpdatedAt["gte"] as? String)
         #expect(issueGt == "2026-09-10T00:26:40.500Z")
 
         let commentCreatedAt = try #require(commentFilter["createdAt"] as? [String: Any])
-        let commentGt = try #require(commentCreatedAt["gt"] as? String)
+        let commentGt = try #require(commentCreatedAt["gte"] as? String)
         #expect(commentGt == "2026-09-10T00:26:40.500Z")
     }
 
@@ -135,6 +136,77 @@ struct LinearDeltaReadRequestTests {
 
         #expect(delta.nextObjectCursor == nil)
         #expect(delta.nextCommentCursor == BoardCursor(rawValue: "comment-next"))
+    }
+
+    // MARK: - Independent roots (spec: board-projection/read-board-changes-by-delta, sync-boundary)
+
+    @Test("Both roots are included by default, each with its own since")
+    func bothRootsIncluded() async throws {
+        let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
+        let issuesSince = Date(timeIntervalSince1970: 1_789_000_000)
+        let commentsSince = Date(timeIntervalSince1970: 1_789_000_900)
+        _ = try await Fixture.adapter(transport).deltaRead(
+            objects: .page(since: issuesSince, after: nil),
+            comments: .page(since: commentsSince, after: nil),
+            pageSize: 50
+        )
+
+        let variables = try Fixture.variables(transport.requests[1])
+        #expect(variables["includeIssues"] as? Bool == true)
+        #expect(variables["includeComments"] as? Bool == true)
+        let issueFilter = try #require(variables["issueFilter"] as? [String: Any])
+        let commentFilter = try #require(variables["commentFilter"] as? [String: Any])
+        let updatedAt = try #require(issueFilter["updatedAt"] as? [String: Any])
+        let createdAt = try #require(commentFilter["createdAt"] as? [String: Any])
+        #expect(updatedAt["gte"] as? String == LinearGraphQL.timestampString(issuesSince))
+        #expect(createdAt["gte"] as? String == LinearGraphQL.timestampString(commentsSince))
+    }
+
+    @Test("A skipped root is excluded from the document and its cursor is not sent")
+    func skippedRootIsExcluded() async throws {
+        let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
+        _ = try await Fixture.adapter(transport).deltaRead(
+            objects: .page(since: nil, after: BoardCursor(rawValue: "issue-cursor-9")),
+            comments: .skip,
+            pageSize: 50
+        )
+
+        let variables = try Fixture.variables(transport.requests[1])
+        #expect(variables["includeIssues"] as? Bool == true)
+        #expect(variables["includeComments"] as? Bool == false)
+        #expect(variables["issuesAfter"] as? String == "issue-cursor-9")
+        #expect(variables["commentsAfter"] == nil)
+    }
+
+    @Test("A response without a skipped root decodes to an empty root with no cursor")
+    func skippedRootDecodesEmpty() async throws {
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json("""
+                {"data":{"viewer":{"id":"app-user-id","name":"Yellowhammer"},
+                  "updatedIssues":{"pageInfo":{"hasNextPage":true,"endCursor":"issue-next"},"nodes":[]}}}
+                """)
+        ])
+        let delta = try await Fixture.adapter(transport).deltaRead(
+            objects: .page(since: nil, after: nil), comments: .skip, pageSize: 50
+        )
+
+        #expect(delta.newComments.isEmpty)
+        #expect(delta.nextCommentCursor == nil)
+        #expect(delta.nextObjectCursor == BoardCursor(rawValue: "issue-next"))
+    }
+
+    @Test("The document includes each root conditionally, at the page size, within the complexity budget")
+    func documentShape() {
+        let query = LinearGraphQL.deltaReadQuery
+        #expect(query.contains("@include(if: $includeIssues)"))
+        #expect(query.contains("@include(if: $includeComments)"))
+        #expect(query.contains("first: $first"))
+        // The selection the Engine reads: workflow state id, name and type; the comment's parent thread.
+        #expect(query.contains("state { id name type }"))
+        #expect(query.contains("parent { id }"))
+        // A nested connection on the issue selection would multiply the complexity by `first`.
+        #expect(!query.contains("labels(") && !query.contains("comments(first"))
     }
 
     @Test("A 429 reply surfaces as rateLimited")

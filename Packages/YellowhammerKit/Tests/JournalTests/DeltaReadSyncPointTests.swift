@@ -37,79 +37,179 @@ func freshJournalHasNoSyncPoint() throws {
     #expect(syncPoint == nil)
 }
 
-@Test("recordBoardSync stores and returns a sync point")
-func recordBoardSyncStoresPoint() throws {
+private func record(
+    issues: Date? = nil, comments: Date? = nil, observations: [BoardIssueObservation] = [],
+    commentIDs: [String] = [], leavesBuildPending: Bool = false, clearsBuildPending: Bool = false,
+    forgetsBefore: Date? = nil
+) -> BoardReadRecord {
+    BoardReadRecord(
+        issuesSynced: issues, commentsSynced: comments, issues: observations,
+        comments: commentIDs.map { BoardCommentObservation(commentID: $0, createdAt: epoch) },
+        leavesBuildPending: leavesBuildPending, clearsBuildPending: clearsBuildPending,
+        forgetsBefore: forgetsBefore
+    )
+}
+
+@Test("recordBoardRead stores and returns a sync point with one cursor per root")
+func recordBoardReadStoresPerRootCursors() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
-
     _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
 
-    let lastSync = Date(timeIntervalSince1970: 1_789_000_000)
-    let recorded = try journal.recordBoardSync(
-        lastSync: lastSync, runID: runID, now: epoch
+    let issues = Date(timeIntervalSince1970: 1_789_000_000)
+    let comments = Date(timeIntervalSince1970: 1_789_000_500)
+    let recorded = try journal.recordBoardRead(
+        record(issues: issues, comments: comments), runID: runID, now: epoch
     )
 
-    #expect(recorded.lastSync == lastSync)
+    #expect(recorded.issuesSynced == issues)
+    #expect(recorded.commentsSynced == comments)
+    #expect(recorded.lastSync == comments)
     #expect(recorded.readAt == epoch)
     #expect(recorded.runID == runID)
-
-    let fetched = try journal.boardSyncPoint()
-    #expect(fetched == recorded)
+    #expect(try journal.boardSyncPoint() == recorded)
 }
 
-@Test("Fractional timestamp in lastSync round-trips exactly")
+@Test("Fractional timestamps in the cursors round-trip exactly")
 func fractionalTimestampRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
-
     _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
 
-    let lastSync = Date(timeIntervalSince1970: 1_789_000_000.25)
-    let recorded = try journal.recordBoardSync(
-        lastSync: lastSync, runID: runID, now: epoch
-    )
-
-    #expect(recorded.lastSync == lastSync)
+    let issues = Date(timeIntervalSince1970: 1_789_000_000.25)
+    _ = try journal.recordBoardRead(record(issues: issues), runID: runID, now: epoch)
 
     let fetched = try journal.boardSyncPoint()
-    #expect(fetched?.lastSync == lastSync)
+    #expect(fetched?.issuesSynced == issues)
+    #expect(fetched?.commentsSynced == nil)
 }
 
-@Test("Second recordBoardSync replaces the first")
-func secondSyncPointReplaces() throws {
+@Test("A cursor moves forward only, and a root left out keeps its cursor")
+func cursorsNeverMoveBackwards() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let runID = RunID()
+    _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
+
+    let early = Date(timeIntervalSince1970: 1_789_000_000)
+    let late = Date(timeIntervalSince1970: 1_790_000_000)
+    _ = try journal.recordBoardRead(record(issues: late, comments: late), runID: runID, now: epoch)
+    let second = try journal.recordBoardRead(
+        record(issues: early), runID: runID, now: epoch.addingTimeInterval(60)
+    )
+
+    #expect(second.issuesSynced == late)
+    #expect(second.commentsSynced == late)
+    #expect(try journal.boardSyncPoint()?.readAt == epoch.addingTimeInterval(60))
+}
+
+@Test("recordBoardRead without Act lease throws actLeaseLost and stores nothing")
+func recordBoardReadWithoutLease() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
 
-    _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
-
-    let time1 = Date(timeIntervalSince1970: 1_789_000_000)
-    _ = try journal.recordBoardSync(lastSync: time1, runID: runID, now: epoch)
-
-    let time2 = Date(timeIntervalSince1970: 1_790_000_000)
-    let recorded2 = try journal.recordBoardSync(
-        lastSync: time2, runID: runID, now: epoch.addingTimeInterval(60)
-    )
-
-    #expect(recorded2.lastSync == time2)
-
-    let fetched = try journal.boardSyncPoint()
-    #expect(fetched?.lastSync == time2)
-}
-
-@Test("recordBoardSync without Act lease throws actLeaseLost")
-func recordBoardSyncWithoutLease() throws {
-    let fixture = try JournalFixture()
-    let journal = try fixture.open()
-    let runID = RunID()
-
-    let lastSync = Date(timeIntervalSince1970: 1_789_000_000)
-
+    let revision = BoardIssueObservation(issueID: "i-1", updatedAt: epoch, payload: "{}")
     #expect(throws: JournalError.actLeaseLost(runID: runID, holder: nil)) {
-        try journal.recordBoardSync(lastSync: lastSync, runID: runID, now: epoch)
+        try journal.recordBoardRead(
+            record(issues: epoch, observations: [revision], commentIDs: ["c-1"]), runID: runID, now: epoch
+        )
     }
+    #expect(try journal.boardSyncPoint() == nil)
+    #expect(try journal.observedIssueRevisions(["i-1"]).isEmpty)
+    #expect(try journal.observedCommentIDs(["c-1"]).isEmpty)
+}
+
+// MARK: - Observations
+
+@Test("Observed issue revisions and comment ids are stored with the cursors, and read back by id")
+func observationsAreStoredWithTheCursors() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let runID = RunID()
+    _ = try journal.claimActLease(act: .build, runID: runID, mode: .real, now: epoch)
+
+    let first = Date(timeIntervalSince1970: 1_789_000_000)
+    let revisions = [
+        BoardIssueObservation(issueID: "i-1", updatedAt: first, payload: "{}"),
+        BoardIssueObservation(issueID: "i-2", updatedAt: first.addingTimeInterval(5), payload: "{}")
+    ]
+    _ = try journal.recordBoardRead(
+        record(issues: first, observations: revisions, commentIDs: ["c-1", "c-2"]), runID: runID, now: epoch
+    )
+
+    #expect(try journal.observedIssueRevisions(["i-1", "i-2", "i-3"]) == [
+        "i-1": first, "i-2": first.addingTimeInterval(5)
+    ])
+    #expect(try journal.observedCommentIDs(["c-1", "c-3"]) == ["c-1"])
+}
+
+@Test("A newer revision of an issue replaces the stored one")
+func newerRevisionReplaces() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let runID = RunID()
+    _ = try journal.claimActLease(act: .build, runID: runID, mode: .real, now: epoch)
+
+    let first = Date(timeIntervalSince1970: 1_789_000_000)
+    _ = try journal.recordBoardRead(
+        record(observations: [BoardIssueObservation(issueID: "i-1", updatedAt: first, payload: "{}")]),
+        runID: runID, now: epoch
+    )
+    _ = try journal.recordBoardRead(
+        record(observations: [BoardIssueObservation(
+            issueID: "i-1", updatedAt: first.addingTimeInterval(9), payload: "{}"
+        )]),
+        runID: runID, now: epoch
+    )
+
+    #expect(try journal.observedIssueRevisions(["i-1"]) == ["i-1": first.addingTimeInterval(9)])
+}
+
+@Test("A revision left pending for the build Act stays until a build read clears it")
+func pendingObservationsClearOnBuildRead() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let runID = RunID()
+    _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
+
+    let revision = BoardIssueObservation(issueID: "i-1", updatedAt: epoch, payload: "{\"a\":1}")
+    _ = try journal.recordBoardRead(
+        record(observations: [revision], leavesBuildPending: true), runID: runID, now: epoch
+    )
+    #expect(try journal.buildPendingObservations().map(\.issueID) == ["i-1"])
+    #expect(try journal.buildPendingObservations().first?.payload == "{\"a\":1}")
+
+    _ = try journal.recordBoardRead(record(clearsBuildPending: true), runID: runID, now: epoch)
+    #expect(try journal.buildPendingObservations().isEmpty)
+    // Cleared, not forgotten: the revision still deduplicates a re-read.
+    #expect(try journal.observedIssueRevisions(["i-1"]) == ["i-1": epoch])
+}
+
+@Test("Observations older than the cutoff are forgotten, pending ones are kept")
+func oldObservationsAreForgotten() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let runID = RunID()
+    _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
+
+    let old = Date(timeIntervalSince1970: 1_700_000_000)
+    _ = try journal.recordBoardRead(
+        record(observations: [BoardIssueObservation(issueID: "i-old", updatedAt: old, payload: "{}")]),
+        runID: runID, now: epoch
+    )
+    _ = try journal.recordBoardRead(
+        record(
+            observations: [BoardIssueObservation(issueID: "i-pending", updatedAt: old, payload: "{}")],
+            leavesBuildPending: true
+        ),
+        runID: runID, now: epoch
+    )
+    _ = try journal.recordBoardRead(record(forgetsBefore: epoch), runID: runID, now: epoch)
+
+    #expect(try journal.observedIssueRevisions(["i-old", "i-pending"]) == ["i-pending": old])
 }
 
 // MARK: - Card Read Tests

@@ -304,7 +304,9 @@ struct AuthorActFeatureReturnTests {
         try journal.releaseActLease(runID: runID)
 
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
+        )
         let gate = ScriptedPredecessorGate(outcome: .landed)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
@@ -331,7 +333,9 @@ struct AuthorActFeatureReturnTests {
         let fixture = try OutboxJournalFixture(project: "other")
         let journal = try fixture.open()
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
+        )
         let gate = ScriptedPredecessorGate(outcome: .landed)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 

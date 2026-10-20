@@ -7,11 +7,13 @@ import Repositories
 /// shift-scheduling/fire-an-act-on-schedule), in this order:
 ///
 /// 1. Sweeps and reclaims expired Card Leases (``ExpiredLeaseSweep``, loop-state/reclaim-an-expired-
-///    lease, P8.10), then reconciles Worktrees (``WorktreeReconciler``), then reposts board state from
-///    the Journal (``BoardStateProjection/repost()``) — the board projection is resolved once, when a
-///    Board is bound, and handed to both.
-/// 2. Performs the Delta Read (``DeltaRead``). Cancelled is applied inside the Delta Read itself; edits
-///    and human comments ride in its report for later phases to consume.
+///    lease, P8.10), then reconciles Worktrees (``WorktreeReconciler``) — the board projection is
+///    resolved once, when a Board is bound, and handed to the sweep and to the repost below.
+/// 2. Performs the Delta Read (``DeltaRead``), then reposts board state from the Journal
+///    (``BoardStateProjection/repost()``): the Board is reconciled before the Journal's state is written
+///    onto it (roadmap P22.3). Cancelled is applied inside the Delta Read itself; edits and human comments
+///    ride in its report. A read that did not complete reposts nothing and runs no lane. It also reconciles
+///    what an author or land read left pending for this Act (``DeltaRead/ownsBuildDecisions``).
 /// 3. Derives Repo Lanes from the in-flight Feature's Cards, read fresh from the Journal after the
 ///    Delta Read, so Cancelled Cards (and a reclaimed Card's return to Ready) are already reflected.
 /// 4. Allocates every lane's Worktree in a sequential pre-pass, in lane order: each lane with runnable
@@ -98,15 +100,15 @@ public struct BuildAct: Sendable {
 
         let reconciliation = try await reconcileWorktrees(feature: feature, context: context)
 
-        try await repostBoardState(projection: projection, context: context)
-
+        // The Board is reconciled before the Journal's state is reposted onto it: a repost queues Outbox
+        // entries, and an issue with a pending write is not read for the Operator's change to it.
         switch try await performDeltaRead(context: context) {
         case .degraded?:
-            // The Delta Read already recorded the degradation; the build Act does less work and does
-            // not derive or run lanes on top of a read that could not complete. It still writes back
-            // what earlier steps accepted into the Outbox.
+            // Already recorded by the Delta Read: nothing is reposted, derived or run on top of a read that
+            // could not complete. What earlier steps accepted into the Outbox is still written back.
             break
         case .read(let report)?:
+            try await repostBoardState(projection: projection, context: context)
             try await WaitingOnYouReplies.apply(context: context, unansweredNightsMax: unansweredNightsMax)
             try await UnansweredCardClock.run(
                 cycleIDs: [cycleID], unansweredNightsMax: unansweredNightsMax, context: context

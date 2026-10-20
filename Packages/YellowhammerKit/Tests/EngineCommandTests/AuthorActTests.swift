@@ -80,7 +80,9 @@ struct AuthorActTests {
         )
 
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
+        )
         let gate = ScriptedPredecessorGate(outcome: .landed)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
@@ -125,7 +127,9 @@ struct AuthorActTests {
         )
 
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
+        )
         let gate = ScriptedPredecessorGate(outcome: .landed)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
@@ -178,7 +182,9 @@ struct AuthorActTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
+        )
         let gate = ScriptedPredecessorGate(
             outcome: .notLanded(predecessorIssueID: "FEAT-0", repositories: ["backend", "mobile"])
         )
@@ -216,7 +222,9 @@ struct AuthorActTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
+        )
         let gate = ScriptedPredecessorGate(outcome: .landed)
         let authoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
 
@@ -330,7 +338,9 @@ struct NightCardAuthoringFindingsTests {
             journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .blocked
         )
         let boards = try await makeBoards()
-        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let board = ActBoard(
+            reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
+        )
 
         for _ in 0..<2 {
             try await EngineInvocation(

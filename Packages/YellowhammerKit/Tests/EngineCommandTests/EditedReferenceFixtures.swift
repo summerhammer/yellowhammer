@@ -107,13 +107,21 @@ func editedReadiness(
 }
 
 /// Runs the build Act with the board's edited description delivered through the Delta Read.
+/// Each edit is a new revision of the issue (`updatedAt` rises), as the board stamps it: a Delta Read drops a
+/// revision it already observed.
+private let editedRevisions = Mutex<TimeInterval>(10)
+
 func runEdited(
     _ scenario: ReadinessScenario, rig: EditRig, readiness: ReadinessCheck, description: String
 ) async throws {
     await scenario.boards.writing.seed(issue: scenario.issueOne, description: description)
+    let revision = editedRevisions.withLock { value -> TimeInterval in
+        value += 1
+        return value
+    }
     try await runReadinessAct(
         scenario, readiness: readiness,
-        updatedObjects: [object(scenario.issueOne, state: stateTodo, description: description)],
+        updatedObjects: [object(scenario.issueOne, state: stateTodo, description: description, updatedAt: revision)],
         repositories: rig.repositories
     )
 }

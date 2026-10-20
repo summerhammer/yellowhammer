@@ -38,7 +38,10 @@ extension CardRunWorld {
         }
         let night = try journal.openNight(nightStart: nightStart, mode: .rehearsal, act: .build, runID: nextRunID).night
         let cardID = try #require(cardIDs[issueID])
-        let board = FakeReadingBoard([page(objects: [object(issueID, state: stateTodo)])])
+        // The Operator's re-ready is a new revision of the issue, stamped after the Night it was Blocked in.
+        let board = FakeReadingBoard([
+            page(objects: [object(issueID, state: stateTodo, updatedAt: TimeInterval(night.id) * 1_000)])
+        ])
         let read = DeltaRead(journal: journal, board: board, runID: nextRunID, act: .build, nightID: night.id)
         guard case .read(let report) = try await read.perform() else {
             Issue.record("expected a read")

@@ -5,7 +5,10 @@ import Journal
 /// The Delta Read for one Project (spec: board-projection / read-board-changes-by-delta): what changed
 /// on the board since the last read, in one request per Act, reconciled against the Journal.
 ///
-/// The read is scoped to the Project's Linear project by the Board Port it was handed, and to the
+/// Every page of both roots is read, each by its own cursor, and nothing is applied until the last one is in;
+/// an observation already recorded (an issue revision, a comment) is dropped, so the overlap a cursor
+/// re-reads is harmless (roadmap P22.3; see DeltaRead+Paging.swift). The read is scoped to the Project's
+/// Linear project by the Board Port it was handed, and to the
 /// Project's Journal by construction, so a sibling Project's Card can be neither read nor matched.
 /// Yellowhammer's own comments are filtered out by identity. The Journal stays authoritative for loop
 /// state: a Card the board re-stated is reported, not adopted; the one exception is Shelved, which
@@ -14,7 +17,6 @@ import Journal
 /// moves — and the degradation is recorded as installation-wide, because the budget is the App
 /// Installation's and shared by every Project on that same Board Connection.
 public struct DeltaRead: Sendable {
-    // swiftlint:disable:previous type_body_length
     public let journal: JournalStore
     public let board: any Board
     public let runID: RunID
@@ -27,15 +29,22 @@ public struct DeltaRead: Sendable {
     /// The Board Connection the read goes through, named on a rate-budget record. Nil for a board bound
     /// through none.
     public let installation: AppInstallationLabel?
-    /// `first` on each root of the compound query. A page that overflows is followed by its cursor.
+    /// `first` on each root of the compound query. A page that overflows is followed by its root's own cursor.
     public var pageSize: Int
-    /// A read that has not reached its last page after this many requests stops rather than loop.
+    /// A read that has not reached its last page after this many requests stops rather than loop: it is an
+    /// incomplete sync, which moves no cursor and defers whatever depends on what it did not see.
     public var requestLimit = 40
-    /// Whether an Operator re-ready (Blocked → Todo) is applied. The author Act's read sets this false:
-    /// it has no Cycle a Todo Card could run in (issue #559), so the re-ready is recorded as restated.
+    /// Whether an Operator re-ready (Blocked → Todo) is applied. The author and land Acts' reads set this
+    /// false: they run no Card, and the author Act has no Cycle a Todo Card could run in (issue #559), so
+    /// the re-ready is recorded as restated. The observation is not lost: a read that is not the build Act's
+    /// leaves it pending, and the next build Act's read applies it (``ownsBuildDecisions``).
     public var acceptsReReady = true
 
     let clock: @Sendable () -> Date
+    /// The board-side "now" captured when a read starts: the sync horizon. A cursor never moves past
+    /// `horizon - syncOverlap`, so a change that arrives while the pages are being read stays eligible
+    /// for the next read.
+    let horizon: @Sendable () -> Date
 
     public init(
         journal: JournalStore,
@@ -46,7 +55,8 @@ public struct DeltaRead: Sendable {
         repositories: Set<String>? = nil,
         installation: AppInstallationLabel? = nil,
         pageSize: Int = 50,
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        horizon: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.journal = journal
         self.board = board
@@ -57,68 +67,20 @@ public struct DeltaRead: Sendable {
         self.installation = installation
         self.pageSize = pageSize
         self.clock = clock
+        self.horizon = horizon
     }
 
     // MARK: - Reading
 
-    /// Reads every page since the recorded sync point, then reconciles. Nothing is applied to the
-    /// Journal until the last page is in, so a refusal half-way leaves no partial reconciliation.
-    public func perform() async throws -> DeltaReadOutcome {
-        let since = try journal.boardSyncPoint()?.lastSync
-
-        var objects: [BoardObject] = []
-        var comments: [BoardComment] = []
-        var identity: BoardIdentity?
-        var objectCursor: BoardCursor?
-        var commentCursor: BoardCursor?
-        var requests = 0
-
-        repeat {
-            if requests >= requestLimit {
-                throw DeltaReadError.tooManyPages(requests: requests)
-            }
-            let delta: BoardDelta
-            do {
-                delta = try await board.deltaRead(
-                    since: since, objectsAfter: objectCursor, commentsAfter: commentCursor, pageSize: pageSize
-                )
-            } catch BoardError.rateLimited(let retryAfter, _) {
-                return try degrade(requests: requests + 1, retryAfter: retryAfter)
-            } catch {
-                throw DeltaReadError.boardUnavailable(error)
-            }
-            requests += 1
-            identity = delta.identity
-            objects += delta.updatedObjects
-            comments += delta.newComments
-            objectCursor = delta.nextObjectCursor
-            commentCursor = delta.nextCommentCursor
-        } while objectCursor != nil || commentCursor != nil
-
-        guard let identity else { throw DeltaReadError.tooManyPages(requests: requests) }
-        let report = try reconcile(
-            objects: objects, comments: comments, identity: identity, since: since, requests: requests
-        )
-        return .read(report)
-    }
-
-    private func degrade(requests: Int, retryAfter: Duration?) throws -> DeltaReadOutcome {
-        var reason = "the Delta Read was refused for the rate budget after \(requests) request(s); "
-            + "nothing read this Act is acted on and the sync point is unchanged"
-        if let retryAfter {
-            reason += "; retry after \(retryAfter)"
-        }
-        try append(.rateBudgetExhausted(degradation: reason, installation: installation))
-        return .degraded(reason: reason)
-    }
+    // `perform()` — the independent per-root paging, the durable deduplication and the cursor — lives in
+    // DeltaRead+Paging.swift, split out to keep this file under the type-length limit.
 
     // MARK: - Reconciling
 
-    private func reconcile(
-        objects: [BoardObject], comments: [BoardComment], identity: BoardIdentity, since: Date?, requests: Int
+    func reconcile(
+        objects: [BoardObject], comments: [BoardComment], identity: BoardIdentity, plan: ReadPlan, requests: Int
     ) throws -> DeltaReadReport {
-        let syncPoint = Self.syncPoint(objects: objects, comments: comments, since: since)
-        var report = DeltaReadReport(since: since, syncPoint: syncPoint, requests: requests)
+        var report = DeltaReadReport(since: plan.since, syncPoint: plan.syncPoint, requests: requests)
 
         for comment in comments {
             if comment.author.isYellowhammer || (comment.author.id != nil && comment.author.id == identity.id) {
@@ -137,39 +99,51 @@ public struct DeltaRead: Sendable {
         let pendingWrites = Set(try journal.pendingOutboxEntries().compactMap(\.issueID))
         let preservedProseHashes = try lastPreservedProseHashes()
         for object in objects {
-            // Every object, known or not: the Feature and the Night Card are not Cards but the Pulse
-            // opens them too (issue #230) and displays readable identifiers (issue #326).
-            // Silent: no event, and the report is unchanged.
-            if !object.key.isEmpty {
-                try journal.recordIssueIDForDisplay(
-                    issueID: object.id.rawValue, displayID: object.key, runID: runID, now: clock()
-                )
-            }
-            if !object.key.isEmpty, !object.url.isEmpty {
-                try journal.recordIssueLink(
-                    issueID: object.id.rawValue, key: object.key, url: object.url, runID: runID, now: clock()
-                )
-            }
+            try recordDisplay(of: object)
             guard let card = try journal.card(issueID: object.id.rawValue) else {
                 try reportUnbackedWaitingOnYou(object: object, into: &report)
                 report.unknownObjects.append(object)
                 continue
             }
-            try reportUnansweredWaitingOnYou(card: card, object: object, into: &report)
-            try reconcile(card: card, object: object, pendingWrites: pendingWrites,
-                          preservedProseHashes: preservedProseHashes, into: &report)
+            // A replayed revision was already reported (and its events appended) by the read that first
+            // observed it: the build Act's report carries it again, but the event log does not.
+            let replayed = plan.replayed.contains(object.id)
+            try reportUnansweredWaitingOnYou(card: card, object: object, replayed: replayed, into: &report)
+            try reconcile(
+                card: card, object: object,
+                inputs: CardInputs(
+                    pendingWrites: pendingWrites, preservedProseHashes: preservedProseHashes, replayed: replayed
+                ),
+                into: &report
+            )
         }
 
         try classifyAndRecordReplies(into: &report)
 
-        if let syncPoint, syncPoint != since {
-            try journal.recordBoardSync(lastSync: syncPoint, runID: runID, now: clock())
+        // The observations are stored before the cursors move, in one transaction (spec: sync-boundary).
+        if let record = plan.record {
+            try journal.recordBoardRead(record, runID: runID, now: clock())
         }
         try append(.deltaReadCompleted(
             objects: objects.count, comments: comments.count, ownComments: report.ownComments,
-            requests: requests, since: since, syncPoint: syncPoint
+            requests: requests, since: plan.since, syncPoint: plan.syncPoint
         ))
         return report
+    }
+
+    /// Every object, known or not: the Feature and the Night Card are not Cards but the Pulse opens them too
+    /// (issue #230) and displays readable identifiers (issue #326). Silent: no event, and the report is unchanged.
+    private func recordDisplay(of object: BoardObject) throws {
+        if !object.key.isEmpty {
+            try journal.recordIssueIDForDisplay(
+                issueID: object.id.rawValue, displayID: object.key, runID: runID, now: clock()
+            )
+        }
+        if !object.key.isEmpty, !object.url.isEmpty {
+            try journal.recordIssueLink(
+                issueID: object.id.rawValue, key: object.key, url: object.url, runID: runID, now: clock()
+            )
+        }
     }
 
     /// How the board removed this Card's issue, or nil when it is on the board. A trashed issue is always
@@ -186,8 +160,7 @@ public struct DeltaRead: Sendable {
     private func reconcile(
         card: CardRecord,
         object: BoardObject,
-        pendingWrites: Set<String>,
-        preservedProseHashes: [String: String],
+        inputs: CardInputs,
         into report: inout DeltaReadReport
     ) throws {
         var card = card
@@ -222,7 +195,8 @@ public struct DeltaRead: Sendable {
         }
 
         let stateDiffers = try reconcileState(
-            card: &card, boardState: boardState, pendingWrites: pendingWrites, into: &report
+            card: &card, boardState: boardState, pendingWrites: inputs.pendingWrites, replayed: inputs.replayed,
+            into: &report
         )
 
         var change = CardChange(
@@ -236,14 +210,16 @@ public struct DeltaRead: Sendable {
             if let posted = try journal.managedBlockLastPostedHash(issueID: card.issueID) {
                 change.managedBlockEdited = parts.blockHash != posted
             }
-            if let preserved = preservedProseHashes[card.issueID] {
+            if let preserved = inputs.preservedProseHashes[card.issueID] {
                 change.proseEdited = parts.preservedProseHash != preserved
             }
             change.repositoryOnBoard = Self.repository(inBlock: parts.block)
         }
         if let named = change.repositoryOnBoard, let reason = invariantBreakReason(card: card, named: named) {
             report.invariantBreaks.append(InvariantBreak(card: card, reason: reason))
-            try append(.authoringInvariantBroken(cardID: card.id, issueID: card.issueID, reason: reason))
+            if !inputs.replayed {
+                try append(.authoringInvariantBroken(cardID: card.id, issueID: card.issueID, reason: reason))
+            }
         }
         report.cardChanges.append(change)
     }
@@ -254,6 +230,7 @@ public struct DeltaRead: Sendable {
         card: inout CardRecord,
         boardState: BoardWorkflowState,
         pendingWrites: Set<String>,
+        replayed: Bool,
         into report: inout DeltaReadReport
     ) throws -> Bool {
         let boardSaysShelved = boardState.isShelved
@@ -283,9 +260,11 @@ public struct DeltaRead: Sendable {
             // The board moved the Card to a state the Journal did not write. The Journal is
             // authoritative; the board copy is reposted from it, not the other way round.
             report.restated.append(RestatedCard(card: card, boardState: boardState))
-            try append(.cardRestated(
-                cardID: card.id, issueID: card.issueID, journalState: card.state, boardState: boardState.name
-            ))
+            if !replayed {
+                try append(.cardRestated(
+                    cardID: card.id, issueID: card.issueID, journalState: card.state, boardState: boardState.name
+                ))
+            }
             return true
         }
     }
@@ -306,14 +285,16 @@ public struct DeltaRead: Sendable {
     /// A known Card whose Journal state is Waiting on You with no waiting reason recorded: the Journal
     /// record that is supposed to back the state is itself incomplete.
     private func reportUnansweredWaitingOnYou(
-        card: CardRecord, object: BoardObject, into report: inout DeltaReadReport
+        card: CardRecord, object: BoardObject, replayed: Bool, into report: inout DeltaReadReport
     ) throws {
         guard card.state == .waitingOnYou, card.waitingReason == nil else { return }
         let reason = "\(object.key) is Waiting on You in the Journal with no waiting reason recorded"
         report.anomalies.append(
             WaitingOnYouAnomaly(issueID: card.issueID, key: object.key, cardID: card.id, reason: reason)
         )
-        try append(.waitingOnYouUnbacked(issueID: card.issueID, cardID: card.id, reason: reason))
+        if !replayed {
+            try append(.waitingOnYouUnbacked(issueID: card.issueID, cardID: card.id, reason: reason))
+        }
     }
 
     // The Waiting on You reply classification and recording (roadmap P11.2; spec G-8) — dispatched
@@ -342,28 +323,22 @@ public struct DeltaRead: Sendable {
         return hashes
     }
 
-    /// The latest board timestamp among what was read, or `since` unchanged when nothing was. Never the
-    /// wall clock: the board's own timestamps are the only ones its `updatedAt > $lastSync` compares to.
-    static func syncPoint(objects: [BoardObject], comments: [BoardComment], since: Date?) -> Date? {
-        let latest = (objects.map(\.updatedAt) + comments.map(\.createdAt)).max()
-        switch (latest, since) {
-        case (let latest?, let since?):
-            return max(latest, since)
-        case (let latest?, nil):
-            return latest
-        case (nil, let since):
-            return since
-        }
-    }
-
     // The repository line parser for the Card's Managed Block (roadmap P5.6; issue #446) lives in
     // DeltaRead+Repository.swift, split out to keep this file under the file-length limit.
 
     // MARK: - Events
 
-    private func append(_ event: JournalEvent) throws {
+    func append(_ event: JournalEvent) throws {
         try journal.append(event, act: act, runID: runID, nightID: nightID, now: clock())
     }
+}
+
+/// What reconciling one known Card needs beside the Card and its board copy.
+struct CardInputs {
+    var pendingWrites: Set<String>
+    var preservedProseHashes: [String: String]
+    /// The board copy is a revision an earlier author or land read observed and left for the build Act.
+    var replayed: Bool
 }
 
 extension CardState {

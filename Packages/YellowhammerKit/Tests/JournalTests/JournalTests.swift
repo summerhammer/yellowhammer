@@ -151,6 +151,8 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
             "authoring_halt",
             "banked_reply",
             "banked_reply_mainline",
+            "board_comment_seen",
+            "board_issue_seen",
             "board_sync",
             "card",
             "card_question",

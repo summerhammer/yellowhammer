@@ -78,8 +78,9 @@ struct LinearUserPayload: Decodable {
 
 struct LinearDeltaPayload: Decodable {
     let viewer: DeltaViewerPayload
-    let updatedIssues: LinearIssuesPayload.Issues
-    let newComments: DeltaComments
+    /// Nil when the request skipped the root (`@include(if: false)`): the key is absent from the response.
+    let updatedIssues: LinearIssuesPayload.Issues?
+    let newComments: DeltaComments?
 
     struct DeltaViewerPayload: Decodable {
         let id: String

@@ -62,6 +62,8 @@ enum LinearGraphQL {
           $issueFilter: IssueFilter!,
           $commentFilter: CommentFilter!,
           $first: Int!,
+          $includeIssues: Boolean!,
+          $includeComments: Boolean!,
           $issuesAfter: String,
           $commentsAfter: String
         ) {
@@ -69,7 +71,7 @@ enum LinearGraphQL {
           viewer { id name }
           updatedIssues: issues(
             filter: $issueFilter, first: $first, after: $issuesAfter, orderBy: updatedAt, includeArchived: true
-          ) {
+          ) @include(if: $includeIssues) {
             pageInfo { hasNextPage endCursor }
             nodes {
               id identifier title description url createdAt updatedAt archivedAt trashed
@@ -81,7 +83,7 @@ enum LinearGraphQL {
           }
           newComments: comments(
             filter: $commentFilter, first: $first, after: $commentsAfter, orderBy: createdAt
-          ) {
+          ) @include(if: $includeComments) {
             pageInfo { hasNextPage endCursor }
             nodes {
               id createdAt body

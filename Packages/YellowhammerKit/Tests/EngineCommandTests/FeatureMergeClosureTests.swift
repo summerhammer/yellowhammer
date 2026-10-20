@@ -393,10 +393,10 @@ struct AuthorActFeatureMergeClosureTests {
     func convergesAfterThrottlingAcrossTwoActs() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
-        // One empty page per Act for its own post-landing reply read (P11.3): the warm-up and first
-        // Acts below both start with MOB-1 still Waiting on You; the second starts Blocked already.
+        // One empty page per Act for its own Board reconciliation (P11.3, P22.3): the warm-up, first and
+        // second Acts below each read before they decide.
         let board = ActBoard(
-            reading: FakeReadingBoard([page(), page()]), writing: world.boards.writing,
+            reading: FakeReadingBoard.quiet(3), writing: world.boards.writing,
             provisioning: world.boards.provisioning
         )
         try await warmUpNightCard(world, board: board, repositories: repositories)

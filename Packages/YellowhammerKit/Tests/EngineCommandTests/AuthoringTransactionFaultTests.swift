@@ -63,7 +63,7 @@ struct AuthoringTransactionFaultTests {
             )]
         )))
         let board = ActBoard(
-            reading: FakeReadingBoard([]), writing: rig.boards.writing, provisioning: rig.boards.provisioning
+            reading: FakeReadingBoard.quiet(), writing: rig.boards.writing, provisioning: rig.boards.provisioning
         )
 
         try await EngineInvocation(

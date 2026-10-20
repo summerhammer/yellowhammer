@@ -97,6 +97,8 @@ public struct LandAct: Sendable {
             return
         }
 
+        if try await deferredForWantOfABoardRead(context: context) { return }
+
         let lanes = RepoLane.derive(from: try journal.cards(cycleID: cycleID))
 
         let progresses = await runFirstPhases(lanes: lanes, feature: feature, cycleID: cycleID, context: context)
@@ -142,11 +144,40 @@ public struct LandAct: Sendable {
         }
     }
 
+    /// The Board is reconciled before anything is derived, pushed or replayed (roadmap P22.3; spec:
+    /// board-projection/read-board-changes-by-delta, `sync-boundary`): a Card the Operator cancelled is
+    /// Shelved before its lane is derived. A read that did not complete lands nothing this Act — the Cycle
+    /// stays unlanded, the next land firing reads again — and replays no deferred Card state write; only
+    /// the entries an earlier step already accepted are delivered. True when the Act was deferred.
+    private func deferredForWantOfABoardRead(context: ActContext) async throws -> Bool {
+        guard try await !boardRead(context: context) else { return false }
+        try await writeBack(context: context, boardRead: false)
+        return true
+    }
+
+    /// The land Act's Delta Read; true when it completed, or when no Board is bound. Like the author Act's,
+    /// it never applies an Operator re-ready (this Act runs no Card) and leaves what it observed pending for
+    /// the build Act. Replies it records stay unapplied: the Cycle is in flight, so the build Act resumes them.
+    private func boardRead(context: ActContext) async throws -> Bool {
+        guard let board = context.board else { return true }
+        var read = DeltaRead(
+            journal: context.journal, board: board.reading, runID: context.runID, act: context.act,
+            nightID: context.night.id, repositories: nil, installation: board.installation
+        )
+        read.acceptsReReady = false
+        switch try await read.perform() {
+        case .read: return true
+        case .degraded: return false
+        }
+    }
+
     /// Replays any Card state write deferred and left behind (``DeferredCardStateReplay``, roadmap
     /// issue #96 — this Act dispatches no Card, so nothing else ever retries one), then delivers pending
     /// Outbox entries.
-    private func writeBack(context: ActContext) async throws {
-        try await DeferredCardStateReplay.run(context: context)
+    private func writeBack(context: ActContext, boardRead: Bool = true) async throws {
+        if boardRead {
+            try await DeferredCardStateReplay.run(context: context)
+        }
         guard let outbox = context.outbox else { return }
         _ = try await outbox.deliverPending()
     }
