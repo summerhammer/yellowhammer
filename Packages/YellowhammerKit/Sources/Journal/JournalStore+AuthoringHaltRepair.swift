@@ -30,6 +30,11 @@ public struct AuthoringHaltCheckpoint: Equatable, Sendable {
     public let repairPending: Bool
     /// The request a validation last handled; a request is validated once.
     public let repairHandledSeq: Int
+    /// The breakdown the halt arose after (roadmap P22.6), kept before any draft child was posted; nil when the
+    /// halt arose before a breakdown existed.
+    public let breakdown: FeatureBreakdown?
+    /// Why the latest validated repair was not accepted: the child and the rule. Nil until one is not.
+    public let repairDiagnostic: String?
 
     /// The Operator's request awaiting a validation: pending and not yet handled.
     public var hasUnhandledRepairRequest: Bool { repairPending && repairHandledSeq < repairSeq }
@@ -138,22 +143,34 @@ extension JournalStore {
 
     // MARK: - Checkpoint rows
 
+    /// What a halt keeps in its checkpoint beyond the Board Connection: the cause's failing references and the
+    /// accepted authoring outputs that exist when it is recorded.
+    struct HaltCheckpointInputs {
+        let detail: String?
+        let selection: SelectedFeature?
+        let breakdown: FeatureBreakdown?
+    }
+
     static func insertHaltCheckpoint(
-        _ db: Database, haltID: Int64, connection: String, detail: String?, selection: SelectedFeature?
+        _ db: Database, haltID: Int64, connection: String, inputs: HaltCheckpointInputs
     ) throws {
         try db.execute(
             sql: """
-            INSERT INTO authoring_halt_checkpoint (halt_id, board_connection, transaction_id, cause_detail, selection)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO authoring_halt_checkpoint
+            (halt_id, board_connection, transaction_id, cause_detail, selection, breakdown)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            arguments: [haltID, connection, UUID().uuidString, detail, try Self.encodeSelection(selection)]
+            arguments: [
+                haltID, connection, UUID().uuidString, inputs.detail, try Self.encodeSelection(inputs.selection),
+                try Self.encodeBreakdown(inputs.breakdown)
+            ]
         )
     }
 
     /// A repeat halt on an `open` row moves the failing references and, when it carries one, the selection;
     /// a halt recorded before checkpoints existed gets its row here.
     static func refreshHaltCheckpoint(
-        _ db: Database, haltID: Int64, detail: String?, selection: SelectedFeature?
+        _ db: Database, haltID: Int64, inputs: HaltCheckpointInputs
     ) throws {
         if try Int.fetchOne(
             db, sql: "SELECT 1 FROM authoring_halt_checkpoint WHERE halt_id = ?", arguments: [haltID]
@@ -162,12 +179,19 @@ extension JournalStore {
         }
         try db.execute(
             sql: "UPDATE authoring_halt_checkpoint SET cause_detail = ? WHERE halt_id = ?",
-            arguments: [detail, haltID]
+            arguments: [inputs.detail, haltID]
         )
-        if let selection {
+        if let selection = inputs.selection {
             try db.execute(
                 sql: "UPDATE authoring_halt_checkpoint SET selection = ? WHERE halt_id = ?",
                 arguments: [try Self.encodeSelection(selection), haltID]
+            )
+        }
+        // A breakdown already kept is never replaced: its drafts may carry the Operator's edits (roadmap P22.6).
+        if let breakdown = inputs.breakdown {
+            try db.execute(
+                sql: "UPDATE authoring_halt_checkpoint SET breakdown = ? WHERE halt_id = ? AND breakdown IS NULL",
+                arguments: [try Self.encodeBreakdown(breakdown), haltID]
             )
         }
     }
@@ -182,6 +206,7 @@ extension JournalStore {
         let category: String? = row["observed_category"]
         let selectionText: String? = row["selection"]
         let pending: Int = row["repair_pending"]
+        let breakdownText: String? = row["breakdown"]
         return AuthoringHaltCheckpoint(
             haltID: haltID,
             boardConnection: row["board_connection"],
@@ -193,7 +218,9 @@ extension JournalStore {
             observedAt: observedAt,
             repairSeq: row["repair_seq"],
             repairPending: pending != 0,
-            repairHandledSeq: row["repair_handled_seq"]
+            repairHandledSeq: row["repair_handled_seq"],
+            breakdown: try breakdownText.map { try Self.decodeBreakdown($0, onError: unreadable) },
+            repairDiagnostic: row["repair_diagnostic"]
         )
     }
 

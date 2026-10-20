@@ -83,11 +83,20 @@ public struct PlannedCard: Codable, Equatable, Sendable {
     /// The Card's Transcription Blocks (roadmap P9.6); empty for a pre-P9.6 plan, or for a Card with no
     /// contracts.
     public let transcriptions: [PlannedTranscription]
+    /// The draft child this Card IS, when it is a repaired halted Feature's draft (roadmap P22.6): its existing
+    /// issue id, reused as the Card's own — nothing is created for it. Nil for a Card the plan creates.
+    public let existingIssueID: String?
+    /// The scope an Operator declared on that draft (roadmap P22.6), validated with the rest of the repair and
+    /// recorded as the Card's declared scope; empty for a created Card.
+    public let declaredScope: [String]
 
     public init(
         key: String, repository: String, kind: String, order: Int, title: String, clauses: [PlannedClause] = [],
-        brief: String = "", transcriptions: [PlannedTranscription] = []
+        brief: String = "", transcriptions: [PlannedTranscription] = [], existingIssueID: String? = nil,
+        declaredScope: [String] = []
     ) {
+        self.existingIssueID = existingIssueID
+        self.declaredScope = declaredScope
         self.key = key
         self.repository = repository
         self.kind = kind
@@ -99,7 +108,7 @@ public struct PlannedCard: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case key, repository, kind, order, title, clauses, brief, transcriptions
+        case key, repository, kind, order, title, clauses, brief, transcriptions, existingIssueID, declaredScope
     }
 
     public init(from decoder: Decoder) throws {
@@ -112,6 +121,8 @@ public struct PlannedCard: Codable, Equatable, Sendable {
         clauses = try container.decodeIfPresent([PlannedClause].self, forKey: .clauses) ?? []
         brief = try container.decodeIfPresent(String.self, forKey: .brief) ?? ""
         transcriptions = try container.decodeIfPresent([PlannedTranscription].self, forKey: .transcriptions) ?? []
+        existingIssueID = try container.decodeIfPresent(String.self, forKey: .existingIssueID)
+        declaredScope = try container.decodeIfPresent([String].self, forKey: .declaredScope) ?? []
     }
 }
 

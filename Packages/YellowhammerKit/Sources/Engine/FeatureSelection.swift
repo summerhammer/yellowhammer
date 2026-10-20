@@ -26,6 +26,22 @@ public protocol SelectedFeatureAuthoring: Sendable {
     /// nil when there is nothing to resume. Called before the selector runs, so a resume never selects
     /// (or breaks down) the Feature a second time.
     func resumeUnfinished(_ context: ActContext) async throws -> FeatureAuthoringOutcome?
+
+    /// Authors a repaired halted Feature from the Board snapshot of its draft children instead of drafting a
+    /// breakdown (roadmap P22.6): the same validation as ``author(_:reselectionDepth:context:)``, then the
+    /// drafts become the Cycle's Work Cards under their existing issue ids.
+    func authorRepaired(
+        _ selection: SelectedFeature, snapshot: HaltRepairSnapshot, reselectionDepth: Int, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome
+}
+
+extension SelectedFeatureAuthoring {
+    /// An authoring with no draft children of its own authors the selection as usual.
+    public func authorRepaired(
+        _ selection: SelectedFeature, snapshot: HaltRepairSnapshot, reselectionDepth: Int, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome {
+        try await author(selection, reselectionDepth: reselectionDepth, context: context)
+    }
 }
 
 /// What is wrong with this Project's configuration, or with what the selector returned, such that
@@ -237,7 +253,7 @@ public struct FeatureSelection: FeatureAuthoring {
     /// Todo is the intervention that halt waits for.
     func validateAndRecord(
         _ selected: SelectedFeature, scope: SelectionScope, reselectionDepth: Int, repairing: Bool = false,
-        ignoringFaultBound: Bool = false, context: ActContext
+        ignoringFaultBound: Bool = false, repairSnapshot: HaltRepairSnapshot? = nil, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         let repositories = scope.repositories
         let candidates = scope.candidates
@@ -266,6 +282,28 @@ public struct FeatureSelection: FeatureAuthoring {
             name: selected.name, reasoning: selected.reasoning, sequence: selected.sequence,
             repositories: sortedRepositories, adoptedCardIssueIDs: adopted
         )
+        try recordSelected(validated, unadopted: unadopted, context: context)
+
+        let faults = try context.journal.authoringFaultCount(feature: validated.name)
+        if !ignoringFaultBound, !context.trigger.isForced, faults.count >= consecutiveAuthoringFaultsMax {
+            return try await recordHalt(
+                feature: validated.name,
+                cause: .authoringRepeatedlyFaulted(count: faults.count, lastReason: faults.lastReason),
+                selection: validated, context: context
+            )
+        }
+        guard let transaction else {
+            throw EngineInvocationError.notImplemented(.author)
+        }
+        guard let repairSnapshot else {
+            return try await transaction.author(validated, reselectionDepth: reselectionDepth, context: context)
+        }
+        return try await transaction.authorRepaired(
+            validated, snapshot: repairSnapshot, reselectionDepth: reselectionDepth, context: context
+        )
+    }
+
+    private func recordSelected(_ validated: SelectedFeature, unadopted: [String], context: ActContext) throws {
         try context.journal.append(
             .featureSelected(FeatureSelectedPayload(
                 name: validated.name.rawValue,
@@ -279,19 +317,6 @@ public struct FeatureSelection: FeatureAuthoring {
             )),
             act: context.act, runID: context.runID, nightID: context.night.id
         )
-
-        let faults = try context.journal.authoringFaultCount(feature: validated.name)
-        if !ignoringFaultBound, !context.trigger.isForced, faults.count >= consecutiveAuthoringFaultsMax {
-            return try await recordHalt(
-                feature: validated.name,
-                cause: .authoringRepeatedlyFaulted(count: faults.count, lastReason: faults.lastReason),
-                selection: validated, context: context
-            )
-        }
-        guard let transaction else {
-            throw EngineInvocationError.notImplemented(.author)
-        }
-        return try await transaction.author(validated, reselectionDepth: reselectionDepth, context: context)
     }
 
     /// Appends one `authoringReleaseGateHeld` per held consumer the selected Feature touches and returns

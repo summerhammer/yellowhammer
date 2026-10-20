@@ -48,6 +48,10 @@ public struct DeltaReadReport: Equatable, Sendable {
     public var invariantBreaks: [InvariantBreak]
     /// Updated objects the Journal has no Card for: Feature Issues, Night Cards, the Operator's own issues.
     public var unknownObjects: [BoardObject]
+    /// Children admitted this read to a tracked halted Feature's candidate snapshot (roadmap P22.6): an object
+    /// nested beneath the exact halted Feature Card of this Project. They stay drafts, not Cards, and are not
+    /// among ``unknownObjects``.
+    public var haltDraftChildren: [BoardObject]
     /// A Card read in Waiting on You with no Journal record behind it: an unknown object labelled Card,
     /// or a known Card whose Journal state is Waiting on You with no waiting reason recorded (glossary
     /// → Waiting on You; bounds/escalate-a-question-to-the-operator).
@@ -73,6 +77,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         restoredToBoard: [CardRecord] = [],
         invariantBreaks: [InvariantBreak] = [],
         unknownObjects: [BoardObject] = [],
+        haltDraftChildren: [BoardObject] = [],
         anomalies: [WaitingOnYouAnomaly] = [],
         waitingOnYouReplies: [CardReplyRecord] = []
     ) {
@@ -90,6 +95,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         self.restoredToBoard = restoredToBoard
         self.invariantBreaks = invariantBreaks
         self.unknownObjects = unknownObjects
+        self.haltDraftChildren = haltDraftChildren
         self.anomalies = anomalies
         self.waitingOnYouReplies = waitingOnYouReplies
     }

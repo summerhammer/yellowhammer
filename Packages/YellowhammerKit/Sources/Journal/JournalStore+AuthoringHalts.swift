@@ -63,16 +63,18 @@ extension JournalStore {
     ///
     /// The halt's repair checkpoint (``AuthoringHaltCheckpoint``) is written in the same transaction as the row,
     /// strictly before any board write exposes the halted Feature Card; `selection` is the accepted
-    /// authoring output that exists at that point, nil when the halt arose before the selector chose one.
+    /// authoring output that exists at that point, nil when the halt arose before the selector chose one;
+    /// `breakdown` is the breakdown the halt arose after, kept the same way (roadmap P22.6).
     ///
     /// Never touches a Refusal or any consecutive count.
     @discardableResult
     public func recordAuthoringHalt(
         feature: FeatureName, causeKind: String, detail: String? = nil, content: String,
-        selection: SelectedFeature? = nil, nightID: Int64,
+        selection: SelectedFeature? = nil, breakdown: FeatureBreakdown? = nil, nightID: Int64,
         act: Act? = nil, runID: RunID? = nil, now: Date = Date()
     ) throws -> AuthoringHaltOutcome {
-        try write { db in
+        let inputs = HaltCheckpointInputs(detail: detail, selection: selection, breakdown: breakdown)
+        return try write { db in
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: JournalStore.stored(now))
             let repeated = JournalEvent.authoringHaltRepeated(
                 feature: feature.rawValue, causeKind: causeKind, detail: detail
@@ -89,7 +91,7 @@ extension JournalStore {
                     arguments: [content, causeKind, id]
                 )
                 _ = try Self.insertEvent(db, repeated, stamp: stamp)
-                try Self.refreshHaltCheckpoint(db, haltID: id, detail: detail, selection: selection)
+                try Self.refreshHaltCheckpoint(db, haltID: id, inputs: inputs)
                 let record = try Self.authoringHaltRecord(from: try Self.fetchAuthoringHaltRow(db, id: id))
                 return AuthoringHaltOutcome(record: record, newlyOpened: false, alreadyExpired: false)
             }
@@ -114,9 +116,7 @@ extension JournalStore {
                 arguments: [feature.rawValue, causeKind, content, nightID, JournalStore.timestamp(stamp.now)]
             )
             let id = db.lastInsertedRowID
-            try Self.insertHaltCheckpoint(
-                db, haltID: id, connection: linearWorkspace.rawValue, detail: detail, selection: selection
-            )
+            try Self.insertHaltCheckpoint(db, haltID: id, connection: linearWorkspace.rawValue, inputs: inputs)
             _ = try Self.insertEvent(
                 db, .authoringHaltOpened(feature: feature.rawValue, causeKind: causeKind, detail: detail),
                 stamp: stamp

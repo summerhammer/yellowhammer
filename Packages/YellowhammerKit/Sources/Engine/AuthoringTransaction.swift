@@ -112,12 +112,14 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         // speculatively — the whole Feature halts, naming every repository it could not read.
         let transcriptions = await AuthoringTranscriptions.resolve(breakdown, using: transcribing, context: context)
         if !transcriptions.invalidRanges.isEmpty {
-            return try await rejectBreakdown(transcriptions.invalidRanges, for: selection, context: context)
+            return try await rejectBreakdown(
+                transcriptions.invalidRanges, for: selection, breakdown: breakdown, context: context
+            )
         }
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
                 feature: selection.name, cause: .contractUnreadable(contracts: transcriptions.unreadable),
-                selection: selection, context: context
+                selection: selection, breakdown: breakdown, context: context
             )
         }
 
@@ -125,17 +127,23 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
                                 transcriptions: transcriptions, context: context)
     }
 
-    private func accept(
+    func accept(
         _ selection: SelectedFeature, breakdown: FeatureBreakdown, resolution: AuthoringCitationResolution,
-        transcriptions: AuthoringTranscriptionResult, context: ActContext
+        transcriptions: AuthoringTranscriptionResult, repairing snapshot: HaltRepairSnapshot? = nil,
+        context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         guard let outbox = context.outbox else { throw AuthoringTransactionError.noBoard }
         let (plan, violation) = try await measuredPlan(
             breakdown, for: selection, citations: resolution, transcriptions: transcriptions.cardTranscriptions,
-            context: context
+            repairing: snapshot, context: context
         )
+        if let violation, let snapshot {
+            return try Self.invalidRepair(snapshot, diagnostics: [violation.reason], context: context)
+        }
         if let violation {
-            return try await rejectBreakdown([violation.reason], for: selection, context: context)
+            return try await rejectBreakdown(
+                [violation.reason], for: selection, breakdown: breakdown, context: context
+            )
         }
         // Immediately before acceptance, a Feature Card this plan continues is read again: one the Operator
         // completed or canceled while authoring ran is theirs, never moved back to Todo by the plan's write, and
@@ -152,19 +160,6 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             nightID: context.night.id
         )
         return try await complete(plan.record, context: context, outbox: outbox)
-    }
-
-    /// The contract-overlap floor (``ContractOverlapCheck``): a Work Card reading what another Work Card of this
-    /// Feature writes is an Authoring Halt, recorded with no model call and no Route walk — nil when there is none.
-    private func haltIfConsumingOwnWork(
-        _ breakdown: FeatureBreakdown, for selection: SelectedFeature, context: ActContext
-    ) async throws -> FeatureAuthoringOutcome? {
-        let overlaps = ContractOverlapCheck.overlaps(in: breakdown)
-        guard !overlaps.isEmpty else { return nil }
-        return try await AuthoringHalt.record(
-            feature: selection.name, cause: .breakdownConsumesOwnFeatureWork(overlaps: overlaps),
-            selection: selection, context: context
-        )
     }
 
     /// Validates the drafted breakdown, returning the outcome to return early with when it is rejected —
@@ -199,12 +194,12 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// the description budget; a drafting that skipped it still faults here, since neither is an Authoring
     /// Halt. A Feature Card over the budget faults here too.
     private func rejectBreakdown(
-        _ reasons: [String], for selection: SelectedFeature, context: ActContext
+        _ reasons: [String], for selection: SelectedFeature, breakdown: FeatureBreakdown? = nil, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         return try await recordFault(
             feature: selection.name, reason: reasons.joined(separator: "; "),
             event: .featureBreakdownRejected(name: selection.name.rawValue, reason: reasons.joined(separator: "; ")),
-            selection: selection, context: context
+            selection: selection, breakdown: breakdown, context: context
         )
     }
 
@@ -254,9 +249,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
 
     /// The first N walks are allowed. Only a forced run re-halts immediately after adding its fault;
     /// an ordinary run leaves the next selection to apply the Bound.
-    private func recordFault(
+    func recordFault(
         feature: FeatureName, reason: String, event: JournalEvent,
-        operationKey: String? = nil, selection: SelectedFeature? = nil, context: ActContext
+        operationKey: String? = nil, selection: SelectedFeature? = nil, breakdown: FeatureBreakdown? = nil,
+        context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         let faults = try context.journal.recordAuthoringFault(
             feature: feature, reason: reason,
@@ -270,27 +266,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             return try await AuthoringHalt.record(
                 feature: feature,
                 cause: .authoringRepeatedlyFaulted(count: faults.count, lastReason: faults.lastReason),
-                selection: selection, context: context
+                selection: selection, breakdown: breakdown, context: context
             )
         }
         return .authoringRolledBack
-    }
-
-    /// A finalise that wrote nothing because the Feature Issue already belongs to a Feature is a failed
-    /// transaction, never an authored one (issue #538). Every entry is applied, so there is nothing for the
-    /// Outbox to roll back (an undo here would hit the earlier Feature's own issues). Recording the failure
-    /// closes the plan, so the next selection gets fresh keys, and its adoption re-parents the Card.
-    private func recordNothingAuthored(
-        _ plan: FeatureAuthoringAcceptedPayload, context: ActContext
-    ) async throws -> FeatureAuthoringOutcome {
-        // Read on the Night Card, so it names no issue id: the plan's Feature key in the Journal does.
-        let reason = "its Feature Issue already belongs to an earlier Feature, so this transaction authored nothing"
-        guard let feature = FeatureName(rawValue: plan.name) else { return .authoringRolledBack }
-        return try await recordFault(
-            feature: feature, reason: reason,
-            event: .featureAuthoringFailed(name: plan.name, groupKey: plan.groupKey, reason: reason),
-            operationKey: "transaction:\(plan.groupKey)", context: context
-        )
     }
 
     public func resumeUnfinished(_ context: ActContext) async throws -> FeatureAuthoringOutcome? {
@@ -331,8 +310,9 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         }
         let cards = try plan.cards.map {
             AuthoredCardRow(
-                issueID: try createdID($0.key), repository: $0.repository, kind: $0.kind, order: $0.order,
-                title: $0.title, clauses: $0.clauses, brief: $0.brief, transcriptions: $0.transcriptions
+                issueID: try $0.existingIssueID ?? createdID($0.key), repository: $0.repository, kind: $0.kind,
+                order: $0.order, title: $0.title, clauses: $0.clauses, brief: $0.brief,
+                transcriptions: $0.transcriptions
             )
         }
         let featureIssueID = try createdID(plan.featureKey)
@@ -343,6 +323,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         guard finalised != nil else {
             return try await recordNothingAuthored(plan, context: context)
         }
+        try Self.recordRepairedScopes(plan, journal: journal)
         // A clean authoring run resets only this Feature's consecutive-refusals count, closes its
         // Refusals so they leave the clock, and clears its Authoring Halts (roadmap P9.7, P9.8) — it
         // never answers a Refusal; only a Spec Citation does. Recorded right after `finaliseAuthoring`'s own

@@ -172,7 +172,7 @@ extension JournalMigrations {
     /// strictly before the Feature Card is created or re-entered on the board. It holds what a later author Act
     /// needs to resume the SAME Feature without selecting again: the Board Connection, a local transaction
     /// identity, the cause's exact failing references, every accepted authoring output that exists at that point
-    /// (the selection; a later phase extends the row with draft children) and the Feature Card's last observed
+    /// (the selection and, once a breakdown exists, the breakdown; the draft children live in `authoring_halt_draft`) and the Feature Card's last observed
     /// workflow state — the durable condition every halt-related Feature Issue state write is decided against,
     /// kept here because the Delta Read's observation store forgets. The `repair_*` columns are the Operator's
     /// Todo request: a counter that moves once per move into Todo, whether it is still pending, and the
@@ -191,6 +191,11 @@ extension JournalMigrations {
             table.column("repair_seq", .integer).notNull().defaults(to: 0)
             table.column("repair_pending", .integer).notNull().defaults(to: 0)
             table.column("repair_handled_seq", .integer).notNull().defaults(to: 0)
+            // The breakdown the halt arose after (roadmap P22.6): every accepted authoring output beyond the
+            // selection, as a plain JSON value; nil when the halt arose before a breakdown existed.
+            table.column("breakdown", .text)
+            // Why the latest validated repair was not accepted (which child, which rule), kept for the comment.
+            table.column("repair_diagnostic", .text)
         }
     }
 

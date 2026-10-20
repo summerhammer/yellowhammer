@@ -18,8 +18,11 @@ import Journal
 enum AuthoringHalt {
     /// `selection` is the accepted selection the halt arose after, kept in the halt's checkpoint so a repaired
     /// Feature resumes without selecting again (roadmap P22.5); nil when the selector halted before choosing one.
+    /// `breakdown` is the breakdown the halt arose after (roadmap P22.6), kept in the checkpoint before its Work
+    /// Cards are posted as draft children of the halted Feature Card; nil when none existed.
     static func record(
-        feature: FeatureName, cause: AuthoringHaltCause, selection: SelectedFeature? = nil, context: ActContext
+        feature: FeatureName, cause: AuthoringHaltCause, selection: SelectedFeature? = nil,
+        breakdown: FeatureBreakdown? = nil, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         try context.journal.append(
             .featureAuthoringHalted(name: feature.rawValue, reasonKind: cause.kind, detail: cause.detail),
@@ -27,7 +30,8 @@ enum AuthoringHalt {
         )
         let outcome = try context.journal.recordAuthoringHalt(
             feature: feature, causeKind: cause.kind, detail: cause.detail, content: cause.description,
-            selection: selection, nightID: context.night.id, act: context.act, runID: context.runID
+            selection: selection, breakdown: breakdown, nightID: context.night.id, act: context.act,
+            runID: context.runID
         )
         let repeatedFault: Bool
         if case .authoringRepeatedlyFaulted = cause { repeatedFault = true } else { repeatedFault = false }
@@ -48,6 +52,10 @@ enum AuthoringHalt {
                 )
             }
         )
+        // The breakdown is in the checkpoint now, so its Work Cards may be posted as draft children (roadmap P22.6).
+        if breakdown != nil, let halt = try context.journal.authoringHalts(feature: feature).last {
+            try await HaltDrafts.ensurePosted(halt: halt, context: context)
+        }
         return .halted
     }
 }

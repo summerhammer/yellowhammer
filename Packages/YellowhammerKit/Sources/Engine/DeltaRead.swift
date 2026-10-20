@@ -101,6 +101,13 @@ public struct DeltaRead: Sendable {
         for object in objects {
             try recordDisplay(of: object)
             guard let card = try journal.card(issueID: object.id.rawValue) else {
+                // The sole repair exception to "an object the Journal has no Card for is unknown" (roadmap P22.6):
+                // a child nested beneath the exact halted Feature Card of this Project, on this Board Connection,
+                // enters that halt's candidate snapshot once its parent is confirmed. It stays a draft.
+                if try admitHaltDraftChild(object) {
+                    report.haltDraftChildren.append(object)
+                    continue
+                }
                 try reportUnbackedWaitingOnYou(object: object, into: &report)
                 report.unknownObjects.append(object)
                 continue
@@ -131,6 +138,17 @@ public struct DeltaRead: Sendable {
             ))
         }
         return report
+    }
+
+    /// Admits `object` to a tracked halted Feature's candidate snapshot when it is nested beneath that exact
+    /// Feature Card (roadmap P22.6); false for any other object, which stays unknown.
+    private func admitHaltDraftChild(_ object: BoardObject) throws -> Bool {
+        guard let parent = object.parent, object.archivedAt == nil, !object.isTrashed,
+              let halt = try journal.liveAuthoringHalt(featureIssueID: parent.rawValue) else { return false }
+        try journal.admitAuthoringHaltChild(
+            haltID: halt.id, issueID: object.id.rawValue, title: object.title, revision: object.updatedAt
+        )
+        return true
     }
 
     /// Every object, known or not: the Feature and the Night Card are not Cards but the Pulse opens them too

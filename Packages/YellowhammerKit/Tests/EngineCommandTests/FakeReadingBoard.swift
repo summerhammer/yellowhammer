@@ -88,17 +88,28 @@ actor FakeReadingBoard: Board {
             action.perform()
         }
         if let link = writeThrough, let found = await link.board.issue(id) {
-            return BoardObject(
-                id: found.id, key: found.id.rawValue, title: found.title, description: found.description,
-                workflowState: link.states.first { $0.id == found.workflowState }
-                    ?? BoardWorkflowState(id: BoardObjectID(rawValue: "todo"), name: "Todo"),
-                labels: [], parent: found.parent, url: "https://linear.app/issue/\(id.rawValue)",
-                createdAt: found.updatedAt, updatedAt: found.updatedAt,
-                archivedAt: found.archived ? found.updatedAt : nil
-            )
+            return Self.object(from: found, states: link.states)
         }
         return seededIssues[id]
     }
+
+    private static func object(from found: FakeWritingBoard.Issue, states: [BoardWorkflowState]) -> BoardObject {
+        BoardObject(
+            id: found.id, key: found.id.rawValue, title: found.title, description: found.description,
+            workflowState: states.first { $0.id == found.workflowState }
+                ?? BoardWorkflowState(id: BoardObjectID(rawValue: "todo"), name: "Todo"),
+            labels: [], parent: found.parent, url: "https://linear.app/issue/\(found.id.rawValue)",
+            createdAt: found.updatedAt, updatedAt: found.updatedAt,
+            archivedAt: found.archived ? found.updatedAt : nil
+        )
+    }
+
+    /// When set, a linked board's `objects(updatedSince:)` pages every issue the writing board holds (a full
+    /// scan of the Linear project, as the real Port answers) instead of the scripted pages. Off by default:
+    /// everything that predates it expects an empty scan.
+    private var scansLinkedIssues = false
+
+    func scanLinkedIssues() { scansLinkedIssues = true }
 
     func deltaRead(
         objects: BoardRootRead, comments: BoardRootRead, pageSize: Int
@@ -136,7 +147,13 @@ actor FakeReadingBoard: Board {
     }
 
     func objects(updatedSince: Date?, after: BoardCursor?, pageSize: Int) async throws(BoardError) -> BoardPage {
-        guard !objectReplies.isEmpty else { return BoardPage(objects: [], nextCursor: nil) }
+        guard !objectReplies.isEmpty else {
+            if scansLinkedIssues, let link = writeThrough {
+                let all = await link.board.issues.values.sorted { $0.id.rawValue < $1.id.rawValue }
+                return BoardPage(objects: all.map { Self.object(from: $0, states: link.states) }, nextCursor: nil)
+            }
+            return BoardPage(objects: [], nextCursor: nil)
+        }
         switch objectReplies.removeFirst() {
         case .success(var page):
             page.objects = await overlaid(page.objects)
