@@ -110,7 +110,7 @@ public struct NightCardMaintenance: Sendable {
             }
             issueID = result
             replayed = true
-        case .deferred, .failed:
+        case .deferred, .failed, .superseded:
             throw NightCardError.notOpened(reason: "\(delivery.outcome)")
         }
         if let predecessor {

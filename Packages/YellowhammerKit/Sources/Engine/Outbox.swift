@@ -11,7 +11,13 @@ import Journal
 /// and the board's "conflict on insert" says it was already applied. Immediately before each write the
 /// run's Lease is revalidated — the Act-scoped one, and the Card's when the write is about a Card — so
 /// a stale run never reaches the board. A description is only ever written by the fenced rewrite,
-/// after a pre-flight read that is never a cache.
+/// after a pre-flight read that is never a cache. A state write records the board state it was decided
+/// against and is superseded, not applied, when the board no longer holds it (`Outbox+Condition.swift`).
+///
+/// There is no atomic protection against concurrent human edits: Linear's `issueUpdate` has no server-side
+/// compare-and-swap, so a human save between a pre-flight read and the mutation is still overwritten. The
+/// Lease establishes that this run is the writer, not that the board is fresh; the Outbox narrows that window
+/// to one request and claims nothing more.
 ///
 /// The Outbox is scoped to the Journal it was handed, which is one Project's; it cannot address
 /// another Project's entries or Linear project.
@@ -144,6 +150,7 @@ public struct Outbox: Sendable {
         if case .updateIssue(_, let change, _) = write.write, change.description != nil {
             throw OutboxError.descriptionNotFenced(key: write.key)
         }
+        let condition = try condition(for: write, groupID: groupID)
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         let scrubbed = write.write.scrubbed(by: scrub())
@@ -154,7 +161,9 @@ public struct Outbox: Sendable {
             operation: write.write.operation,
             payload: payload,
             cardID: write.cardID,
-            groupID: groupID
+            groupID: groupID,
+            expectedStateID: condition?.stateID,
+            expectedRevision: condition?.revision
         )
     }
 
@@ -170,6 +179,9 @@ public struct Outbox: Sendable {
 
         for entry in try journal.pendingOutboxEntries() {
             if let groupID = entry.groupID, rolledBackGroups.contains(groupID) { continue }
+            // An earlier delivery in this pass may have set it aside (a superseded write takes the later writes
+            // decided against its state with it).
+            guard try journal.outboxEntry(id: entry.id)?.state == .pending else { continue }
 
             let delivery = try await deliver(entry)
             deliveries.append(delivery)
@@ -182,7 +194,7 @@ public struct Outbox: Sendable {
                 }
             case .deferred(.rateLimited), .deferred(.transient):
                 return OutboxDeliveryReport(deliveries: deliveries)
-            case .applied, .alreadyApplied, .aborted, .deferred:
+            case .applied, .alreadyApplied, .aborted, .superseded, .deferred:
                 continue
             }
         }
@@ -223,9 +235,12 @@ public struct Outbox: Sendable {
         }
 
         do {
-            let archivedBefore = try await archivedTarget(write)
+            let observed = try await readTarget(write)
             try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
-            if let archivedBefore { return try abortArchived(entry, issue: archivedBefore) }
+            if let observed, observed.archivedAt != nil { return try abortArchived(entry, issue: observed.id) }
+            if !conditionHolds(entry, write: write, observed: observed) {
+                return try supersede(entry, observed: observed)
+            }
             let outcome = try await perform(write, for: entry)
             try interrupt(entry)
             let archivedAfter = try await archivedTarget(write, performed: outcome)
@@ -262,6 +277,11 @@ public struct Outbox: Sendable {
         case updated
         case fenced(ManagedBlockFence.Replacement, renderedHash: String)
         case unfenced(ManagedBlockFence.Failure)
+        /// The description holds an edit to a Card's input the Journal had not seen. It has been imported,
+        /// so the rendering offered is stale and is not sent.
+        case inputImported(fields: [String])
+        /// The description holds an edit to a Card's input that cannot be read: nothing is written.
+        case inputInvalid(field: String, reason: String, blockHash: String)
         /// Every rendering offered would make the whole description longer than the budget. `length` is the
         /// composed size of the most compacted one; `renderingAloneFits` says whether that rendering, with
         /// none of the issue's other text, would fit.
@@ -307,39 +327,6 @@ public struct Outbox: Sendable {
             throw OutboxError.parentNotApplied(entryID: entry.id, parentKey: parentKey)
         }
         return BoardObjectID(rawValue: id)
-    }
-
-    private func record(
-        _ performed: Performed, for entry: OutboxEntry, write: BoardWrite
-    ) async throws -> OutboxDelivery {
-        let now = clock()
-        switch performed {
-        case .created(let receipt):
-            let applied = try journal.markOutboxApplied(id: entry.id, result: receipt.id.rawValue, now: now)
-            switch receipt {
-            case .created(let id):
-                return OutboxDelivery(entry: applied, outcome: .applied(id))
-            case .alreadyApplied(let id):
-                return OutboxDelivery(entry: applied, outcome: .alreadyApplied(id))
-            }
-        case .updated:
-            let applied = try journal.markOutboxApplied(id: entry.id, result: nil, now: now)
-            return OutboxDelivery(entry: applied, outcome: .applied(nil))
-        case .fenced(let replacement, let renderedHash):
-            guard let issue = write.issueID else { throw OutboxError.payloadUnreadable(entryID: entry.id) }
-            let applied = try journal.markOutboxApplied(id: entry.id, result: nil, now: now)
-            try journal.recordManagedBlockPosted(issueID: issue.rawValue, hash: renderedHash, now: now)
-            try append(.managedBlockWritten(
-                issueID: issue.rawValue, preservedProseHash: replacement.preservedProseHash, renderedHash: renderedHash
-            ))
-            return OutboxDelivery(entry: applied, outcome: .applied(nil))
-        case .unfenced(let failure):
-            return try await abortUnfenced(entry, write: write, failure: failure)
-        case .overBudget(let length, let budget, let renderingAloneFits):
-            return try await abortOverBudget(
-                entry, write: write, length: length, budget: budget, renderingAloneFits: renderingAloneFits
-            )
-        }
     }
 
     func refused(_ entry: OutboxEntry, write: BoardWrite, error: BoardError) throws -> OutboxDelivery {

@@ -118,7 +118,8 @@ enum AdoptionRevalidation {
             )
             let updated: CardRecord
             switch outcome {
-            case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _):
+            case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _),
+             .superseded(let record, _):
                 updated = record
             }
             try await maintainManagedBlock(card: updated, journal: journal, outbox: outbox)

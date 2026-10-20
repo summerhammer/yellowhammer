@@ -143,6 +143,18 @@ extension JournalStore {
         }
     }
 
+    /// Records the text an Operator edited a tagged clause to, keeping its identity: the board is the owner of
+    /// the Definition of Done's wording, so a later Managed Block rewrite renders this text, not the
+    /// authored one.
+    public func updateClauseText(issueID: String, cid: String, text: String) throws {
+        try write { db in
+            try db.execute(
+                sql: "UPDATE clause SET text = ? WHERE issue_id = ? AND cid = ?",
+                arguments: [text, issueID, cid]
+            )
+        }
+    }
+
     /// Updates a clause's citation (`location_id`) and marks its citation Author-supplied — an Operator
     /// edited the citation directly on the board.
     public func updateClauseCitation(issueID: String, cid: String, locationID: String) throws {

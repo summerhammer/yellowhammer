@@ -176,7 +176,8 @@ public struct CardRouting: Sendable {
             )
         }
         switch try await projection.transition(card: card, to: .blocked(reason)) {
-        case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _):
+        case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _),
+             .superseded(let record, _):
             return record
         }
     }

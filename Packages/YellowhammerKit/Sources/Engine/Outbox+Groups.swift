@@ -25,16 +25,18 @@ extension Outbox {
                     }
                 case .updateIssue(let issue, _, let undo?)?:
                     compensations.append(OutboxWrite(
-                        key: key, write: .updateIssue(issue: issue, change: undo, undo: nil), cardID: entry.cardID
+                        key: key, write: .updateIssue(issue: issue, change: undo, undo: nil), cardID: entry.cardID,
+                        revalidates: false
                     ))
                 case .adoptIssue(let issue, _, let undo?)?:
                     compensations.append(OutboxWrite(
-                        key: key, write: .updateIssue(issue: issue, change: undo, undo: nil), cardID: entry.cardID
+                        key: key, write: .updateIssue(issue: issue, change: undo, undo: nil), cardID: entry.cardID,
+                        revalidates: false
                     ))
                 default:
                     break
                 }
-            case .failed, .aborted:
+            case .failed, .aborted, .superseded:
                 break
             }
         }

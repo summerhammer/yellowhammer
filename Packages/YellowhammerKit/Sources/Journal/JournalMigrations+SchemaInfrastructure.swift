@@ -137,9 +137,16 @@ extension JournalMigrations {
                 .references("card", column: "id", onDelete: .setNull)
             table.column("group_id", .text)
             table.column("state", .text).notNull().defaults(to: "pending")
-                .check(sql: "state IN ('pending','applied','failed','aborted')")
+                .check(sql: "state IN ('pending','applied','failed','aborted','superseded')")
             table.column("result", .text)
             table.column("attempt_count", .integer).notNull().defaults(to: 0)
+            // The condition that justified a state- or label-affecting update: the board workflow state id
+            // Yellowhammer last knew for the issue (its own latest write, or the latest Delta Read
+            // observation) and the revision it was observed at. Re-checked against a fresh read immediately
+            // before delivery; a board that no longer holds it supersedes the write instead of applying its
+            // cached value (P22.4). Nil: the write carries no condition.
+            table.column("expected_state_id", .text)
+            table.column("expected_revision", .text)
         }
         try db.create(index: "idx_outbox_state", on: "outbox", columns: ["state"])
         try db.create(index: "idx_outbox_group_id", on: "outbox", columns: ["group_id"])

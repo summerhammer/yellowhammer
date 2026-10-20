@@ -178,7 +178,10 @@ func clauseEditWithEscapedBracketsInvalidates() async throws {
     }
     #expect(causes == ["text_edited"])
     #expect(try scenario.journal.events(ofType: .transcriptionStampVoided).isEmpty)
-    #expect(try scenario.journal.clauses(issueID: scenario.issueOne)[0].text == ourClauseText)
+    // The Operator's edit is the clause's text now (the Board owns the Definition of Done).
+    let stored = try scenario.journal.clauses(issueID: scenario.issueOne)[0].text
+    #expect(MarkdownEquivalence.rendersSame(stored, editedClause))
+    #expect(!MarkdownEquivalence.rendersSame(stored, ourClauseText))
 }
 
 @Test("Opening inspection still provenance-tests a Linear-normalised block, which is not Operator-supplied")

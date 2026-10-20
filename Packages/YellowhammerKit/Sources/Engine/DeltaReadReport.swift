@@ -141,6 +141,11 @@ public struct CardChange: Equatable, Sendable {
     public var delimitersBroken: ManagedBlockFence.Failure?
     /// The repository the Managed Block names, when it names one.
     public var repositoryOnBoard: String?
+    /// The supported input fields (`scope`, `brief`, `definition of done`, `references`) the Operator edited
+    /// inside the Managed Block that this read imported into the Journal.
+    public var importedInputs: [String] = []
+    /// Input the Operator edited into something unreadable: retained on the board as written, not imported.
+    public var invalidInputs: [InvalidBlockInput] = []
 
     public init(
         card: CardRecord,
@@ -162,6 +167,7 @@ public struct CardChange: Equatable, Sendable {
 
     public var hasOperatorSignal: Bool {
         stateDiffers || managedBlockEdited == true || proseEdited == true || delimitersBroken != nil
+            || !importedInputs.isEmpty || !invalidInputs.isEmpty
     }
 }
 

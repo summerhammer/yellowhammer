@@ -70,6 +70,18 @@ extension JournalEvent {
             ]
         case .managedBlockDelimiterBroken(let issueID):
             ["issue_id": issueID]
+        case .boardWriteSuperseded(let clientID, let operation, let issueID, let expectedState, let observedState):
+            {
+                var dict = ["client_id": clientID.uuidString.lowercased(), "operation": operation]
+                if let issueID { dict["issue_id"] = issueID }
+                if let expectedState { dict["expected_state"] = expectedState }
+                if let observedState { dict["observed_state"] = observedState }
+                return dict
+            }()
+        case .managedBlockInputImported(let issueID, let fields):
+            ["issue_id": issueID, "fields": fields]
+        case .managedBlockInputInvalid(let issueID, let reason):
+            ["issue_id": issueID, "reason": reason]
         case .managedBlockOverBudget(let issueID, let length, let budget):
             ["issue_id": issueID, "length": String(length), "budget": String(budget)]
         case .notificationDeliveryFailed(let notification, let reason):

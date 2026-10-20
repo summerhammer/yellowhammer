@@ -98,6 +98,12 @@ actor FakeWritingBoard: BoardWriting {
         issues[issue]?.updatedAt = now.addingTimeInterval(1)
     }
 
+    /// The Operator moves the issue to another workflow state by hand, bypassing the Outbox.
+    func operatorMoves(_ issue: BoardObjectID, to state: BoardObjectID) {
+        issues[issue]?.workflowState = state
+        issues[issue]?.updatedAt = now.addingTimeInterval(1)
+    }
+
     func script(_ script: Script, for titleOrBody: String) {
         scripts[titleOrBody] = script
     }

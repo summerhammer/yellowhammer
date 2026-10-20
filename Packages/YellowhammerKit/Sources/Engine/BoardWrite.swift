@@ -66,6 +66,12 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         }
     }
 
+    /// Whether this is the rewrite of a Feature Issue's authored brief and Definition of Done.
+    var isFeatureAuthoring: Bool {
+        if case .rewriteFeatureAuthoring = self { return true }
+        return false
+    }
+
     /// Whether the board applies this write under a client-supplied id.
     var isCreate: Bool {
         switch self {
@@ -88,11 +94,25 @@ public struct OutboxWrite: Equatable, Sendable {
     /// The Journal's `card.id` of the Card this write is about, so its Lease is revalidated before the
     /// write; nil for a write with no Card behind it (a Feature Issue's, a Night Card's).
     public var cardID: Int64?
+    /// Whether a state- or label-affecting update records the condition that justified it, to be
+    /// re-checked against the board immediately before delivery. False for a compensation, which undoes
+    /// what the group applied whatever the board holds now.
+    public var revalidates: Bool
+    /// The board workflow state the caller knows the issue holds when the write lands, when it knows better
+    /// than the Outbox's own record: a Card transition's Journal state before the transition, which stays
+    /// right after a human's move was imported into the Journal. Nil: the Outbox infers it from its latest
+    /// accepted state write, or the latest Delta Read observation.
+    public var expectedState: BoardObjectID?
 
-    public init(key: String, write: BoardWrite, cardID: Int64? = nil) {
+    public init(
+        key: String, write: BoardWrite, cardID: Int64? = nil, revalidates: Bool = true,
+        expectedState: BoardObjectID? = nil
+    ) {
         self.key = key
         self.write = write
         self.cardID = cardID
+        self.revalidates = revalidates
+        self.expectedState = expectedState
     }
 }
 
