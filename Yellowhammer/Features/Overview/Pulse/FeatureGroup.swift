@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The Pulse's Feature group: the in-flight Feature's `title`, `state` and `rollup_state`, and its Repo
 /// Lanes with pull request chips. The Feature and each Repo open in the Inspector; a pull request chip
-/// opens the pull request on GitHub. There is no settle CTA here: settle and merge stay in Linear/GitHub.
+/// opens the pull request on GitHub. There is no Done or Cancel CTA here: moving the Feature Card and merging stay in Linear/GitHub.
 ///
 /// `state` is the Journal's own Feature state and `rollupState` the Roll-up word computed from the Journal;
 /// either is stated as unknown when nil rather than invented. A returned Feature carries its clause tally

@@ -24,8 +24,8 @@ private func outcome(of report: ProvisioningReport, _ state: String) -> Provisio
     }?.outcome
 }
 
-private let keptInFlight = SettleValue.keptInFlight.rawValue
-private let abandoned = SettleValue.abandoned.rawValue
+private let keptInFlight = FeatureDisposition.legacySettleStateNames[0]
+private let abandoned = FeatureDisposition.legacySettleStateNames[1]
 private let waitingOnYou = BoardProvisioner.waitingOnYouState
 
 @Suite("Board provisioning: settle workflow states")
@@ -38,8 +38,8 @@ struct BoardProvisionerSettleStateTests {
         #expect(outcome(of: report, keptInFlight) == .created)
         #expect(outcome(of: report, abandoned) == .created)
         let states = try await board.workflowStates(team: engineering.id)
-        let keptInFlightState = try #require(states.first { $0.name == SettleValue.keptInFlight.rawValue })
-        let abandonedState = try #require(states.first { $0.name == SettleValue.abandoned.rawValue })
+        let keptInFlightState = try #require(states.first { $0.name == FeatureDisposition.legacySettleStateNames[0] })
+        let abandonedState = try #require(states.first { $0.name == FeatureDisposition.legacySettleStateNames[1] })
         #expect(keptInFlightState.category == .started)
         #expect(abandonedState.category == .started)
     }

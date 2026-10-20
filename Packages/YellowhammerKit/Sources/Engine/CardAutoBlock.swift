@@ -21,12 +21,13 @@ enum CardAutoBlock {
         try await block(cards: cards, reason: { _ in .replyOverdue }, context: context)
     }
 
-    /// A released running Feature carries Todo and In Progress Cards forward as Blocked. Existing
+    /// A released running Feature carries Todo and In Progress Cards forward as Blocked under `reason`:
+    /// `feature abandoned` for a Cancelled Feature Card, `feature completed` for a Done one. Existing
     /// Blocked, Done and Cancelled Cards keep their state, reason and history.
-    static func releasedActive(cycleID: Int64, context: ActContext) async throws {
+    static func releasedActive(cycleID: Int64, reason: BlockReason, context: ActContext) async throws {
         let cards = try context.journal.cards(cycleID: cycleID)
             .filter { $0.state == .todo || $0.state == .inProgress }
-        try await block(cards: cards, reason: { _ in .featureAbandoned }, context: context)
+        try await block(cards: cards, reason: { _ in reason }, context: context)
     }
 
     /// Auto-Blocks specific Cards named by the caller (roadmap P11.4: the unanswered-Nights bound), each

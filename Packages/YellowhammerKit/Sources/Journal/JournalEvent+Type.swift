@@ -236,12 +236,10 @@ extension JournalEvent {
             .authoringHaltExpired
         case .authoringHaltCleared:
             .authoringHaltCleared
-        case .featureSettled:
-            .featureSettled
+        case .featureCompleted:
+            .featureCompleted
         case .featureReleased:
             .featureReleased
-        case .settleValueNotHonoured:
-            .settleValueNotHonoured
         case .cardUnansweredBoundFired:
             .cardUnansweredBoundFired
         case .adoptionRefused:

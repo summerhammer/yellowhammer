@@ -51,7 +51,8 @@ extension NightSummary {
             ?? journal.authorSuppliedCitationCount()
         return [
             "Green Cards accepted without a human comment or move out of Done since Done: " +
-                ratio(clean.count, greenCards.count) + ". Upper bound: GitHub review activity is not observed.",
+                ratio(clean.count, greenCards.count) + ". Upper bound: GitHub review activity is not observed, " +
+                "and a Feature Card moved to Done on the Board, by automation or by hand, is not human review.",
             "Closed Nights with a pull request in every touched repository: " +
                 ratio(prNights.count, completed.count) + ".",
             "Nights started with zero Ready Cards: \(readyCounts.zero) of \(nights.count); " +
@@ -72,7 +73,7 @@ extension NightSummary {
     private static func acceptedCards(events: [JournalEventRecord]) -> [String: Date] {
         events.reduce(into: [String: Date]()) { cards, record in
             switch record.event {
-            case .featureSettled(_, _, let accepted, _),
+            case .featureCompleted(_, _, _, let accepted, _),
                  .featureClosedByMerge(_, _, _, _, let accepted, _),
                  .verifiedFeatureMergeObserved(_, _, _, let accepted, _):
                 for card in accepted where cards[card] == nil { cards[card] = record.occurredAt }

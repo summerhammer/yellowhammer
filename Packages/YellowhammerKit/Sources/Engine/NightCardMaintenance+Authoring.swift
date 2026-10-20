@@ -220,26 +220,22 @@ extension NightCardMaintenance {
                 Feature card to open and nothing to answer; the author Act stood down without authoring. \
                 The next author Act selects afresh.
                 """
-        case .featureSettled(_, let featureIssueID, let acceptedCards, _):
+        case .featureCompleted(_, let featureIssueID, let carriedForward, _, let keptWorktrees):
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
+            let kept = keptWorktrees.isEmpty
+                ? "" : " Worktrees kept for unpushed work: \(keptWorktrees.joined(separator: ", "))."
             return """
-                Feature \(featureRef) was settled *kept in flight*: it stays in flight. \
-                \(acceptedCards.count) green Cards recorded as accepted.
+                Feature \(featureRef) was completed on the Board: its Cycle is closed without a check, \
+                Verification or merge recorded; \(carriedForward.count) Cards carried forward, Blocked \
+                awaiting Adoption.\(kept)
                 """
         case .featureReleased(_, let featureIssueID, let carriedForward, _, let abandonedRepositories, _):
             let abandoned = abandonedRepositories.isEmpty ? "none" : abandonedRepositories.joined(separator: ", ")
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Feature \(featureRef) was settled *abandoned*: stop-with-salvage. \
+                Feature \(featureRef) was cancelled on the Board: stop-with-salvage. \
                 \(carriedForward.count) Cards carried forward, Blocked awaiting Adoption; abandoned pull \
                 requests: \(abandoned). This Feature Issue is not archived and stays re-enterable.
-                """
-        case .settleValueNotHonoured(let featureIssueID, let value, let reason):
-            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
-            let trimmedReason = trimTrailingPeriod(reason)
-            return """
-                Feature \(featureRef)'s settle read `\(value)`, not honoured: \(trimmedReason). Treated as \
-                unsettled.
                 """
         case .featureReselected, .reselectionBoundReached, .refusalPromotedToStandingItem,
             .cardPromotedToStandingItem:
@@ -271,7 +267,9 @@ extension NightCardMaintenance {
                 branchSentence = " Not found in mainline: \(listed.joined(separator: ", "))."
             }
         }
-        return "Authoring was skipped: predecessor Feature \(featureRef) has not merged in \(named)."
+        let completedOnBoard = ((try? journal?.feature(issueID: featureIssueID))?.closedBy) == .completion
+        let predecessor = completedOnBoard ? "\(featureRef), completed on the Board," : featureRef
+        return "Authoring was skipped: predecessor Feature \(predecessor) has not merged in \(named)."
             + branchSentence
             + " \(PullRequestBody.mergeCommitRecommendation)"
             + " If mainline already has the changes, a content-free merge of the Feature Branch "

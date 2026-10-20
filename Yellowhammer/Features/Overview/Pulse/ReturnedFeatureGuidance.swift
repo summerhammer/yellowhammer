@@ -4,9 +4,9 @@ import SwiftUI
 struct ReturnedFeatureGuidance: View {
     var body: some View {
         Text("""
-        Merge the Feature's pull requests on GitHub, or set the Feature Card in Linear to Kept in Flight \
-        (when offered) or Abandoned. Yellowhammer reads and records your choice at the next author Act. \
-        If you've already acted, the Feature can remain returned until then.
+        Merge the Feature's pull requests on GitHub, or move the Feature Card in Linear to Done or \
+        Cancelled. Yellowhammer reads your choice at the next author Act. If you've already acted, the \
+        Feature can remain returned until then.
         """)
         .font(.caption)
         .foregroundStyle(.secondary)

@@ -8,9 +8,9 @@ import Repositories
 import Synchronization
 import Testing
 
-// Fixtures for FeatureSettleGestureTests.swift (roadmap P10.9): a Feature → Cycle → four-Card world,
-// with a Worktree Port so *released* can be exercised without real git fixtures — the settle gesture
-// never reads git or GitHub.
+// Fixtures for FeatureSettleGestureTests.swift (roadmap P10.9, P22.2): a Feature → Cycle → four-Card
+// world, with a Worktree Port so Done and Cancelled can be exercised without real git fixtures — the
+// native-disposition seam never reads git or GitHub.
 
 let settlePreviousNightStart = NightStart(rawValue: "2026-09-10")!
 let settleObservingNightStart = NightStart(rawValue: "2026-09-12")!
@@ -99,17 +99,35 @@ final class SettleWorld {
         )
     }
 
-    /// Seeds the Feature Issue's read workflow state for the settle gesture, e.g. one of
-    /// ``SettleValue``'s raw values, or an arbitrary other name for *unsettled*.
-    func seedFeatureIssueState(_ name: String) async {
+    /// Seeds the Feature Issue's read workflow state for the native-disposition seam: a state `name` of
+    /// the given native `category`, with an id of its own (so it never collides with a provisioned state).
+    func seedFeatureIssueState(_ name: String, category: BoardWorkflowStateCategory? = nil) async {
+        await seedFeatureIssue(
+            state: BoardWorkflowState(id: BoardObjectID(rawValue: "state-\(name)"), name: name, category: category)
+        )
+    }
+
+    func seedFeatureIssue(state: BoardWorkflowState) async {
         await reading.seed(
             issue: BoardObject(
                 id: BoardObjectID(rawValue: "FEAT-1"), key: "FEAT-1", title: "Feature", description: nil,
-                workflowState: BoardWorkflowState(id: BoardObjectID(rawValue: "state-\(name)"), name: name),
-                labels: [], parent: nil, url: "https://example.com/FEAT-1",
+                workflowState: state, labels: [], parent: nil, url: "https://example.com/FEAT-1",
                 createdAt: outboxEpoch, updatedAt: outboxEpoch
             )
         )
+    }
+
+    /// The Feature Card in the board's own Done state (native `completed`), as the Operator moves it.
+    func seedFeatureDone() async throws {
+        let scope = try await BoardStateScope.resolve(using: boards.provisioning)
+        await seedFeatureIssue(
+            state: BoardWorkflowState(id: try scope.id(for: .done), name: "Done", category: .completed)
+        )
+    }
+
+    /// The Feature Card in a Cancelled state (Linear `canceled`, which the adapter reads as `shelved`).
+    func seedFeatureCancelled() async {
+        await seedFeatureIssueState("Cancelled", category: .shelved)
     }
 
     /// Adds unfinished Cards to a still-running Feature; release must carry both forward.

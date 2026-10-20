@@ -43,7 +43,7 @@ extension ActCommand {
             // under the reserved authoring Kind (P9.11); `AuthoringBinding` wires both, and a Rehearsal
             // Night answers them from the shipped result fixtures. The closure seam (P10.8) is wired to
             // the real `FeatureMergeClosure`: a fully-merged predecessor or in-flight landed Feature is
-            // closed unverified, not just observed. The settle seam (P10.9) is wired to the real
+            // closed unverified, not just observed. The disposition seam (P10.9, P22.2) is wired to the real
             // `FeatureSettleGesture`, applied to whatever Feature the merge closure left in flight.
             return AuthorAct(
                 predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()),

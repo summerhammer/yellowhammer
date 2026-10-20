@@ -98,7 +98,7 @@ public protocol FeatureAuthoring: Sendable {
 /// a failed selection) also ends with `ActEnded`, yet is an Act failure the app shows in Health
 /// (Authoring Fault in Health Ruling, 2026-10-16); only halts, release-gate holds and no-work stay quiet. This Act dispatches no Card, so its write-back also runs
 /// ``DeferredCardStateReplay`` (issue #96) before delivering pending Outbox entries: a Card
-/// state write a merge closure (P10.8) or a settle release (P10.9) deferred is otherwise never retried,
+/// state write a merge closure (P10.8) or a Board disposition (P10.9, P22.2) deferred is otherwise never retried,
 /// because those seams release the Card Lease the instant the deferred write is accepted.
 public struct AuthorAct: Sendable {
     /// The predecessor-ancestry gate (P9.2); nil is treated as `.landed` — there is no gate to fail
@@ -108,7 +108,8 @@ public struct AuthorAct: Sendable {
     /// throwing `notImplemented` once the gate has cleared, so production never falsely records an
     /// idle verdict before selection exists.
     public let authoring: (any FeatureAuthoring)?
-    /// The Operator's settle gesture (roadmap P10.9); nil skips the settle read entirely.
+    /// The native disposition seam (roadmap P10.9, P22.2): reads the in-flight Feature Card's workflow
+    /// type and settles a Done or Cancelled one; nil skips the Board read entirely.
     public let settle: (any FeatureSettle)?
     /// The Refusal clock's bound (bounds/bound-unanswered-nights): how many Nights a Refusal may go
     /// unanswered before it expires. Defaults to the glossary's own default of 3.
@@ -152,8 +153,8 @@ public struct AuthorAct: Sendable {
         // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate
         // before it becomes tomorrow's predecessor) and gates the predecessor when nothing is. It opens
         // no lane, consumes no Attempt, writes nothing to the board. The gate's own closure seam may
-        // close the in-flight Feature by merge (P10.8) — merge wins over a same-morning release, which
-        // the settle gesture then applies to whatever is still in flight.
+        // close the in-flight Feature by merge (P10.8) — merge wins over a same-morning Board disposition,
+        // which the native-disposition seam then applies to whatever is still in flight.
         let gateOutcome = try await settleInFlightFeature(
             gateOutcome: try await checkPredecessorGate(context: context), context: context
         )
@@ -201,11 +202,12 @@ public struct AuthorAct: Sendable {
         try await writeBack(context: context)
     }
 
-    /// The Operator's settle gesture (P10.9) applies to whatever Feature is still in flight after
-    /// the gate's own merge closure. If it released the Feature, the Feature is no longer in flight
-    /// (its Cycle is archived), so the gate is re-run: the walk skips a released Feature
-    /// (JournalStore+Predecessor.swift), and this same Act goes on to decide whether authoring
-    /// proceeds against the new predecessor. Returns the gate outcome authoring decides on.
+    /// The Feature Card's native disposition (P10.9, P22.2) applies to whatever Feature is still in
+    /// flight after the gate's own merge closure. If it closed the Feature (Done or Cancelled), the
+    /// Feature is no longer in flight (its Cycle is archived), so the gate is re-run: the walk skips a
+    /// cancelled Feature but takes a completed one as the predecessor (JournalStore+Predecessor.swift),
+    /// and this same Act goes on to decide whether authoring proceeds — or names the repositories whose
+    /// merge is outstanding. Returns the gate outcome authoring decides on.
     private func settleInFlightFeature(
         gateOutcome: PredecessorGateOutcome, context: ActContext
     ) async throws -> PredecessorGateOutcome {

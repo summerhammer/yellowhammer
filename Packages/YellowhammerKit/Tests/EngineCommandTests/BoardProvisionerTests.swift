@@ -55,12 +55,12 @@ private func blocked(_ subject: ProvisioningEntry.Subject) -> Bool {
 }
 
 private func keptInFlight(_ subject: ProvisioningEntry.Subject) -> Bool {
-    if case .workflowState(SettleValue.keptInFlight.rawValue, _) = subject { return true }
+    if case .workflowState(FeatureDisposition.legacySettleStateNames[0], _) = subject { return true }
     return false
 }
 
 private func abandoned(_ subject: ProvisioningEntry.Subject) -> Bool {
-    if case .workflowState(SettleValue.abandoned.rawValue, _) = subject { return true }
+    if case .workflowState(FeatureDisposition.legacySettleStateNames[1], _) = subject { return true }
     return false
 }
 

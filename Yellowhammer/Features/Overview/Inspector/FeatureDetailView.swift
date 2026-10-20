@@ -7,7 +7,7 @@ import SwiftUI
 /// are stated as unknown while the snapshot does not have them, as the Pulse's Feature group does; a
 /// verified Feature adds its clause tally.
 ///
-/// Read-only. Settle and merge stay in Linear and GitHub: the one way out opens the Feature Issue.
+/// Read-only. Moving the Feature Card to Done or Cancelled, and merging, stay in Linear and GitHub: the one way out opens the Feature Issue.
 struct FeatureDetailView: View {
     let feature: FeatureInFlight
     let decisionCardIDs: Set<String>
@@ -22,7 +22,7 @@ struct FeatureDetailView: View {
             subtitle: feature.issueIDForDisplay ?? (feature.link?.identifier ?? feature.id),
             titleIdentifier: "feature-detail-title",
             wayOut: feature.link.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
-            note: "Settle and merge happen in Linear and GitHub, never here.",
+            note: "Done, Cancelled and merge happen in Linear and GitHub, never here.",
             identifier: "feature-detail"
         ) {
             Group {

@@ -2,7 +2,8 @@
 /// `reviewer rejection` or a `check failure` once the Round budget is spent, a `route failure` when
 /// the final Attempt hard-failed, a `host crash` or an `engine fault` when it ended Crashed-Unknown,
 /// an `operator abort`, a `reply overdue` or `decision overdue` once the unanswered-Nights bound
-/// fires, a `feature abandoned` when its still-running Feature is released, and a
+/// fires, a `feature abandoned` when its still-running Feature is released, a `feature completed` when
+/// its Feature Card reaches native Done, and a
 /// `failure recurrence` when the same failure cause recurred across Nights, and an
 /// `authoring defect` when an architect or worker pass reports an authoring-invariant violation;
 /// a Cancelled Card carries none.
@@ -25,6 +26,10 @@ public enum BlockReason: String, CaseIterable, Sendable {
     case decisionOverdue = "decision overdue"
     /// Unfinished work carried forward when its still-running Feature is released.
     case featureAbandoned = "feature abandoned"
+    /// Unfinished work carried forward when its Feature Card reached native Done on the Board
+    /// (morning-report/triage-the-morning, P22.2). Names the Board's disposition only: no check,
+    /// Verification or merge succeeded for the Card.
+    case featureCompleted = "feature completed"
     /// The Journal stopped retrying the Card because its failure cause recurred across separate Nights
     /// (Failure-Cause Recurrence; OQ127). Names why retrying stopped, not how the final Attempt ended:
     /// it replaces the reason that Attempt's ending would have given, and wins over a spent Attempt
@@ -40,7 +45,7 @@ public enum BlockReason: String, CaseIterable, Sendable {
         switch self {
         case .reviewerRejection, .checkFailure, .routeFailure, .hostCrash,
              .engineFault, .operatorAbort, .failureRecurrence, .authoringDefect: true
-        case .replyOverdue, .decisionOverdue, .featureAbandoned: false
+        case .replyOverdue, .decisionOverdue, .featureAbandoned, .featureCompleted: false
         }
     }
 }

@@ -30,8 +30,10 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
             throw CycleArchiveFault(reason: "Feature '\(feature.issueID)' has no recorded Cycle to close by merge")
         }
 
-        // Already closed by verification: nothing further to close; record the triage only (issue #447).
-        guard feature.closedBy != .verification else {
+        // Already closed by verification or by native completion (P22.2): nothing further to close; record
+        // the triage only (issue #447). For a completed Feature this is the Observed Merge receipt — the
+        // Feature already left flight, and the merge closes no Card and archives no Feature Issue.
+        guard feature.closedBy != .verification, feature.closedBy != .completion else {
             try recordVerifiedMerge(feature: feature, cycleID: cycleID, context: context)
             return
         }

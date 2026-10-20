@@ -111,7 +111,7 @@ struct AuthorActLandedCycleReadTests {
         #expect(events.contains(.rateBudgetExhausted))
         #expect(!events.contains(.deltaReadCompleted))
         #expect(!events.contains(.featureReleased))
-        #expect(!events.contains(.featureSettled))
+        #expect(!events.contains(.featureCompleted))
         #expect(authoring.candidates == nil, "selection never runs on a degraded read")
         #expect(try world.journal.inFlightFeature()?.feature.id == world.featureID)
         #expect(try world.journal.card(id: world.blockedCardID).state == .blocked)
@@ -172,13 +172,14 @@ struct AuthorActLandedCycleReadTests {
     @Test("No Delta Read while an unlanded Cycle is in flight: that read stays the build Act's")
     func noReadWhileAnUnlandedCycleIsInFlight() async throws {
         let world = try await makeSettleWorld(landed: false)
-        await world.seedFeatureIssueState(SettleValue.keptInFlight.rawValue)
+        await world.seedFeatureIssueState(FeatureDisposition.legacySettleStateNames[0])
         let authoring = CandidateRecordingAuthoring()
 
         try await authorAct(world, reading: world.reading, authoring: authoring).run()
 
         #expect(await world.reading.calls.isEmpty)
-        #expect(try world.journal.events(ofType: .featureSettled).count == 1)
+        #expect(try world.journal.events(ofType: .featureCompleted).isEmpty)
+        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
     }
 }
 
@@ -215,9 +216,10 @@ private func resolveWaitingCard(_ world: SettleWorld) throws {
 /// ``FakeReadingBoard/readThrough(_:team:)`` answers the settle gesture's issue read from there, not from
 /// a seeded issue.
 private func abandonOnTheBoard(_ world: SettleWorld) async throws {
-    await world.boards.provisioning.seed(state: SettleValue.abandoned.rawValue, team: teamID, category: .started)
+    let abandonedName = FeatureDisposition.legacySettleStateNames[1]
+    await world.boards.provisioning.seed(state: abandonedName, team: teamID, category: .started)
     let states = try await world.boards.provisioning.workflowStates(team: teamID)
-    let abandoned = try #require(states.first { $0.name == SettleValue.abandoned.rawValue })
+    let abandoned = try #require(states.first { $0.name == abandonedName })
     _ = try await world.boards.writing.updateIssue(
         BoardObjectID(rawValue: "FEAT-1"), BoardIssueChange(workflowState: abandoned.id)
     )

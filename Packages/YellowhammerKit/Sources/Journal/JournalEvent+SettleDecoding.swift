@@ -8,29 +8,30 @@ import Foundation
 extension JournalEvent {
     static func decodeSettle(_ type: JournalEventType, _ reader: PayloadReader) throws -> JournalEvent {
         switch type {
-        case .featureSettled:
-            try decodeFeatureSettled(reader)
-        case .featureReleased:
-            try decodeFeatureReleased(reader)
+        case .featureCompleted:
+            try decodeFeatureCompleted(reader)
         default:
-            try decodeSettleValueNotHonoured(reader)
+            try decodeFeatureReleased(reader)
         }
     }
 
     /// The payload of the settle gesture's own events, dispatched here so the exhaustive payload
-    /// switch stays one line for all three.
+    /// switch stays one line for both.
     var settlePayload: [String: String]? {
-        featureSettledPayload ?? featureReleasedPayload ?? settleValueNotHonouredPayload
+        featureCompletedPayload ?? featureReleasedPayload
     }
 
-    var featureSettledPayload: [String: String]? {
-        guard case .featureSettled(let cycleID, let featureIssueID, let acceptedCards, let triagedNightID) = self
-        else {
+    var featureCompletedPayload: [String: String]? {
+        guard case .featureCompleted(
+            let cycleID, let featureIssueID, let carriedForward, let acceptedCards, let keptWorktrees
+        ) = self else {
             return nil
         }
         return [
             "cycle_id": String(cycleID), "feature_issue_id": featureIssueID,
-            "accepted_cards": acceptedCards.joined(separator: "\u{1F}"), "triaged_night_id": String(triagedNightID)
+            "carried_forward": carriedForward.joined(separator: "\u{1F}"),
+            "accepted_cards": acceptedCards.joined(separator: "\u{1F}"),
+            "kept_worktrees": keptWorktrees.joined(separator: "\u{1F}")
         ]
     }
 
@@ -50,18 +51,16 @@ extension JournalEvent {
         ]
     }
 
-    var settleValueNotHonouredPayload: [String: String]? {
-        guard case .settleValueNotHonoured(let featureIssueID, let value, let reason) = self else { return nil }
-        return ["feature_issue_id": featureIssueID, "value": value, "reason": reason]
-    }
-
-    static func decodeFeatureSettled(_ reader: PayloadReader) throws -> JournalEvent {
+    static func decodeFeatureCompleted(_ reader: PayloadReader) throws -> JournalEvent {
+        let rawCarriedForward = try reader.require("carried_forward")
         let rawAcceptedCards = try reader.require("accepted_cards")
-        return .featureSettled(
+        let rawKept = try reader.require("kept_worktrees")
+        return .featureCompleted(
             cycleID: try reader.int64("cycle_id"),
             featureIssueID: try reader.require("feature_issue_id"),
+            carriedForward: rawCarriedForward.isEmpty ? [] : rawCarriedForward.components(separatedBy: "\u{1F}"),
             acceptedCards: rawAcceptedCards.isEmpty ? [] : rawAcceptedCards.components(separatedBy: "\u{1F}"),
-            triagedNightID: try reader.int64("triaged_night_id")
+            keptWorktrees: rawKept.isEmpty ? [] : rawKept.components(separatedBy: "\u{1F}")
         )
     }
 
@@ -76,14 +75,6 @@ extension JournalEvent {
             acceptedCards: rawAcceptedCards.isEmpty ? [] : rawAcceptedCards.components(separatedBy: "\u{1F}"),
             abandonedRepositories: rawAbandoned.isEmpty ? [] : rawAbandoned.components(separatedBy: "\u{1F}"),
             triagedNightID: try reader.int64("triaged_night_id")
-        )
-    }
-
-    static func decodeSettleValueNotHonoured(_ reader: PayloadReader) throws -> JournalEvent {
-        .settleValueNotHonoured(
-            featureIssueID: try reader.require("feature_issue_id"),
-            value: try reader.require("value"),
-            reason: try reader.require("reason")
         )
     }
 }

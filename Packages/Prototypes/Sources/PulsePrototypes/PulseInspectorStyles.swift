@@ -5,7 +5,7 @@ import SwiftUI
 
 // The Inspector renders one selection's detail read-only. Every selection is first turned into an
 // `PulseInspectorModel` — facts, related items and the one way out to Linear or GitHub — and each
-// style only lays that model out. Re-ready, answer and settle are never performed here: the primary
+// style only lays that model out. Re-ready, answer and Done or Cancel are never performed here: the primary
 // button opens the Linear issue that carries the gesture.
 
 enum PulseInspectorStyle: String, CaseIterable {
@@ -169,7 +169,7 @@ struct PulseInspectorView: View {
             ],
             related: related,
             primary: feature.link.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
-            note: "Settle and merge happen in Linear and GitHub, not here."
+            note: "Done, Cancelled and merge happen in Linear and GitHub, not here."
         )
     }
 
