@@ -2705,7 +2705,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
   Card's block leads with its reason and next action, distinct for check failure and reviewer rejection;
   the parser reads old- and new-format blocks; the description budget reserves the widest Blocked headline.
 
-### [ ] P22.2 Native persistent Feature settlement
+### [x] P22.2 Native persistent Feature settlement
 - **Work** — Settle a Feature by Linear's native Done or Cancelled workflow types, not the daily-reset
   settle states; keep no state that resets each day. Add the `feature completed` salvage and name the
   merge blocker when a Feature cannot settle.
