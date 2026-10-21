@@ -10,6 +10,7 @@ extension EngineInvocation {
     /// Reported only, never acted on: a Roll-up failure must not fail the Act — except an authorization
     /// failure, which halts like any other board call (P17.5, item 1).
     func maintainRollUps(night: NightRecord, outbox: Outbox?) async throws {
+        guard try !BoardSyncDecisionBarrier.isHeld(journal: journal, runID: runID) else { return }
         _ = try await bestEffort {
             try await FeatureRollUpMaintenance.maintainRollUps(night: night, journal: journal, outbox: outbox)
         }

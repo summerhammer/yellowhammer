@@ -420,3 +420,45 @@ private func insertFixtureCardWithState(
         return db.lastInsertedRowID
     }
 }
+
+@Test("Tracked Feature workflow evidence survives empty/pruned reads and reopen under the sync lease")
+func durableFeatureWorkflowEvidence() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let runID = RunID()
+    _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
+    try journal.write { db in
+        try db.execute(sql: "INSERT INTO feature (issue_id, state, created_at) VALUES ('feature-1', 'closed', ?)",
+                       arguments: [JournalStore.timestamp(epoch)])
+    }
+    func observation(_ category: BoardWorkflowStateCategory, revision: TimeInterval) throws -> BoardIssueObservation {
+        let value = BoardObject(
+            id: BoardObjectID(rawValue: "feature-1"), key: "F-1", title: "Feature", description: nil,
+            workflowState: BoardWorkflowState(id: BoardObjectID(rawValue: category.rawValue),
+                                              name: "Custom state", category: category),
+            labels: [], parent: nil, url: "https://example.test/F-1", createdAt: epoch,
+            updatedAt: epoch.addingTimeInterval(revision)
+        )
+        let data = try JSONEncoder().encode(value)
+        let payload = try #require(String(bytes: data, encoding: .utf8))
+        return BoardIssueObservation(issueID: "feature-1", updatedAt: value.updatedAt, payload: payload)
+    }
+    let canceled = try observation(.shelved, revision: 10)
+    _ = try journal.recordBoardRead(record(observations: [canceled], forgetsBefore: .distantFuture),
+                                   runID: runID, now: epoch)
+    for revision in [10.0, 9.0] {
+        _ = try journal.recordBoardRead(record(observations: [observation(.started, revision: revision)]),
+                                       runID: runID, now: epoch)
+    }
+    _ = try journal.recordBoardRead(record(forgetsBefore: .distantFuture), runID: runID, now: epoch)
+    let reopened = try fixture.open()
+    #expect(try reopened.featureBoardObservation(issueID: "feature-1")?.workflowState.category == .shelved)
+    #expect(try reopened.observedIssueRevisions(["feature-1"])["feature-1"] == canceled.updatedAt)
+    let newer = try observation(.started, revision: 11)
+    #expect(throws: JournalError.self) {
+        try reopened.recordBoardRead(record(observations: [newer]), runID: RunID(), now: epoch)
+    }
+    #expect(try reopened.featureBoardObservation(issueID: "feature-1")?.workflowState.category == .shelved)
+    _ = try reopened.recordBoardRead(record(observations: [newer]), runID: runID, now: epoch)
+    #expect(try journal.featureBoardObservation(issueID: "feature-1")?.workflowState.category == .started)
+}

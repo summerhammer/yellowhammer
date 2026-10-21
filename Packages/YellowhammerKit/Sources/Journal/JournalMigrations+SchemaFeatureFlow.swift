@@ -31,6 +31,7 @@ extension JournalMigrations {
     /// when a read that does not own the Card's build decisions (author, land) observed a revision,
     /// cleared when the build Act has reconciled it, so no Act consumes another Act's observation.
     static func createBoardSyncTable(_ db: Database) throws {
+        try createFeatureBoardStatusTable(db)
         try db.create(table: "board_sync") { table in
             table.column("id", .integer).primaryKey()
                 .check(sql: "id = 1")

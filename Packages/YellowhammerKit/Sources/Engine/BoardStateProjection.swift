@@ -170,12 +170,16 @@ public struct BoardStateProjection: Sendable {
         }
 
         var change = scope.labels.change(cardType: .featureCard)
-        change.workflowState = try scope.id(for: state)
+        // Preserve native cancellation even after the final Observed Merge removes the Feature from U.
+        let native = try journal.featureBoardObservation(issueID: featureIssue.rawValue)
+        let canceled = native?.workflowState.isShelved == true
+        change.workflowState = canceled ? nil : try scope.id(for: state)
         if let `operator` {
             change.assignee = .set(`operator`)
         }
 
         let key = Self.featureStateKey(issueID: featureIssue.rawValue, state: state)
+            + (canceled ? ":canceled" : "")
         let write = OutboxWrite(key: key, write: .updateIssue(issue: featureIssue, change: change, undo: nil))
         return try await outbox.post(write)
     }

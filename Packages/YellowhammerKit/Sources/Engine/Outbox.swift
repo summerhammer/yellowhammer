@@ -235,10 +235,15 @@ public struct Outbox: Sendable {
         }
 
         do {
+            if case .updateIssue(let issue, let change, _) = write, change.workflowState != nil,
+               try journal.feature(issueID: issue.rawValue) != nil,
+               try BoardSyncDecisionBarrier.isHeld(journal: journal, runID: runID) {
+                return OutboxDelivery(entry: entry, outcome: .deferred(.boardSyncIncomplete))
+            }
             let observed = try await readTarget(write)
             try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
             if let observed, observed.archivedAt != nil { return try abortArchived(entry, issue: observed.id) }
-            if !conditionHolds(entry, write: write, observed: observed) {
+            if try !conditionHolds(entry, write: write, observed: observed) {
                 return try supersede(entry, observed: observed)
             }
             let outcome = try await perform(write, for: entry)

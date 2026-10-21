@@ -30,7 +30,7 @@ public struct FeatureRollUpBlock {
                 notCheckedClauseCount: members.count,
                 mergedFraction: MergedFraction(mergedCount: 0, totalCount: repositories.count),
                 conflictingRepositories: repositories, noPullRequestRepositories: repositories,
-                issueStanding: .authoring
+                issueStanding: .authoring, cancellationSuffix: " " + FeatureCancellationAnnotation.note
             )).render()
         }
         // The longest member lines are blocked or waiting, which mask Verification's longer
@@ -46,16 +46,16 @@ public struct FeatureRollUpBlock {
             unmetClauseCount: members.count, notCheckedClauseCount: members.count,
             mergedFraction: MergedFraction(mergedCount: 0, totalCount: repositories.count),
             conflictingRepositories: repositories, noPullRequestRepositories: repositories,
-            issueStanding: .authoring
+            issueStanding: .authoring, cancellationSuffix: " " + FeatureCancellationAnnotation.note
         )
-        if let longest = candidates.max(by: { $0.count < $1.count }) {
+        if let longest = candidates.max(by: { $0.utf16.count < $1.utf16.count }) {
             let lines = longest.split(separator: "\n", omittingEmptySubsequences: false).dropFirst()
             candidates.append(
-                (["**\(verification.sentence)**\(verification.conflictsSuffix)\(verification.noPullRequestSuffix)"]
+                ([sentenceLine(verification)]
                     + lines.map(String.init)).joined(separator: "\n")
             )
         }
-        return candidates.max { $0.count < $1.count } ?? ""
+        return candidates.max { $0.utf16.count < $1.utf16.count } ?? ""
     }
 
     private static func longestMember(_ prototype: RollUpMember) -> RollUpMember {
@@ -87,13 +87,17 @@ public struct FeatureRollUpBlock {
             FeatureRollUpBlock(rollUp: FeatureRollUp(
                 members: [member], lanesPushed: false, verificationPassed: false,
                 mergedFraction: MergedFraction(mergedCount: 0, totalCount: 1), issueStanding: .authoring
-            )).render().count
+            )).render().utf16.count
         }
         return variants.max { size($0) < size($1) } ?? prototype
     }
 
+    private static func sentenceLine(_ rollUp: FeatureRollUp) -> String {
+        "**\(rollUp.sentence)**" + rollUp.conflictsSuffix + rollUp.noPullRequestSuffix + rollUp.cancellationSuffix
+    }
+
     public func render() -> String {
-        var lines = ["**\(rollUp.sentence)**\(rollUp.conflictsSuffix)\(rollUp.noPullRequestSuffix)"]
+        var lines = [Self.sentenceLine(rollUp)]
         // A Blocked halted Feature Card leads with its Block Reason and the repair to make (roadmap P22.5).
         if rollUp.members.isEmpty, case .unanswered(.halt) = rollUp.issueStanding {
             lines.insert(BlockReason.haltedFeatureHeadline, at: 0)

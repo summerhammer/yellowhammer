@@ -56,7 +56,8 @@ extension Outbox {
             let at = entry.state == .pending ? Date.distantFuture : (entry.sentAt ?? entry.createdAt)
             known = (KnownBoardState(stateID: target.rawValue, revision: nil), at)
         }
-        if let observed = try journal.observedIssue(issue.rawValue), observed.updatedAt > (known?.at ?? .distantPast) {
+        if let observed = try journal.featureBoardObservation(issueID: issue.rawValue)
+            ?? journal.observedIssue(issue.rawValue), observed.updatedAt > (known?.at ?? .distantPast) {
             known = (
                 KnownBoardState(stateID: observed.workflowState.id.rawValue, revision: observed.updatedAt),
                 observed.updatedAt
@@ -67,7 +68,18 @@ extension Outbox {
 
     /// Whether the board still holds the condition `entry` recorded. The board is at the expected state, or
     /// already at the write's own target (a replay after the board applied it): in both the write goes ahead.
-    func conditionHolds(_ entry: OutboxEntry, write: BoardWrite, observed: BoardObject?) -> Bool {
+    func conditionHolds(_ entry: OutboxEntry, write: BoardWrite, observed: BoardObject?) throws -> Bool {
+        if case .updateIssue(let issue, let change, _) = write, let target = change.workflowState,
+           try journal.feature(issueID: issue.rawValue) != nil {
+            let durable = try journal.featureBoardObservation(issueID: issue.rawValue)
+            let latest: BoardObject?
+            if let durable, let observed {
+                latest = observed.updatedAt > durable.updatedAt ? observed : durable
+            } else {
+                latest = durable ?? observed
+            }
+            if let latest, latest.workflowState.isShelved, target != latest.workflowState.id { return false }
+        }
         guard let expected = entry.expectedStateID, let observed else { return true }
         var accepted: Set<String> = [expected]
         if case .updateIssue(_, let change, _) = write, let target = change.workflowState {

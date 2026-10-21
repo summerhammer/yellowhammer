@@ -211,7 +211,7 @@ extension DeltaRead {
         var order: [BoardObjectID] = []
         for object in objects {
             if let held = latest[object.id] {
-                if object.updatedAt >= held.updatedAt { latest[object.id] = object }
+                if object.updatedAt > held.updatedAt { latest[object.id] = object }
             } else {
                 latest[object.id] = object
                 order.append(object.id)

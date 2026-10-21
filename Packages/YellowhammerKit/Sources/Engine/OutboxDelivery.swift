@@ -31,6 +31,8 @@ public struct OutboxDelivery: Equatable, Sendable {
         case transient(String)
         /// This run does not hold the Card's Lease; the write waits for the run that does.
         case cardLeaseNotHeld(String)
+        /// The Feature's state write waits for a completed Board reconciliation.
+        case boardSyncIncomplete
         /// An earlier entry stopped delivery before this one's turn.
         case behindAnotherEntry
     }

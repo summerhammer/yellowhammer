@@ -101,6 +101,9 @@ public struct DeltaRead: Sendable {
         for object in objects {
             try recordDisplay(of: object)
             guard let card = try journal.card(issueID: object.id.rawValue) else {
+                // Feature identity is Journal-owned, even after its Cycle has archived. Its native
+                // status is committed with this read below, without Work Card reconciliation.
+                if try journal.feature(issueID: object.id.rawValue) != nil { continue }
                 // The sole repair exception to "an object the Journal has no Card for is unknown" (roadmap P22.6):
                 // a child nested beneath the exact halted Feature Card of this Project, on this Board Connection,
                 // enters that halt's candidate snapshot once its parent is confirmed. It stays a draft.

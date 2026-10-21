@@ -151,6 +151,7 @@ extension JournalStore {
         try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
 
+            try Self.storeFeatureBoardObservations(db, record.issues)
             try Self.storeObservations(db, record)
 
             let existing = try Row.fetchOne(db, sql: "SELECT * FROM board_sync WHERE id = 1")
@@ -196,6 +197,7 @@ extension JournalStore {
                     updated_at = excluded.updated_at,
                     payload = excluded.payload,
                     build_pending = excluded.build_pending
+                WHERE excluded.updated_at > board_issue_seen.updated_at
                 """,
                 arguments: [
                     observation.issueID, Self.syncTimestamp(observation.updatedAt), observation.payload,
@@ -235,6 +237,11 @@ extension JournalStore {
                     let id: String = row["issue_id"]
                     let text: String = row["updated_at"]
                     revisions[id] = try Self.parseSyncTimestamp(text)
+                }
+            }
+            for id in issueIDs {
+                if let observation = try Self.featureBoardObservation(db, issueID: id) {
+                    revisions[id] = Self.later(observation.updatedAt, revisions[id])
                 }
             }
             return revisions
@@ -296,7 +303,7 @@ extension JournalStore {
     }
 
     /// The board's own timestamp, fractional seconds preserved, in a form that sorts as text.
-    private static func syncTimestamp(_ date: Date) -> String {
+    static func syncTimestamp(_ date: Date) -> String {
         date.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
     }
 

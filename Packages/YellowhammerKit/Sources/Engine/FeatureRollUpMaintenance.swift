@@ -58,7 +58,10 @@ public struct FeatureRollUpMaintenance: Sendable {
             conflictingRepositories: Array(conflicts.keys),
             noPullRequestRepositories: try journal.noPushedBranchRepositories(featureID: feature.id),
             pushedRepositories: try repositoriesWithRecordedPush(featureID: feature.id, journal: journal),
-            issueStanding: .authoring
+            issueStanding: .authoring,
+            cancellationSuffix: try FeatureCancellationAnnotation.suffix(
+                featureID: feature.id, issueID: feature.issueID, journal: journal
+            )
         )
     }
 
@@ -94,6 +97,12 @@ public struct FeatureRollUpMaintenance: Sendable {
         try await maintainObservedThisNight(night, processed: &processed, errors: &errors)
         try await maintainClosedThisNight(night, processed: &processed, errors: &errors)
         try await maintainZeroCardStandings(processed: &processed, errors: &errors)
+        for (feature, cycleID) in try journal.observedFeaturesWithCycles() where !processed.contains(feature.issueID) {
+            processed.insert(feature.issueID)
+            if let error = await attempt({ _ = try await self.maintain(feature: feature, cycleID: cycleID) }) {
+                errors.append(error)
+            }
+        }
 
         if let firstError = errors.first { throw firstError }
     }
