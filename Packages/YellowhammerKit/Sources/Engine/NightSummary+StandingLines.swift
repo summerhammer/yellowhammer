@@ -7,19 +7,20 @@ import Journal
 // Night it was left behind. No threshold, no truncation. Reported only, never acted on.
 
 extension NightSummary {
-    /// One line per un-adopted Card, in `journal.unadoptedCards(asOf:)`'s order: issue id, the closed
-    /// Feature's issue id, its Block Reason, and elapsed Nights un-adopted. Empty when none exist.
+    /// One line per un-adopted Card, in `journal.unadoptedCards(asOf:)`'s order: display identifier, the closed
+    /// Feature's display identifier, its Block Reason, and elapsed Nights un-adopted. Empty when none exist.
     public static func unadoptedCardLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         try journal.unadoptedCards(asOf: night.nightStart).map { unadopted in
             let card = unadopted.card
             let blockReason = card.blockReason ?? "no Block Reason recorded"
             let nightWord = unadopted.elapsedNights == 1 ? "Night" : "Nights"
-            return "`\(card.issueID)` — \(blockReason), left by Feature `\(unadopted.closedFeatureIssueID)`; " +
+            let closedFeature = try featureIdentifier(issueID: unadopted.closedFeatureIssueID, journal: journal)
+            return "`\(card.displayIdentifier)` — \(blockReason), left by Feature `\(closedFeature)`; " +
                 "un-adopted for \(unadopted.elapsedNights) \(nightWord)."
         }
     }
 
-    /// The `**Standing: unmerged in-flight Feature:**` lines (roadmap P12.1; P23.6): one entry per Feature in
+    /// The `**Standing: unmerged Features:**` lines (roadmap P12.1; P23.6): one entry per Feature in
     /// the Unmerged Feature Stack U, oldest first (``unmergedStackLines(night:journal:)``), then the line for
     /// an unmerged Partial Landing that holds the single in-flight slot (``inFlightLandedFeature()``), if any.
     /// Folds the old, per-Night `**Mainline Conflicts:**` section into the same lines. Reported only, never
@@ -32,7 +33,7 @@ extension NightSummary {
             featureIssueID: featureIssueID, journal: journal
         )
 
-        var line = "`\(featureIssueID)` — " +
+        var line = "`\(inFlight.feature.displayIdentifier)` — " +
             (try nightsHeldPhrase(featureID: inFlight.feature.id, night: night, journal: journal)) + "; " +
             mergePhrase(observation: observation, pushedRepositories: inFlight.pushedRepositories)
         if let conflicts = try conflictsPhrase(

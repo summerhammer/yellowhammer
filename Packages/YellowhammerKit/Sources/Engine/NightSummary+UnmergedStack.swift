@@ -17,7 +17,7 @@ extension NightSummary {
         let stack = try journal.unmergedFeatureStack()
         guard !stack.isEmpty else { return [] }
         let stackings = try stackings(journal: journal)
-        var conflictsBelow: [(issueID: String, conflicts: [String: [String]])] = []
+        var conflictsBelow: [(identifier: String, conflicts: [String: [String]])] = []
         var lines: [String] = []
         for member in stack {
             let issueID = member.feature.issueID
@@ -27,9 +27,13 @@ extension NightSummary {
             let recordedStacked = try journal.featureBases(featureID: member.feature.id)
                 .contains { $0.stackedOnFeatureID != nil }
             let isStacked = stackings.stackedOn[issueID] != nil || recordedStacked
-            var line = "`\(issueID)` — " + (try awaitedPhrase(member, night: night, journal: journal)) + "; "
+            let identifier = member.feature.displayIdentifier
+            let awaited = try awaitedPhrase(member, night: night, journal: journal)
+            var line = "`\(identifier)` — " + awaited + "; "
                 + "\(member.mergedRepositories.count) of \(member.pushedRepositories.count) Feature Branches merged"
-            if let note = stackingNote(issueID: issueID, stackings: stackings) { line += "; \(note)" }
+            if let note = try stackingNote(issueID: issueID, stackings: stackings, journal: journal) {
+                line += "; \(note)"
+            }
             if !conflicts.isEmpty {
                 let named = conflicts.keys.sorted().map { repository in
                     conflictPhrase(
@@ -42,7 +46,7 @@ extension NightSummary {
             let noPullRequest = try journal.noPushedBranchRepositories(featureID: member.feature.id)
             if !noPullRequest.isEmpty { line += " " + FeatureRollUp.noPullRequestNotes(noPullRequest) }
             lines.append(line)
-            conflictsBelow.append((issueID, conflicts))
+            conflictsBelow.append((identifier, conflicts))
         }
         return lines
     }
@@ -63,7 +67,7 @@ extension NightSummary {
     /// paths in that repository, the lowest such Feature is named and only the extra paths are listed.
     /// Matching paths do not prove the same conflict, so the wording never says "same conflict".
     private static func conflictPhrase(
-        repository: String, paths: [String], below: [(issueID: String, conflicts: [String: [String]])]
+        repository: String, paths: [String], below: [(identifier: String, conflicts: [String: [String]])]
     ) -> String {
         let own = Set(paths)
         guard let lowest = below.first(where: { entry in
@@ -74,7 +78,7 @@ extension NightSummary {
             return "[conflict: \(repository)] (\(text))"
         }
         let extra = paths.filter { !(lowest.conflicts[repository] ?? []).contains($0) }
-        var phrase = "[conflict: \(repository)] conflicts on the same paths as `\(lowest.issueID)`; "
+        var phrase = "[conflict: \(repository)] conflicts on the same paths as `\(lowest.identifier)`; "
             + "resolve that Feature first, and the next pass re-tests this one"
         if !extra.isEmpty { phrase += " (own paths: \(extra.joined(separator: ", ")))" }
         return phrase
@@ -101,14 +105,21 @@ extension NightSummary {
         return result
     }
 
-    private static func stackingNote(issueID: String, stackings: Stackings) -> String? {
+    private static func stackingNote(issueID: String, stackings: Stackings, journal: JournalStore) throws -> String? {
         var notes: [String] = []
         if let below = stackings.stackedOn[issueID] {
-            notes.append("stacked on \(below.pullRequest ?? "`\(below.predecessor)`")")
+            let predecessor = try featureIdentifier(issueID: below.predecessor, journal: journal)
+            notes.append("stacked on \(below.pullRequest ?? "`\(predecessor)`")")
         }
         for dependent in stackings.dependents[issueID] ?? [] {
-            notes.append("`\(dependent)` is stacked on it")
+            notes.append("`\(try featureIdentifier(issueID: dependent, journal: journal))` is stacked on it")
         }
         return notes.isEmpty ? nil : notes.joined(separator: "; ")
+    }
+
+    /// The Feature's ``FeatureRecord/displayIdentifier`` (e.g. `YLH-325`); the raw issue id only when the
+    /// Journal holds no such Feature. Standing lines never print a Linear UUID where a record exists.
+    static func featureIdentifier(issueID: String, journal: JournalStore) throws -> String {
+        try journal.feature(issueID: issueID)?.displayIdentifier ?? issueID
     }
 }
