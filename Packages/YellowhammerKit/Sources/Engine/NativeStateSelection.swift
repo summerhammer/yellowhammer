@@ -4,10 +4,11 @@ import Domain
 /// explicit Board Mapping wins; otherwise the lowest-`position` eligible state, a position tie broken by
 /// the state's stable id. A display name never decides a category.
 ///
-/// Eligible means: the right category, and not one of Yellowhammer's own custom states or a legacy
-/// settlement state. The custom ids come from the footprint (mapped or persisted); the legacy pair has no
-/// persisted id (P22.9 migrates tracked ones), so it is excluded by the name earlier builds provisioned it
-/// under, `FeatureDisposition/legacySettleStateNames`, and only for a `started` state.
+/// Eligible means: the right category, and not one of Yellowhammer's own custom states or a retired
+/// settlement state. The custom ids come from the footprint (mapped or persisted); the retired pair has no
+/// persisted id, so it is excluded by the name earlier builds provisioned it under
+/// (``LegacyBoardTaxonomy``), and only for a `started` state. Excluding is the only use of the name here:
+/// a retired state is never selected and never adopted.
 public enum NativeStateSelection {
     /// The state `role` selects among `states`, or nil when the team has none (or a mapping fails).
     /// A mapping that does not name a state of `category` selects nothing: it is reported by verification,
@@ -30,11 +31,6 @@ public enum NativeStateSelection {
     }
 
     private static func isEligible(_ state: BoardWorkflowState, excluding customIDs: Set<BoardObjectID>) -> Bool {
-        if customIDs.contains(state.id) { return false }
-        // A legacy settlement state was provisioned `started`; a same-name state of another category is not it.
-        if state.category == .started, FeatureDisposition.legacySettleStateNames.contains(state.name) {
-            return false
-        }
-        return true
+        !customIDs.contains(state.id) && !LegacyBoardTaxonomy.isRetiredSettleState(state)
     }
 }

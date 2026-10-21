@@ -174,7 +174,7 @@ struct BoardStateScopeTests {
             state: "Waiting on You", team: scopeTeam.id, category: .started, position: 0
         )
         let blocked = await provisioning.seed(state: "Blocked", team: scopeTeam.id, category: .started, position: 1)
-        for name in FeatureDisposition.legacySettleStateNames {
+        for name in LegacyBoardTaxonomy.settleStateNames {
             await provisioning.seed(state: name, team: scopeTeam.id, category: .started, position: 2)
         }
         // Every `started` state at a lower position than the real one is Yellowhammer's or a legacy one.

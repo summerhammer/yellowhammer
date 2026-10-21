@@ -140,15 +140,19 @@ extension JournalStore {
                 arguments: [timestamp, observed.triagedNightID]
             )
 
-            _ = try Self.insertEvent(
-                db,
-                .verifiedFeatureMergeObserved(
+            // A Feature the Operator completed on the board is not a verified one: its receipt has its own name.
+            let event: JournalEvent = observed.closedByCompletion
+                ? .completedFeatureMergeObserved(
                     cycleID: observed.cycleID, featureIssueID: observed.featureIssueID,
                     repositories: observed.mergedRepositories, acceptedCards: observed.acceptedCards,
                     triagedNightID: observed.triagedNightID
-                ),
-                stamp: EventStamp(act: act, runID: runID, nightID: nightID, now: now)
-            )
+                )
+                : .verifiedFeatureMergeObserved(
+                    cycleID: observed.cycleID, featureIssueID: observed.featureIssueID,
+                    repositories: observed.mergedRepositories, acceptedCards: observed.acceptedCards,
+                    triagedNightID: observed.triagedNightID
+                )
+            _ = try Self.insertEvent(db, event, stamp: EventStamp(act: act, runID: runID, nightID: nightID, now: now))
             return true
         }
     }
@@ -163,11 +167,15 @@ public struct NewVerifiedFeatureMergeObserved: Sendable {
     public let triagedNightID: Int64
     public let mergedRepositories: [String]
     public let acceptedCards: [String]
+    /// Whether the Feature was closed by native Done (`completion`) rather than by Verification: the receipt
+    /// is then `completedFeatureMergeObserved`.
+    public let closedByCompletion: Bool
 
     public init(
         cycleID: Int64, featureIssueID: String, triagedNightID: Int64, mergedRepositories: [String],
-        acceptedCards: [String]
+        acceptedCards: [String], closedByCompletion: Bool = false
     ) {
+        self.closedByCompletion = closedByCompletion
         self.cycleID = cycleID
         self.featureIssueID = featureIssueID
         self.triagedNightID = triagedNightID

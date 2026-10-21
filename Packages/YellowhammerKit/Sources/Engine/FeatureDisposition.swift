@@ -24,17 +24,9 @@ public enum FeatureDisposition: Equatable, Sendable {
     /// No state read, or a category this build does not know: never scheduled through, never a closure.
     case indeterminate
 
-    /// The two workflow states earlier builds provisioned as the daily-reset settle gesture.
-    ///
-    /// Temporary legacy bridge (P22.2; P22.9 removes it): since P22.8 neither state is provisioned or
-    /// verified, but a board provisioned by an earlier build may still hold a Feature Card in either.
-    /// `Kept in Flight` reads as ``continuing`` and `Abandoned` as ``canceled``, ahead of the category,
-    /// because both were provisioned with the `started` type. No id is persisted for them, so they are
-    /// recognised by name; native `started` selection excludes them the same way (``NativeStateSelection``).
-    public static let legacySettleStateNames = ["Kept in Flight", "Abandoned"]
-
-    /// Reads `state` against `scope`: the custom `Waiting on You` and `Blocked` state ids first, then
-    /// the legacy bridge, then the native category.
+    /// Reads `state` against `scope`: the custom `Waiting on You` and `Blocked` state ids first, then the
+    /// native category. A name decides nothing: a state named like a retired settlement state (`Kept in
+    /// Flight`, `Abandoned`) reads by its category like any other, `continuing` when it is `started`.
     public init(workflowState state: BoardWorkflowState?, scope: BoardStateScope) {
         guard let state else {
             self = .indeterminate
@@ -44,10 +36,6 @@ public enum FeatureDisposition: Equatable, Sendable {
             self = .waitingOnYou
         } else if state.id == scope.states[.blocked] {
             self = .blocked
-        } else if state.name == Self.legacySettleStateNames[0] {
-            self = .continuing
-        } else if state.name == Self.legacySettleStateNames[1] {
-            self = .canceled
         } else {
             self = Self.disposition(of: state.category)
         }

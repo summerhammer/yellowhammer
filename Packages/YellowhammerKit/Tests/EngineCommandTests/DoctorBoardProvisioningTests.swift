@@ -21,6 +21,41 @@ struct DoctorBoardProvisioningTests {
         #expect(provisioning.first?.message.contains("team ENG") == true)
     }
 
+    @Test("Retired taxonomy still on the team is reported as info, never a failure, and never deleted (P22.9)")
+    func residualTaxonomyIsInfo() async throws {
+        let fixture = try await DoctorLinearFixture()
+        for name in LegacyBoardTaxonomy.settleStateNames {
+            await fixture.acme.seed(state: name, team: engineeringTeam.id, category: .started)
+        }
+        for group in [LegacyBoardTaxonomy.blockReasonGroup, LegacyBoardTaxonomy.overrideGroup] {
+            await fixture.acme.seed(label: group, team: engineeringTeam.id, isGroup: true)
+        }
+        let creates = await fixture.acme.creates
+        let statesBefore = try await fixture.acme.workflowStates(team: engineeringTeam.id)
+
+        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
+
+        let provisioning = findings.linear("acme", subject: "provisioning")
+        #expect(provisioning.filter { $0.severity == .failure }.isEmpty)
+        #expect(provisioning.contains { $0.severity == .pass })
+        let info = try #require(provisioning.first { $0.severity == .info })
+        for item in LegacyBoardTaxonomy.settleStateNames + [
+            LegacyBoardTaxonomy.blockReasonGroup, LegacyBoardTaxonomy.overrideGroup
+        ] {
+            #expect(info.message.contains("`\(item)`"))
+        }
+        #expect(info.message.contains("safe to delete in Linear"))
+        #expect(await fixture.acme.creates == creates)
+        #expect(try await fixture.acme.workflowStates(team: engineeringTeam.id) == statesBefore)
+    }
+
+    @Test("A board without retired taxonomy reports no residual finding")
+    func cleanBoardReportsNoResidual() async throws {
+        let fixture = try await DoctorLinearFixture()
+        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
+        #expect(findings.linear("acme", subject: "provisioning").allSatisfy { $0.severity == .pass })
+    }
+
     @Test("A board from the previous build: the Night Card collision fails, naming Object Type, until fixed")
     func previousBuildCollisionFails() async throws {
         let fixture = try await DoctorLinearFixture(provisionAcme: false)

@@ -126,6 +126,8 @@ extension JournalEvent {
             .routeExhausted
         case .overrideRefused:
             .overrideRefused
+        case .legacyBoardObserved:
+            .legacyBoardObserved
         case .routePreflightRan:
             .routePreflightRan
         case .attemptEnded:
@@ -234,6 +236,8 @@ extension JournalEvent {
             .featureClosedByMerge
         case .verifiedFeatureMergeObserved:
             .verifiedFeatureMergeObserved
+        case .completedFeatureMergeObserved:
+            .completedFeatureMergeObserved
         case .refusalAnswered:
             .refusalAnswered
         case .authoringHaltOpened:

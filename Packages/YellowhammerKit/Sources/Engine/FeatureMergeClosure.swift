@@ -75,7 +75,8 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
             cycleID: cycleID, featureIssueID: feature.issueID,
             triagedNightID: try journal.triagedNightID(cycleID: cycleID, currentNightID: context.night.id),
             mergedRepositories: try journal.pushedRepositories(featureID: feature.id),
-            acceptedCards: cards.filter { $0.state == .done }.map(\.issueID).sorted()
+            acceptedCards: cards.filter { $0.state == .done }.map(\.issueID).sorted(),
+            closedByCompletion: feature.closedBy == .completion
         )
         try journal.recordVerifiedFeatureMergeObserved(
             observed, runID: context.runID, act: context.act, nightID: context.night.id

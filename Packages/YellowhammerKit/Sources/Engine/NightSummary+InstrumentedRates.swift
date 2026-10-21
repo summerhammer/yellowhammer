@@ -75,7 +75,8 @@ extension NightSummary {
             switch record.event {
             case .featureCompleted(_, _, _, let accepted, _),
                  .featureClosedByMerge(_, _, _, _, let accepted, _),
-                 .verifiedFeatureMergeObserved(_, _, _, let accepted, _):
+                 .verifiedFeatureMergeObserved(_, _, _, let accepted, _),
+                 .completedFeatureMergeObserved(_, _, _, let accepted, _):
                 for card in accepted where cards[card] == nil { cards[card] = record.occurredAt }
             default: break
             }

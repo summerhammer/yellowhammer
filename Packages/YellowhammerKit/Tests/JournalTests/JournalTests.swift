@@ -172,6 +172,7 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
             "feature_repository",
             "feature_verification",
             "lease",
+            "legacy_board_conversion",
             "managed_block",
             "night",
             "night_card_predecessor",

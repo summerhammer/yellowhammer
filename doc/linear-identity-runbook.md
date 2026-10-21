@@ -181,7 +181,19 @@ team's **native** state, selected by workflow **category** and never by display 
 reported as an incomplete step naming the category and the team; setup never creates a substitute. No
 `Block Reason` or `Override` label group is provisioned: Block Reason is Card content, and the Card override
 is one description field on each Work Card (P22.7). A board that still carries any of those labels, groups or
-the legacy settle states keeps them: nothing is deleted, verified or required (P22.9 converts what used them).
+the legacy settle states keeps them: nothing is deleted, verified or required.
+
+**Residual taxonomy (P22.9).** The retired settle states `Kept in Flight` and `Abandoned` (type `started`) and
+the `Block Reason` and `Override` label groups are *retired and unused* by Yellowhammer. Each Act runs a small,
+versioned migration over **tracked** issues only (the Feature in flight and the Work Cards of its Cycle): a
+Feature Card in `Kept in Flight` moves to the team's native `started` state and one in `Abandoned` to its native
+`canceled` state; a Work Card's `Override` label becomes its `Card override:` field when the field is empty
+(several pins, or a pin that disagrees with the field, are left alone and surfaced as a conflict until the
+Operator sets or clears the field); queued writes that would set a retired state or add a retired label are
+superseded; and the retired labels are unassigned from those issues. A Feature Card the Operator moves into one
+of those states later has no special meaning and gets a one-time notice. `yh doctor` reports what the team still
+carries as an `info` finding. Deleting those states and groups is safe once no one else uses them, and is the
+Operator's call in Linear: nothing here deletes a team state, label or group.
 
 Every item is reported `present`, `created`, `collision` or `blocked`. A label of the same name
 anywhere the team can see it — a workspace label, a team label, or a label in another group — is a
