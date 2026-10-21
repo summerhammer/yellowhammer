@@ -19,13 +19,14 @@ extension NightSummary {
         }
     }
 
-    /// The `**Standing: unmerged in-flight Feature:**` line (roadmap P12.1): rendered only while
-    /// `journal.inFlightLandedFeature()` is non-nil — a landed but not-yet-merged Feature still holds
-    /// the in-flight slot. Folds the old, per-Night `**Mainline Conflicts:**` section into this one
-    /// standing line. Reported only, never acted on; renders the same shape while `k < N`, so 0 and
-    /// any partial count read alike — the Feature still holds the slot either way.
+    /// The `**Standing: unmerged in-flight Feature:**` lines (roadmap P12.1; P23.6): one entry per Feature in
+    /// the Unmerged Feature Stack U, oldest first (``unmergedStackLines(night:journal:)``), then the line for
+    /// an unmerged Partial Landing that holds the single in-flight slot (``inFlightLandedFeature()``), if any.
+    /// Folds the old, per-Night `**Mainline Conflicts:**` section into the same lines. Reported only, never
+    /// acted on; an entry renders the same shape while `k < N`, so 0 and any partial count read alike.
     public static func inFlightFeatureLines(night: NightRecord, journal: JournalStore) throws -> [String] {
-        guard let inFlight = try journal.inFlightLandedFeature() else { return [] }
+        var lines = try unmergedStackLines(night: night, journal: journal)
+        guard let inFlight = try journal.inFlightLandedFeature() else { return lines }
         let featureIssueID = inFlight.feature.issueID
         let observation = try FeatureMainlineObservationReader.latestAncestryObservation(
             featureIssueID: featureIssueID, journal: journal
@@ -45,7 +46,8 @@ extension NightSummary {
         if !noPullRequest.isEmpty {
             line += " " + FeatureRollUp.noPullRequestNotes(noPullRequest)
         }
-        return [line]
+        lines.append(line)
+        return lines
     }
 
     private static func nightsHeldPhrase(featureID: Int64, night: NightRecord, journal: JournalStore) throws -> String {

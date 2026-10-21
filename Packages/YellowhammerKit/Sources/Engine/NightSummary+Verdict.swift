@@ -68,10 +68,22 @@ extension NightSummary {
     private static func advanceWord(
         night: NightRecord, journal: JournalStore, events: [JournalEventRecord]
     ) throws -> String {
-        if let landed = events.first(where: { $0.type == .cycleLanded }) {
-            guard case .cycleLanded(let cycleID) = landed.event else { return "advanced without landing" }
-            let holes = try journal.laneHoles(cycleID: cycleID)
-            return holes.isEmpty ? "landed" : "landed partially — Partial Landing"
+        let landedCycleIDs = events.compactMap { record -> Int64? in
+            if case .cycleLanded(let cycleID) = record.event { return cycleID }
+            return nil
+        }
+        if let first = landedCycleIDs.first {
+            if landedCycleIDs.count == 1 {
+                return try journal.laneHoles(cycleID: first).isEmpty ? "landed" : "landed partially — Partial Landing"
+            }
+            // Several Features landed this Night (a periodic author firing selects the next one as soon as
+            // the slot is free): the same one-sentence register, counts only, never the Features' names.
+            var partial = 0
+            for cycleID in landedCycleIDs where !(try journal.laneHoles(cycleID: cycleID).isEmpty) { partial += 1 }
+            let awaiting = try journal.unmergedFeatureStack().count
+            var phrase = "\(landedCycleIDs.count) Features landed"
+            if partial > 0 { phrase += ", \(partial) partially — Partial Landing" }
+            return phrase + ", \(awaiting) awaiting merge"
         }
         if events.contains(where: { advancingEventTypes.contains($0.type) }) {
             return "advanced without landing"
