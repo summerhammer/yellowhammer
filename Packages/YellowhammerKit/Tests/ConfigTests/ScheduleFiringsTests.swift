@@ -7,7 +7,10 @@ import Testing
 func firingsDefaultsIndex0() throws {
     let firings = try Schedule().firings(staggerIndex: 0)
 
-    #expect(firings.author == [TimeOfDay(hour: 22, minute: 0)!])
+    #expect(firings.author.count == 32)
+    #expect(firings.author.first == TimeOfDay(hour: 22, minute: 0)!)
+    #expect(firings.author[1] == TimeOfDay(hour: 22, minute: 17)!)
+    #expect(firings.author.last == TimeOfDay(hour: 5, minute: 47)!)
     #expect(firings.build.count == 31)
     #expect(firings.build.first == TimeOfDay(hour: 22, minute: 16)!)
     #expect(firings.build.last == TimeOfDay(hour: 5, minute: 46)!)
@@ -39,14 +42,49 @@ func firingsWorkedExample() throws {
     #expect(firings.land.contains(time(6, 3)))
     #expect(!firings.land.contains(time(22, 19)))
 
-    #expect(firings.author == [time(22, 3)])
+    // author is two minutes after each periodic land tick, plus the opening firing: 22:03, 22:20, ... 05:50
+    let expectedAuthor = [time(22, 3)] + (1..<32).map { tick -> TimeOfDay in
+        let absolute = (22 * 60 + 3 + tick * 15 + 2) % 1440
+        return time(absolute / 60, absolute % 60)
+    }
+    #expect(firings.author == expectedAuthor)
+    #expect(firings.author[1] == time(22, 20))
+    #expect(firings.author[2] == time(22, 35))
+    #expect(firings.author.last == time(5, 50))
+    // none at or after night_end + o (06:03)
+    #expect(!firings.author.contains(time(6, 3)))
+    #expect(!firings.author.contains(time(6, 5)))
+}
+
+@Test("firings: author offset shrinks with build_every_minutes (2 → +1, 1 → +0)")
+func authorOffsetShrinks() throws {
+    func schedule(_ bem: Int) -> Schedule {
+        Schedule(
+            nightStart: TimeOfDay(hour: 22, minute: 0)!, nightEnd: TimeOfDay(hour: 22, minute: 10)!,
+            buildEveryMinutes: bem
+        )
+    }
+    func time(_ minute: Int) -> TimeOfDay { TimeOfDay(hour: 22, minute: minute)! }
+
+    let two = try schedule(2).firings(staggerIndex: 0)
+    #expect(two.author == [time(0), time(3), time(5), time(7), time(9)])
+    #expect(two.land.contains(time(2)))
+
+    let one = try schedule(1).firings(staggerIndex: 0)
+    #expect(one.author == (0..<10).map(time))
+    #expect(Array(one.author.dropFirst()) == one.build)
+
+    let wide = try schedule(10).firings(staggerIndex: 0)
+    #expect(wide.author == [time(0)])
 }
 
 @Test("firings: defaults, stagger index 2 (offset 6m)")
 func firingsDefaultsIndex2() throws {
     let firings = try Schedule().firings(staggerIndex: 2)
 
-    #expect(firings.author == [TimeOfDay(hour: 22, minute: 6)!])
+    #expect(firings.author.first == TimeOfDay(hour: 22, minute: 6)!)
+    #expect(firings.author[1] == TimeOfDay(hour: 22, minute: 23)!)
+    #expect(firings.author.last == TimeOfDay(hour: 5, minute: 53)!)
     #expect(firings.build.count == 31)
     #expect(firings.build.first == TimeOfDay(hour: 22, minute: 22)!)
     #expect(firings.build.last == TimeOfDay(hour: 5, minute: 52)!)
@@ -61,7 +99,9 @@ func firingsSameDayWindow() throws {
     )
     let firings = try schedule.firings(staggerIndex: 0)
 
-    #expect(firings.author == [TimeOfDay(hour: 1, minute: 0)!])
+    #expect(firings.author.first == TimeOfDay(hour: 1, minute: 0)!)
+    #expect(firings.author[1] == TimeOfDay(hour: 1, minute: 22)!)
+    #expect(firings.author.last == TimeOfDay(hour: 4, minute: 42)!)
     #expect(firings.build.count == 11)
     #expect(firings.build.first == TimeOfDay(hour: 1, minute: 21)!)
     #expect(firings.build.last == TimeOfDay(hour: 4, minute: 41)!)
@@ -257,7 +297,7 @@ private let staggeredExample = Schedule(nightStart: time(22, 0), nightEnd: time(
 func staggeredExampleFirings() throws {
     let firings = try staggeredExample.firings(staggerIndex: 3)
 
-    #expect(firings.author == [time(22, 9)])
+    #expect(firings.author.first == time(22, 9))
     #expect(firings.flush == [time(22, 4)])
 }
 

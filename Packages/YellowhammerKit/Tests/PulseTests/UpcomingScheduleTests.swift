@@ -75,3 +75,11 @@ func staggered() throws {
     #expect(result.night.startsAt == at(22, 6))
     #expect(result.night.endsAt == at(6, 6, day: 20))
 }
+
+@Test("After a periodic land tick and its build, the next Act is the author firing two minutes after the land tick")
+func nextAuthorFiringFollowsTheLandTick() throws {
+    // 22:15 land, 22:16 build, 22:17 author (stagger 0, defaults)
+    let result = try upcoming(at(22, 16))
+
+    #expect(result.nextAct == ScheduledAct(act: .author, at: at(22, 17)))
+}

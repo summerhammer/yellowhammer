@@ -58,7 +58,10 @@ struct SetupScheduledJobsInstallTests {
         let alphaProgramArguments = alphaDecoded["ProgramArguments"] as? [String]
         #expect(alphaProgramArguments == ["/usr/local/bin/yh", "author", "--project", "alpha"])
         let alphaIntervals = try #require(alphaDecoded["StartCalendarInterval"] as? [[String: Int]])
-        #expect(alphaIntervals == [["Hour": 22, "Minute": 0]])
+        // the opening firing, then two minutes after every periodic land tick (22:15 + 2)
+        #expect(alphaIntervals.count == 32)
+        #expect(alphaIntervals.first == ["Hour": 22, "Minute": 0])
+        #expect(alphaIntervals[1] == ["Hour": 22, "Minute": 17])
         let alphaPATH = try #require((alphaDecoded["EnvironmentVariables"] as? [String: String])?["PATH"])
         #expect(alphaPATH.contains("/opt/tools/bin"))
 
@@ -66,7 +69,9 @@ struct SetupScheduledJobsInstallTests {
             at: launchAgentsDirectory.appending(component: "dev.yellowhammer.beta.author.plist")
         )
         let betaIntervals = try #require(betaDecoded["StartCalendarInterval"] as? [[String: Int]])
-        #expect(betaIntervals == [["Hour": 22, "Minute": 3]])
+        #expect(betaIntervals.count == 32)
+        #expect(betaIntervals.first == ["Hour": 22, "Minute": 3])
+        #expect(betaIntervals[1] == ["Hour": 22, "Minute": 20])
     }
 
     @Test("--init --install-jobs loads all six jobs, alpha's three before beta's three")

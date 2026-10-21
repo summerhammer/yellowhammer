@@ -109,21 +109,22 @@ struct DoctorLaunchdScheduleTests {
         #expect(launchd.allSatisfy { $0.severity == .pass })
     }
 
-    @Test("A StartCalendarInterval written as a single dictionary is read as one firing")
-    func singleDictionaryIsAccepted() async throws {
+    @Test("A pre-ruling author plist with one StartCalendarInterval dictionary warns, and --fix regenerates it")
+    func preRulingAuthorPlistWarnsAndFixes() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
         let author = try #require(try expectedFirings(.author, staggerIndex: 0).first)
+        let authorLabel = try label("alpha", .author)
         let plist: [String: Any] = [
-            "Label": try label("alpha", .author),
+            "Label": authorLabel,
             "ProgramArguments": [yhPath, "author", "--project", "alpha"],
             "StartCalendarInterval": ["Hour": author.hour, "Minute": author.minute]
         ]
-        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-            .write(to: agents.appending(component: "\(try label("alpha", .author)).plist"))
+        let authorURL = agents.appending(component: "\(authorLabel).plist")
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: authorURL)
         let loaded = try Set(Act.allCases.map { try label("alpha", $0) })
 
         let findings = await makeDoctor(
@@ -131,7 +132,30 @@ struct DoctorLaunchdScheduleTests {
             checks: [.configuration, .launchd]
         ).run()
 
-        #expect(launchdFindings(findings).allSatisfy { $0.severity == .pass })
+        let warning = try #require(findings.first { $0.check == .launchd && $0.subject == authorLabel })
+        #expect(warning.severity == .warning)
+        #expect(warning.message.contains("Project alpha author"))
+        #expect(warning.message.contains("1 installed firings"))
+        #expect(warning.message.contains("missing"))
+        #expect(warning.message.contains("yh doctor --fix"))
+
+        _ = await makeDoctor(
+            directory: directory, homeDirectory: home,
+            launchAgents: RecordingLaunchAgentControl(loadedLabels: loaded),
+            fix: true, checks: [.configuration, .launchd], runningExecutablePath: yhPath
+        ).run()
+        let installed = try Data(contentsOf: authorURL)
+        let firings = try #require(Doctor.installedFirings(in: installed))
+        #expect(firings == Set(try expectedFirings(.author, staggerIndex: 0)))
+        #expect(firings.count > 1)
+    }
+
+    @Test("A StartCalendarInterval written as a single dictionary is read as one firing")
+    func singleDictionaryIsRead() throws {
+        let plist: [String: Any] = ["StartCalendarInterval": ["Hour": 22, "Minute": 3]]
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+
+        #expect(Doctor.installedFirings(in: data) == [try #require(TimeOfDay(hour: 22, minute: 3))])
     }
 
     @Test("A plist edited to differ from firings() warns, naming the Project and Act and advising --fix",
