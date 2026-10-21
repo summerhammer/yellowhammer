@@ -107,12 +107,16 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     /// landing/announce-a-partial-landing). An id missing from this lookup renders as itself.
     public let workCardTitles: [String: String]
     /// The repositories with a No-Pushed-Branch Outcome, shown as `[no pull request: <repo>]` notes beside
-    /// the Partial Landing's Roll-up sentence (roadmap P19.7; risks OQ108). A complete landing has no
-    /// Roll-up sentence, so it renders none.
+    /// the Partial Landing's Roll-up sentence (roadmap P19.7; risks OQ108). A complete landing's Roll-up
+    /// opening carries its own notes, so it renders none here.
     public let noPullRequestRepositories: [String]
     /// Set on a stacked pull request (spec `#stack-notice`): the notice follows the Roll-up opening directly,
     /// before any other content. Nil on a pull request against the default branch.
     public let stackNotice: PullRequestStackNotice?
+    /// The Feature Card's bold Roll-up line (sentence plus its beside-notes) as of the Night that wrote it. A
+    /// complete landing's body opens with it (OQ31; sponsor ruling 2026-10-21, Q3); a Partial Landing renders its
+    /// own fixed Lines 1-2 instead, so ignores it. Nil renders no opening.
+    public let rollUpOpening: String?
 
     public init(
         featureTitle: String, featureIssueURL: String?, nightID: Int64, nightTimestamp: String,
@@ -120,7 +124,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         cycleCards: [PullRequestBodyCard], mergeVerdict: PullRequestBodyMergeVerdict,
         unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil,
         workCardTitles: [String: String] = [:], noPullRequestRepositories: [String] = [],
-        stackNotice: PullRequestStackNotice? = nil
+        stackNotice: PullRequestStackNotice? = nil, rollUpOpening: String? = nil
     ) {
         self.featureTitle = featureTitle
         self.featureIssueURL = featureIssueURL
@@ -136,6 +140,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         self.workCardTitles = workCardTitles
         self.noPullRequestRepositories = noPullRequestRepositories
         self.stackNotice = stackNotice
+        self.rollUpOpening = rollUpOpening
     }
 
     /// The unmet list the body prints: every clause the report did not find `met` (unmet and
@@ -182,10 +187,15 @@ public enum PullRequestBody {
 
     // MARK: - Complete landing
 
-    /// A complete landing's body has no bold Roll-up sentence (only a Partial Landing's opens with one), so
-    /// on a stacked pull request the stack notice is its first line, before any other content.
+    /// A complete landing's body opens with the bold Roll-up sentence, the stack notice follows directly after it
+    /// on a stacked pull request, before any other content. Unlike a Partial Landing it carries no As-of stamp:
+    /// the ruling names the stamp for the Partial Landing only.
     private static func renderComplete(_ input: PullRequestBodyInput) -> String {
         var lines: [String] = []
+        if let opening = input.rollUpOpening {
+            lines.append(opening)
+            lines.append("")
+        }
         if let notice = input.stackNotice {
             lines.append(notice.rendered)
             lines.append("")

@@ -217,6 +217,11 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             mainlineCommit: mergeOutcome?.mainlineCommit
         )
 
+        let rollUp = try FeatureRollUpMaintenance.rollUp(
+            feature: context.feature, cycleID: context.cycleID, journal: journal
+        )
+        let rollUpOpening = "**\(rollUp.sentence)**\(rollUp.conflictsSuffix)\(rollUp.noPullRequestSuffix)"
+
         let input = PullRequestBodyInput(
             featureTitle: featureTitle,
             featureIssueURL: featureIssueURL,
@@ -231,7 +236,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             verificationReport: report,
             workCardTitles: workCardTitles,
             noPullRequestRepositories: noPullRequest,
-            stackNotice: stackNotice
+            stackNotice: stackNotice,
+            rollUpOpening: rollUpOpening
         )
         return (PullRequestBody.render(input), input.isPartialLanding)
     }
