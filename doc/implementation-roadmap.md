@@ -2798,7 +2798,7 @@ directly. Pre-1.0: the Journal keeps one migration, edited in place (`journal-sc
 
 Every step: lead review by Fable 5.1.
 
-### [ ] P23.1 `unmerged_features_max`, the Unmerged Feature Stack read and the `feature_base` schema
+### [x] P23.1 `unmerged_features_max`, the Unmerged Feature Stack read and the `feature_base` schema
 - **Work** — Add the eighth Bound `unmerged_features_max` (default 3, `<= 0` refused) and plumb it to the
   author Act, which stores it unused. Add the Journal's `feature_base` table (the `effective_base(R)` recorded at
   selection) and the reads: `unmergedFeatureStack()` (archived, not abandoned, N non-empty, at least one pushed
