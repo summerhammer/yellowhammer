@@ -264,11 +264,18 @@ there, apply it now: `gh release edit "$TAG" --notes-file <file>`.
 The release carries the rehearsal suite evidence (1.3) and `installed-verification-<version>.zip`
 (3.2).
 
-### 3.5 Phase 23 live multi-Feature verification (v0.24.0)
+### 3.5 Phase 23 verification record and live-check deferral (v0.24.0)
 
-For this release, follow the [Phase 23 verification record](phase-23-upgrade-verification.md) after
-publication. Use the published `yh` with an explicit scratch configuration directory and a **scratch
-Ledger**, isolated with `CFFIXED_USER_HOME`; confirm the resolved paths before opening a store.
+For this release, the [Phase 23 verification record](phase-23-upgrade-verification.md) records
+completed upgrade setup checks. On 2026-10-21, the Operator approved narrowing #627 to that
+completed upgrade work and deferring the remaining live multi-Feature checks to
+[#636](https://github.com/summerhammer/yellowhammer/issues/636) for automated verification on
+isolated scratch resources. #627 may close when #632 merges with this deferral recorded; the live
+checks remain unverified and #636 remains open for evidence. This exception does not change the
+other release gates.
+
+When executing the deferred checks, follow the verification record after publication. Use the
+published `yh` with an explicit scratch configuration directory and a **scratch Ledger**, isolated with `CFFIXED_USER_HOME`; confirm the resolved paths before opening a store.
 Never run a branch or verification build against the real `~/.config/yellowhammer`. The
 [upgrade runbook](linear-identity-runbook.md#phase-23-upgrade-v0240) applies to scratch Journals too.
 
@@ -280,8 +287,9 @@ pull request. Its push boundary currently also prevents the landed-tip/archive t
 select a successor, so an ordinary rehearsal alone cannot prove the complete stacked-Feature flow.
 Follow the verification record's limitations rather than recording a fixture as a live pass.
 
-Leave unexecuted checks pending. Record date, published build, evidence locations and actual results
-in the roadmap's Phase 23 introduction; do not close #627 until its live checks are satisfied.
+Record date, published build, evidence locations and actual results in the roadmap's Phase 23
+introduction when the deferred checks run. Until then, record their explicit deferral to #636;
+do not describe them as passed or infer a live pass from fixture coverage.
 
 ## 4. If a check fails after publishing
 
@@ -330,7 +338,7 @@ Release PR: #<number>. Merge commit: <sha>. Spec checked against: <spec sha>. Ru
 - [ ] 3.2 Installed-product verification green (`verify_installed.py check`, exit 0)
 - [ ] 3.3 Release notes on the release page
 - [ ] 3.4 Evidence attached
-- [ ] 3.5 Phase 23 live multi-Feature checks recorded (v0.24.0 only; unrun checks remain pending)
+- [ ] 3.5 Phase 23 actual verification results or explicit Operator-approved deferral to #636 recorded (v0.24.0 only; deferred checks are not passed)
 ```
 
 A step that was not run is not ticked, and the record says why.

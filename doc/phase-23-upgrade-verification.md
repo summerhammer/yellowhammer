@@ -1,9 +1,13 @@
 # Phase 23 upgrade verification — #627
 
-Status: **partial; live multi-Feature verification remains pending**. Operator upgrade instructions
+Status: **upgrade setup complete under the narrowed scope of #627**. Operator upgrade instructions
 and release-note text are in the [identity runbook](linear-identity-runbook.md#phase-23-upgrade-v0240).
-The Operator's subsequent doctor-based upgrade setup verification passes for all three existing
-Projects, as recorded below; the live Night checks remain outstanding.
+The Operator's doctor-based upgrade setup verification passes for all three existing Projects, as
+recorded below. On 2026-10-21, the Operator approved deferring the live multi-Feature checks to
+[#636](https://github.com/summerhammer/yellowhammer/issues/636), which will provide repeatable,
+automated verification on isolated scratch resources. Those checks are **deferred, not passed**.
+The upgrade notice is also published in the
+[v0.24.0 release notes](https://github.com/summerhammer/yellowhammer/releases/tag/v0.24.0).
 
 ## Downloaded release inspection on 2026-10-21
 
@@ -116,20 +120,22 @@ Journal and report it as an observed result. Completing the requested flow needs
 that separates seeded fixture coverage from live observations, or an explicitly scoped real-mode
 scratch run with actual publication. Neither is silently substituted for rehearsal here.
 
-## Remaining checks
+## Live checks deferred to #636
 
+The Operator approved this deferral on 2026-10-21. The live rows below remain unverified under
+[#636](https://github.com/summerhammer/yellowhammer/issues/636); closing #627 does not certify them.
 Run only after identifying the scratch Linear team/project and resolving the rehearsal limitation.
 Retain logs, read-only Journal snapshots, timestamps and the published artifact identity for each row.
 
 | Check | Required evidence | Status |
 |---|---|---|
-| Two Features in one Night | F1's Verification/landing and archive; next scheduled author at land +2 selects F2; `feature_base` records F1's pinned commit; real Orca Worktree HEAD equals it | Pending; ordinary rehearsal cannot make F1's pushed predecessor |
-| Stacked PR target | Intended F2 draft targets F1's branch `b1`; rehearsal opens no PR | Pending; fixture draft inspection cannot certify live PR creation |
-| Limit of one | With `unmerged_features_max = 1`, next author records a quiet skip; Night Card contains “Authoring was skipped: … predecessor Feature … has not merged in …”, merge-commit recommendation and Bounds `\|U\| of 1` | Pending |
-| In-flight periodic firing | `actIdle(featureInFlight)` plus unchanged Delta Read counter/log across the firing | Pending |
+| Two Features in one Night | F1's Verification/landing and archive; next scheduled author at land +2 selects F2; `feature_base` records F1's pinned commit; real Orca Worktree HEAD equals it | Deferred to [#636](https://github.com/summerhammer/yellowhammer/issues/636); ordinary rehearsal cannot make F1's pushed predecessor |
+| Stacked PR target | Intended F2 draft targets F1's branch `b1`; rehearsal opens no PR | Deferred to [#636](https://github.com/summerhammer/yellowhammer/issues/636); fixture draft inspection cannot certify live PR creation |
+| Limit of one | With `unmerged_features_max = 1`, next author records a quiet skip; Night Card contains “Authoring was skipped: … predecessor Feature … has not merged in …”, merge-commit recommendation and Bounds `\|U\| of 1` | Deferred to [#636](https://github.com/summerhammer/yellowhammer/issues/636) |
+| In-flight periodic firing | `actIdle(featureInFlight)` plus unchanged Delta Read counter/log across the firing | Deferred to [#636](https://github.com/summerhammer/yellowhammer/issues/636) |
 | Old author plist | Published doctor reports the schedule difference | Passed in isolated inspection above |
 | Plist repair | `doctor --fix` regenerates the expected intervals; read-only doctor then reports no schedule difference | Passed in isolated installed-binary check and Operator production verification above; live scheduled firing not tested |
-| Observed Merge and pin lifetime | Actual GitHub merge commit; next pass records Observed Merge and removes F1 from U; F1 pin survives while F2 needs it, then disappears when F2's Cycle archives | Pending; rehearsal neither pushes nor opens F1's GitHub PR |
+| Observed Merge and pin lifetime | Actual GitHub merge commit; next pass records Observed Merge and removes F1 from U; F1 pin survives while F2 needs it, then disappears when F2's Cycle archives | Deferred to [#636](https://github.com/summerhammer/yellowhammer/issues/636); rehearsal neither pushes nor opens F1's GitHub PR |
 
 ## Isolation for the next live run
 
@@ -157,4 +163,6 @@ Retain logs, read-only Journal snapshots, timestamps and the published artifact 
    scratch Linear objects. Check that the installed CLI link and production configuration remain
    as they were. Update this record and the roadmap's Phase 23 intro with actual outcomes.
 
-Keep #627 open until all required live results are recorded. A documentation PR does not close it.
+The Operator-approved scope change allows #627 to close when #632 merges with the completed
+upgrade work and this explicit deferral recorded. [#636](https://github.com/summerhammer/yellowhammer/issues/636)
+remains open until the automated live verification and its actual evidence are recorded.

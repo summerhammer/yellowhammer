@@ -2807,11 +2807,13 @@ Operator-supplied output confirms production schedule repair, restoration of the
 Debug build to the installed app, and adoption of Waiting on You and Blocked mappings for all three
 Projects. Installed doctor now reports no failures or warnings, only four informational findings.
 This verifies upgrade setup; it does not verify recreated Journal schemas or a scheduled firing.
-The live two-Feature Night, quiet skip,
-periodic idle and Observed Merge/pin cleanup remain pending; ordinary rehearsal cannot supply
-F1's pushed, archived predecessor. See the
+On 2026-10-21, the Operator approved narrowing #627 to the completed upgrade work and deferring
+the live two-Feature Night, stacked PR target, quiet skip, periodic idle and Observed Merge/pin
+cleanup to [#636](https://github.com/summerhammer/yellowhammer/issues/636) for automated verification
+on isolated scratch resources. Ordinary rehearsal cannot supply F1's pushed, archived predecessor.
+These live checks are deferred, not passed. See the
 [verification record](phase-23-upgrade-verification.md) for evidence, isolation requirements and
-the outstanding checks. This is not a live Night pass.
+the outstanding checks. #627 may close when #632 merges; #636 remains open for live evidence.
 
 ### [x] P23.1 `unmerged_features_max`, the Unmerged Feature Stack read and the `feature_base` schema
 - **Work** — Add the eighth Bound `unmerged_features_max` (default 3, `<= 0` refused) and plumb it to the
