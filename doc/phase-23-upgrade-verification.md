@@ -4,10 +4,11 @@ Status: **partial; live multi-Feature verification remains pending**. Operator u
 and release-note text are in the [identity runbook](linear-identity-runbook.md#phase-23-upgrade-v0240).
 This record does not certify that existing Projects have been upgraded.
 
-## Recorded on 2026-10-21
+## Downloaded release inspection on 2026-10-21
 
-Published artifact: **v0.24.0, build 763**, release commit `a0383eb0`. The installed app reports
-v0.22.0; verification used the downloaded release without replacing it.
+Published artifact: **v0.24.0, build 763**, release commit `a0383eb0`. At this initial inspection,
+the installed app reported v0.22.0; verification used the downloaded release without replacing it.
+The subsequent installed-app inspection is recorded below.
 
 - The ZIP's SHA-256 matched the published `SHA256SUMS`:
   `f38ef030e84ec9d06890b4a484821a258d1b2916ccba758026d00ca5951705a7`.
@@ -26,6 +27,48 @@ v0.22.0; verification used the downloaded release without replacing it.
 The scratch configuration used placeholder Board/Code Hosting references: this doctor check makes
 no credential request. The configured `summerhammer` Board Connection has not been established as
 the intended scratch target, and no scratch team/project was supplied for this run.
+
+## Installed app inspection on 2026-10-21
+
+After the Operator installed **v0.24.0, build 763** and removed the old Journals, the installed
+inspection was recorded at **19:54 Europe/Kyiv**:
+
+- The installed `yh journal-schema` reports `journal-schema-24`. `codesign --verify` succeeds,
+  and `spctl` accepts the app as **Notarized Developer ID**. `/usr/local/bin/yh` resolves to the
+  installed app's executable.
+- All three configured Projects' production Journal paths are absent; no rehearsal contexts are
+  configured. The retained Ledger passes its integrity check. Orca ADE reports ready.
+- All nine configured launchd jobs are loaded. No Act PID was present at inspection, and their
+  recorded last exit statuses were zero. This does not verify a Night or a scheduled firing.
+- Each author plist still contains one firing. Installed doctor expects **28** for `carscalm`,
+  **90** for `seshes` and **42** for `yellowhammer`; the production schedules still need repair.
+- Doctor reports six failures: each Project lacks adopted mappings for **Waiting on You** and
+  **Blocked** after Journal deletion, and the existing Linear states collide with creation.
+  The other checks pass, apart from informational retired-taxonomy and `check = "none"` notices.
+- Raw local doctor evidence: `.build/issue-627/installed-doctor.json`.
+
+The upgrade remains incomplete. The missing state mappings and stale author schedules must be
+resolved before these Projects can be considered ready for a Night. This inspection covers doctor
+and the checks above; it is not a full Night readiness audit, including repository dirtiness and
+sleep history.
+
+### Isolated installed-binary plist repair
+
+Using the installed executable and a fresh absolute `CFFIXED_USER_HOME`, a synthetic Project
+`issue627-verify` with `22:00`–`06:00` and a five-minute cadence started with one author firing.
+Doctor expected 96. `doctor --fix --check launchd --project issue627-verify` regenerated all 96
+firings and left the job unloaded; a subsequent read-only doctor reported no schedule difference.
+`launchctl print` confirmed that the scratch job was not loaded.
+
+Before/after hashes of production `config.toml`, Project TOMLs and Yellowhammer plists, plus the
+CLI symlink target, were unchanged. No scratch Ledger or Journal was created, and no Board call,
+Act or job load occurred. Evidence is in `.build/issue-627/installed-scratch-{before,repair,after}.json`
+and `.build/issue-627/installed-scratch-summary.json`. This verifies isolated plist repair, not live
+scheduling.
+
+The remaining production repair commands are `yh doctor --fix --check launchd` and
+`yh doctor --fix --check linear`, followed by read-only doctor verification. They were **not run**
+against the configured Projects in this inspection; the Linear repair can adopt existing states.
 
 ## Why the full requested rehearsal cannot yet pass
 
@@ -55,7 +98,7 @@ Retain logs, read-only Journal snapshots, timestamps and the published artifact 
 | Limit of one | With `unmerged_features_max = 1`, next author records a quiet skip; Night Card contains “Authoring was skipped: … predecessor Feature … has not merged in …”, merge-commit recommendation and Bounds `\|U\| of 1` | Pending |
 | In-flight periodic firing | `actIdle(featureInFlight)` plus unchanged Delta Read counter/log across the firing | Pending |
 | Old author plist | Published doctor reports the schedule difference | Passed in isolated inspection above |
-| Plist repair | `doctor --fix` regenerates the expected intervals; read-only doctor then reports no schedule difference | Pending; see machine-wide symlink side effect below |
+| Plist repair | `doctor --fix` regenerates the expected intervals; read-only doctor then reports no schedule difference | Passed in isolated installed-binary check above; live scheduling not tested |
 | Observed Merge and pin lifetime | Actual GitHub merge commit; next pass records Observed Merge and removes F1 from U; F1 pin survives while F2 needs it, then disappears when F2's Cycle archives | Pending; rehearsal neither pushes nor opens F1's GitHub PR |
 
 ## Isolation for the next live run
@@ -77,8 +120,9 @@ Retain logs, read-only Journal snapshots, timestamps and the published artifact 
 4. Keep any inspected plists unloaded until a scheduled test is deliberately ready. Before repair,
    stop all scratch Acts. **`CFFIXED_USER_HOME` does not isolate `/usr/local/bin/yh`: doctor
    `--fix --check launchd` can repoint that machine-wide symlink**, even without `--repoint`.
-   The isolated inspection above therefore did not run `--fix`. Plan that side effect explicitly
-   for an attended repair check; retain and restore the original CLI link before concluding it.
+   The initial downloaded-release inspection therefore did not run `--fix`. In the later
+   installed-binary repair check, the existing symlink already targeted that binary and remained
+   unchanged. For future repair checks, retain and restore the original CLI link as needed.
 5. Archive only the scratch run's evidence, then remove its jobs, Orca Worktrees/registrations and
    scratch Linear objects. Check that the installed CLI link and production configuration remain
    as they were. Update this record and the roadmap's Phase 23 intro with actual outcomes.

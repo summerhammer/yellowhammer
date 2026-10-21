@@ -2798,13 +2798,17 @@ directly. Pre-1.0: the Journal keeps one migration, edited in place (`journal-sc
 
 Every step: lead review by Fable 5.1.
 
-**Post-release verification (#627), 2026-10-21:** v0.24.0 (build 763) reports `journal-schema-24`;
-the downloaded binary's doctor detected an old single-firing author plist in an isolated temporary
-home (1 installed firing versus 96 for a five-minute cadence). Upgrade instructions and readiness
-guidance are documented. The live two-Feature Night, quiet skip, periodic idle, plist repair and
-Observed Merge/pin cleanup remain pending: ordinary rehearsal does not push or archive F1, so it
-cannot supply the required predecessor. See the [verification record](phase-23-upgrade-verification.md)
-for evidence, isolation requirements and the outstanding checks. This is not a live Night pass.
+**Post-release verification (#627), 2026-10-21:** installed v0.24.0 (build 763) reports
+`journal-schema-24`, passes signature/notarization checks and is the CLI symlink target. The old
+production Journals are absent, the retained Ledger passes integrity, and Orca ADE is ready.
+The upgrade remains incomplete: all three author schedules are stale, and doctor reports six
+missing-adoption/state-collision failures for Waiting on You and Blocked after Journal deletion.
+Isolated installed-binary plist repair passes (1 firing regenerated to 96, left unloaded), with
+production configuration, plists and CLI symlink unchanged. The live two-Feature Night, quiet skip,
+periodic idle and Observed Merge/pin cleanup remain pending; ordinary rehearsal cannot supply
+F1's pushed, archived predecessor. See the
+[verification record](phase-23-upgrade-verification.md) for evidence, isolation requirements and
+the outstanding checks. This is not a live Night pass.
 
 ### [x] P23.1 `unmerged_features_max`, the Unmerged Feature Stack read and the `feature_base` schema
 - **Work** — Add the eighth Bound `unmerged_features_max` (default 3, `<= 0` refused) and plumb it to the
