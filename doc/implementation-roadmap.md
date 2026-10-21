@@ -2767,7 +2767,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
   name; a team missing a native category is an incomplete step; `yh doctor` verifies the two custom states,
   the native selections and the three Card Type labels.
 
-### [ ] P22.9 Legacy Board migration
+### [x] P22.9 Legacy Board migration
 - **Work** — A versioned, replayable migration of tracked legacy settlement states (`Kept in Flight` to native
   `started`, `Abandoned` to native `canceled`), legacy Override labels to the Card override field, superseding
   queued legacy writes, and unassigning the retired labels from tracked issues only; removes the P22.2 name
