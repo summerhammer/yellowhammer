@@ -84,7 +84,7 @@ extension LandActPushTests {
         _ = try await maintenance.open(night: context.night)
         let night = try #require(try env.journal.night(id: context.night.id))
 
-        // The `**Standing: unmerged in-flight Feature:**` line, which folds the old, per-Night
+        // The `**Standing: unmerged Features:**` line, which folds the old, per-Night
         // `**Mainline Conflicts:**` section, only renders once the Cycle has landed but not yet
         // merged (roadmap P12.1): a Cycle a Repo Lane merely pushed, as this test does, is not yet a
         // landing on its own.
@@ -101,7 +101,7 @@ extension LandActPushTests {
         _ = try await maintenance.deliverCompletion(night: night)
         let nightIssue = try #require(night.nightCardIssueID)
         let summary = await env.board.issue(BoardObjectID(rawValue: nightIssue))?.description
-        #expect(summary?.contains("**Standing: unmerged in-flight Feature:**") == true)
+        #expect(summary?.contains("**Standing: unmerged Features:**") == true)
         #expect(summary?.contains("`FEAT-1`") == true)
         #expect(summary?.contains("shared.txt") == true)
     }

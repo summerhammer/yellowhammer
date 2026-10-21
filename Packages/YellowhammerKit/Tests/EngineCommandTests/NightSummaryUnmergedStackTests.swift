@@ -131,6 +131,39 @@ struct NightSummaryUnmergedStackTests {
         #expect(!two.contains("same conflict"))
     }
 
+    @Test("Every entry, the stacking note and the conflict attribution show identifiers, never issue ids")
+    func entriesShowDisplayIdentifiers() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let night = try await openNight(journal, "2026-09-15")
+        _ = try seedUnmerged(journal, issueID: "uuid-one", pushing: ["repo-a"], landedIn: night)
+        _ = try seedUnmerged(journal, issueID: "uuid-two", pushing: ["repo-a"], landedIn: night)
+        try journal.write { db in
+            try db.execute(sql: "UPDATE feature SET issue_key = 'YLH-1' WHERE issue_id = 'uuid-one'")
+            try db.execute(sql: "UPDATE feature SET issue_key = 'YLH-2' WHERE issue_id = 'uuid-two'")
+        }
+        try journal.append(
+            .pullRequestStacked(
+                featureIssueID: "uuid-two", repository: "repo-a", predecessorFeatureIssueID: "uuid-one",
+                predecessorBranch: "yh/uuid-one", predecessorPullRequestURL: nil
+            ),
+            act: .land, runID: RunID(), nightID: night.id
+        )
+        for (issue, paths) in [("uuid-one", ["a.swift"]), ("uuid-two", ["a.swift", "b.swift"])] {
+            try journal.append(
+                .mainlineConflictDetected(featureIssueID: issue, repository: "repo-a", paths: paths),
+                act: .author, runID: RunID(), nightID: night.id
+            )
+        }
+
+        let text = try NightSummary.inFlightFeatureLines(night: night, journal: journal).joined(separator: "\n")
+
+        #expect(text.contains("`YLH-1` — ") && text.contains("`YLH-2` — "))
+        #expect(text.contains("stacked on `YLH-1`") && text.contains("`YLH-2` is stacked on it"))
+        #expect(text.contains("conflicts on the same paths as `YLH-1`"))
+        #expect(!text.contains("uuid-"))
+    }
+
     @Test("A Feature that is not stacked keeps its own conflict paths whatever sits below it")
     func unstackedFeatureIsNotAttributed() async throws {
         let fixture = try NightCardJournalFixture()

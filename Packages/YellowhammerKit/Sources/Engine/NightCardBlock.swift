@@ -69,7 +69,7 @@ public enum NightCardBlock {
         appendBounds(bounds, to: &lines)
         appendStandingItems(standingItems, to: &lines)
         appendSection("Standing: un-adopted Cards", unadoptedCards, to: &lines)
-        appendSection("Standing: unmerged in-flight Feature", inFlightFeature, to: &lines)
+        appendSection("Standing: unmerged Features", inFlightFeature, to: &lines)
         appendSection("Instrumented rates", instrumentedRates, to: &lines)
         lines.append("")
         lines.append(CardManagedBlock.footer)

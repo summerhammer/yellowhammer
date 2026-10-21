@@ -2,7 +2,7 @@ import Domain
 import Journal
 
 /// The predecessor-ancestry gate's latest read of a Feature's mainline standing (roadmap P9.2/P9.9),
-/// shared by the Night Summary's `**Standing: unmerged in-flight Feature:**` line (roadmap P12.1) and
+/// shared by the Night Summary's `**Standing: unmerged Features:**` line (roadmap P12.1) and
 /// the Feature Roll-up (roadmap P12.3), so the two can never disagree about what the gate last found.
 public struct FeatureMainlineObservation: Equatable, Sendable {
     /// Repositories `predecessorAncestryObserved` most recently found the Feature Branch merged into.
