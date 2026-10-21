@@ -26,7 +26,10 @@ struct AwaitingMergeFeatureDetailView: View {
         } content: {
             ForEach(feature.repositories) { repository in
                 Section {
-                    Label(repository.repo, systemImage: DomainSymbol.repo).fontWeight(.semibold)
+                    // On the row, not the Section: a container's identifier replaces its children's.
+                    Label(repository.repo, systemImage: DomainSymbol.repo)
+                        .fontWeight(.semibold)
+                        .accessibilityIdentifier("awaiting-merge-detail-repo-\(repository.repo)")
                     LabeledContent("Mainline") {
                         Text(repository.merged ? "in mainline" : "not in mainline")
                     }
@@ -49,8 +52,6 @@ struct AwaitingMergeFeatureDetailView: View {
                         }
                     }
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("awaiting-merge-detail-repo-\(repository.repo)")
             }
         }
     }
