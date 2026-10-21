@@ -71,15 +71,15 @@ public enum AuthoringBases {
                 continue
             }
             switch await resolve(base, in: repo, git: git) {
-            case .success(let commit):
-                let ref = LandedTipPin.ref(for: base.branch)
+            case .success(let resolved):
                 entries[repo.name] = ResolvedMainline(
                     repository: repo.name,
                     defaultBranch: context.mainlines[repo]?.defaultBranch ?? repo.defaultBranch ?? "main",
-                    ref: ref, commit: commit
+                    ref: resolved.ref, commit: resolved.commit
                 )
                 records.append(FeatureBaseRecord(
-                    repository: repo.name, baseRef: ref, baseCommit: commit, stackedOnFeatureID: base.featureID
+                    repository: repo.name, baseRef: resolved.ref, baseCommit: resolved.commit,
+                    stackedOnFeatureID: base.featureID
                 ))
             case .failure(let fault):
                 faults.append(fault)
@@ -112,20 +112,35 @@ public enum AuthoringBases {
         )
     }
 
+    private struct ResolvedBase {
+        let ref: String
+        let commit: String
+    }
+
     /// `C_last`: the pin, else the remote-tracking Feature Branch, and never a commit other than the recorded one.
     private static func resolve(
         _ base: EffectiveBase, in repo: Repo, git: GitRunner
-    ) async -> Result<String, AuthoringBaseFault> {
+    ) async -> Result<ResolvedBase, AuthoringBaseFault> {
         let path = (repo.path as NSString).expandingTildeInPath
-        var resolved = await LandedTipPin(git: git).pinnedCommit(branch: base.branch, repositoryPath: path)
-        if resolved == nil {
+        let pinRef = LandedTipPin.ref(for: base.branch)
+        var resolvedRef: String?
+        var resolvedCommit: String?
+
+        if let pinCommit = await LandedTipPin(git: git).pinnedCommit(branch: base.branch, repositoryPath: path) {
+            resolvedRef = pinRef
+            resolvedCommit = pinCommit
+        } else {
+            let originRef = "refs/remotes/origin/\(base.branch.name)"
             let result = await git.run([
-                "-C", path, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/\(base.branch.name)^{commit}"
+                "-C", path, "rev-parse", "--verify", "--quiet", "\(originRef)^{commit}"
             ])
             let sha = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            resolved = result.isSuccess && !sha.isEmpty ? sha : nil
+            if result.isSuccess && !sha.isEmpty {
+                resolvedRef = originRef
+                resolvedCommit = sha
+            }
         }
-        guard let commit = resolved else {
+        guard let ref = resolvedRef, let commit = resolvedCommit else {
             return .failure(.unresolved(
                 repository: repo.name, branch: base.branch.name, featureIssueID: base.featureIssueID
             ))
@@ -136,7 +151,7 @@ public enum AuthoringBases {
                 resolved: commit, recorded: recorded
             ))
         }
-        return .success(commit)
+        return .success(ResolvedBase(ref: ref, commit: commit))
     }
 }
 

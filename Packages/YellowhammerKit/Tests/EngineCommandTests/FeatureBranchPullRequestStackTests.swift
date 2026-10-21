@@ -111,4 +111,24 @@ struct FeatureBranchPullRequestStackTests {
             )
         ])
     }
+
+    @Test("When GitHub reports alreadyOpen, the stacked base is still recorded from U")
+    func alreadyOpenRecordsStackedBase() async throws {
+        let world = try await StackedLandWorld.make(name: "pr-stacked-already-open")
+        try world.recordPredecessorPullRequest()
+
+        let stub = StubPublicationAdapter(result: .success(.alreadyOpen))
+        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch })
+        let outcome = try await seam.open(
+            try world.laneContext(), push: LanePushOutcome(pushed: true, commit: "deadbeef"), mergeOutcome: nil
+        )
+        #expect(outcome.opened)
+        #expect(outcome.detail == "already open")
+        #expect(try stackedEvents(world.journal) == [
+            .pullRequestStacked(
+                featureIssueID: "FEAT-1", repository: "backend", predecessorFeatureIssueID: "FEAT-0",
+                predecessorBranch: "b1", predecessorPullRequestURL: "https://github.com/summerhammer/backend/pull/7"
+            )
+        ])
+    }
 }

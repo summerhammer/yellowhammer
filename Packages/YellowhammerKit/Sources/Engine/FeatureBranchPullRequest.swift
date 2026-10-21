@@ -120,10 +120,13 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             await postLinks(url: url, laneContext: laneContext)
             return PullRequestOutcome(opened: true, detail: url)
         case .alreadyOpen:
-            _ = try? journal.recordPullRequest(
+            let inserted = (try? journal.recordPullRequest(
                 featureID: laneContext.feature.id, repository: repository, url: nil,
                 nightID: laneContext.act.night.id, runID: laneContext.act.runID, now: clock()
-            )
+            )) ?? false
+            if inserted, let stacked {
+                recordStacked(stacked, laneContext: laneContext)
+            }
             return PullRequestOutcome(opened: true, detail: "already open")
         }
     }
