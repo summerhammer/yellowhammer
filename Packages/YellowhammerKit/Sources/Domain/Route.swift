@@ -14,7 +14,7 @@ public struct Route: Hashable, Sendable {
 
     /// A Route from its three-part shorthand `cli/model/effort` (Route String Ruling, OQ67): exactly
     /// three non-empty parts split on `/`, with no whitespace anywhere and nothing trimmed. Fails on
-    /// anything else, the two-part `cli/model` included: an Override label inherits no effort (OQ126).
+    /// anything else, the two-part `cli/model` included: a Card override inherits no effort (OQ126).
     public init?(label: String) {
         guard !label.contains(where: \.isWhitespace) else { return nil }
         let parts = label.split(separator: "/", omittingEmptySubsequences: false).map(String.init)

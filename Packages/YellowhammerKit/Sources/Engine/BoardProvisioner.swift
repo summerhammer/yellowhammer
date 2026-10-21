@@ -7,11 +7,11 @@ import Foundation
 /// at setup time. Only the `Card Type` group is provisioned for every Project: Block Reason is a
 /// Journal cause rendered into the Card's Managed Block, not a label (Board Simplification Ruling
 /// 2026-10-20), so a board that still has the legacy `Block Reason` group is neither verified nor
-/// edited here, and none of its labels is deleted. The `Override` label group (G-17 as amended by OQ126, roadmap P7.6) is provisioned
-/// with the merged Routing Table's Routes when one is given, and refreshed by re-running provisioning
-/// after the table changes: a Route it no longer names keeps its label, because nothing ever clears an
-/// Override. The per-axis groups `Override CLI`, `Override Model` and `Override Effort` that earlier
-/// builds provisioned are neither read nor removed; the Operator may delete them in Linear. The settle workflow-state group (`Kept in Flight`, `Abandoned`) is provisioned alongside
+/// edited here, and none of its labels is deleted. The Card override is one editable description field on
+/// each Work Card, not a label (routing/resolve-a-route-for-a-card, roadmap P22.7), so no `Override` label
+/// group is provisioned or required: a board that still carries one, or the older per-axis `Override CLI`,
+/// `Override Model` and `Override Effort` groups, is neither read, verified nor edited, and none of its
+/// labels is deleted (converting them is P22.8). The settle workflow-state group (`Kept in Flight`, `Abandoned`) is provisioned alongside
 /// `Waiting on You` and `Blocked`; a same-name state of another type is a collision, never reused
 /// (G-6 probe, 2026-09-23; OQ128).
 public struct BoardProvisioner {
@@ -49,11 +49,6 @@ public struct BoardProvisioner {
     struct LabelGroupDeclaration {
         let name: String
         let children: [String]
-        /// For the `Override` group: each child to the Routing Entries naming its Route, so a label name
-        /// the board refuses is reported against them. Empty for every other group.
-        var entries: [String: String] = [:]
-        /// Children refused before any board call, with why: reported, never created.
-        var refusals: [String: String] = [:]
     }
 
     /// The label groups provisioned for every Project.
@@ -61,47 +56,33 @@ public struct BoardProvisioner {
         LabelGroupDeclaration(name: cardTypeGroup, children: cardTypeChildren)
     ]
 
-    /// The `Override` label group, with the merged Routing Table's Routes as its children (OQ126).
-    private static func overrideGroup(for table: RoutingTable) -> LabelGroupDeclaration {
-        let values = OverrideLabelValues(table: table)
-        return LabelGroupDeclaration(
-            name: overrideGroup, children: values.labels, entries: values.entries, refusals: values.refusals
-        )
-    }
-
     /// Provision the Linear project for one Project.
     ///
     /// The provisioner re-reads presence on each run to ensure idempotency: running
     /// provisioning twice changes nothing on the second run. Reports each subject's outcome:
     /// created, present, collision, blocked, or missing. Board errors propagate; a partial
     /// run is fine and re-running is safe.
-    ///
-    /// With `routingTable`, the Project's merged Routing Table, the `Override` label group is
-    /// provisioned too, one child per distinct Route the table names, primaries and fallbacks, as
-    /// `cli/model/effort`. Projects sharing a team add their Routes to the one group.
     public static func provision(
         using board: any BoardProvisioning,
         projectName: String,
-        createIn team: BoardObjectID?,
-        routingTable: RoutingTable? = nil
+        createIn team: BoardObjectID?
     ) async throws(BoardError) -> ProvisioningReport {
         try await run(
-            using: board, projectName: projectName, createIn: team, routingTable: routingTable, createsMissing: true
+            using: board, projectName: projectName, createIn: team, createsMissing: true
         )
     }
 
-    /// Provisioning, or with `createsMissing` false its read-only verification (``verify(using:projectName:routingTable:)``):
+    /// Provisioning, or with `createsMissing` false its read-only verification (``verify(using:projectName:)``):
     /// the same presence and collision checks, with every create reported `.missing` instead. Internal, not
     /// private: `verify` lives in `BoardProvisioner+Verify.swift`.
     static func run(
         using board: any BoardProvisioning,
         projectName: String,
         createIn team: BoardObjectID?,
-        routingTable: RoutingTable?,
         createsMissing: Bool
     ) async throws(BoardError) -> ProvisioningReport {
         var entries: [ProvisioningEntry] = []
-        let groups = Self.labelGroups + (routingTable.map { [Self.overrideGroup(for: $0)] } ?? [])
+        let groups = Self.labelGroups
 
         // Step 1: Verify or create the Linear project.
         let project: BoardProjectScope

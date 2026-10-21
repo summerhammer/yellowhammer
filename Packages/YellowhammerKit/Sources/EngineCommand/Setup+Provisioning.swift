@@ -22,8 +22,7 @@ extension Setup {
             do {
                 let board = bindProvisioning(installation, project.linearProject)
                 let report = try await BoardProvisioner.provision(
-                    using: board, projectName: project.name, createIn: nil,
-                    routingTable: configuration.routingTable(for: project.id) ?? RoutingTable(entries: [])
+                    using: board, projectName: project.name, createIn: nil
                 )
                 output("Project \(project.id):") // glossary:ignore GL001
                 // A lingering refusal must still be named on a re-run that changes nothing, so the

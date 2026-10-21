@@ -68,6 +68,10 @@ public struct ParsedCardBlock: Equatable, Sendable {
     /// The board's copy of the Card's declared scope: nil when no `**Scope:**` line was found, and
     /// `[]` when it read `_none declared_`.
     public var scope: [String]?
+    /// The `Card override:` lines the block's header holds, exactly as written and in order: none when the
+    /// line was removed, two when it was duplicated. Not judged here — ``CardOverrideField/reading(of:)``
+    /// does that, and a malformed value is imported and retained all the same.
+    public var cardOverrideLines: [String]
     /// The supported input fields whose text could not be read; see ``InvalidBlockInput``.
     public var invalid: [InvalidBlockInput]
     /// Whether the block has a `### Definition of Done` section at all. Without one `clauses` is empty
@@ -76,8 +80,10 @@ public struct ParsedCardBlock: Equatable, Sendable {
 
     public init(
         briefProse: String?, transcriptions: [ParsedTranscription], clauses: [ParsedClause],
-        scope: [String]? = nil, invalid: [InvalidBlockInput] = [], hasDefinitionOfDoneSection: Bool = true
+        scope: [String]? = nil, cardOverrideLines: [String] = [], invalid: [InvalidBlockInput] = [],
+        hasDefinitionOfDoneSection: Bool = true
     ) {
+        self.cardOverrideLines = cardOverrideLines
         self.hasDefinitionOfDoneSection = hasDefinitionOfDoneSection
         self.briefProse = briefProse
         self.transcriptions = transcriptions
@@ -125,9 +131,35 @@ public enum CardManagedBlockParser {
             !masked.contains($0) && lines[$0].trimmingCharacters(in: .whitespaces) == dodHeading
         }
         return ParsedCardBlock(
-            briefProse: briefProse, transcriptions: transcriptions, clauses: clauses, scope: scope, invalid: invalid,
+            briefProse: briefProse, transcriptions: transcriptions, clauses: clauses, scope: scope,
+            cardOverrideLines: parseCardOverrideLines(lines: lines), invalid: invalid,
             hasDefinitionOfDoneSection: hasSection
         )
+    }
+
+    // MARK: - Card override
+
+    /// The `Card override:` lines of the block's header: its top-level lines before the first `### ` heading,
+    /// outside fenced code. The Architectural Brief, the Definition of Done and the Attempts history all sit
+    /// under a heading, so a route-like string in prose, a quoted reviewer request or a transcription is
+    /// never read as the field.
+    private static func parseCardOverrideLines(lines: [String]) -> [String] {
+        var found: [String] = []
+        var fence: String?
+        for line in lines {
+            if line.hasPrefix("### ") && fence == nil { break }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let marker = ["```", "~~~"].first(where: { trimmed.hasPrefix($0) }) {
+                if fence == nil {
+                    fence = marker
+                } else if fence == marker {
+                    fence = nil
+                }
+                continue
+            }
+            if fence == nil, CardOverrideField.isFieldLine(line) { found.append(line) }
+        }
+        return found
     }
 
     // MARK: - Scope

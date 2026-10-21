@@ -277,7 +277,7 @@ struct RouteOverrideTests {
                 continue
             }
             #expect(refused == override)
-            #expect(refusal.description.hasPrefix("Override `\(label)` cannot resolve"))
+            #expect(refusal.description.hasPrefix("Card override `\(label)` cannot resolve"))
         }
     }
 

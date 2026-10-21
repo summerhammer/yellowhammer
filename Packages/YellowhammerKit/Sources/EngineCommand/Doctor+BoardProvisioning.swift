@@ -8,11 +8,9 @@ extension Doctor {
     /// provisioned or mapped item exists"). A missing item or a collision is a failure until it is
     /// fixed, so a board setup could not finish never passes (#361). Run only once the membership check
     /// passed: a team Yellowhammer is not a member of, or a Linear project it cannot read, is reported
-    /// once, there. The `Override` group is verified for presence only: its children are Routes, which
-    /// no Act requires of the board (OQ136).
+    /// once, there. The Card override is a description field, so no `Override` label group is verified.
     func boardProvisioningFindings(
-        project: ProjectConfiguration, installation: LinearInstallation, routingTable: RoutingTable,
-        scope: DoctorInstallationScope
+        project: ProjectConfiguration, installation: LinearInstallation, scope: DoctorInstallationScope
     ) async -> [DoctorFinding] {
         let prefix = "Project \(project.id) (Board Connection \(installation.name)): " // glossary:ignore GL001
         func provisioning(_ severity: DoctorSeverity, _ message: String) -> DoctorFinding {
@@ -26,11 +24,11 @@ extension Doctor {
         do {
             if fix {
                 report = try await BoardProvisioner.provision(
-                    using: board, projectName: project.name, createIn: nil, routingTable: routingTable
+                    using: board, projectName: project.name, createIn: nil
                 )
             } else {
                 report = try await BoardProvisioner.verify(
-                    using: board, projectName: project.name, routingTable: RoutingTable(entries: [])
+                    using: board, projectName: project.name
                 )
             }
         } catch {

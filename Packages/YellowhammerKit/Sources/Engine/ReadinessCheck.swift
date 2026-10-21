@@ -83,6 +83,9 @@ public enum ReadinessFailure: Equatable, Sendable, CustomStringConvertible {
     /// An input field the Operator edited inside the Managed Block (`scope`, `definition of done`) that
     /// Yellowhammer cannot read. It stays on the board as written and is not imported.
     case inputUnreadable(field: String, reason: String)
+    /// The `Card override:` line is malformed or duplicated (routing/resolve-a-route-for-a-card). It is kept
+    /// on the board as written and the Card does not dispatch on a silent fallback to normal routing.
+    case cardOverrideMalformed(reason: String)
 
     public var description: String {
         switch self {
@@ -98,6 +101,8 @@ public enum ReadinessFailure: Equatable, Sendable, CustomStringConvertible {
             "the Project has no repositories configured"
         case .referenceUnreadable(_, let reference, let reason):
             "the edited Transcription Block reference \(reference) could not be read: \(reason)"
+        case .cardOverrideMalformed(let reason):
+            "the Card override cannot be read, so it was kept as written: \(reason)"
         case .inputUnreadable(let field, let reason):
             "the Operator's edit to the Card's \(field) cannot be read, so it was kept as written and not "
                 + "imported: \(reason)"
@@ -242,6 +247,9 @@ public struct ReadinessCheck: Sendable {
         // An input the Operator left unreadable is retained as written and not imported, so the Journal still
         // holds the value it had before: judging the Card against that would dispatch on unvalidated input.
         failures += board.invalid.map { .inputUnreadable(field: $0.field, reason: $0.reason) }
+        if case .malformed(let reason) = CardOverrideField.reading(of: try journal.cardOverrideLines(cardID: card.id)) {
+            failures.append(.cardOverrideMalformed(reason: reason))
+        }
         failures += reads.failures
         let citationCheck = await citationFailures(clauses: clauses, repositories: repositories, context: context)
         failures += citationCheck.failures

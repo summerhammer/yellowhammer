@@ -88,7 +88,7 @@ private struct AttemptAccount: View {
                     gridFact("Route source", source)
                 }
                 if let pin = attempt.overridePin {
-                    gridFact("Override", pin)
+                    gridFact("Card override", pin)
                 }
                 gridFact("Started", attempt.startedAt.formatted(date: .abbreviated, time: .standard))
                 gridFact("Ended", attempt.endedAt?.formatted(date: .abbreviated, time: .standard) ?? "not ended")

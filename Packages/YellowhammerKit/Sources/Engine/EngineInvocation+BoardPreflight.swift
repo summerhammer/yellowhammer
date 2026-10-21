@@ -31,8 +31,8 @@ extension EngineInvocation {
     /// Everything an Act checks about its board before it creates the Night Card or does any work: the
     /// identity is accepted (``authorizationPreflight()``), then the board scope is resolved (OQ85,
     /// OQ136) — the four provisioned `started` workflow states, the `Card Type` label
-    /// group with its children (Block Reason is Card content, not a label), and the `Override` label group (its presence only: its children are
-    /// Routes, which no Act requires).
+    /// group with its children (Block Reason is Card content, not a label; the Card override is a description
+    /// field, so no `Override` label group is required).
     ///
     /// The clock rule (OQ93(f) as widened by OQ136): every halt in which no Act read the board spends
     /// no `overdue_nights_max`; the test is that no Act read the board, not the halt's cause. This runs
@@ -55,8 +55,7 @@ extension EngineInvocation {
     private func resolveBoardScope(night: NightRecord) async throws {
         guard let board else { return }
         let report = try await BoardProvisioner.verify(
-            using: board.provisioning, projectName: journal.projectID.rawValue,
-            routingTable: RoutingTable(entries: [])
+            using: board.provisioning, projectName: journal.projectID.rawValue
         )
         _ = try? journal.append(.linearReached, act: act, runID: runID, nightID: night.id)
         let unfinished = report.unfinishedItems

@@ -13,7 +13,8 @@ import Journal
 // the Readiness Check imports before it judges, a Delta Read imports a Card whose block was edited, and a
 // Managed Block rewrite imports from the description it just read before it renders. A field the human left
 // unreadable (``InvalidBlockInput``) is not imported at all, so no Journal value is overwritten by half of it.
-// One more input field (the Card override, P22.7) slots in as one more `if` in `reconcile(parsed:card:)`.
+// The Card override (P22.7) is such a field: its lines are imported exactly as written, malformed or
+// duplicated included, so no rewrite replaces them with a cached value. Judging them is the Readiness Check's.
 
 /// Imports a Card's supported human input from a parsed Managed Block into the Journal, under the identity
 /// (`act`, `runID`, `nightID`) its events are appended with.
@@ -77,6 +78,10 @@ struct CardInputReconciler {
                 try journal.recordDeclaredScope(cardID: card.id, paths: scope)
                 imported.fields.append("scope")
             }
+        }
+
+        if try journal.recordCardOverrideLines(cardID: card.id, lines: parsed.cardOverrideLines) {
+            imported.fields.append("card override")
         }
 
         if let prose = parsed.briefProse {

@@ -243,6 +243,36 @@ func readyCardIsDispatched() async throws {
     #expect(cardsSkipped == 0)
 }
 
+@Test("A malformed Card override fails readiness and keeps the Card from dispatching; a valid one does not")
+func malformedCardOverrideFailsReadiness() async throws {
+    let scenario = try await makeReadinessScenario()
+    defer { cleanup(scenario) }
+    try scenario.journal.recordArchitecturalBrief(cardID: scenario.cardOne, prose: "A brief.")
+    try scenario.journal.insertClause(JournalStore.NewClause(
+        cid: "c1", issueID: scenario.issueOne, level: "card", text: "A clause",
+        locationID: "resolvable/story", provenance: "Author-supplied", citationProvenance: "Author-supplied"
+    ))
+    try scenario.journal.recordCardOverrideLines(cardID: scenario.cardOne, lines: ["Card override:  codex/o3/high"])
+    try scenario.journal.recordCardOverrideLines(cardID: scenario.cardTwo, lines: ["Card override: codex/o3/high"])
+    let readiness = ReadinessCheck(
+        provenance: FakeProvenanceTester(), citations: FakeCitationResolver(resolvable: ["resolvable/story"])
+    )
+
+    try await runReadinessAct(scenario, readiness: readiness)
+
+    let failed = try scenario.journal.events(ofType: .readinessCheckFailed)
+    #expect(failed.count == 1)
+    guard case .readinessCheckFailed(_, let issueID, let failures) = failed[0].event else {
+        Issue.record("expected readinessCheckFailed")
+        return
+    }
+    #expect(issueID == scenario.issueOne)
+    #expect(failures.contains { $0.contains("Card override") && $0.contains("one space after the colon") })
+    #expect(scenario.recorder.seen.map(\.issueID) == [scenario.issueTwo])
+    // Retained as written: failing readiness does not touch the held value.
+    #expect(try scenario.journal.cardOverrideLines(cardID: scenario.cardOne) == ["Card override:  codex/o3/high"])
+}
+
 @Test("evaluate never throws for a readiness outcome, and records events with no Outbox")
 func evaluateNeverThrowsWithNoOutbox() async throws {
     let fixture = try OutboxJournalFixture()
