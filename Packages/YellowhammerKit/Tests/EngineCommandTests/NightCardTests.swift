@@ -75,7 +75,7 @@ func seedBoardScope(on board: FakeProvisioningBoard, team: BoardObjectID) async 
     await board.seed(state: "In Progress", team: team, category: .started)
     await board.seed(state: "Canceled", team: team, category: .shelved)
     // A board provisioned by an earlier build also holds the legacy settle pair, which stays unverified.
-    for name in FeatureDisposition.legacySettleStateNames {
+    for name in LegacyBoardTaxonomy.settleStateNames {
         await board.seed(state: name, team: team, category: .started)
     }
 }

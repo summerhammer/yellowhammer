@@ -279,6 +279,7 @@ public struct EngineInvocation: Sendable {
             if outbox != nil {
                 night = try journal.night(id: night.id) ?? night
             }
+            try await migrateLegacyBoard(outbox: outbox)
 
             let resolvedMainlines = await refreshMainlines(night: night)
             if opening.isFirstAct {
@@ -312,9 +313,7 @@ public struct EngineInvocation: Sendable {
     }
 
     // `boardPreflight(night:)` lives in EngineInvocation+BoardPreflight.swift — split out for the file/type
-    // length limits.
-
-    // `openNightCardIfNeeded(night:)` lives in EngineInvocation+NightCardCompletion.swift — split out for the
+    // length limits. `openNightCardIfNeeded(night:)` lives in EngineInvocation+NightCardCompletion.swift — split out for the
     // file/type length limits.
 
     /// Reads the Project board once before this Act's work, then applies the same readiness inputs

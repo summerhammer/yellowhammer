@@ -35,6 +35,8 @@ extension NightSummary {
                 )
             case .authoringInvariantBroken(_, let issueID, let reason):
                 append("`\(issueID)` violates an authoring invariant: \(reason).")
+            case .legacyBoardObserved(let kind, let issueID, let detail):
+                append(legacyBoardLine(kind: kind, issueID: issueID, detail: detail))
             default:
                 break
             }
@@ -211,5 +213,18 @@ extension NightSummary {
             }
         }
         return lines
+    }
+
+    /// The Anomalies line for a retired-taxonomy observation (roadmap P22.9).
+    private static func legacyBoardLine(kind: String, issueID: String, detail: String) -> String {
+        switch kind {
+        case "retired-state":
+            "`\(issueID)` stands in `\(detail)`. \(LegacyBoardTaxonomy.retiredStateNotice)"
+        case "override-conflict":
+            "`\(issueID)` carries a retired `Override` label that disagrees with its Card override (\(detail)); "
+                + "nothing was chosen. Set or clear the `Card override:` line to settle it."
+        default:
+            "The legacy Board migration was deferred for `\(issueID)`: \(detail)."
+        }
     }
 }

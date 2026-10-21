@@ -280,6 +280,29 @@ struct FeatureMergeClosureTests {
         #expect(await world.boards.writing.createCommentCalls == 0)
     }
 
+    @Test("A Feature the Operator completed reaching k = N records its own receipt, not a verification")
+    func completedFeatureMergeHasItsOwnEvent() async throws {
+        let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
+        let context = try world.makeContext(repositories: mergeWorldRepositories(world))
+        try world.journal.archiveCycle(
+            cycleID: world.cycleID, featureID: world.featureID, closedBy: .completion, runID: context.runID
+        )
+        let (feature, _) = try #require(
+            try world.journal.read { db in try Self.readFeature(db, id: world.featureID) }
+        )
+
+        try await FeatureMergeClosure().closeByMerge(feature: feature, context: context)
+
+        #expect(try world.journal.events(ofType: .verifiedFeatureMergeObserved).isEmpty)
+        let observed = try world.journal.events(ofType: .completedFeatureMergeObserved)
+        #expect(observed.count == 1)
+        #expect(observed[0].event == .completedFeatureMergeObserved(
+            cycleID: world.cycleID, featureIssueID: "FEAT-1", repositories: ["backend", "mobile"],
+            acceptedCards: ["BACK-1"], triagedNightID: world.landingNightID
+        ))
+        #expect(try mergeNightTriagedAt(world.journal, nightID: world.landingNightID) != nil)
+    }
+
     @Test("An abandoned Feature writes nothing")
     func abandonedFeatureWritesNothing() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
