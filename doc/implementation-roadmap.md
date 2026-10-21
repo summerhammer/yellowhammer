@@ -2777,6 +2777,102 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 - **Done when** — A legacy board's tracked issues are converted and a replay after interruption changes
   nothing; the P22.2 name bridge is gone.
 
+## Phase 23 — Multi-Feature Night and PR Stack
+
+Built against two accepted rulings: the *Multi-Feature Night Ruling* (2026-10-20, OQ177),
+`$SPEC_DIR/docs/requirements/rulings/2026-10-20-multi-feature-night-ruling.md`, and the *Stacked Pull Request
+Triage Ruling* (2026-10-21, OQ178), `$SPEC_DIR/docs/requirements/rulings/2026-10-21-stacked-pull-request-triage-ruling.md`
+(only an Observed Merge takes a Feature out of the Unmerged Feature Stack; the Roll-up opening precedes the stack
+notice). The Product Sponsor agent's rulings, `2026-10-21-stacked-pull-request-triage-agent-rulings.md`, are
+`draft` and pending sponsor review: the recorded base, pin lifetime, stack-notice wording, `hasNetChange` against
+the recorded base and conflict attribution follow them, but nothing here may be read as contradicting an accepted
+ruling. Read the rulings and the cited stories; do not restate them here.
+
+A Night authors the next Feature as soon as the previous one is verified and landed, against
+`effective_base(R)` per working Repo, until `[limits] unmerged_features_max` Features await merge.
+
+**Order.** P23.1 → P23.6, each layer on the one below. The gate opens last (P23.5), after the
+effective-base plumbing (P23.2–P23.4) exists, so every intermediate `main` still refuses to author over an
+unmerged predecessor and is release-safe. Earlier layers are unit-tested by seeding `feature_base` rows
+directly. Pre-1.0: the Journal keeps one migration, edited in place (`journal-schema-24`).
+
+Every step: lead review by Fable 5.1.
+
+### [ ] P23.1 `unmerged_features_max`, the Unmerged Feature Stack read and the `feature_base` schema
+- **Work** — Add the eighth Bound `unmerged_features_max` (default 3, `<= 0` refused) and plumb it to the
+  author Act, which stores it unused. Add the Journal's `feature_base` table (the `effective_base(R)` recorded at
+  selection) and the reads: `unmergedFeatureStack()` (archived, not abandoned, N non-empty, at least one pushed
+  repository without an Observed Merge), `effectiveBase(repository:excludingFeatureID:)`, `recordFeatureBases` /
+  `featureBases`. The Night Summary reports |U| against the Bound.
+- **Spec** — `feature-authoring/select-the-next-feature` (`#unmerged-feature-stack`, `#effective-base`),
+  `morning-report/report-the-instrumented-rates`.
+- **Agent** — Sonnet 5.5 medium (lead review Fable 5.1).
+- **Done when** — A Project file with `unmerged_features_max = 0` is refused and a missing key reads 3; the
+  stack read returns `[]` on a fresh Journal, excludes an abandoned Feature and a fully merged one, keeps a
+  Feature with k < N merged, and orders by Feature id; `effectiveBase` picks the most recent pusher per repo;
+  the Bounds section renders `|U| of unmerged_features_max`; the UI test Journal fixture is regenerated.
+
+### [ ] P23.2 Authoring against `effective_base(R)`
+- **Work** — Build the per-Repo bases snapshot from U (the pinned landed tip of the most recent Feature in U
+  that pushed there, else mainline; a pin resolving to a commit other than the recorded one is a fault) and pass
+  it, not the real mainline snapshot, to selection, transcriptions, citations and the authoring-time Readiness
+  Check. Record `feature_base` at selection in the same transaction. List every Feature in U under `## Board
+  state`, refuse re-selecting one, and hold a consumer Repo whose declared producer has a Feature in U.
+- **Spec** — `feature-authoring/select-the-next-feature`, `feature-authoring/author-an-architectural-brief`.
+- **Agent** — Opus 5.5 medium (lead review Fable 5.1).
+- **Done when** — With a seeded F1 in U, the next selection lists F1 under Board state; transcriptions and
+  readiness resolve at F1's pinned tip; `feature_base` records the landed ref and commit for the stacked Repo
+  and mainline for the rest; selecting F1's name again is refused; a consumer of the stacked Repo is held; the
+  lane merge test and banked-reply stamps still read the real mainline.
+
+### [ ] P23.3 Build Act: stacked Worktree allocation and dispatch-time readiness
+- **Work** — Allocate a stacked Feature's Worktree from the recorded landed ref (origin branch as fallback) and
+  verify its HEAD equals `base_commit`, removing the Worktree on mismatch; a recovery pin still wins. Resolve the
+  build Act's dispatch-time Readiness Check against the Feature's recorded base.
+- **Spec** — `graph-execution/allocate-a-worktree-per-graph-and-repo`.
+- **Agent** — Sonnet 5.5 medium (lead review Fable 5.1).
+- **Done when** — Allocator tests cover a stacked base passed and verified, a missing pin falling back to
+  origin, a HEAD mismatch removing the Worktree with the Journal untouched, an unstacked Feature unchanged and
+  recovery-pin precedence; a readiness fixture resolves a file at the stacked tip.
+
+### [ ] P23.4 Land Act: net change against the recorded base, stacked PR base and stack notice
+- **Work** — Detect completed work against the recorded base, not mainline. Compute the pull request `base`
+  at landing from U as it then stands, never from the recorded base. Put the stack notice after the Roll-up
+  opening (and after the As-of stamp of a Partial Landing), record the stack base on the `pull_request` record,
+  and share one merge-commit recommendation sentence.
+- **Spec** — `landing/open-one-pull-request-per-repository`, `landing/announce-a-partial-landing`.
+- **Agent** — Opus 5.5 medium (lead review Fable 5.1).
+- **Done when** — A stacked lane with one commit on the predecessor's tip is pushed and its PR draft has the
+  predecessor's branch as `base` and the notice after the Roll-up line; a lane with no commit of its own records
+  the No-Pushed-Branch Outcome; after the predecessor's Observed Merge the draft has the default branch and no
+  notice; a Partial Landing keeps its fixed lines and puts the notice after the stamp.
+
+### [ ] P23.5 Author Act: the stack gate, the quiet skip and pin lifetime
+- **Work** — Run the merge pass over every Feature in U on every author Act, in flight or not, and replace the
+  single-predecessor gate with a stack gate: full when |U| reaches `unmerged_features_max`. Record the quiet skip
+  with the ruled wording (collapsing repeats within a Night) and remove the unmerged-predecessor skip. Delete a
+  landed pin on its Observed Merge unless an open Cycle's base names it, else at that Cycle's archive.
+- **Spec** — `feature-authoring/select-the-next-feature`, `morning-report/write-the-night-summary`,
+  `verification/archive-the-cycle-on-a-verified-feature`.
+- **Agent** — Opus 5.5 medium (lead review Fable 5.1).
+- **Done when** — With `unmerged_features_max = 1` an unmerged predecessor still skips authoring and a merged
+  one opens the gate; with 3, a seeded unmerged Feature lets the next author Act select, and three yield the
+  quiet skip; five skips in one Night render one line; F1's merge observed while F2 is in flight removes it from
+  U; a pin named by an open Cycle's base survives the Observed Merge and is deleted at that Cycle's archive.
+
+### [ ] P23.6 Periodic author firings, trigger, doctor, standing line and Pulse
+- **Work** — Fire the `author` job at `night_start + o` and two minutes after every periodic land tick; its
+  trigger is no unarchived Cycle and no unfinished Work Card, or the Night's first author firing. `yh doctor`
+  flags and `--fix` regenerates a plist lacking the periodic intervals. The Night Summary counts several landed
+  Features in a Night and lists each unmerged one on the standing line; Pulse follows the new grid.
+- **Spec** — `shift-scheduling/fire-an-act-on-schedule`, `shift-scheduling/do-one-acts-work-and-exit`,
+  `morning-report/write-the-night-summary`.
+- **Agent** — Sonnet 5.5 medium (lead review Fable 5.1).
+- **Done when** — The story's worked example holds (22:00/06:00/15/stagger 3 gives 22:03, 22:20, 22:35 …
+  05:50); a periodic firing with a Cycle in flight records the idle no-op and reads no board; the first firing of
+  a Night with a Partial Landing in flight still runs the merge pass; `yh doctor` flags a plist with the old
+  single author interval; a Night with two landed Features renders both and lists each unmerged one.
+
 ---
 
 ## Traceability: story → steps
