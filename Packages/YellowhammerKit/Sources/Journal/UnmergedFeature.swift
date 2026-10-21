@@ -50,3 +50,25 @@ public struct FeatureBaseRecord: Codable, Equatable, Sendable {
         self.stackedOnFeatureID = stackedOnFeatureID
     }
 }
+
+/// One Feature of the Unmerged Feature Stack U as an author Act's quiet skip names it (spec:
+/// feature-authoring/select-the-next-feature, `#unmerged-feature-stack`; morning-report/write-the-night-summary):
+/// the Feature, the repositories whose mainline does not yet show it, and the Feature Branch in each.
+public struct UnmergedStackEntry: Codable, Equatable, Sendable {
+    public let featureIssueID: String
+    /// The Feature Issue's display identifier, so a reader names the Feature without a Journal lookup.
+    public let identifier: String
+    /// The pushed repositories with no Observed Merge, sorted.
+    public let unmergedRepositories: [String]
+    /// The Feature Branch name per unmerged repository.
+    public let branches: [String: String]
+
+    public init(
+        featureIssueID: String, identifier: String, unmergedRepositories: [String], branches: [String: String]
+    ) {
+        self.featureIssueID = featureIssueID
+        self.identifier = identifier
+        self.unmergedRepositories = unmergedRepositories
+        self.branches = branches
+    }
+}

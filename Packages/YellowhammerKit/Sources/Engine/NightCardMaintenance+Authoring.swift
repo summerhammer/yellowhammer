@@ -38,11 +38,11 @@ extension NightCardMaintenance {
         var acceptedPlans: [String: FeatureAuthoringAcceptedPayload] = [:]
         var resolvedGroupKeys: Set<String> = []
         var rejections: [RunID: [RouteRejection]] = [:]
-        for record in try journal.events() where record.nightID == night.id {
+        for (record, event) in Self.collapsingStackFullSkips(try journal.events().filter { $0.nightID == night.id }) {
             for line in Self.bufferedRouteLines(for: record, rejections: &rejections) where seen.insert(line).inserted {
                 lines.append(line)
             }
-            if let line = Self.authoringLine(for: record.event, journal: journal), seen.insert(line).inserted {
+            if let line = Self.authoringLine(for: event, journal: journal), seen.insert(line).inserted {
                 lines.append(line)
             }
             switch record.event {
@@ -65,6 +65,20 @@ extension NightCardMaintenance {
                 """)
         }
         return lines
+    }
+
+    /// Each record with the event its line renders. Periodic author firings may skip on a full Unmerged Feature
+    /// Stack every tick (roadmap P23.5): the Night keeps one of those skips, where the first was recorded, carrying
+    /// the latest one's content, so the Night Card never grows with the number of firings.
+    private static func collapsingStackFullSkips(
+        _ records: [JournalEventRecord]
+    ) -> [(record: JournalEventRecord, event: JournalEvent)] {
+        let skips = records.filter { $0.type == .authoringSkippedUnmergedStackFull }
+        guard let first = skips.first, let latest = skips.last else { return records.map { ($0, $0.event) } }
+        return records.compactMap { record in
+            guard record.type == .authoringSkippedUnmergedStackFull else { return (record, record.event) }
+            return record.id == first.id ? (record, latest.event) : nil
+        }
     }
 
     /// Buffers a Route rejection under its run; when that run's fault arrives, returns the buffered lines. An
@@ -165,10 +179,8 @@ extension NightCardMaintenance {
                 Authoring was skipped: Feature \(featureRef) is already in flight for this Project. \
                 A quiet Night, not a failure.
                 """
-        case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
-            return predecessorNotLandedLine(
-                featureIssueID: featureIssueID, repositories: repositories, journal: journal
-            )
+        case .authoringSkippedUnmergedStackFull(let features, let unmergedFeaturesMax):
+            return unmergedStackFullLine(features: features, unmergedFeaturesMax: unmergedFeaturesMax, journal: journal)
         case .authoringPredecessorIndeterminate(let featureIssueID, let repositories):
             let named = repositories.joined(separator: ", ")
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
@@ -254,33 +266,45 @@ extension NightCardMaintenance {
         }
     }
 
-    /// The not-landed line (issue #448; OQ164): names the branches the gate did not find in mainline,
-    /// resolved from the Journal rather than the event payload, recommends a merge commit with the reason
-    /// (``MergeCommitRecommendation/shared``), and says how to open the gate when mainline
-    /// already has the changes. It never claims a squash or rebase merge happened, and never says one
-    /// stalls the next Feature for good: the engine cannot tell an open pull request from a merged one.
-    private static func predecessorNotLandedLine(
-        featureIssueID: String, repositories: [String], journal: JournalStore?
+    /// The quiet skip of a full Unmerged Feature Stack (roadmap P23.5; spec: morning-report/write-the-night-summary,
+    /// issue #448, OQ164, OQ177): names every Feature in U and each branch the gate did not find in mainline, from
+    /// the event's own payload, recommends a merge commit with the reason (``MergeCommitRecommendation/shared``),
+    /// and says how to open the gate when mainline already has the changes. At `unmerged_features_max = 1` with
+    /// one Feature in U it reads as the predecessor line. It never claims a squash or rebase merge happened, and
+    /// never says one stalls the next Feature for good: the engine cannot tell an open pull request from a merged one.
+    private static func unmergedStackFullLine(
+        features: [UnmergedStackEntry], unmergedFeaturesMax: Int, journal: JournalStore?
     ) -> String {
-        let named = repositories.joined(separator: ", ")
-        let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
-        var branchSentence = ""
-        if let journal, let feature = try? journal.feature(issueID: featureIssueID),
-            let branches = try? journal.resolvedFeatureBranches(feature: feature, repositories: repositories) {
-            let listed = repositories.compactMap { repository in
-                branches[repository].map { "`\($0.name)` in \(repository)" }
-            }
-            if !listed.isEmpty {
-                branchSentence = " Not found in mainline: \(listed.joined(separator: ", "))."
+        let reason: String
+        if unmergedFeaturesMax == 1, features.count == 1, let feature = features.first {
+            let featureRef = stackEntryReference(feature, journal: journal)
+            let completedOnBoard = ((try? journal?.feature(issueID: feature.featureIssueID))?.closedBy) == .completion
+            let predecessor = completedOnBoard ? "\(featureRef), completed on the Board," : featureRef
+            reason = "predecessor Feature \(predecessor) has not merged in "
+                + feature.unmergedRepositories.joined(separator: ", ")
+        } else {
+            let refs = features.map { stackEntryReference($0, journal: journal) }.joined(separator: ", ")
+            reason = "unmerged Feature stack reached unmerged_features_max "
+                + "(\(features.count) unmerged Features: \(refs))"
+        }
+        let notFound = features.flatMap { feature in
+            feature.unmergedRepositories.compactMap { repository in
+                feature.branches[repository].map { "`\($0)` in \(repository)" }
             }
         }
-        let completedOnBoard = ((try? journal?.feature(issueID: featureIssueID))?.closedBy) == .completion
-        let predecessor = completedOnBoard ? "\(featureRef), completed on the Board," : featureRef
-        return "Authoring was skipped: predecessor Feature \(predecessor) has not merged in \(named)."
-            + branchSentence
+        let branchSentence = notFound.isEmpty ? "" : " Not found in mainline: \(notFound.joined(separator: ", "))."
+        return "Authoring was skipped: \(reason)." + branchSentence
             + " \(MergeCommitRecommendation.shared)"
             + " If mainline already has the changes, a content-free merge of the Feature Branch "
             + "(`git merge -s ours`) with a merge commit opens this gate. A quiet Night, not a failure."
+    }
+
+    /// A Feature of U as a Markdown link when the Journal has its issue URL, else its display identifier.
+    private static func stackEntryReference(_ entry: UnmergedStackEntry, journal: JournalStore?) -> String {
+        guard let journal, (try? journal.feature(issueID: entry.featureIssueID)) != nil else {
+            return "`\(entry.identifier)`"
+        }
+        return renderFeatureReference(issueID: entry.featureIssueID, journal: journal)
     }
 
     /// The exception wording an authoring fault reads as (roadmap P9.10): a rolled-back Outbox group

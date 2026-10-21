@@ -89,7 +89,7 @@ struct PredecessorGateP99Tests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
         #expect(outcome == .landed)
         let events = try journal.events().map(\.type)
@@ -116,7 +116,7 @@ struct PredecessorGateP99Tests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: nil)
 
-        #expect(try await gate.check(context) == .landed)
+        #expect(try await gate.check(context, unmergedFeaturesMax: 1) == .landed)
         let events = try journal.events().map(\.type)
         #expect(!events.contains(.predecessorWalkSkippedReleasedFeature))
         #expect(!events.contains(.predecessorAncestryObserved))
@@ -146,8 +146,8 @@ struct PredecessorGateP99Tests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
-        let outcome = try await gate.check(context)
-        #expect(outcome == .notLanded(predecessorIssueID: "FEAT-OLDER", repositories: ["backend"]))
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
+        #expect(namedUnmerged(outcome) == [NamedUnmerged("FEAT-OLDER", ["backend"])])
         #expect(!(try journal.events().map(\.type).contains(.predecessorWalkSkippedReleasedFeature)))
     }
 
@@ -167,7 +167,7 @@ struct PredecessorGateP99Tests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: nil)
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
         #expect(outcome == .landed)
         let events = try journal.events()
@@ -196,7 +196,7 @@ struct PredecessorGateP99Tests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: nil)
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
         #expect(outcome == .landed)
         let skipCount = try journal.events(ofType: .predecessorWalkSkippedReleasedFeature).count
@@ -231,7 +231,7 @@ struct PredecessorGateLandingTests {
         let gate = PredecessorAncestryGate()
 
         let (context1, _) = try makeGateContext(journal, repositories: repositories)
-        let outcome1 = try await gate.check(context1)
+        let outcome1 = try await gate.check(context1, unmergedFeaturesMax: 1)
         #expect(outcome1 == .landed)
         #expect(try journal.landings(featureID: featureID)["backend"] != nil)
 
@@ -239,7 +239,7 @@ struct PredecessorGateLandingTests {
         try journal.releaseActLease(runID: context1.runID)
 
         let (context2, _) = try makeGateContext(journal, repositories: repositories)
-        let outcome2 = try await gate.check(context2)
+        let outcome2 = try await gate.check(context2, unmergedFeaturesMax: 1)
 
         #expect(outcome2 == .landed)
     }
@@ -338,8 +338,9 @@ struct PredecessorGateLandingTests {
         #expect(walk.skippedReleased.isEmpty)
     }
 
-    // Through AuthorAct: not landed skips authoring, records the quiet reason, no Attempt or Worktree.
-    @Test("End to end through AuthorAct: not landed skips authoring")
+    // Through AuthorAct at unmerged_features_max = 1: an unmerged predecessor fills the stack, so authoring is
+    // skipped with the quiet reason, no Attempt or Worktree (the equivalence with single-Feature-until-merged).
+    @Test("End to end through AuthorAct at max 1: an unmerged predecessor skips authoring")
     func endToEndThroughAuthorActSkipsAuthoring() async throws {
         let backend = GateGitFixture(name: "gate-e2e-backend")
         await backend.initRepo()
@@ -365,20 +366,20 @@ struct PredecessorGateLandingTests {
         let invocation = EngineInvocation(
             act: .author, mode: .rehearsal, nightStart: gateNightStart, journal: journal,
             trigger: .forced, runID: RunID(), repositories: repositories,
-            work: AuthorAct(predecessorGate: PredecessorAncestryGate(), authoring: authoring).work
+            work: AuthorAct(
+                predecessorGate: PredecessorAncestryGate(), authoring: authoring, unmergedFeaturesMax: 1
+            ).work
         )
         try await invocation.run()
 
         #expect(!authoring.wasCalled)
 
         let events = try journal.events()
-        let quiet = try #require(events.first { $0.type == .authoringPredecessorNotLanded })
-        guard case .authoringPredecessorNotLanded(let issueID, let repos) = quiet.event else {
-            Issue.record("expected authoringPredecessorNotLanded")
-            return
-        }
-        #expect(issueID == "FEAT-7")
-        #expect(repos == ["backend"])
+        let quiet = try #require(events.first { $0.type == .authoringSkippedUnmergedStackFull })
+        #expect(quiet.event == stackFullSkip("FEAT-7", ["backend"], branches: ["backend": "yh-proj-e2e"]))
+        let line = try #require(NightCardMaintenance.authoringLine(for: quiet.event, journal: journal))
+        #expect(line.contains("predecessor Feature"))
+        #expect(line.contains("Not found in mainline: `yh-proj-e2e` in backend."))
 
         let attemptCount = try journal.write { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM attempt") } ?? 0
         let worktreeCount = try journal.write { db in

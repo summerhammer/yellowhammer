@@ -6,7 +6,7 @@ import Foundation
 import Repositories
 import Testing
 
-// roadmap P9.2: the predecessor-ancestry gate. Reads the most recent Feature that is not in flight
+// roadmap P9.2, P23.5: the predecessor-ancestry gate. Reads every Feature in the Unmerged Feature Stack
 // (its Cycle archived), evaluates ancestry for its Feature Branch in the repositories its Cycle
 // touched, re-tests merge only for the unmerged ones, and records what it found. Allocates no
 // Worktree, dispatches nothing, records no Attempt. Fixtures and helpers, split out of
@@ -152,4 +152,42 @@ func makeGateContext(
         night: opening.night, repositories: repositories
     )
     return (context, runID)
+}
+
+/// A Feature a ``PredecessorGateOutcome/stackFull(features:)`` outcome names, with its unmerged repositories.
+struct NamedUnmerged: Equatable {
+    let issueID: String
+    let repositories: [String]
+
+    init(_ issueID: String, _ repositories: [String]) {
+        self.issueID = issueID
+        self.repositories = repositories
+    }
+}
+
+/// Every Feature a `.stackFull` outcome names, oldest first; nil for any other outcome.
+func namedUnmerged(_ outcome: PredecessorGateOutcome) -> [NamedUnmerged]? {
+    guard case .stackFull(let features) = outcome else { return nil }
+    return features.map { NamedUnmerged($0.featureIssueID, $0.unmergedRepositories) }
+}
+
+/// The one Feature a `.stackFull` outcome names at `unmerged_features_max = 1` — the predecessor that has not
+/// merged; nil for any other outcome, or a stack of more than one Feature.
+func singleUnmerged(_ outcome: PredecessorGateOutcome) -> (issueID: String, repositories: [String])? {
+    guard let named = namedUnmerged(outcome), named.count == 1 else { return nil }
+    return (named[0].issueID, named[0].repositories)
+}
+
+/// A full-stack quiet skip naming one Feature (roadmap P23.5), as the author Act records it at
+/// `unmerged_features_max` (default 1, where it reads as the predecessor line). Each repository's branch defaults
+/// to `yh-<issueID>-<repository>`; the identifier defaults to the issue id.
+func stackFullSkip(
+    _ issueID: String, _ repositories: [String], identifier: String? = nil, branches: [String: String]? = nil,
+    unmergedFeaturesMax: Int = 1
+) -> JournalEvent {
+    let entry = UnmergedStackEntry(
+        featureIssueID: issueID, identifier: identifier ?? issueID, unmergedRepositories: repositories,
+        branches: branches ?? Dictionary(uniqueKeysWithValues: repositories.map { ($0, "yh-\(issueID)-\($0)") })
+    )
+    return .authoringSkippedUnmergedStackFull(features: [entry], unmergedFeaturesMax: unmergedFeaturesMax)
 }

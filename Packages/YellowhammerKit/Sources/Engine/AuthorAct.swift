@@ -2,26 +2,27 @@ import Domain
 import Foundation
 import Journal
 
-/// What the predecessor-ancestry gate (P9.2) found for the Feature about to be authored.
+/// What the predecessor-ancestry gate (P9.2, P23.5) found for the Feature about to be authored.
 public enum PredecessorGateOutcome: Equatable, Sendable {
-    /// The predecessor Feature has landed in every one of this Project's repositories — or there is
-    /// no predecessor to check.
+    /// The Unmerged Feature Stack U is below `unmerged_features_max` after the merge pass — including U = ∅,
+    /// the first Night — or a Feature is in flight (the author Act's own in-flight check skips authoring then).
     case landed
-    /// The predecessor Feature has not landed in one or more repositories: authoring must not proceed.
-    case notLanded(predecessorIssueID: String, repositories: [String])
-    /// Neither the commit the land Act recorded nor the Feature Branch of the predecessor Feature could be
-    /// found in one or more repositories that have no Observed Merge either (roadmap P9.9; spec:
-    /// feature-authoring/select-the-next-feature, #tested-tip): authoring must not proceed, but this is not the
-    /// same as a known unmerged branch — takes precedence over ``notLanded`` when any repository is
-    /// indeterminate.
+    /// U is at or above `unmerged_features_max` after the merge pass (roadmap P23.5; spec:
+    /// feature-authoring/select-the-next-feature, `#unmerged-feature-stack`): authoring must not proceed.
+    /// Names every Feature in U, oldest first.
+    case stackFull(features: [UnmergedStackEntry])
+    /// Neither the commit the land Act recorded nor the Feature Branch of a Feature in U could be found in one
+    /// or more repositories that have no Observed Merge either (roadmap P9.9; spec:
+    /// feature-authoring/select-the-next-feature, #tested-tip): authoring must not proceed, whatever |U| is.
+    /// Names the oldest such Feature. Takes precedence over ``stackFull(features:)``.
     case indeterminate(predecessorIssueID: String, repositories: [String])
 }
 
-/// Checks whether the Feature about to be authored may proceed, given its predecessor's ancestry
-/// (feature-authoring/select-the-next-feature, risks.md OQ13). The real gate is P9.2; this is the
+/// Checks whether the Feature about to be authored may proceed, given the merges of the Unmerged Feature Stack
+/// (feature-authoring/select-the-next-feature, risks.md OQ13, OQ177). The real gate is P9.2; this is the
 /// injectable seam the author Act runs strictly before selecting or authoring anything.
 public protocol PredecessorGate: Sendable {
-    func check(_ context: ActContext) async throws -> PredecessorGateOutcome
+    func check(_ context: ActContext, unmergedFeaturesMax: Int) async throws -> PredecessorGateOutcome
 }
 
 /// What selecting and authoring a Feature found.
@@ -74,9 +75,11 @@ public protocol FeatureAuthoring: Sendable {
 ///    an open Cycle, which covers a Feature returned, Blocked, or half-triaged) authoring stops here:
 ///    never more than one Feature in flight per Project, even when the trigger is forced or names a
 ///    Feature (``ActTrigger/forcedForFeature``).
-/// 3. The predecessor-ancestry gate (``predecessorGate``, P9.2) runs. A predecessor not yet landed in
-///    every repository stops authoring: no Worktree is allocated, nothing is dispatched, no Attempt
-///    is recorded.
+/// 3. The predecessor-ancestry gate (``predecessorGate``, P9.2, P23.5) runs its merge pass over every Feature
+///    in the Unmerged Feature Stack U — on every author Act, before step 2's skip, so a Feature's Observed Merge
+///    is recorded while another is in flight. When |U| is at or above ``unmergedFeaturesMax`` after the pass,
+///    or a tip in U cannot be read, authoring stops: no Worktree is allocated, nothing is dispatched, no Attempt
+///    is recorded. A verified Feature in U below the bound does not stop it: its successor stacks on it.
 /// 4. Selecting and authoring the Feature (``authoring``, P9.3–P9.7) runs only once the gate clears, against
 ///    `effective_base(R)` per working repository (``AuthoringBases``, roadmap P23.2), not this Act's mainline.
 ///    A halt (``FeatureAuthoringOutcome/halted``), a rolled-back transaction
@@ -122,7 +125,7 @@ public struct AuthorAct: Sendable {
     /// unanswered before it expires. Defaults to the glossary's own default of 3.
     public let unansweredNightsMax: Int
     /// `unmerged_features_max` (bounds overview): how many implemented Features may await a merge before
-    /// the author Act authors nothing. Stored here; selection consults it from P23.5.
+    /// the author Act authors nothing. Handed to the predecessor gate on every check.
     public let unmergedFeaturesMax: Int
 
     public init(
@@ -170,9 +173,9 @@ public struct AuthorAct: Sendable {
         try await UnansweredPositionClock.run(context: context, unansweredNightsMax: unansweredNightsMax)
         try await spendLandedCycleClock(context: context)
 
-        // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
-        // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate
-        // before it becomes tomorrow's predecessor) and gates the predecessor when nothing is. It opens
+        // The predecessor-ancestry gate's pass (P9.9, P23.5) runs every author Act, independently of the in-flight
+        // skip below: it tests every Feature in the Unmerged Feature Stack, observes the in-flight Feature's
+        // landings when its Cycle has landed, and gates on |U| only when nothing is in flight. It opens
         // no lane, consumes no Attempt, writes nothing to the board. The gate's own closure seam may
         // close the in-flight Feature by merge (P10.8) — merge wins over a same-morning Board disposition,
         // which the native-disposition seam then applies to whatever is still in flight.
@@ -190,12 +193,12 @@ public struct AuthorAct: Sendable {
         }
 
         switch gateOutcome {
-        case .notLanded(let predecessorIssueID, let repositories):
+        case .stackFull(let features):
             try journal.append(
-                .authoringPredecessorNotLanded(featureIssueID: predecessorIssueID, repositories: repositories),
+                .authoringSkippedUnmergedStackFull(features: features, unmergedFeaturesMax: unmergedFeaturesMax),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            try await skipAuthoring(because: .predecessorNotLanded, context: context)
+            try await skipAuthoring(because: .unmergedStackFull, context: context)
             return
         case .indeterminate(let predecessorIssueID, let repositories):
             try journal.append(
@@ -253,10 +256,10 @@ public struct AuthorAct: Sendable {
 
     /// The Feature Card's native disposition (P10.9, P22.2) applies to whatever Feature is still in
     /// flight after the gate's own merge closure. If it closed the Feature (Done or Cancelled), the
-    /// Feature is no longer in flight (its Cycle is archived), so the gate is re-run: the walk skips a
-    /// cancelled Feature but takes a completed one as the predecessor (JournalStore+Predecessor.swift),
-    /// and this same Act goes on to decide whether authoring proceeds — or names the repositories whose
-    /// merge is outstanding. Returns the gate outcome authoring decides on.
+    /// Feature is no longer in flight (its Cycle is archived), so the gate is re-run: a cancelled Feature never
+    /// enters the Unmerged Feature Stack, a completed one with an unmerged pushed repository does, and this same
+    /// Act goes on to decide whether authoring proceeds — or names the Features whose merge is outstanding.
+    /// Returns the gate outcome authoring decides on.
     private func settleInFlightFeature(
         gateOutcome: PredecessorGateOutcome, context: ActContext
     ) async throws -> PredecessorGateOutcome {
@@ -268,7 +271,7 @@ public struct AuthorAct: Sendable {
 
     private func checkPredecessorGate(context: ActContext) async throws -> PredecessorGateOutcome {
         guard let predecessorGate else { return .landed }
-        return try await predecessorGate.check(context)
+        return try await predecessorGate.check(context, unmergedFeaturesMax: unmergedFeaturesMax)
     }
 
     /// Reads the board (``PostLandingReplies``, roadmap P11.3, P22.3; issue #559) and banks the replies it

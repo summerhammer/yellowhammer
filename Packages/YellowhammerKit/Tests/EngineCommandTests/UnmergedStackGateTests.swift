@@ -1,0 +1,211 @@
+import Domain
+@testable import Engine
+@testable import EngineCommand
+import Foundation
+@testable import Journal
+import Repositories
+import Testing
+
+// roadmap P23.5 (spec: feature-authoring/select-the-next-feature, `#unmerged-feature-stack`, `#tested-tip`;
+// morning-report/write-the-night-summary): the gate's merge pass over every Feature in the Unmerged Feature Stack
+// U, the quiet skip at `unmerged_features_max`, and the landed pin kept while an open Cycle's base names it.
+// Fixtures are throwaway git repositories; nothing model-authored is asserted.
+
+/// One backend repository with a Feature Branch per name, each one commit ahead of `main`, unmerged.
+private func backendWithBranches(_ name: String, branches: [String]) async throws -> GateGitFixture {
+    let backend = GateGitFixture(name: name)
+    await backend.initRepo()
+    _ = try await backend.commit(message: "init")
+    for branch in branches {
+        _ = await backend.run(["checkout", "-b", branch, "main"])
+        _ = try await backend.commit(filename: "\(branch).txt", content: branch, message: "work on \(branch)")
+    }
+    _ = await backend.run(["checkout", "main"])
+    return backend
+}
+
+private func tip(_ repo: borrowing GateGitFixture, _ ref: String) async -> String {
+    await repo.run(["rev-parse", ref]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func backendRepositories(_ repo: borrowing GateGitFixture) -> ProjectRepositories {
+    ProjectRepositories(workingRepos: [Repo(name: "backend", path: repo.path, role: .backend)])
+}
+
+/// An archived Feature in U whose backend tip is recorded and pinned, as the land Act leaves it.
+@discardableResult
+private func insertLandedFeature(
+    _ journal: JournalStore, _ repo: borrowing GateGitFixture, issueID: String, branch: String
+) async throws -> Int64 {
+    let commit = await tip(repo, branch)
+    _ = await repo.run(["update-ref", "refs/yellowhammer/landed/\(branch)", commit])
+    return try insertGateFeature(
+        journal, issueID: issueID, branch: branch, repositories: ["backend"], landed: true,
+        landedCommits: ["backend": commit]
+    )
+}
+
+@Suite("The Unmerged Feature Stack gate (P23.5)")
+struct UnmergedStackGateTests {
+    @Test("Max 3: one verified unmerged Feature in U opens the gate, and the next author Act selects")
+    func oneUnmergedFeatureUnderTheBoundSelects() async throws {
+        let backend = try await backendWithBranches("stack-one", branches: ["yh-f1"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        try await insertLandedFeature(journal, backend, issueID: "F1", branch: "yh-f1")
+        let authoring = ScriptedFeatureAuthoring(outcome: .authored)
+
+        try await EngineInvocation(
+            act: .author, mode: .rehearsal, nightStart: gateNightStart, journal: journal, trigger: .scheduled,
+            runID: RunID(), repositories: backendRepositories(backend),
+            work: AuthorAct(predecessorGate: PredecessorAncestryGate(), authoring: authoring, unmergedFeaturesMax: 3)
+                .work
+        ).run()
+
+        #expect(authoring.wasCalled)
+        #expect(try journal.unmergedFeatureStack().map(\.feature.issueID) == ["F1"])
+        #expect(try journal.events(ofType: .authoringSkippedUnmergedStackFull).isEmpty)
+    }
+
+    @Test("Max 3: three unmerged Features fill the stack, named oldest first with each repository and branch")
+    func threeUnmergedFeaturesFillTheStack() async throws {
+        let backend = try await backendWithBranches("stack-three", branches: ["yh-f1", "yh-f2", "yh-f3"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        for index in 1...3 {
+            try await insertLandedFeature(journal, backend, issueID: "F\(index)", branch: "yh-f\(index)")
+        }
+        let (context, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
+
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 3)
+
+        #expect(outcome == .stackFull(features: (1...3).map { index in
+            UnmergedStackEntry(
+                featureIssueID: "F\(index)", identifier: "F\(index)", unmergedRepositories: ["backend"],
+                branches: ["backend": "yh-f\(index)"]
+            )
+        }))
+        #expect(try journal.events(ofType: .predecessorWalkSkippedReleasedFeature).isEmpty)
+    }
+
+    @Test("Max 3, three unmerged: the author Act records the skip, the verdict is quiet, the line names every branch")
+    func stackFullSkipsAuthoringQuietly() async throws {
+        let backend = try await backendWithBranches("stack-skip", branches: ["yh-f1", "yh-f2", "yh-f3"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        for index in 1...3 {
+            try await insertLandedFeature(journal, backend, issueID: "F\(index)", branch: "yh-f\(index)")
+        }
+        let authoring = ScriptedFeatureAuthoring(outcome: .authored)
+
+        try await EngineInvocation(
+            act: .author, mode: .rehearsal, nightStart: gateNightStart, journal: journal, trigger: .scheduled,
+            runID: RunID(), repositories: backendRepositories(backend),
+            work: AuthorAct(predecessorGate: PredecessorAncestryGate(), authoring: authoring, unmergedFeaturesMax: 3)
+                .work
+        ).run()
+
+        #expect(!authoring.wasCalled)
+        let skip = try #require(try journal.events(ofType: .authoringSkippedUnmergedStackFull).first)
+        guard case .authoringSkippedUnmergedStackFull(let features, let max) = skip.event else {
+            Issue.record("expected authoringSkippedUnmergedStackFull")
+            return
+        }
+        #expect(features.map(\.featureIssueID) == ["F1", "F2", "F3"])
+        #expect(max == 3)
+        let night = try #require(try journal.currentNight())
+        #expect(try NightSummary.verdictLine(night: night, journal: journal).contains("did not advance — quiet"))
+        let line = try #require(NightCardMaintenance.authoringLine(for: skip.event, journal: journal))
+        #expect(line.contains("unmerged Feature stack reached unmerged_features_max (3 unmerged Features:"))
+        #expect(line.contains("Not found in mainline: `yh-f1` in backend, `yh-f2` in backend, `yh-f3` in backend."))
+        let attempts = try journal.write { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM attempt") } ?? 0
+        #expect(attempts == 0)
+    }
+
+    @Test("Max 3: a Feature in U whose tip cannot be read is indeterminate, though U is under the bound")
+    func unreadableTipInUIsIndeterminate() async throws {
+        let backend = try await backendWithBranches("stack-unreadable", branches: [])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        // A branch is recorded, but neither it nor a landed commit exists in the repository.
+        try insertGateFeature(journal, issueID: "F1", branch: "yh-gone", repositories: ["backend"], landed: true)
+        let (context, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
+
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 3)
+
+        #expect(outcome == .indeterminate(predecessorIssueID: "F1", repositories: ["backend"]))
+    }
+
+    // Every Feature in U is tested, not only the most recent archived one: an upper Feature merging does not take
+    // a lower, unmerged one out of U (an upper pull request merged first merges into the lower branch, not mainline).
+    @Test("Max 1: a merged Feature above an unmerged one leaves the lower Feature alone in U, holding the gate")
+    func mergedUpperFeatureKeepsTheLowerInU() async throws {
+        let backend = try await backendWithBranches("stack-upper", branches: ["yh-f1", "yh-f2"])
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge f2", "yh-f2"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        try await insertLandedFeature(journal, backend, issueID: "F1", branch: "yh-f1")
+        try await insertLandedFeature(journal, backend, issueID: "F2", branch: "yh-f2")
+        let (context, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
+
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
+
+        #expect(namedUnmerged(outcome) == [NamedUnmerged("F1", ["backend"])])
+        #expect(try journal.unmergedFeatureStack().map(\.feature.issueID) == ["F1"])
+    }
+
+    @Test("The closure seam fires once per Feature in U on the first fully merged pass, never again")
+    func closureFiresOncePerFeature() async throws {
+        let backend = try await backendWithBranches("stack-closure", branches: ["yh-f1", "yh-f2"])
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge f1", "yh-f1"])
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge f2", "yh-f2"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        try await insertLandedFeature(journal, backend, issueID: "F1", branch: "yh-f1")
+        try await insertLandedFeature(journal, backend, issueID: "F2", branch: "yh-f2")
+        let closure = ScriptedPostMergeClosure()
+        let gate = PredecessorAncestryGate(closure: closure)
+
+        let (first, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
+        #expect(try await gate.check(first, unmergedFeaturesMax: 1) == .landed)
+        #expect(closure.callCount == 2)
+        #expect(try journal.unmergedFeatureStack().isEmpty)
+
+        try journal.releaseActLease(runID: first.runID)
+        let (second, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
+        #expect(try await gate.check(second, unmergedFeaturesMax: 1) == .landed)
+        #expect(closure.callCount == 2)
+    }
+}
+
+@Suite("Repeated stack-full skips in one Night collapse to one line (P23.5)")
+struct UnmergedStackSkipCollapseTests {
+    @Test("Five skip events in one Night render one line, carrying the latest skip's content")
+    func fiveSkipsRenderOneLine() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let run = RunID()
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .rehearsal)
+        let night = try journal.openNight(nightStart: nightCardNightStart, mode: .rehearsal, act: .author, runID: run)
+            .night
+        let outbox = Outbox(journal: journal, board: boards.writing, runID: run, act: .author, nightID: night.id)
+        let maintenance = NightCardMaintenance(journal: journal, outbox: outbox, provisioning: boards.provisioning)
+        for _ in 1...4 {
+            try journal.append(
+                stackFullSkip("F1", ["backend", "mobile"]), act: .author, runID: RunID(), nightID: night.id
+            )
+        }
+        try journal.append(.authoringNoWorkAvailable, act: .author, runID: RunID(), nightID: night.id)
+        // The last firing saw mobile merged: its content is what the Night renders.
+        let latest = stackFullSkip("F1", ["backend"])
+        try journal.append(latest, act: .author, runID: RunID(), nightID: night.id)
+
+        let lines = try maintenance.authoringLines(night: night)
+
+        let skipLines = lines.filter { $0.hasPrefix("Authoring was skipped: predecessor Feature") }
+        #expect(skipLines == [try #require(NightCardMaintenance.authoringLine(for: latest, journal: journal))])
+        #expect(lines.first == skipLines.first)
+        #expect(lines.count == 2)
+    }
+}

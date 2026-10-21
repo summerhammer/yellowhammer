@@ -157,11 +157,13 @@ enum HaltedFeatureRepair {
     enum DeferralReason {
         case featureInFlight
         case predecessorNotLanded
+        case unmergedStackFull
 
         var key: String {
             switch self {
             case .featureInFlight: "feature-in-flight"
             case .predecessorNotLanded: "predecessor-not-landed"
+            case .unmergedStackFull: "unmerged-stack-full"
             }
         }
 
@@ -177,6 +179,12 @@ enum HaltedFeatureRepair {
                 """
                 Repair of Feature '\(feature)' is deferred: the predecessor Feature has not landed yet. The Feature \
                 stays as you set it; it is validated on a later author Act once the predecessor has landed.
+                """
+            case .unmergedStackFull:
+                """
+                Repair of Feature '\(feature)' is deferred: the unmerged Feature stack has reached \
+                unmerged_features_max, so no Feature is authored until one of them merges. The Feature stays as you \
+                set it; it is validated on a later author Act once a merge is observed.
                 """
             }
         }

@@ -28,7 +28,7 @@ struct FeatureSettleAuthorActTests {
         let types = try world.journal.events().map(\.type)
         #expect(types.contains(.featureCompleted))
         #expect(!types.contains(.authoringSkippedFeatureInFlight))
-        #expect(!types.contains(.authoringPredecessorNotLanded))
+        #expect(!types.contains(.authoringSkippedUnmergedStackFull))
         #expect(!types.contains(.authoringPredecessorIndeterminate))
         #expect(try settleFeatureRow(world.journal, featureID: world.featureID).closedBy == "completion")
         #expect(try world.journal.inFlightFeature() == nil)
@@ -52,7 +52,8 @@ struct FeatureSettleAuthorActTests {
         #expect(try world.journal.events(ofType: .featureCompleted).isEmpty)
     }
 
-    @Test("Done with one pushed repository unmerged: the slot is free, selection is blocked, the repository is named")
+    // At unmerged_features_max = 1 the completed Feature, entering the Unmerged Feature Stack, closes the gate.
+    @Test("Done with a pushed repository unmerged, max 1: the slot is free, selection blocked, the repository named")
     func doneWithAnUnmergedRepositoryNamesTheBlocker() async throws {
         let backend = GateGitFixture(name: "settle-backend")
         await backend.initRepo()
@@ -80,7 +81,7 @@ struct FeatureSettleAuthorActTests {
 
         try await authorAct(
             world, authoring: authoring, gate: PredecessorAncestryGate(), reading: try await linkedReading(world),
-            repositories: repositories
+            repositories: repositories, unmergedFeaturesMax: 1
         ).run()
 
         #expect(!authoring.wasCalled)
@@ -88,13 +89,13 @@ struct FeatureSettleAuthorActTests {
         #expect(try world.journal.inFlightFeature() == nil)
         let types = try world.journal.events().map(\.type)
         #expect(!types.contains(.authoringSkippedFeatureInFlight))
-        let blocked = try world.journal.events(ofType: .authoringPredecessorNotLanded)
-        guard case .authoringPredecessorNotLanded(let issueID, let named)? = blocked.first?.event else {
-            Issue.record("expected authoringPredecessorNotLanded")
+        let blocked = try world.journal.events(ofType: .authoringSkippedUnmergedStackFull)
+        guard case .authoringSkippedUnmergedStackFull(let features, 1)? = blocked.first?.event else {
+            Issue.record("expected authoringSkippedUnmergedStackFull at max 1")
             return
         }
-        #expect(issueID == "FEAT-1")
-        #expect(named == ["mobile"])
+        #expect(features.map(\.featureIssueID) == ["FEAT-1"])
+        #expect(features.first?.unmergedRepositories == ["mobile"])
         let blockedEvent = try #require(blocked.first).event
         let line = try #require(NightCardMaintenance.authoringLine(for: blockedEvent, journal: world.journal))
         #expect(line.contains("mobile"))
@@ -115,7 +116,7 @@ struct FeatureSettleAuthorActTests {
         #expect(authoring.wasCalled)
         let types = try world.journal.events().map(\.type)
         #expect(types.contains(.featureCompleted))
-        #expect(!types.contains(.authoringPredecessorNotLanded))
+        #expect(!types.contains(.authoringSkippedUnmergedStackFull))
         #expect(!types.contains(.authoringPredecessorIndeterminate))
         #expect(!types.contains(.predecessorAncestryObserved))
         #expect(!types.contains(.featureClosedByMerge))
@@ -171,7 +172,7 @@ struct FeatureSettleAuthorActTests {
 
     private func authorAct(
         _ world: SettleWorld, authoring: ScriptedFeatureAuthoring, gate: PredecessorAncestryGate,
-        reading: FakeReadingBoard, repositories: ProjectRepositories? = nil
+        reading: FakeReadingBoard, repositories: ProjectRepositories? = nil, unmergedFeaturesMax: Int = 3
     ) -> EngineInvocation {
         EngineInvocation(
             act: .author, mode: .real, nightStart: settleObservingNightStart, journal: world.journal,
@@ -180,7 +181,10 @@ struct FeatureSettleAuthorActTests {
                 reading: reading, writing: world.boards.writing, provisioning: world.boards.provisioning
             ),
             repositories: repositories, workspace: world.workspace,
-            work: AuthorAct(predecessorGate: gate, authoring: authoring, settle: FeatureSettleGesture()).work
+            work: AuthorAct(
+                predecessorGate: gate, authoring: authoring, settle: FeatureSettleGesture(),
+                unmergedFeaturesMax: unmergedFeaturesMax
+            ).work
         )
     }
 

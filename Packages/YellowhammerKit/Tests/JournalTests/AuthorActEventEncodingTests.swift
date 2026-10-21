@@ -6,8 +6,8 @@ import Testing
 @testable import Journal
 
 // Split out of EventEncodingTests.swift to keep that file under the length limit. Round-trips the
-// author Act's own quiet-Night events (roadmap P9.1): a Feature already in flight, and a predecessor
-// Feature not yet landed in every repository.
+// author Act's own quiet-Night events (roadmap P9.1, P23.5): a Feature already in flight, a full Unmerged
+// Feature Stack, and a predecessor tip that cannot be read.
 
 private struct JournalFixture: ~Copyable {
     let directory: URL
@@ -47,45 +47,30 @@ func authoringSkippedFeatureInFlightRoundTrips() throws {
     #expect(featureIssueID == "FEAT-1")
 }
 
-@Test("authoringPredecessorNotLanded event round-trips, including repository names with commas")
-func authoringPredecessorNotLandedRoundTrips() throws {
+@Test("authoringSkippedUnmergedStackFull round-trips every Feature, its repositories and branches, and the bound")
+func authoringSkippedUnmergedStackFullRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
-    let run = RunID()
-    let repositories = ["backend, inc", "mobile"]
+    let features = [
+        UnmergedStackEntry(
+            featureIssueID: "FEAT-1", identifier: "YLH-1", unmergedRepositories: ["backend, inc", "mobile"],
+            branches: ["backend, inc": "orca/ylh-1", "mobile": "ylh-1"]
+        ),
+        UnmergedStackEntry(
+            featureIssueID: "FEAT-2", identifier: "YLH-2", unmergedRepositories: ["mobile"],
+            branches: ["mobile": "ylh-2"]
+        )
+    ]
 
     try journal.append(
-        .authoringPredecessorNotLanded(featureIssueID: "FEAT-0", repositories: repositories),
-        act: .author, runID: run, now: epoch
+        .authoringSkippedUnmergedStackFull(features: features, unmergedFeaturesMax: 2),
+        act: .author, runID: RunID(), now: epoch
     )
     let records = try journal.events()
 
     #expect(records.count == 1)
-    guard case .authoringPredecessorNotLanded(let featureIssueID, let readRepositories) = records[0].event else {
-        Issue.record("Event is not authoringPredecessorNotLanded")
-        return
-    }
-    #expect(featureIssueID == "FEAT-0")
-    #expect(readRepositories == repositories)
-}
-
-@Test("authoringPredecessorNotLanded round-trips an empty repository list")
-func authoringPredecessorNotLandedRoundTripsEmptyRepositories() throws {
-    let fixture = try JournalFixture()
-    let journal = try fixture.open()
-    let run = RunID()
-
-    try journal.append(
-        .authoringPredecessorNotLanded(featureIssueID: "FEAT-0", repositories: []),
-        act: .author, runID: run, now: epoch
-    )
-    let records = try journal.events()
-
-    guard case .authoringPredecessorNotLanded(_, let readRepositories) = records[0].event else {
-        Issue.record("Event is not authoringPredecessorNotLanded")
-        return
-    }
-    #expect(readRepositories.isEmpty)
+    #expect(records[0].type == .authoringSkippedUnmergedStackFull)
+    #expect(records[0].event == .authoringSkippedUnmergedStackFull(features: features, unmergedFeaturesMax: 2))
 }
 
 @Test("authoringPredecessorIndeterminate event round-trips, including repository names with commas")

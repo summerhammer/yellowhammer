@@ -245,8 +245,8 @@ struct NightSummaryInFlightFeatureTests {
         #expect(try NightSummary.inFlightFeatureLines(night: night, journal: journal).isEmpty)
     }
 
-    @Test("A predecessor not landed reads as a quiet Night, naming the Feature and its repositories")
-    func predecessorNotLandedIsQuiet() async throws {
+    @Test("A full Unmerged Feature Stack reads as a quiet Night, naming the Feature and its repositories")
+    func unmergedStackFullIsQuiet() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
@@ -256,7 +256,7 @@ struct NightSummaryInFlightFeatureTests {
             trigger: .forced, runID: RunID(), board: board,
             work: { context in
                 try journal.append(
-                    .authoringPredecessorNotLanded(featureIssueID: "FEAT-OLD", repositories: ["backend", "frontend"]),
+                    stackFullSkip("FEAT-OLD", ["backend", "frontend"]),
                     act: context.act, runID: context.runID, nightID: context.night.id
                 )
             }
@@ -267,7 +267,7 @@ struct NightSummaryInFlightFeatureTests {
         #expect(verdict.contains("did not advance — quiet"))
 
         let authoringLine = NightCardMaintenance.authoringLine(
-            for: .authoringPredecessorNotLanded(featureIssueID: "FEAT-OLD", repositories: ["backend", "frontend"])
+            for: stackFullSkip("FEAT-OLD", ["backend", "frontend"])
         )
         #expect(authoringLine?.contains("`FEAT-OLD`") == true)
         #expect(authoringLine?.contains("backend") == true)

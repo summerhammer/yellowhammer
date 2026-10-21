@@ -6,7 +6,7 @@ import Foundation
 import Repositories
 import Testing
 
-// roadmap P9.2: the predecessor-ancestry gate. Reads the most recent Feature that is not in flight
+// roadmap P9.2, P23.5: the predecessor-ancestry gate. Reads every Feature in the Unmerged Feature Stack
 // (its Cycle archived), evaluates ancestry for its Feature Branch in the repositories its Cycle
 // touched, re-tests merge only for the unmerged ones, and records what it found. Allocates no
 // Worktree, dispatches nothing, records no Attempt. Fixtures and helpers are in
@@ -21,7 +21,7 @@ struct PredecessorAncestryGateTests {
         let (context, _) = try makeGateContext(journal, repositories: nil)
         let gate = PredecessorAncestryGate()
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
         #expect(outcome == .landed)
         let events = try journal.events().map(\.type)
@@ -64,7 +64,7 @@ struct PredecessorAncestryGateTests {
         let gate = PredecessorAncestryGate(closure: closure)
 
         let (context1, _) = try makeGateContext(journal, repositories: repositories)
-        let outcome1 = try await gate.check(context1)
+        let outcome1 = try await gate.check(context1, unmergedFeaturesMax: 1)
         #expect(outcome1 == .landed)
         #expect(closure.callCount == 1)
 
@@ -81,12 +81,12 @@ struct PredecessorAncestryGateTests {
         // A second pass must not fire the closure again.
         try journal.releaseActLease(runID: context1.runID)
         let (context2, _) = try makeGateContext(journal, repositories: repositories)
-        let outcome2 = try await gate.check(context2)
+        let outcome2 = try await gate.check(context2, unmergedFeaturesMax: 1)
         #expect(outcome2 == .landed)
         #expect(closure.callCount == 1)
     }
 
-    @Test("Predecessor merged in none of N repositories: notLanded naming every repository")
+    @Test("Predecessor merged in none of N repositories: at max 1 the stack is full, naming every repository")
     func predecessorMergedInNoneIsNotLanded() async throws {
         let backend = GateGitFixture(name: "gate-none-backend")
         await backend.initRepo()
@@ -119,10 +119,10 @@ struct PredecessorAncestryGateTests {
         let gate = PredecessorAncestryGate(closure: closure)
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        guard case .notLanded(let issueID, let repos) = outcome else {
-            Issue.record("expected notLanded")
+        guard case (let issueID, let repos)? = singleUnmerged(outcome) else {
+            Issue.record("expected stackFull naming one Feature")
             return
         }
         #expect(issueID == "FEAT-1")
@@ -164,10 +164,10 @@ struct PredecessorAncestryGateTests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        guard case .notLanded(_, let repos) = outcome else {
-            Issue.record("expected notLanded")
+        guard case (_, let repos)? = singleUnmerged(outcome) else {
+            Issue.record("expected stackFull naming one Feature")
             return
         }
         #expect(repos == ["mobile"])
@@ -201,10 +201,10 @@ struct PredecessorAncestryGateTests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        guard case .notLanded(_, let repos) = outcome else {
-            Issue.record("expected notLanded")
+        guard case (_, let repos)? = singleUnmerged(outcome) else {
+            Issue.record("expected stackFull naming one Feature")
             return
         }
         #expect(repos == ["backend"])
@@ -242,7 +242,7 @@ struct PredecessorAncestryGateTests {
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
         await #expect(throws: PredecessorAncestryGateError.self) {
-            _ = try await gate.check(context)
+            _ = try await gate.check(context, unmergedFeaturesMax: 1)
         }
     }
 
@@ -263,7 +263,7 @@ struct PredecessorAncestryGateTests {
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
         await #expect(throws: PredecessorAncestryGateError.self) {
-            _ = try await gate.check(context)
+            _ = try await gate.check(context, unmergedFeaturesMax: 1)
         }
     }
 }

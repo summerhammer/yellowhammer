@@ -22,7 +22,9 @@ struct FeatureMergeClosureTests {
         let repositories = mergeWorldRepositories(world)
         let context = try world.makeContext(repositories: repositories)
 
-        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context)
+        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+
+            .check(context, unmergedFeaturesMax: 1)
 
         // An in-flight Feature is observed, never gated on: the outcome is always `.landed` regardless
         // of merge status — only the closure (or its absence) tells k = 0 apart from k = N.
@@ -45,7 +47,9 @@ struct FeatureMergeClosureTests {
         let repositories = mergeWorldRepositories(world)
         let context = try world.makeContext(repositories: repositories)
 
-        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context)
+        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+
+            .check(context, unmergedFeaturesMax: 1)
 
         #expect(outcome == .landed)
         let landings = try world.journal.landings(featureID: world.featureID)
@@ -67,7 +71,9 @@ struct FeatureMergeClosureTests {
         let repositories = mergeWorldRepositories(world)
         let context = try world.makeContext(repositories: repositories)
 
-        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context)
+        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+
+            .check(context, unmergedFeaturesMax: 1)
         #expect(outcome == .landed)
 
         let row = try mergeFeatureRow(world.journal, featureID: world.featureID)
@@ -150,7 +156,9 @@ struct FeatureMergeClosureTests {
         let world = try await makeMergeWorld(mergedRepositories: ["backend"], squashedRepositories: ["mobile"])
         let context = try world.makeContext(repositories: mergeWorldRepositories(world))
 
-        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context)
+        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+
+            .check(context, unmergedFeaturesMax: 1)
 
         #expect(outcome == .landed)
         #expect(try world.journal.landings(featureID: world.featureID).keys.sorted() == ["backend", "mobile"])
@@ -176,7 +184,7 @@ struct FeatureMergeClosureTests {
         let context = try world.makeContext(repositories: repositories)
         #expect(context.night.id == world.landingNightID)
 
-        _ = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context)
+        _ = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context, unmergedFeaturesMax: 1)
 
         #expect(try mergeNightTriagedAt(world.journal, nightID: context.night.id) != nil)
     }
@@ -186,11 +194,12 @@ struct FeatureMergeClosureTests {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
         let context1 = try world.makeContext(repositories: repositories)
-        _ = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context1)
+        _ = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context1, unmergedFeaturesMax: 1)
 
         try world.journal.releaseActLease(runID: context1.runID)
         let context2 = try world.makeContext(repositories: repositories)
-        let outcome2 = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context2)
+        let outcome2 = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+            .check(context2, unmergedFeaturesMax: 1)
 
         #expect(outcome2 == .landed)
         #expect(try world.journal.events(ofType: .featureClosedByMerge).count == 1)
@@ -233,7 +242,7 @@ struct FeatureMergeClosureTests {
         _ = try world.journal.claimCardLease(cardID: world.waitingCardID, runID: RunID())
 
         await #expect(throws: CycleArchiveFault.self) {
-            _ = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context)
+            _ = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context, unmergedFeaturesMax: 1)
         }
 
         #expect(try world.journal.inFlightFeature() != nil)

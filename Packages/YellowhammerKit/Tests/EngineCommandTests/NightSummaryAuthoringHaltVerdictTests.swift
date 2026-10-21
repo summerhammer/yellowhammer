@@ -101,7 +101,7 @@ struct NightSummaryAuthoringHaltVerdictTests {
         try rig.journal.advanceAuthoringHaltClocks(nightID: expiry.id, unansweredNightsMax: 0)
         let later = try rig.night("2026-10-10")
         try rig.journal.append(
-            .authoringPredecessorNotLanded(featureIssueID: "FEATURE-2", repositories: ["backend"]), nightID: later.id
+            stackFullSkip("FEATURE-2", ["backend"]), nightID: later.id
         )
         #expect(try rig.journal.events(ofType: .authoringHaltOpened).allSatisfy { $0.nightID != later.id })
         #expect(

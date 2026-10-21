@@ -34,11 +34,8 @@ extension JournalEvent {
         case .authoringNoWorkAvailable: nil
         case .authoringSkippedFeatureInFlight(let featureIssueID):
             ["feature_issue_id": featureIssueID]
-        case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
-            [
-                "feature_issue_id": featureIssueID,
-                "repositories": repositories.joined(separator: "\u{1F}")
-            ]
+        case .authoringSkippedUnmergedStackFull(let features, let unmergedFeaturesMax):
+            ["features": Self.stackEntriesJSON(features), "unmerged_features_max": String(unmergedFeaturesMax)]
         case .observedReleaseRecorded(let featureIssueID, let repository, let tagName, let tagCommit):
             [
                 "feature_issue_id": featureIssueID, "repository": repository,

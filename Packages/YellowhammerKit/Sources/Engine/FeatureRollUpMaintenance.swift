@@ -75,7 +75,8 @@ public struct FeatureRollUpMaintenance: Sendable {
 
     /// Maintains every Feature Issue candidate this Night touches, deduplicated by issue id: the
     /// in-flight Feature, the not-yet-released predecessor (its merged fraction still moves after its
-    /// Cycle archives), every Feature this Night's closure events name, and every Refusal/Authoring
+    /// Cycle archives), every Feature this Night's merge pass observed (each Feature of the Unmerged Feature
+    /// Stack, whose merged fraction moves too), every Feature this Night's closure events name, and every Refusal/Authoring
     /// Halt Feature Issue not already covered by a real `FeatureRecord`. One candidate's failure never
     /// stops the rest; the first error is rethrown once every candidate has been tried, so the caller
     /// decides whether the Act should notice.
@@ -85,6 +86,7 @@ public struct FeatureRollUpMaintenance: Sendable {
 
         try await maintainInFlight(processed: &processed, errors: &errors)
         try await maintainPredecessor(processed: &processed, errors: &errors)
+        try await maintainObservedThisNight(night, processed: &processed, errors: &errors)
         try await maintainClosedThisNight(night, processed: &processed, errors: &errors)
         try await maintainZeroCardStandings(processed: &processed, errors: &errors)
 
@@ -309,6 +311,30 @@ public struct FeatureRollUpMaintenance: Sendable {
         case .open: .awaitingYou(.halt)
         case .expired: .unanswered(.halt)
         case .cleared: .authoring
+        }
+    }
+}
+
+extension FeatureRollUpMaintenance {
+    /// Every Feature a `predecessorAncestryObserved` event this Night names (roadmap P23.5): the merge pass runs
+    /// over every Feature in the Unmerged Feature Stack, not only the most recent archived one, so a Feature
+    /// below the top of the stack — including one whose last repository merged tonight — has its merged fraction
+    /// rendered too.
+    private func maintainObservedThisNight(
+        _ night: NightRecord, processed: inout Set<String>, errors: inout [Error]
+    ) async throws {
+        for record in try journal.events(ofType: .predecessorAncestryObserved) where record.nightID == night.id {
+            guard
+                case .predecessorAncestryObserved(let issueID, _, _) = record.event, !processed.contains(issueID),
+                let feature = try journal.feature(issueID: issueID),
+                let cycleID = try journal.cycleID(featureID: feature.id)
+            else {
+                continue
+            }
+            processed.insert(issueID)
+            if let error = await attempt({ _ = try await self.maintain(feature: feature, cycleID: cycleID) }) {
+                errors.append(error)
+            }
         }
     }
 }

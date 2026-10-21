@@ -35,8 +35,8 @@ extension JournalEvent {
             .authoringNoWorkAvailable
         case .authoringSkippedFeatureInFlight:
             .authoringSkippedFeatureInFlight
-        case .authoringPredecessorNotLanded:
-            .authoringPredecessorNotLanded
+        case .authoringSkippedUnmergedStackFull:
+            .authoringSkippedUnmergedStackFull
         case .authoringPredecessorIndeterminate:
             .authoringPredecessorIndeterminate
         case .observedReleaseRecorded:
