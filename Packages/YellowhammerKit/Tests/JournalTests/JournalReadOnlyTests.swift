@@ -136,22 +136,6 @@ struct JournalReadOnlyTests {
     }
 
     @Test
-    func openReadOnlyRetiredChainIsOlder() throws {
-        let home = createTempHome()
-        defer { try? cleanupTempHome(home) }
-
-        let (fileURL, projectID) = try journal(
-            named: "older-chain-test", home: home, injecting: ["v30-card-title"]
-        )
-
-        guard case .schemaOlderThanKnown(_, let unknown) = readOnlyError(fileURL, projectID) else {
-            Issue.record("Expected .schemaOlderThanKnown error")
-            return
-        }
-        #expect(unknown == ["v30-card-title"])
-    }
-
-    @Test
     func openReadOnlyLowerSchemaNumberIsOlder() throws {
         let home = createTempHome()
         defer { try? cleanupTempHome(home) }
@@ -187,7 +171,7 @@ struct JournalReadOnlyTests {
         defer { try? cleanupTempHome(home) }
 
         let (fileURL, projectID) = try journal(
-            named: "mixed-test", home: home, injecting: ["v1-initial-schema", try newerIdentifier()]
+            named: "mixed-test", home: home, injecting: ["journal-schema-0", try newerIdentifier()]
         )
 
         guard case .schemaNewerThanKnown = readOnlyError(fileURL, projectID) else {
@@ -213,7 +197,7 @@ struct JournalReadOnlyTests {
 
     @Test
     func olderBuildDescriptionTellsTheOperatorToDelete() {
-        let text = JournalError.schemaOlderThanKnown(path: "/tmp/p.db", unknown: ["v1-initial-schema"]).description
+        let text = JournalError.schemaOlderThanKnown(path: "/tmp/p.db", unknown: ["journal-schema-0"]).description
         #expect(text.contains("earlier build"))
         #expect(text.contains("Delete it"))
     }
@@ -225,9 +209,9 @@ struct JournalReadOnlyTests {
         let home = createTempHome()
         defer { try? cleanupTempHome(home) }
 
-        // A pre-squash Journal carries identifiers this build does not know.
+        // An older Journal carries identifiers this build does not know.
         let (fileURL, projectID) = try journal(
-            named: "engine-older-schema-test", home: home, injecting: ["v1-initial-schema"]
+            named: "engine-older-schema-test", home: home, injecting: ["journal-schema-0"]
         )
 
         var error: JournalError?
@@ -241,7 +225,7 @@ struct JournalReadOnlyTests {
             Issue.record("Expected .schemaOlderThanKnown error, got \(String(describing: error))")
             return
         }
-        #expect(unknown == ["v1-initial-schema"])
+        #expect(unknown == ["journal-schema-0"])
     }
 
     // MARK: - Test: openReadOnly on 0-byte file

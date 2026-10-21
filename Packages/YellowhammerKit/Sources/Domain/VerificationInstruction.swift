@@ -17,7 +17,7 @@ public struct VerificationClause: Equatable, Sendable {
 
 /// One Check result recorded for a Feature's Work Cards, never reconstructed from current configuration.
 public struct VerificationCheckResult: Equatable, Sendable {
-    /// Legacy events may lack the actual command or judged commit; absence is not evidence of success.
+    /// A declared-none Check records no command; an absent value is not evidence of success.
     public let command: String?
     public let judgedCommit: String?
     public let exitStatus: Int32?
@@ -113,7 +113,7 @@ public struct VerificationInstruction: Equatable, Sendable {
 
         Use the recorded Check results below to judge clauses they cover, on any Route. Resolve the head \
         of each Feature Branch you judge. A record whose judged commit is not that head cannot decide a \
-        clause: name the stale record beside the clause in `what_was_checked`. A legacy record with an \
+        clause: name the stale record beside the clause in `what_was_checked`. A record with an \
         unavailable command, judged commit or exit status cannot establish what ran successfully at that head.
 
         Report every build or test clause no recorded Check covers, naming the command it would need in \

@@ -99,7 +99,9 @@ struct NightSummaryInstrumentedRatesTests {
         var object = openingBoardObject("CARD-1")
         object.description = ManagedBlockFence.initialDescription(rendered: """
             ### Architectural Brief
+            <!-- yh:brief-prose:start id=0 -->
             A concrete brief
+            <!-- yh:brief-prose:end id=0 -->
             ### Definition of Done
             - [ ] <!-- yh:clause:c1 --> Build it (wrong/story)
             """)

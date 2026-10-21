@@ -163,7 +163,9 @@ func untaggedClauseIsMinted() async throws {
     **Kind:** `card`
 
     ### Architectural Brief
+    <!-- yh:brief-prose:start id=0 -->
     A brief.
+    <!-- yh:brief-prose:end id=0 -->
 
     ### Definition of Done
     - [ ] An untagged human clause (resolvable/story)
@@ -217,7 +219,9 @@ func taggedClauseEditsReconcile() async throws {
     **Kind:** `card`
 
     ### Architectural Brief
+    <!-- yh:brief-prose:start id=0 -->
     A brief.
+    <!-- yh:brief-prose:end id=0 -->
 
     ### Definition of Done
     - [ ] <!-- yh:clause:c1 --> Edited text (resolvable/other)

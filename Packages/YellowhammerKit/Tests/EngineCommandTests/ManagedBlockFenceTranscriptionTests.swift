@@ -8,7 +8,7 @@ import Testing
 // is opaque"): a Transcription Block quoting either Managed Block delimiter in its transcribed content
 // must never confuse `ManagedBlockFence.replace(in:rendered:)` / `.parts(of:)` into seeing a duplicate.
 
-private let transcriptionOpen = "<!-- yh:transcription:start repo=r paths=p symbol=- commit=c hash=h -->"
+private let transcriptionOpen = "<!-- yh:transcription:start repo=r paths=p symbol=- commit=c -->"
 private let transcriptionClose = "<!-- yh:transcription:end -->"
 
 @Suite("ManagedBlockFence ignores delimiters quoted inside a Transcription Block")
@@ -19,6 +19,9 @@ struct ManagedBlockFenceTranscriptionTests {
             Prefix prose.
             \(ManagedBlockFence.start)
             ### Architectural Brief
+            <!-- yh:brief-prose:start id=0 -->
+            Prose.
+            <!-- yh:brief-prose:end id=0 -->
 
             \(transcriptionOpen)
             This transcribed content quotes \(ManagedBlockFence.start) as an example.
@@ -42,6 +45,9 @@ struct ManagedBlockFenceTranscriptionTests {
             Prefix prose.
             \(ManagedBlockFence.start)
             ### Architectural Brief
+            <!-- yh:brief-prose:start id=0 -->
+            Prose.
+            <!-- yh:brief-prose:end id=0 -->
 
             \(transcriptionOpen)
             This transcribed content quotes \(ManagedBlockFence.end) as an example.
@@ -61,6 +67,9 @@ struct ManagedBlockFenceTranscriptionTests {
             Prefix prose.
             \(ManagedBlockFence.start)
             ### Architectural Brief
+            <!-- yh:brief-prose:start id=0 -->
+            Prose.
+            <!-- yh:brief-prose:end id=0 -->
 
             \(transcriptionOpen)
             Quotes both \(ManagedBlockFence.start) and \(ManagedBlockFence.end) in one transcription.
@@ -188,7 +197,9 @@ struct ManagedBlockFenceUnpairedTests {
         let one = "\(transcriptionOpen)\n\(blockLine)\n\(transcriptionClose)"
         #expect(failures(card(one)) == [nil, nil])
         #expect(failures(card("\(one)\n\(one)")) == [nil, nil])
-        #expect(failures(card("### Architectural Brief\nProse")) == [nil, nil])
+        let brief = "### Architectural Brief\n<!-- yh:brief-prose:start id=0 -->\nProse\n"
+            + "<!-- yh:brief-prose:end id=0 -->"
+        #expect(failures(card(brief)) == [nil, nil])
         #expect(failures(card("  \(transcriptionOpen)\n  \(blockLine)\n  \(transcriptionClose)")) == [nil, nil])
     }
 

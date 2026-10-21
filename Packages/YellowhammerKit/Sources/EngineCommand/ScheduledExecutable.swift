@@ -65,8 +65,7 @@ enum ScheduledExecutable {
         let prefix = "journal-schema-"
         let current = candidate.flatMap { $0.hasPrefix(prefix) ? Int($0.dropFirst(prefix.count)) : nil }
         let applied = journal.hasPrefix(prefix) ? Int(journal.dropFirst(prefix.count)) : nil
-        let legacy = journal.wholeMatch(of: /v\d+-.*/) != nil
-        guard let current, current > 0, legacy || (applied.map { $0 > 0 && current >= $0 } == true) else {
+        guard let current, current > 0, applied.map({ $0 > 0 && current >= $0 }) == true else {
             throw Refusal(description: "engine schema \(candidate ?? "unknown") "
                 + "cannot schedule Journal schema \(journal); "
                 + "use an engine at least as new as the Journal")

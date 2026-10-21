@@ -195,7 +195,7 @@ private struct Recovery: Sendable {
         func inScope(_ record: JournalEventRecord) -> Bool {
             record.nightID == nightID && (wide || record.act == act)
         }
-        let sameClass = failures.filter { inScope($0.record) && Self.sameClass($0.cause, cause) }
+        let sameClass = failures.filter { inScope($0.record) && $0.cause == cause }
         let latest = ignoringLaterFailures ? failure.record.id : sameClass.map(\.record.id).max() ?? failure.record.id
         let failedRuns = Set(sameClass.compactMap(\.record.runID))
         var seen: [RunID] = []
@@ -212,11 +212,6 @@ private struct Recovery: Sendable {
             return checkpoint.occurredAt
         }
         return nil
-    }
-
-    private static func sameClass(_ lhs: ActFailureCause, _ rhs: ActFailureCause) -> Bool {
-        let legacy: Set<ActFailureCause> = [.laneFailed, .actIncomplete]
-        return lhs == rhs || (legacy.contains(lhs) && legacy.contains(rhs))
     }
 
     /// What a run records before, or instead of, getting past the board preflight. `linearReached` is here

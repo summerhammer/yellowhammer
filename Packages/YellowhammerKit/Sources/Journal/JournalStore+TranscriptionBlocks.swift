@@ -25,7 +25,7 @@ public struct TranscriptionBlockRecord: Equatable, Sendable {
     /// The Night `authorSuppliedNightID` names, joined from `night`; nil when no Night is recorded.
     public let authorSuppliedNight: NightStart?
     /// The Operator's edited `Contract:` line as read from the board, for an unread row; nil for a read
-    /// row, or an edited reference that came from a legacy stamp with no line.
+    /// row, or an edited reference that came from a stamp with no visible line.
     public let referenceText: String?
 
     public init(

@@ -46,24 +46,6 @@ public struct PlannedTranscription: Codable, Equatable, Sendable {
         self.content = content
         self.contentHash = contentHash
     }
-
-    private enum CodingKeys: String, CodingKey {
-        case repository, paths, ranges, symbol, mainlineCommit, content, contentHash
-    }
-
-    /// `ranges` is absent from a plan recorded before line ranges existed: it decodes as no ranges.
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
-            repository: try container.decode(String.self, forKey: .repository),
-            paths: try container.decode([String].self, forKey: .paths),
-            ranges: try container.decodeIfPresent([String: [LineRange]].self, forKey: .ranges) ?? [:],
-            symbol: try container.decodeIfPresent(String.self, forKey: .symbol),
-            mainlineCommit: try container.decodeIfPresent(String.self, forKey: .mainlineCommit),
-            content: try container.decode(String.self, forKey: .content),
-            contentHash: try container.decode(String.self, forKey: .contentHash)
-        )
-    }
 }
 
 /// One Card the plan creates: the Outbox key its create was accepted under, and the Journal row it
@@ -78,8 +60,7 @@ public struct PlannedCard: Codable, Equatable, Sendable {
     public let clauses: [PlannedClause]
     /// The Card's Architectural Brief prose (roadmap P9.6).
     public let brief: String
-    /// The Card's Transcription Blocks (roadmap P9.6); empty for a pre-P9.6 plan, or for a Card with no
-    /// contracts.
+    /// The Card's Transcription Blocks (roadmap P9.6); empty for a Card with no contracts.
     public let transcriptions: [PlannedTranscription]
     /// The draft child this Card IS, when it is a repaired halted Feature's draft (roadmap P22.6): its existing
     /// issue id, reused as the Card's own — nothing is created for it. Nil for a Card the plan creates.
@@ -103,24 +84,6 @@ public struct PlannedCard: Codable, Equatable, Sendable {
         self.clauses = clauses
         self.brief = brief
         self.transcriptions = transcriptions
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case key, repository, kind, order, title, clauses, brief, transcriptions, existingIssueID, declaredScope
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        key = try container.decode(String.self, forKey: .key)
-        repository = try container.decode(String.self, forKey: .repository)
-        kind = try container.decode(String.self, forKey: .kind)
-        order = try container.decode(Int.self, forKey: .order)
-        title = try container.decode(String.self, forKey: .title)
-        clauses = try container.decode([PlannedClause].self, forKey: .clauses)
-        brief = try container.decode(String.self, forKey: .brief)
-        transcriptions = try container.decode([PlannedTranscription].self, forKey: .transcriptions)
-        existingIssueID = try container.decodeIfPresent(String.self, forKey: .existingIssueID)
-        declaredScope = try container.decodeIfPresent([String].self, forKey: .declaredScope) ?? []
     }
 }
 
@@ -160,19 +123,6 @@ public struct PlannedAdoption: Codable, Equatable, Sendable {
         self.repository = repository
         self.order = order
         self.previousFeatureIssueID = previousFeatureIssueID
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case key, cardIssueID, repository, order, previousFeatureIssueID
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        key = try container.decode(String.self, forKey: .key)
-        cardIssueID = try container.decode(String.self, forKey: .cardIssueID)
-        repository = try container.decode(String.self, forKey: .repository)
-        order = try container.decode(Int.self, forKey: .order)
-        previousFeatureIssueID = try container.decode(String.self, forKey: .previousFeatureIssueID)
     }
 }
 

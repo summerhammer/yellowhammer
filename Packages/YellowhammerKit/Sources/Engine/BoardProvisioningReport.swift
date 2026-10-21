@@ -49,7 +49,7 @@ public struct ProvisioningEntry: Sendable {
     /// can add to adopt an existing state as Yellowhammer's own. Nil otherwise.
     public var mappingHint: String?
     /// For a `.collision`: the existing item that holds the name, as the Operator would find it in
-    /// Linear (e.g. label `Night Card` in group `Object Type`), so the fix can name it. Nil otherwise.
+    /// Linear (e.g. label `Bug` in group `Type`), so the fix can name it. Nil otherwise.
     public var collidesWith: String?
 
     public init(

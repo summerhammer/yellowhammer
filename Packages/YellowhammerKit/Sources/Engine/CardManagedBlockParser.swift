@@ -12,7 +12,7 @@ public struct ParsedTranscription: Equatable, Sendable {
     /// The line ranges per path, as written (not unioned or validated); `[:]` for none.
     public var ranges: [String: [LineRange]]
     public var symbol: String?
-    /// The commit named; nil when the reference names none (`-`, or a legacy `Operator-supplied` stamp).
+    /// The commit named; nil when the reference names none (`-`).
     public var commit: String?
     /// The raw visible `Contract:` line, trimmed, when the block's interior had one.
     public var line: String?
@@ -230,8 +230,8 @@ public enum CardManagedBlockParser {
         }
     }
 
-    /// The reference a legacy block states in its stamp alone. A `commit=` of `-` or
-    /// `Operator-supplied…` names no commit.
+    /// The reference a block states in its stamp alone, when its visible `Contract:` line is gone. A
+    /// `commit=` of `-` names no commit.
     private static func parsedFromStamp(_ stamp: String) -> ParsedTranscription {
         let fields = parseTranscriptionFields(stamp)
         let pathsRaw = fields["paths"] ?? ""
@@ -247,16 +247,14 @@ public enum CardManagedBlockParser {
             )
         }
         let commitRaw = fields["commit"] ?? ""
-        let commit = (commitRaw.isEmpty || commitRaw == TranscriptionBlockLine.noCommit
-            || commitRaw.hasPrefix("Operator-supplied")) ? nil : commitRaw
+        let commit = (commitRaw.isEmpty || commitRaw == TranscriptionBlockLine.noCommit) ? nil : commitRaw
         return ParsedTranscription(
             repository: fields["repo"] ?? "", paths: paths, ranges: ranges, symbol: symbol, commit: commit
         )
     }
 
-    /// Parses `key=value` pairs from a transcription start comment. The `commit=` field's value may
-    /// itself contain spaces (`Operator-supplied as of 2026-09-17`), so it — and only it — is read up
-    /// to the next known key, rather than split naively on whitespace.
+    /// Parses `key=value` pairs from a transcription start comment. A value runs up to the next known
+    /// key, so a path or symbol with a space in it is not split naively on whitespace.
     private static func parseTranscriptionFields(_ comment: String) -> [String: String] {
         var text = comment
         if text.hasPrefix(transcriptionStartPrefix) {
@@ -267,9 +265,7 @@ public enum CardManagedBlockParser {
         }
         text = text.trimmingCharacters(in: .whitespaces)
 
-        // `hash=` is no longer written, but a legacy stamp still carries one: it stays known so it ends the
-        // field before it instead of spilling into `commit=`.
-        let knownKeys = ["repo=", "paths=", "ranges=", "symbol=", "commit=", "hash="]
+        let knownKeys = ["repo=", "paths=", "ranges=", "symbol=", "commit="]
         var fields: [String: String] = [:]
         var remaining = Substring(text)
         while !remaining.isEmpty {

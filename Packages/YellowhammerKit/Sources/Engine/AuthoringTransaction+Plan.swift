@@ -275,7 +275,7 @@ struct AuthoringPlanner {
     static func cardBlock(
         _ draft: CardDraft, clauses: [PlannedClause], transcriptions: [TranscriptionBlock]
     ) -> String {
-        var lines = ["### Architectural Brief", draft.brief]
+        var lines = ["### Architectural Brief"] + ArchitecturalBriefProseRegion.render(draft.brief)
         for block in transcriptions {
             lines.append(contentsOf: Self.transcriptionLines(block))
         }

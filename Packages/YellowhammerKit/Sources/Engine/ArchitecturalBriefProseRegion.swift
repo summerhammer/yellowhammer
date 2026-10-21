@@ -57,21 +57,8 @@ enum ArchitecturalBriefProseRegion {
             }
             return Region(content: (first + 1)..<last, masked: first..<(last + 1), malformed: false)
         }
-        let endOfBlock = lines.indices.dropFirst(first).first(where: {
-            !transcriptions.contains($0) && lines[$0].contains(ManagedBlockFence.end)
-        }) ?? lines.count
-        if lines[first..<endOfBlock].contains(where: { $0.hasPrefix("<!-- yh:brief-prose:") }) {
-            return Region(content: first..<lines.count, masked: first..<lines.count, malformed: true)
-        }
-        // Legacy cards have no prose delimiter. Only known structural sections end their Brief;
-        // an Operator's nested heading is prose. Their next rewrite installs the explicit region.
-        let last = lines.indices.dropFirst(first).first(where: {
-            let line = lines[$0].trimmingCharacters(in: .whitespaces)
-            return line.hasPrefix(TranscriptionBlockLine.startPrefix)
-                || ["### Definition of Done", "### Attempts", "### Adoption not completed"].contains(line)
-                || line == CardManagedBlock.footer || line == ManagedBlockFence.end
-        }) ?? lines.count
-        return Region(content: first..<last, masked: first..<last, malformed: false)
+        // A Brief with no prose region is malformed: the region is required, and the next rewrite installs it.
+        return Region(content: first..<lines.count, masked: first..<lines.count, malformed: true)
     }
 
     static func maskedLineIndices(_ lines: [String]) -> Set<Int> {

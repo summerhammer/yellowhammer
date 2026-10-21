@@ -251,13 +251,9 @@ public final class JournalStore: Sendable {
     }
 
     /// Whether an unknown migration identifier is provably older than this build's schema: it matches
-    /// `^v\d+-` (the retired pre-squash chain), or it is `journal-schema-M` with integer M below the
-    /// current N. Anything else (a higher M, an unparseable shape) is not provable, so the caller treats
-    /// it as newer and never advises deleting on a guess.
+    /// `journal-schema-M` with integer M below the current N. Anything else (a higher M, an unparseable
+    /// shape) is not provable, so the caller treats it as newer and never advises deleting on a guess.
     static func isProvablyOlder(_ identifier: String) -> Bool {
-        if identifier.wholeMatch(of: /v\d+-.*/) != nil {
-            return true
-        }
         func schemaNumber(_ identifier: String) -> Int? {
             let prefix = "journal-schema-"
             return identifier.hasPrefix(prefix) ? Int(identifier.dropFirst(prefix.count)) : nil

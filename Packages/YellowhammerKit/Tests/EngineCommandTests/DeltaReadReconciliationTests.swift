@@ -205,7 +205,10 @@ struct DeltaReadReconciliationTests {
     func repositoryLineIgnoresTranscribedCode() {
         let block = """
         ### Architectural Brief
-        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 hash=h1 -->
+        <!-- yh:brief-prose:start id=0 -->
+        An approach.
+        <!-- yh:brief-prose:end id=0 -->
+        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 -->
         func testCard() {
             let card = Card(
                 featureID: 1,
@@ -224,11 +227,13 @@ struct DeltaReadReconciliationTests {
     func repositoryLineIgnoresFencedCode() {
         let block = """
         ### Architectural Brief
+        <!-- yh:brief-prose:start id=0 -->
         ```swift
         let fixture = [
             repository: "backend",
         ]
         ```
+        <!-- yh:brief-prose:end id=0 -->
 
         ### Definition of Done
         **Repository:** `yellowhammer`
@@ -240,7 +245,10 @@ struct DeltaReadReconciliationTests {
     func repositoryLineWithoutRealLineReturnsNil() {
         let block = """
         ### Architectural Brief
-        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 hash=h1 -->
+        <!-- yh:brief-prose:start id=0 -->
+        An approach.
+        <!-- yh:brief-prose:end id=0 -->
+        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 -->
             repository: "backend",
         <!-- yh:transcription:end -->
         """
@@ -263,7 +271,10 @@ struct DeltaReadReconciliationTests {
         try insertCard(journal, issueID: "card-1", repository: "yellowhammer")
         let description = fenced(block: """
         ### Architectural Brief
-        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 hash=h1 -->
+        <!-- yh:brief-prose:start id=0 -->
+        An approach.
+        <!-- yh:brief-prose:end id=0 -->
+        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 -->
         func testCard() {
             let card = Card(
                 featureID: 1,

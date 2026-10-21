@@ -152,18 +152,6 @@ func featureAuthoringAcceptedRoundTripsBriefAndTranscriptions() throws {
     #expect(read.cards[0].transcriptions[0].ranges == ["b.swift": [LineRange(start: 3, end: 9)]])
 }
 
-@Test("A planned Transcription Block recorded before line ranges existed decodes with no ranges")
-func plannedTranscriptionDecodesWithoutRanges() throws {
-    let json = #"""
-        {"repository": "mobile", "paths": ["a.swift"], "symbol": null, "mainlineCommit": "deadbeef",
-         "content": "protocol Foo {}", "contentHash": "abc123"}
-        """#
-    let decoded = try JSONDecoder().decode(PlannedTranscription.self, from: Data(json.utf8))
-    #expect(decoded.ranges.isEmpty)
-    #expect(decoded.paths == ["a.swift"])
-    #expect(decoded.mainlineCommit == "deadbeef")
-}
-
 @Test("featureAuthoringAccepted round-trips an empty plan")
 func featureAuthoringAcceptedRoundTripsEmptyLists() throws {
     let fixture = try AuthoringJournalFixture()
