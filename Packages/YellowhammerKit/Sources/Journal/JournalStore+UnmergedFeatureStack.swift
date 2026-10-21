@@ -145,3 +145,13 @@ extension JournalStore {
         }
     }
 }
+
+extension JournalStore {
+    /// The Night id stamped on the `cycleLanded` event of `featureID`'s Cycle, or nil when the Feature has
+    /// no Cycle or its landing is not recorded. The Night Summary derives how many Nights a Feature in U has
+    /// awaited merge from it, at read time; nothing about the count is stored.
+    public func landedNightID(featureID: Int64) throws -> Int64? {
+        guard let cycleID = try cycleID(featureID: featureID) else { return nil }
+        return try cycleLandedNightID(cycleID: cycleID)
+    }
+}
