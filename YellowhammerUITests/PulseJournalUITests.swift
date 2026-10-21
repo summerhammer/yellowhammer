@@ -202,7 +202,7 @@ final class PulseJournalUITests: XCTestCase {
     }
 
     /// The Journal's id of seeded issue `ARC-<number>`: Linear's issue UUID, as the fixture records it.
-    private func issueID(_ number: Int) -> String {
+    func issueID(_ number: Int) -> String {
         "00000000-0000-4000-8000-0000000000\(number)"
     }
 

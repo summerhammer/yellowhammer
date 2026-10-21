@@ -53,7 +53,10 @@ private struct SeededCard {
 /// The seed. `PulseJournalUITests` names these issue ids, identifiers, the running Attempt's id (`2`)
 /// and the pull request number, so a change here is a change there.
 ///
-/// - Feature `ARC-10`, in flight, with one Repo Lane, `archive`, and pull request #42 on it.
+/// - Feature `ARC-9`, in the Unmerged Feature Stack: its Cycle landed and archived in the seeded Night, pushed
+///   to `archive` with pull request #41, no Observed Merge.
+/// - Feature `ARC-10`, in flight, with one Repo Lane, `archive`, and pull request #42 on it, and its base in
+///   `archive` stacked on `ARC-9`.
 /// - `ARC-11` Blocked (route failure), with one ended Attempt and a failed Check.
 /// - `ARC-12` Waiting on You.
 /// - `ARC-13` In Progress, with an open Attempt: the one running Attempt.
@@ -70,7 +73,14 @@ private func seedUITestJournal(_ journal: JournalStore) throws {
         now: seededAt
     ).night
     _ = try journal.recordNightCard(id: night.id, issueID: issueID(20), act: .build, runID: run, now: seededAt)
+    let stacked = try seedStackedFeature(journal, nightID: night.id, runID: run)
     let feature = try insertFeature(journal, issueID: issueID(10))
+    try journal.recordFeatureBases(featureID: feature.featureID, bases: [
+        FeatureBaseRecord(
+            repository: uiTestJournalRepo, baseRef: "refs/yellowhammer/landed/yh/arc-9", baseCommit: "arc9tip",
+            stackedOnFeatureID: stacked
+        )
+    ])
     let cards = [
         SeededCard(number: 11, title: "Migrate the archive index", state: .blocked, blockReason: .routeFailure),
         SeededCard(number: 12, title: "Choose the retention window", state: .waitingOnYou),
@@ -86,7 +96,7 @@ private func seedUITestJournal(_ journal: JournalStore) throws {
         try journal.updateCardTitle(cardID: id, title: card.title, runID: run, now: seededAt)
         cardIDs[card.number] = id
     }
-    for number in [10, 11, 12, 13, 14, 20] {
+    for number in [9, 10, 11, 12, 13, 14, 20] {
         try journal.recordIssueLink(
             issueID: issueID(number), key: "ARC-\(number)", url: "https://linear.app/acme/issue/ARC-\(number)",
             runID: run, now: seededAt
@@ -106,6 +116,36 @@ private func seedUITestJournal(_ journal: JournalStore) throws {
         runID: run, now: seededAt
     )
     _ = try journal.releaseActLease(runID: run)
+}
+
+/// `ARC-9`: landed and archived in `nightID`, pushed to the Repo with a pull request, and not yet merged.
+/// Returns its Feature id.
+private func seedStackedFeature(_ journal: JournalStore, nightID: Int64, runID: RunID) throws -> Int64 {
+    let feature = try insertFeature(journal, issueID: issueID(9))
+    try journal.write { db in
+        try db.execute(
+            sql: "UPDATE feature SET state = 'closed', closed_by = 'verification' WHERE id = ?",
+            arguments: [feature.featureID]
+        )
+        try db.execute(
+            sql: "UPDATE cycle SET landed_at = ?, archived_at = ? WHERE id = ?",
+            arguments: [JournalStore.timestamp(seededAt), JournalStore.timestamp(seededAt), feature.cycleID]
+        )
+    }
+    try journal.recordFeatureBranch(
+        featureID: feature.featureID, repository: uiTestJournalRepo, branch: FeatureBranch(rawValue: "yh/arc-9")
+    )
+    try journal.recordLandedCommit(
+        featureID: feature.featureID, repository: uiTestJournalRepo, commit: "arc9tip", runID: runID, now: seededAt
+    )
+    try journal.recordPullRequest(
+        featureID: feature.featureID, repository: uiTestJournalRepo,
+        url: "https://github.com/acme/archive/pull/41", nightID: nightID, runID: runID, now: seededAt
+    )
+    try journal.append(
+        .cycleLanded(cycleID: feature.cycleID), act: .land, runID: runID, nightID: nightID, now: seededAt
+    )
+    return feature.featureID
 }
 
 /// `blocked` gets one ended Attempt with a failed Check; `running` gets the one open Attempt.
@@ -221,6 +261,15 @@ func uiTestJournalHoldsCurrentSeed() throws {
     #expect(fresh.feature?.link?.identifier == "ARC-10")
     #expect(fresh.feature?.lanes.map(\.repo) == [uiTestJournalRepo])
     #expect(fresh.feature?.lanes.first?.pullRequest?.number == 42)
+    let stack = fresh.unmergedFeatures.features
+    #expect(stack.map(\.id) == [issueID(9)])
+    #expect(stack.first?.link?.identifier == "ARC-9")
+    #expect(stack.first?.landedTonight == true)
+    #expect(stack.first?.mergedCount == 0)
+    #expect(stack.first?.pushedCount == 1)
+    #expect(stack.first?.repositories.first?.repo == uiTestJournalRepo)
+    #expect(stack.first?.repositories.first?.pullRequest?.number == 41)
+    #expect(fresh.feature?.stackedOn == [uiTestJournalRepo: "ARC-9"])
     #expect(fresh.night?.state == .running)
     #expect(fresh.night?.nightCard?.identifier == "ARC-20")
 }
