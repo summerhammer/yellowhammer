@@ -2801,10 +2801,13 @@ Every step: lead review by Fable 5.1.
 **Post-release verification (#627), 2026-10-21:** installed v0.24.0 (build 763) reports
 `journal-schema-24`, passes signature/notarization checks and is the CLI symlink target. The old
 production Journals are absent, the retained Ledger passes integrity, and Orca ADE is ready.
-The upgrade remains incomplete: all three author schedules are stale, and doctor reports six
-missing-adoption/state-collision failures for Waiting on You and Blocked after Journal deletion.
 Isolated installed-binary plist repair passes (1 firing regenerated to 96, left unloaded), with
-production configuration, plists and CLI symlink unchanged. The live two-Feature Night, quiet skip,
+production configuration, plists and CLI symlink unchanged during that isolated check. Subsequent
+Operator-supplied output confirms production schedule repair, restoration of the CLI link from a
+Debug build to the installed app, and adoption of Waiting on You and Blocked mappings for all three
+Projects. Installed doctor now reports no failures or warnings, only four informational findings.
+This verifies upgrade setup; it does not verify recreated Journal schemas or a scheduled firing.
+The live two-Feature Night, quiet skip,
 periodic idle and Observed Merge/pin cleanup remain pending; ordinary rehearsal cannot supply
 F1's pushed, archived predecessor. See the
 [verification record](phase-23-upgrade-verification.md) for evidence, isolation requirements and
