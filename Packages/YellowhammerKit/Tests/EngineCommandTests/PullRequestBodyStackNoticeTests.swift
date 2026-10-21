@@ -20,12 +20,14 @@ struct PullRequestBodyStackNoticeTests {
         roundCount: 1, blockReason: "route failure"
     )
 
+    private static let opening = "**verified · 1 of 1 Cards landed · 0 of 1 merged**"
+
     private static func body(_ cards: [PullRequestBodyCard], notice: PullRequestStackNotice? = nil) -> String {
         PullRequestBody.render(PullRequestBodyInput(
             featureTitle: "Widgets", featureIssueURL: "https://linear.app/x/issue/YLH-2", nightID: 3,
             nightTimestamp: "2026-10-21", repository: "backend", pushedRepositoryCount: 1, mergedCount: 0,
             cycleCards: cards, mergeVerdict: PullRequestBodyMergeVerdict(conflict: false, untestable: true),
-            unmetClauses: [], stackNotice: notice
+            unmetClauses: [], stackNotice: notice, rollUpOpening: opening
         ))
     }
 
@@ -61,15 +63,20 @@ struct PullRequestBodyStackNoticeTests {
         #expect(PullRequestStackNotice.pullRequestNumber(fromURL: nil) == nil)
     }
 
-    @Test("A complete stacked body opens with the notice, then the unstacked body unchanged")
-    func completeBodyLeadsWithNotice() {
-        let plain = Self.body([Self.doneCard])
-        let stacked = Self.body([Self.doneCard], notice: Self.notice)
-        let lines = stacked.components(separatedBy: "\n")
-        #expect(lines[0] == Self.notice.rendered)
-        #expect(lines[1].isEmpty)
-        #expect(Array(lines.dropFirst(2)) == plain.components(separatedBy: "\n"))
-        #expect(!plain.contains("Stacked on"))
+    @Test("A complete stacked body opens with the Roll-up sentence, the notice directly after it")
+    func completeBodyRollUpThenNotice() {
+        let plain = Self.body([Self.doneCard]).components(separatedBy: "\n")
+        let stacked = Self.body([Self.doneCard], notice: Self.notice).components(separatedBy: "\n")
+        #expect(plain[0] == Self.opening)
+        #expect(plain[1].isEmpty)
+        #expect(plain[2].hasPrefix("Feature: "))
+        #expect(stacked[0] == Self.opening)
+        #expect(stacked[1].isEmpty)
+        #expect(stacked[2] == Self.notice.rendered)
+        #expect(stacked[3].isEmpty)
+        #expect(Array(stacked.dropFirst(4)) == Array(plain.dropFirst(2)))
+        #expect(!plain.joined(separator: "\n").contains("Stacked on"))
+        #expect(!stacked.contains { $0.hasPrefix("*As of Night") })
     }
 
     @Test("A Partial Landing keeps Lines 1-2 and the As-of stamp word for word, and the notice follows the stamp")

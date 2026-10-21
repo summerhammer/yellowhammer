@@ -94,7 +94,7 @@ struct FeatureBranchPullRequestNTests {
         #expect(plain.components(separatedBy: "\n").dropFirst() == noted.components(separatedBy: "\n").dropFirst())
     }
 
-    @Test("A complete body has no Roll-up sentence, so it is byte-identical with and without the notes")
+    @Test("A complete body without a Roll-up opening is byte-identical with and without the notes")
     func completeBodyIgnoresNotes() {
         let cards = [Self.doneCard]
         let plain = PullRequestBody.render(Self.bodyInput(cards: cards))

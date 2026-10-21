@@ -47,9 +47,11 @@ struct FeatureBranchPullRequestStackTests {
         #expect(draft.base == "b1")
         #expect(draft.head == landBranch.name)
         let lines = draft.body.components(separatedBy: "\n")
-        #expect(lines[0] == Self.notice)
+        #expect(lines[0].hasPrefix("**"))
         #expect(lines[1].isEmpty)
-        #expect(lines[2].hasPrefix("Feature: "))
+        #expect(lines[2] == Self.notice)
+        #expect(lines[3].isEmpty)
+        #expect(lines[4].hasPrefix("Feature: "))
         #expect(lines.filter { $0.hasPrefix("Stacked on") }.count == 1)
         #expect(try stackedEvents(world.journal) == [
             .pullRequestStacked(
@@ -76,7 +78,8 @@ struct FeatureBranchPullRequestStackTests {
         #expect(try world.journal.featureBases(featureID: world.feature.id).first?.stackedOnFeatureID != nil)
         #expect(draft.base == "main")
         #expect(!draft.body.contains("Stacked on"))
-        #expect(draft.body.hasPrefix("Feature: "))
+        #expect(draft.body.hasPrefix("**"))
+        #expect(draft.body.contains("\n\nFeature: "))
         #expect(try stackedEvents(world.journal).isEmpty)
     }
 
@@ -103,7 +106,7 @@ struct FeatureBranchPullRequestStackTests {
         let draft = try await open(world)
 
         #expect(draft.base == "b1")
-        #expect(draft.body.hasPrefix("Stacked on the predecessor's pull request (`b1`) from Feature YLH-1. "))
+        #expect(draft.body.contains("Stacked on the predecessor's pull request (`b1`) from Feature YLH-1. "))
         #expect(try stackedEvents(world.journal) == [
             .pullRequestStacked(
                 featureIssueID: "FEAT-1", repository: "backend", predecessorFeatureIssueID: "FEAT-0",

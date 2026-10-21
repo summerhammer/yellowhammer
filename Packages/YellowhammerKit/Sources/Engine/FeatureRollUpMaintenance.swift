@@ -25,6 +25,14 @@ public struct FeatureRollUpMaintenance: Sendable {
     /// from the Journal. With zero Cards, the roll-up falls back to `.authoring`: a Feature with a
     /// Cycle at all is past the Refusal/Authoring Halt standing the zero-Card path reads.
     public func maintain(feature: FeatureRecord, cycleID: Int64) async throws -> Outcome {
+        let rollUp = try Self.rollUp(feature: feature, cycleID: cycleID, journal: journal)
+        return try await post(issueID: feature.issueID, rollUp: rollUp)
+    }
+
+    /// The Roll-up the Managed Block renders for a Feature that has a Cycle, as the Journal stands now. Shared
+    /// with a complete landing's pull request body, which opens with the same sentence (spec: landing/
+    /// open-one-pull-request-per-repository `#stack-notice`; OQ31).
+    public static func rollUp(feature: FeatureRecord, cycleID: Int64, journal: JournalStore) throws -> FeatureRollUp {
         let observation = try FeatureMainlineObservationReader.latestAncestryObservation(
             featureIssueID: feature.issueID, journal: journal
         )
@@ -40,8 +48,8 @@ public struct FeatureRollUpMaintenance: Sendable {
             record.clauses.count { $0.verdict == .unmet || $0.verdict == .unresolved }
         }
         let notCheckedCount = verification?.clauses.count { $0.verdict == .notChecked } ?? 0
-        let rollUp = FeatureRollUp(
-            members: try members(feature: feature, cycleID: cycleID),
+        return FeatureRollUp(
+            members: try members(feature: feature, cycleID: cycleID, journal: journal),
             lanesPushed: try journal.isCycleLanded(cycleID: cycleID),
             verificationPassed: verification?.clauses.allSatisfy { $0.verdict == .met } ?? false,
             unmetClauseCount: unmetCount,
@@ -49,17 +57,16 @@ public struct FeatureRollUpMaintenance: Sendable {
             mergedFraction: MergedFraction(mergedCount: mergedInN, totalCount: pushedForMerge.count),
             conflictingRepositories: Array(conflicts.keys),
             noPullRequestRepositories: try journal.noPushedBranchRepositories(featureID: feature.id),
-            pushedRepositories: try repositoriesWithRecordedPush(featureID: feature.id),
+            pushedRepositories: try repositoriesWithRecordedPush(featureID: feature.id, journal: journal),
             issueStanding: .authoring
         )
-        return try await post(issueID: feature.issueID, rollUp: rollUp)
     }
 
     /// Every repository whose Worktree for this Feature recorded a push (issue #161 part 2), for lane
     /// headings — not N, which is ``JournalStore/pushedRepositories(featureID:)``. A
     /// released Worktree still counts (``JournalStore/worktrees(featureID:)`` returns released rows
     /// too), so a lane that pushed and was already cleaned up still reads "pushed".
-    private func repositoriesWithRecordedPush(featureID: Int64) throws -> Set<String> {
+    private static func repositoriesWithRecordedPush(featureID: Int64, journal: JournalStore) throws -> Set<String> {
         Set(try journal.worktrees(featureID: featureID).filter { $0.pushedCommit != nil }.map(\.repository))
     }
 
@@ -176,10 +183,12 @@ public struct FeatureRollUpMaintenance: Sendable {
     /// latest `cardAdopted` event landing each Card in `feature`. A removed Card (trashed, or archived
     /// while in play; OQ142) is left out entirely: it is no member of the Roll-up, neither a lane Card
     /// nor in the Shelved group.
-    private func members(feature: FeatureRecord, cycleID: Int64) throws -> [RollUpMember] {
+    private static func members(
+        feature: FeatureRecord, cycleID: Int64, journal: JournalStore
+    ) throws -> [RollUpMember] {
         let cards = try journal.cards(cycleID: cycleID).filter { !$0.isRemovedFromBoard }
         let markers = try FeatureMemberMarkers.derive(cycleID: cycleID, journal: journal)
-        let adoptions = try latestAdoptions(newFeatureIssueID: feature.issueID)
+        let adoptions = try latestAdoptions(newFeatureIssueID: feature.issueID, journal: journal)
         return cards.map { card in
             RollUpMember(
                 issueID: card.issueID, title: card.title, repository: card.repository,
@@ -192,7 +201,7 @@ public struct FeatureRollUpMaintenance: Sendable {
 
     /// Every Card's latest adoption into `newFeatureIssueID`, keyed by `card.id`: later `cardAdopted`
     /// events (ascending append order) overwrite earlier ones for the same Card.
-    private func latestAdoptions(newFeatureIssueID: String) throws -> [Int64: String] {
+    private static func latestAdoptions(newFeatureIssueID: String, journal: JournalStore) throws -> [Int64: String] {
         var result: [Int64: String] = [:]
         for record in try journal.events(ofType: .cardAdopted) {
             guard case .cardAdopted(let cardID, _, let previousFeatureIssueID, let landedIn, _, _) = record.event,
