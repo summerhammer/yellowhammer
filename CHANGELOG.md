@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.23.0](https://github.com/summerhammer/yellowhammer/compare/v0.22.0...v0.23.0) (2026-10-21)
+
+
+### Features
+
+* **authoring:** repair a halted Feature's draft Work Cards on the Board ([1b507ac](https://github.com/summerhammer/yellowhammer/commit/1b507ace2f6e1bfae3f6bb0f538262aa3a88ecec))
+* **board:** migrate tracked legacy Board taxonomy and retire the settle-state bridge ([29642f8](https://github.com/summerhammer/yellowhammer/commit/29642f82068219cb3627d5f7f761e0c3291590c0))
+* **board:** provision two custom states and select native states by category ([7f44d76](https://github.com/summerhammer/yellowhammer/commit/7f44d76fff7c21453ee0655f4f62e13eb171d62a))
+* **board:** render Block Reason as card content, not a label ([ffc8639](https://github.com/summerhammer/yellowhammer/commit/ffc86392ec9595f380d724e23ac31c3542343b38))
+* **doctor:** write the Board Mapping for already-provisioned states on --fix ([b52f14e](https://github.com/summerhammer/yellowhammer/commit/b52f14eb61e96e0ef316fff6fb20cdc13eab7c99))
+* **routing:** read the Card override from a description field, not a label ([51de46b](https://github.com/summerhammer/yellowhammer/commit/51de46bd59345229a2342f82e64d669e667dcceb))
+
+
+### Bug Fixes
+
+* **authoring:** resume a repaired halted Feature instead of authoring a duplicate ([b2dd519](https://github.com/summerhammer/yellowhammer/commit/b2dd5195fb0b433bed9299d6602ec05eb2595c04))
+* **board:** hold the legacy migration open on multiple open Cycles and cover conditioned writes ([5d002de](https://github.com/summerhammer/yellowhammer/commit/5d002deffd06e1308c0cfbc82f3ef03460e07711))
+* **board:** read every Delta Read page once and reconcile in every Act ([2bde853](https://github.com/summerhammer/yellowhammer/commit/2bde8538b600a7980dc6f791ab1fbf44c2f8df01))
+* **board:** resume an over-cap Delta Read across Acts ([042a986](https://github.com/summerhammer/yellowhammer/commit/042a986335c420c58995467478df373fb112cb63))
+* **board:** revalidate queued Board writes and keep Operator edits in the Managed Block ([5ef1b37](https://github.com/summerhammer/yellowhammer/commit/5ef1b37993147c9b7edb3c81be2ca14ff98d9478))
+* **routing:** read a Card override through Linear's Markdown escapes ([52129b9](https://github.com/summerhammer/yellowhammer/commit/52129b9bf4eb139c3cafeed613ce9a711087ce66))
+* **settle:** settle Features by native Done and Cancelled, drop the daily reset ([bbab0c1](https://github.com/summerhammer/yellowhammer/commit/bbab0c1fe54d2138e0b4c9cf02001a40026c8841))
+
 ## [0.22.0](https://github.com/summerhammer/yellowhammer/compare/v0.21.0...v0.22.0) (2026-10-19)
 
 
