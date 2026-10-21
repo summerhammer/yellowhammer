@@ -2879,10 +2879,10 @@ Every step: lead review by Fable 5.1.
 
 | Story ID | Steps |
 |---|---|
-| `shift-scheduling/fire-an-act-on-schedule` | P4.1, P4.3, P3.2, P13.2, P8.1, P19.1, P19.3 |
+| `shift-scheduling/fire-an-act-on-schedule` | P4.1, P4.3, P3.2, P13.2, P8.1, P19.1, P19.3, P23.6 |
 | `shift-scheduling/diagnose-the-installation` | P19.1, P22.8 |
 | `shift-scheduling/open-and-close-the-night-card` | P4.4, P5.7, P12.1 |
-| `shift-scheduling/do-one-acts-work-and-exit` | P4.2, P3.3 |
+| `shift-scheduling/do-one-acts-work-and-exit` | P4.2, P3.3, P23.6 |
 | `loop-state/claim-and-heartbeat-a-run-lease` | P3.4, P8.4 |
 | `loop-state/reclaim-an-expired-lease` | P8.10, P6.8 |
 | `loop-state/reconcile-worktrees-at-act-start` | P6.8, P6.9, P6.6, P19.3, P19.5 |
@@ -2897,11 +2897,11 @@ Every step: lead review by Fable 5.1.
 | `routing/resolve-a-route-for-a-card` | P2.4, P7.6, P9.11, P22.7 |
 | `routing/exclude-tried-routes-on-retry` | P7.7 |
 | `routing/add-an-agent-cli` | P2.3, P7.2, P7.3, P7.4, P7.5, P18.15 |
-| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6, P19.1, P19.6, P22.5, P22.6 |
+| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6, P19.1, P19.6, P22.5, P22.6, P23.1, P23.2, P23.5 |
 | `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P9.10, P11.5 |
 | `feature-authoring/author-citable-definitions-of-done` | P9.5, P9.7, P9.8, P8.2 |
-| `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2, P19.4 |
-| `graph-execution/allocate-a-worktree-per-graph-and-repo` | P6.7 |
+| `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2, P19.4, P23.2 |
+| `graph-execution/allocate-a-worktree-per-graph-and-repo` | P6.7, P23.3 |
 | `graph-execution/run-a-card` | P7.1, P7.2, P8.4, P8.6, P8.7, P8.9, P19.4, P19.5 |
 | `graph-execution/gate-a-card-on-the-repository-check` | P2.3, P8.5 |
 | `graph-execution/handle-a-block-mid-graph` | P8.9, P10.4 |
@@ -2909,14 +2909,14 @@ Every step: lead review by Fable 5.1.
 | `bounds/bound-unanswered-nights` | P11.4, P9.8, P2.3 |
 | `bounds/escalate-a-question-to-the-operator` | P11.1, P11.2, P5.8, P19.5 |
 | `bounds/refuse-protected-paths-before-dispatch` | P8.3 |
-| `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4, P19.2, P19.6, P19.7 |
-| `landing/announce-a-partial-landing` | P10.4, P10.8, P6.2, P19.6 |
+| `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4, P19.2, P19.6, P19.7, P23.4 |
+| `landing/announce-a-partial-landing` | P10.4, P10.8, P6.2, P19.6, P23.4 |
 | `landing/connect-code-hosting` | P21.1, P21.2, P21.3, P21.4, P21.5 |
 | `verification/verify-a-feature-clause-by-clause` | P10.5 |
 | `verification/return-a-feature-with-unmet-clauses` | P10.6 |
-| `verification/archive-the-cycle-on-a-verified-feature` | P10.7 |
-| `morning-report/write-the-night-summary` | P12.1, P9.8, P19.6, P19.7 |
-| `morning-report/report-the-instrumented-rates` | P12.2 |
+| `verification/archive-the-cycle-on-a-verified-feature` | P10.7, P23.5 |
+| `morning-report/write-the-night-summary` | P12.1, P9.8, P19.6, P19.7, P23.5, P23.6 |
+| `morning-report/report-the-instrumented-rates` | P12.2, P23.1 |
 | `morning-report/notify-the-operator-of-exceptions` | P12.4, P12.5 |
 | `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8, P22.2 |
 | `app/land-on-the-sidebar-and-pulse` | P18.1, P18.2, P18.3, P18.4, P18.5, P18.6, P18.7, P18.8, P18.9, P21.6 |
