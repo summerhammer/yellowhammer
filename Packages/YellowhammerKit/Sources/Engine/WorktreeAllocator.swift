@@ -40,6 +40,8 @@ public enum WorktreeAllocationError: Error, Equatable, Sendable {
     /// nil when it did not resolve. The Worktree it made was removed and the Journal is untouched; no Attempt is
     /// spent.
     case recordedBaseMismatch(repository: String, ref: String, expected: String, found: String?)
+    /// No base was recorded at selection for `repository`.
+    case missingRecordedBase(repository: String)
     /// The Worktree held for `repository` cannot be released: its Feature Branch has not been pushed.
     case notPushed(repository: String)
     /// No Worktree is held for `repository`.
@@ -67,6 +69,8 @@ extension WorktreeAllocationError: CustomStringConvertible {
             "Allocating the Worktree for \(repository) from its recorded base \(ref) gave " +
                 "\(found ?? "an unresolvable HEAD"), not the recorded base commit \(expected); " +
                 "the Worktree was removed"
+        case .missingRecordedBase(let repository):
+            "No base was recorded at selection for \(repository); cannot allocate Worktree"
         case .notPushed(let repository):
             "The Worktree held for \(repository) cannot be released: its Feature Branch has not been pushed"
         case .notHeld(let repository):
@@ -160,7 +164,7 @@ public struct WorktreeAllocator: Sendable {
         let pinned = recorded.flatMap { branch in recovery.map { (branch: branch, commit: $0) } }
         let repositoryPath = Self.expandedPath(repo.path)
         _ = await git.run(["worktree", "prune"], workingDirectory: repositoryPath)
-        // A recovery pin wins; else the base recorded at selection; else Orca ADE's default (no record).
+        // A recovery pin wins; else the base recorded at selection.
         let recordedBase = pinned == nil ? try await recordedBaseCut(
             featureID: featureID, repo: repo, repositoryPath: repositoryPath, worktreeName: worktreeName
         ) : nil

@@ -108,9 +108,9 @@ func makeCardRunWorld(
         act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: night,
         outbox: outbox, board: actBoard, operatorIdentity: operatorIdentity
     )
-    let feature = try #require(try journal.inFlightFeature()).0
     let context = BuildActContext(
-        act: actContext, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(), deltaRead: nil
+        act: actContext, feature: try #require(try journal.inFlightFeature()).0, cycleID: cycleID,
+        reconciliation: WorktreeReconciliation(), deltaRead: nil, recordedBaseMainlines: actContext.mainlines
     )
     return CardRunWorld(
         journal: journal, runID: runID, cardIDs: cardIDs, context: context, boards: boards, worktrees: worktrees

@@ -41,7 +41,8 @@ extension AdoptionRevalidationTests {
         let ctx = ActContext(
             act: .author, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal,
             night: opening.night, outbox: outbox, board: actBoard, mainlines: mainlines ?? selectionMainlines(),
-            workspace: nil, repositories: repositories ?? selectionRepositories(), operatorIdentity: operatorIdentity
+            workspace: nil, repositories: repositories ?? selectionRepositories(), operatorIdentity: operatorIdentity,
+            featureBases: selectionFeatureBases(mainlines ?? selectionMainlines())
         )
         return (ctx, runID)
     }

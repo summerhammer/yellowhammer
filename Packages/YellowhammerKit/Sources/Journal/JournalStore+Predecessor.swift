@@ -2,36 +2,6 @@ import Domain
 import Foundation
 import GRDB
 
-/// The most recent archived, unabandoned Feature and the repositories its Cycle touches (roadmap P9.9). The
-/// predecessor-ancestry gate tests every Feature in the Unmerged Feature Stack instead (P23.5,
-/// ``unmergedFeatureStack()``); this one is what the Feature Roll-up maintains as the predecessor. A Feature
-/// closed by native completion (`closed_by = 'completion'`, roadmap P22.2) is a predecessor like a verified or
-/// merged one; only an abandoned Feature is walked past.
-public struct PredecessorFeature: Equatable, Sendable {
-    public let feature: FeatureRecord
-    /// The distinct, sorted repository names this Feature's Cycle touches, from `feature_repository`
-    /// — recorded at selection, never derived from `card` rows. The record of what the Feature was meant
-    /// to touch: it never shrinks, and is not what a merge test runs over (see ``pushedRepositories``).
-    public let touchedRepositories: [String]
-    /// N: the touched repositories minus those with a recorded No-Pushed-Branch Outcome
-    /// (``JournalStore/pushedRepositories(featureID:)``).
-    public let pushedRepositories: [String]
-}
-
-/// What walking back from the most recent archived Feature found (roadmap P9.9; spec:
-/// feature-authoring/select-the-next-feature, third story; risks.md Authoring Halt Ruling item 12,
-/// OQ63): the first archived, unreleased Feature, and every released Feature the walk stepped past on the way
-/// there — more recent than the predecessor, archived, and released. The gate names those released Features
-/// on a Night it lets authoring proceed (`predecessorWalkSkippedReleasedFeature`).
-public struct PredecessorWalk: Equatable, Sendable {
-    /// The most recent archived, unreleased Feature; nil when every archived Feature has been released,
-    /// or there is no archived Feature at all (the first Night).
-    public let predecessor: PredecessorFeature?
-    /// Released Features the walk skipped, most recent first, so the Engine can record one
-    /// `predecessorWalkSkippedReleasedFeature` event per Feature it passed over.
-    public let skippedReleased: [FeatureRecord]
-}
-
 /// A Feature whose open Cycle has landed (roadmap P9.9, 1f): the in-flight Feature the gate observes
 /// ancestry for alongside the Unmerged Feature Stack. A branch freshly cut from mainline is trivially an
 /// ancestor of it, so a Cycle that has not yet landed is never read as a landing.
@@ -45,43 +15,27 @@ public struct InFlightLandedFeature: Equatable, Sendable {
 }
 
 extension JournalStore {
-    /// Walks back from the most recent archived Feature (its Cycle archived, not the open Cycle),
-    /// skipping every one already released, until it finds one that is not — the predecessor — or runs out.
-    ///
-    /// A Feature with no Cycle at all (an inconsistent Journal, never produced by this engine) is
-    /// never returned: a Cycle's `feature_id` is what this joins on.
-    public func predecessorFeature() throws -> PredecessorWalk {
-        try read { db in
+    /// Archived Features whose abandonment has not yet been named on an authoring pass via
+    /// ``JournalEvent/predecessorWalkSkippedReleasedFeature(featureIssueID:)``.
+    public func unnamedAbandonedArchivedFeatures() throws -> [FeatureRecord] {
+        let named = try events(ofType: .predecessorWalkSkippedReleasedFeature)
+        let namedIssueIDs = Set(named.compactMap { record -> String? in
+            guard case .predecessorWalkSkippedReleasedFeature(let issueID) = record.event else { return nil }
+            return issueID
+        })
+        return try read { db in
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                SELECT feature.*, cycle.landed_at AS landed_at FROM feature
+                SELECT DISTINCT feature.* FROM feature
                 JOIN cycle ON cycle.feature_id = feature.id
                 WHERE cycle.archived_at IS NOT NULL
+                  AND feature.abandoned_at IS NOT NULL
                 ORDER BY feature.id DESC
                 """
             )
-            var skipped: [FeatureRecord] = []
-            for row in rows {
-                let feature = try Self.featureRecord(from: row)
-                guard feature.abandonedAt == nil else {
-                    skipped.append(feature)
-                    continue
-                }
-                let repositories = try Self.touchedRepositories(db, featureID: feature.id)
-                // N is the finalized landing record's pushed set. A Feature the Board completed before
-                // its Cycle ever landed has no landing record, so nothing was pushed: N = 0, never the
-                // touched list, whose branches were never pushed or recorded (triage-the-morning).
-                let landedAt: String? = row["landed_at"]
-                let pushed = try Self.closedFeaturePushedRepositories(db, feature: feature, landedAt: landedAt)
-                return PredecessorWalk(
-                    predecessor: PredecessorFeature(
-                        feature: feature, touchedRepositories: repositories, pushedRepositories: pushed
-                    ),
-                    skippedReleased: skipped
-                )
-            }
-            return PredecessorWalk(predecessor: nil, skippedReleased: skipped)
+            return try rows.map { try Self.featureRecord(from: $0) }
+                .filter { !namedIssueIDs.contains($0.issueID) }
         }
     }
 

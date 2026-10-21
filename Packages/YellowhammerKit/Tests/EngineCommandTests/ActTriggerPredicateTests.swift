@@ -106,6 +106,26 @@ private func archiveCycle(_ journal: JournalStore, _ cycleID: Int64) throws {
     }
 }
 
+private func evaluate(
+    act: Act,
+    trigger: ActTrigger,
+    journal: JournalStore,
+    nightID: Int64 = 1,
+    runID: RunID = RunID()
+) throws -> ActTriggerOutcome {
+    try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal, nightID: nightID, runID: runID)
+}
+
+/// Evaluates the author trigger as a later firing of the Night: an earlier author firing has already started, so
+/// the Night's first-firing allowance does not apply.
+private func evaluateAuthorLaterFiring(_ journal: JournalStore) throws -> ActTriggerOutcome {
+    _ = try startAuthorFiring(journal, runID: "run-first")
+    let later = try startAuthorFiring(journal, runID: "run-later")
+    return try ActTriggerPredicate.evaluate(
+        act: .author, trigger: .scheduled, journal: journal, nightID: later.nightID, runID: later.runID
+    )
+}
+
 // MARK: - Author Act Tests
 
 @Test("author trigger: met when no Cards exist")
@@ -113,7 +133,7 @@ func authorMetNoCards() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .author, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -127,12 +147,9 @@ func authorMetAllDone() throws {
     _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .done, cycleID: first.cycleID)
 
     // The Cycle is still open, so a Feature is in flight until the land Act archives it.
-    #expect(
-        try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
-            == .notMet(.featureInFlight)
-    )
+    #expect(try evaluateAuthorLaterFiring(journal) == .notMet(.featureInFlight))
     try archiveCycle(journal, first.cycleID)
-    #expect(try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal) == .met)
+    #expect(try evaluate(act: .author, trigger: .scheduled, journal: journal) == .met)
 }
 
 @Test("author trigger: met when all Cards are in finished states (Blocked, Waiting on You, Shelved)")
@@ -145,7 +162,7 @@ func authorMetAllFinished() throws {
     _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .shelved, cycleID: first.cycleID)
     try archiveCycle(journal, first.cycleID)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .author, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -157,7 +174,7 @@ func authorNotMetTodo() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
+    let outcome = try evaluateAuthorLaterFiring(journal)
 
     #expect(outcome == .notMet(.featureInFlight))
 }
@@ -169,7 +186,7 @@ func authorNotMetInProgress() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .inProgress)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
+    let outcome = try evaluateAuthorLaterFiring(journal)
 
     #expect(outcome == .notMet(.featureInFlight))
 }
@@ -183,7 +200,7 @@ func buildMetWithTodoInCycle() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -195,7 +212,7 @@ func buildMetWithInProgressInCycle() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .inProgress)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -205,7 +222,7 @@ func buildNotMetNoCycle() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.noFeatureInFlight))
 }
@@ -219,7 +236,7 @@ func buildNotMetAllFinished() throws {
     _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .blocked, cycleID: cycleID)
     _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .shelved, cycleID: cycleID)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.cycleHasNoUnfinishedCards))
 }
@@ -234,7 +251,7 @@ func landMetAllFinished() throws {
     let cycleID = try insertFixtureCard(journal, issueID: "CARD-1", state: .done).cycleID
     _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .blocked, cycleID: cycleID)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -246,7 +263,7 @@ func landMetAllShelved() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .shelved)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -256,7 +273,7 @@ func landNotMetNoCycle() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.noFeatureInFlight))
 }
@@ -268,7 +285,7 @@ func landNotMetInProgress() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .inProgress)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.cycleHasUnfinishedCards))
 }
@@ -280,7 +297,7 @@ func landNotMetTodo() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.cycleHasUnfinishedCards))
 }
@@ -302,7 +319,7 @@ func archivedCycleNotInFlightBuild() throws {
         )
     }
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.noFeatureInFlight))
 }
@@ -322,7 +339,7 @@ func archivedCycleNotInFlightLand() throws {
         )
     }
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.noFeatureInFlight))
 }
@@ -339,7 +356,7 @@ func landedCycleNotMetForLand() throws {
     try claimLease(journal, runID: runID, act: .land)
     try journal.markCycleLanded(cycleID: cycleID, runID: runID, now: epoch)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.cycleAlreadyLanded))
 }
@@ -354,7 +371,7 @@ func landedCycleNotMetForBuild() throws {
     try claimLease(journal, runID: runID, act: .land)
     try journal.markCycleLanded(cycleID: cycleID, runID: runID, now: epoch)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
+    let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.cycleAlreadyLanded))
 }
@@ -368,7 +385,7 @@ func forcedAuthorOverridesNotMet() throws {
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .forced, journal: journal)
+    let outcome = try evaluate(act: .author, trigger: .forced, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -378,7 +395,7 @@ func forcedBuildOverridesNotMet() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .forced, journal: journal)
+    let outcome = try evaluate(act: .build, trigger: .forced, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -388,7 +405,7 @@ func forcedLandOverridesNotMet() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .forced, journal: journal)
+    let outcome = try evaluate(act: .land, trigger: .forced, journal: journal)
 
     #expect(outcome == .met)
 }
@@ -401,7 +418,7 @@ func forcedForFeatureAuthorOverridesNotMet() throws {
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo)
     let featureName = try #require(FeatureName(rawValue: "MyFeature"))
 
-    let outcome = try ActTriggerPredicate.evaluate(
+    let outcome = try evaluate(
         act: .author, trigger: .forcedForFeature(featureName), journal: journal
     )
 

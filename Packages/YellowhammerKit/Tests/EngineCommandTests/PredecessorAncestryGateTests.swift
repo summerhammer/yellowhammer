@@ -23,7 +23,7 @@ struct PredecessorAncestryGateTests {
 
         let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         let events = try journal.events().map(\.type)
         #expect(!events.contains(.predecessorAncestryObserved))
         #expect(!events.contains(.mainlineConflictDetected))
@@ -65,7 +65,7 @@ struct PredecessorAncestryGateTests {
 
         let (context1, _) = try makeGateContext(journal, repositories: repositories)
         let outcome1 = try await gate.check(context1, unmergedFeaturesMax: 1)
-        #expect(outcome1 == .landed)
+        #expect(outcome1 == .open)
         #expect(closure.callCount == 1)
 
         let events = try journal.events()
@@ -82,7 +82,7 @@ struct PredecessorAncestryGateTests {
         try journal.releaseActLease(runID: context1.runID)
         let (context2, _) = try makeGateContext(journal, repositories: repositories)
         let outcome2 = try await gate.check(context2, unmergedFeaturesMax: 1)
-        #expect(outcome2 == .landed)
+        #expect(outcome2 == .open)
         #expect(closure.callCount == 1)
     }
 

@@ -39,7 +39,7 @@ private func authored() -> JournalEvent {
 
 private func accepted() -> JournalEvent {
     .featureAuthoringAccepted(FeatureAuthoringAcceptedPayload(
-        name: featureName, groupKey: "g", featureKey: "f", nightID: 1, cards: [], adoptions: []
+        name: featureName, groupKey: "g", featureKey: "f", nightID: 1, cards: [], adoptions: [], bases: []
     ))
 }
 

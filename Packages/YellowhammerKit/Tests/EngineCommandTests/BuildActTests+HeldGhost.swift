@@ -33,6 +33,10 @@ extension BuildActTests {
             runID: runID, now: buildActEpoch, featureBranch: buildActBranch
         )
 
+        try journal.recordFeatureBases(featureID: featureID, bases: [FeatureBaseRecord(
+            repository: "backend", baseRef: "refs/heads/main", baseCommit: String(repeating: "a", count: 40)
+        )])
+
         let recorder = RecordingCardRunner()
         let workspace = ReconcilerFakeWorkspace()
         let invocation = EngineInvocation(

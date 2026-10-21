@@ -41,7 +41,8 @@ struct AuthoringRehearsalTests {
             )
         )
         let (context, _) = try makeSelectionContext(
-            journal, repositories: Self.repositories(), boards: boards
+            journal, repositories: Self.repositories(), boards: boards,
+            mainlines: selectionMainlines(forWorkingRepos: ["fixture-backend"])
         )
 
         let outcome = try await selection.selectAndAuthor(context)
@@ -108,7 +109,8 @@ struct AuthoringRehearsalTests {
             specSource: SpecSource(path: specPath)
         )
         let (context, _) = try makeSelectionContext(
-            journal, repositories: repositories, boards: boards, mainlines: ResolvedMainlines()
+            journal, repositories: repositories, boards: boards,
+            mainlines: selectionMainlines(forWorkingRepos: ["app"])
         )
 
         let outcome = try await selection.selectAndAuthor(context)

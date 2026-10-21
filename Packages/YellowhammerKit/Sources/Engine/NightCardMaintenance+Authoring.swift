@@ -185,8 +185,8 @@ extension NightCardMaintenance {
             let named = repositories.joined(separator: ", ")
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Authoring was skipped: the pushed tip of predecessor Feature \(featureRef) could not be \
-                found in \(named). A quiet Night, not a failure.
+                Authoring was skipped: the pushed tip of Feature \(featureRef) in the unmerged Feature stack \
+                could not be found in \(named). A quiet Night, not a failure.
                 """
         case .authoringReleaseGateHeld(_, let consumer, let producer, let producerFeatureIssueID, let hold):
             return releaseGateHeldLine(

@@ -54,7 +54,8 @@ private func repositories(producerPath: String, via: RepoDependencyVia = .tag) -
 
 private func held(_ issueID: String = "FEAT-K") -> [HeldConsumer] {
     [HeldConsumer(
-        consumer: "backend", producer: "contracts", producerFeature: issueID, producerFeatureIssueID: issueID
+        consumer: "backend", producer: "contracts", producerFeature: issueID, producerFeatureIssueID: issueID,
+        hold: .awaitingRelease
     )]
 }
 

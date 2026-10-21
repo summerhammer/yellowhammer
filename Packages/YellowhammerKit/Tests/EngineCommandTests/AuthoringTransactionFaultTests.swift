@@ -66,9 +66,13 @@ struct AuthoringTransactionFaultTests {
             reading: FakeReadingBoard.quiet(), writing: rig.boards.writing, provisioning: rig.boards.provisioning
         )
 
+        let realRoot = FileManager.default.temporaryDirectory
+            .appending(component: "yh-author-repos-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: realRoot) }
+        let repositories = try await realSelectionRepositories(under: realRoot)
         try await EngineInvocation(
             act: .author, mode: .rehearsal, nightStart: featureSelectionNightStart, journal: rig.journal,
-            trigger: .forced, runID: RunID(), board: board, repositories: selectionRepositories(),
+            trigger: .forced, runID: RunID(), board: board, repositories: repositories,
             work: AuthorAct(predecessorGate: nil, authoring: rig.selection).work
         ).run()
 
@@ -117,7 +121,7 @@ struct AuthoringTransactionFaultTests {
 
         let plan = FeatureAuthoringAcceptedPayload(
             name: "FEAT-1", groupKey: "authoring:FEAT-1:0", featureKey: "feature:FEAT-1:0:create",
-            nightID: night.id, cards: [], adoptions: []
+            nightID: night.id, cards: [], adoptions: [], bases: []
         )
         try journal.append(.featureAuthoringAccepted(plan), act: .author, runID: run, nightID: night.id)
 

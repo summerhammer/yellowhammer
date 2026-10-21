@@ -195,9 +195,13 @@ struct FeatureSelectionTests {
         let selector = ScriptedFeatureSelector(outcome: .noSelectableFeature)
         let selection = FeatureSelection(selector: selector)
 
+        let realRoot = FileManager.default.temporaryDirectory
+            .appending(component: "yh-author-repos-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: realRoot) }
+        let repositories = try await realSelectionRepositories(under: realRoot)
         let invocation = EngineInvocation(
             act: .author, mode: .rehearsal, nightStart: featureSelectionNightStart, journal: journal,
-            trigger: .forced, runID: RunID(), board: board, repositories: selectionRepositories(),
+            trigger: .forced, runID: RunID(), board: board, repositories: repositories,
             work: AuthorAct(predecessorGate: nil, authoring: selection).work
         )
         try await invocation.run()

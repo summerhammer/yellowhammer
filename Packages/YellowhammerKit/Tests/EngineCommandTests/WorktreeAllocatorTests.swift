@@ -71,8 +71,15 @@ private final class FakeWorkspace: Workspace, Sendable {
             state.nextID += 1
             return state.nextID
         }
-        let directory = baseDirectory.appendingPathComponent(branch)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let directory = baseDirectory.appendingPathComponent("\(branch)-\(id)")
+        if let baseBranch {
+            let added = await GitRunner().run([
+                "-C", repositoryPath, "worktree", "add", "--detach", directory.path, baseBranch
+            ])
+            guard added.isSuccess else { throw .refused(code: "git", message: added.stderr) }
+        } else {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
         return WorkspaceWorktree(
             id: WorktreeID(rawValue: "fake-\(id)"), path: directory.path, branch: branch, displayName: name
         )
@@ -104,6 +111,14 @@ private struct JournalFixture: ~Copyable {
     func open() throws -> JournalStore {
         try JournalStore.openSeeded(configurationDirectory: directory, projectID: projectID)
     }
+}
+
+private func seedFixtureRepos(_ journal: JournalStore, featureID: Int64, under root: URL) async throws -> [Repo] {
+    [
+        try await seedBackendRepo(journal, featureID: featureID, under: root),
+        try await seedMobileRepo(journal, featureID: featureID, under: root),
+        try await seedRecordedBaseRepo(journal, featureID: featureID, name: "spec", role: .spec, under: root)
+    ]
 }
 
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
@@ -146,14 +161,6 @@ struct WorktreeAllocatorTests {
     private static let featureName = FeatureName(rawValue: "feat")!
     private static let branch = WorktreeName(projectID: projectID, feature: featureName)
 
-    private static func fixtureRepos() -> [Repo] {
-        [
-            Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend),
-            Repo(name: "mobile", path: "/tmp/yh-allocator-fixture/mobile", role: .mobile),
-            Repo(name: "spec", path: "/tmp/yh-allocator-fixture/spec", role: .spec)
-        ]
-    }
-
     @Test("Three fixture repos each get one held Worktree, and the workspace is asked for the Feature Branch's name")
     func allocatesOneWorktreePerRepository() async throws {
         let fixture = try JournalFixture()
@@ -168,7 +175,7 @@ struct WorktreeAllocatorTests {
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
-        let repos = Self.fixtureRepos()
+        let repos = try await seedFixtureRepos(journal, featureID: featureID, under: workspaceDirectory)
         let result = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: repos)
 
         #expect(result.count == 3)
@@ -200,7 +207,7 @@ struct WorktreeAllocatorTests {
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
-        let repos = Self.fixtureRepos()
+        let repos = try await seedFixtureRepos(journal, featureID: featureID, under: workspaceDirectory)
         let first = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: repos)
         #expect(workspace.createCalls.count == 3)
 
@@ -226,9 +233,8 @@ struct WorktreeAllocatorTests {
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
-        let result = try await allocator.allocate(
-            featureID: featureID, worktreeName: Self.branch, repos: Self.fixtureRepos()
-        )
+        let repos = try await seedFixtureRepos(journal, featureID: featureID, under: workspaceDirectory)
+        let result = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: repos)
 
         #expect(result["backend"]?.repository == "backend")
         #expect(result["nonexistent"] == nil)
@@ -246,7 +252,10 @@ struct WorktreeAllocatorTests {
             .appending(component: "yh-allocator-repo-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: repoDirectory) }
         let git = GitRunner()
-        try await initGitRepo(at: repoDirectory, git: git)
+        let baseCommit = try await initGitRepo(at: repoDirectory, git: git)
+        try journal.recordFeatureBases(featureID: featureID, bases: [
+            FeatureBaseRecord(repository: "backend", baseRef: "refs/heads/main", baseCommit: baseCommit)
+        ])
 
         let stray = FileManager.default.temporaryDirectory
             .appending(component: "yh-allocator-stray-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -286,7 +295,9 @@ struct WorktreeAllocatorTests {
         workspace.scriptCollision(forName: Self.branch.rawValue, returning: collided)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
-        let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
+        let repo = try await seedRecordedBaseRepo(
+            journal, featureID: featureID, name: "backend", role: .backend, under: workspaceDirectory
+        )
 
         await #expect(throws: WorktreeAllocationError.nameCollision(
             repository: "backend", requested: Self.branch.rawValue, reported: collided, recorded: nil
@@ -312,7 +323,9 @@ struct WorktreeAllocatorTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
-        let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
+        let repo = try await seedRecordedBaseRepo(
+            journal, featureID: featureID, name: "backend", role: .backend, under: workspaceDirectory
+        )
         _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
 
         await #expect(throws: WorktreeAllocationError.notPushed(repository: "backend")) {
@@ -334,7 +347,9 @@ struct WorktreeAllocatorTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
-        let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
+        let repo = try await seedRecordedBaseRepo(
+            journal, featureID: featureID, name: "backend", role: .backend, under: workspaceDirectory
+        )
         _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
 
         let record = try await allocator.release(
@@ -359,7 +374,9 @@ struct WorktreeAllocatorTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
-        let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
+        let repo = try await seedRecordedBaseRepo(
+            journal, featureID: featureID, name: "backend", role: .backend, under: workspaceDirectory
+        )
         let allocated = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
         let record = try #require(allocated["backend"])
 
@@ -384,12 +401,15 @@ struct WorktreeAllocatorTests {
             .appending(component: "yh-workspace-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
-        let repoPath = "/tmp/yh-allocator-fixture/unregistered"
+        let seeded = try await seedRecordedBaseRepo(
+            journal, featureID: featureID, name: "backend", role: .backend, under: workspaceDirectory
+        )
+        let repoPath = seeded.path
         workspace.scriptFailure(
             forRepositoryPath: repoPath, error: .repositoryNotRegistered(path: repoPath)
         )
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
-        let repo = Repo(name: "backend", path: repoPath, role: .backend)
+        let repo = seeded
 
         await #expect(throws: WorktreeAllocationError.workspace(
             repository: "backend", .repositoryNotRegistered(path: repoPath)

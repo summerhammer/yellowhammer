@@ -74,11 +74,9 @@ public struct PlannedCard: Codable, Equatable, Sendable {
     public let kind: String
     public let order: Int
     public let title: String
-    /// This Card's citable Definition of Done clauses (roadmap P9.5); empty for a P9.4-era plan decoded
-    /// from a legacy `featureAuthoringAccepted` event.
+    /// This Card's citable Definition of Done clauses (roadmap P9.5).
     public let clauses: [PlannedClause]
-    /// The Card's Architectural Brief prose (roadmap P9.6); empty for a pre-P9.6 plan decoded from a
-    /// legacy `featureAuthoringAccepted` event.
+    /// The Card's Architectural Brief prose (roadmap P9.6).
     public let brief: String
     /// The Card's Transcription Blocks (roadmap P9.6); empty for a pre-P9.6 plan, or for a Card with no
     /// contracts.
@@ -118,9 +116,9 @@ public struct PlannedCard: Codable, Equatable, Sendable {
         kind = try container.decode(String.self, forKey: .kind)
         order = try container.decode(Int.self, forKey: .order)
         title = try container.decode(String.self, forKey: .title)
-        clauses = try container.decodeIfPresent([PlannedClause].self, forKey: .clauses) ?? []
-        brief = try container.decodeIfPresent(String.self, forKey: .brief) ?? ""
-        transcriptions = try container.decodeIfPresent([PlannedTranscription].self, forKey: .transcriptions) ?? []
+        clauses = try container.decode([PlannedClause].self, forKey: .clauses)
+        brief = try container.decode(String.self, forKey: .brief)
+        transcriptions = try container.decode([PlannedTranscription].self, forKey: .transcriptions)
         existingIssueID = try container.decodeIfPresent(String.self, forKey: .existingIssueID)
         declaredScope = try container.decodeIfPresent([String].self, forKey: .declaredScope) ?? []
     }
@@ -153,7 +151,7 @@ public struct PlannedAdoption: Codable, Equatable, Sendable {
     public let order: Int
     /// The Feature Issue id this Card belonged to before this Adoption (roadmap P11.5) — what
     /// ``JournalEvent/cardAdopted(cardID:issueID:previousFeatureIssueID:newFeatureIssueID:priorBlockReason:coldStartNote:)``
-    /// records. Empty for a pre-P11.5 plan decoded from a legacy `featureAuthoringAccepted` event.
+    /// records.
     public let previousFeatureIssueID: String
 
     public init(key: String, cardIssueID: String, repository: String, order: Int, previousFeatureIssueID: String = "") {
@@ -174,7 +172,7 @@ public struct PlannedAdoption: Codable, Equatable, Sendable {
         cardIssueID = try container.decode(String.self, forKey: .cardIssueID)
         repository = try container.decode(String.self, forKey: .repository)
         order = try container.decode(Int.self, forKey: .order)
-        previousFeatureIssueID = try container.decodeIfPresent(String.self, forKey: .previousFeatureIssueID) ?? ""
+        previousFeatureIssueID = try container.decode(String.self, forKey: .previousFeatureIssueID)
     }
 }
 
@@ -190,15 +188,12 @@ public struct FeatureAuthoringAcceptedPayload: Equatable, Sendable {
     public let nightID: Int64
     public let cards: [PlannedCard]
     public let adoptions: [PlannedAdoption]
-    /// The Feature Issue's citable Definition of Done clauses (roadmap P9.5); empty for a P9.4-era plan
-    /// decoded from a legacy `featureAuthoringAccepted` event.
+    /// The Feature Issue's citable Definition of Done clauses (roadmap P9.5).
     public let featureClauses: [PlannedClause]
-    /// Every clause dropped as uncitable, Feature and Card, recorded for audit (roadmap P9.5); empty for
-    /// a P9.4-era plan.
+    /// Every clause dropped as uncitable, Feature and Card, recorded for audit (roadmap P9.5).
     public let uncitableClauses: [PlannedUncitableClause]
     /// The validated, sorted repository names this Feature's Cycle touches (roadmap P9.9) — the
-    /// predecessor gate's source of truth, recorded at selection rather than derived from Cards. Empty
-    /// for a pre-P9.9 plan decoded from a legacy `featureAuthoringAccepted` event.
+    /// predecessor gate's source of truth, recorded at selection rather than derived from Cards.
     public let repositories: [String]
     /// `effective_base(R)` for each of ``repositories``, as resolved when the Feature was selected (roadmap
     /// P23.2; spec: feature-authoring/select-the-next-feature, `#effective-base`): carried on the plan so a
@@ -209,7 +204,7 @@ public struct FeatureAuthoringAcceptedPayload: Equatable, Sendable {
         name: String, groupKey: String, featureKey: String, nightID: Int64,
         cards: [PlannedCard], adoptions: [PlannedAdoption],
         featureClauses: [PlannedClause] = [], uncitableClauses: [PlannedUncitableClause] = [],
-        repositories: [String] = [], bases: [FeatureBaseRecord] = []
+        repositories: [String] = [], bases: [FeatureBaseRecord]
     ) {
         self.name = name
         self.groupKey = groupKey
@@ -265,12 +260,10 @@ extension FeatureAuthoringAcceptedPayload {
     static func decode(_ reader: PayloadReader) throws -> FeatureAuthoringAcceptedPayload {
         let decoder = JSONDecoder()
         do {
-            // "feature_clauses" and "uncitable_clauses" post-date P9.4: a legacy event carries neither
-            // key, and decodes as if the plan minted no clauses at all.
-            let featureClausesJSON = reader.payload?["feature_clauses"] ?? "[]"
-            let uncitableClausesJSON = reader.payload?["uncitable_clauses"] ?? "[]"
-            let repositoriesJSON = reader.payload?["repositories"] ?? "[]"
-            let basesJSON = reader.payload?["bases"] ?? "[]"
+            let featureClausesJSON = try reader.require("feature_clauses")
+            let uncitableClausesJSON = try reader.require("uncitable_clauses")
+            let repositoriesJSON = try reader.require("repositories")
+            let basesJSON = try reader.require("bases")
             return FeatureAuthoringAcceptedPayload(
                 name: try reader.require("name"),
                 groupKey: try reader.require("group_key"),

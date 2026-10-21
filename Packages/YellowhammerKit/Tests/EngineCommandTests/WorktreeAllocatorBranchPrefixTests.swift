@@ -168,6 +168,7 @@ struct WorktreeAllocatorBranchPrefixTests {
         )
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID, git: git)
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
+        try await recordHeadAsBase(journal, featureID: featureID, repo: repo)
 
         _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.name, repos: [repo])
 
@@ -199,6 +200,7 @@ struct WorktreeAllocatorBranchPrefixTests {
         )
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID, git: git)
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
+        try await recordHeadAsBase(journal, featureID: featureID, repo: repo)
 
         _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.name, repos: [repo])
 
@@ -240,6 +242,7 @@ struct WorktreeAllocatorBranchPrefixTests {
         )
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID, git: git)
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
+        try await recordHeadAsBase(journal, featureID: featureID, repo: repo)
 
         _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.name, repos: [repo])
         try await allocator.release(featureID: featureID, repository: "backend", discardingUnpushedWork: true)
@@ -279,6 +282,7 @@ struct WorktreeAllocatorBranchPrefixTests {
         let workspace = PrefixingGitWorkspace(baseDirectory: workspaceDirectory, git: git, reported: [reported])
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID, git: git)
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
+        try await recordHeadAsBase(journal, featureID: featureID, repo: repo)
 
         await #expect(
             throws: WorktreeAllocationError.nameCollision(

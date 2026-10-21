@@ -10,6 +10,8 @@ public enum AuthoringTransactionError: Error, Equatable, Sendable, CustomStringC
     case adoptedCardUnknown(issueID: String)
     /// An applied Outbox entry the plan names has no created id.
     case appliedEntryWithoutID(key: String)
+    /// A touched repository has no resolved authoring base.
+    case missingAuthoringBase(repository: String)
 
     public var description: String {
         switch self {
@@ -19,6 +21,8 @@ public enum AuthoringTransactionError: Error, Equatable, Sendable, CustomStringC
             "The Journal has no Card row for adopted issue \(issueID)."
         case .appliedEntryWithoutID(let key):
             "The Outbox entry \(key) is applied but recorded no created id."
+        case .missingAuthoringBase(let repository):
+            "Touched repository \(repository) has no resolved authoring base."
         }
     }
 }

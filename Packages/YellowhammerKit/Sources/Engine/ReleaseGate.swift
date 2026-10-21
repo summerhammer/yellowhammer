@@ -46,7 +46,7 @@ public struct ObservedReleaseGate: ReleaseGate {
             for consumer in consumersByProducer[producer, default: []] {
                 held.append(HeldConsumer(
                     consumer: consumer, producer: producer, producerFeature: feature.displayIdentifier,
-                    producerFeatureIssueID: feature.issueID
+                    producerFeatureIssueID: feature.issueID, hold: .awaitingRelease
                 ))
             }
         }

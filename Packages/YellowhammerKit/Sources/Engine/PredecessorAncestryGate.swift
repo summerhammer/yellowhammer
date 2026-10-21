@@ -50,7 +50,7 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 /// whether or not a Feature is in flight: F1's Observed Merge is recorded while F2 builds, because the land Act
 /// computes a pull request's base from U as it then stands. The in-flight Feature is observed too once its Cycle
 /// has landed (a Partial Landing or a returned Feature). Only the decision depends on flight: in flight, the
-/// gate answers ``PredecessorGateOutcome/landed`` (the author Act's in-flight check skips authoring anyway);
+/// gate answers ``PredecessorGateOutcome/open`` (the author Act's in-flight check skips authoring anyway);
 /// otherwise an unreadable tip anywhere in U is ``PredecessorGateOutcome/indeterminate(predecessorIssueID:repositories:)``,
 /// and |U| at or above `unmerged_features_max` after the pass is ``PredecessorGateOutcome/stackFull(features:)``.
 ///
@@ -109,7 +109,7 @@ public struct PredecessorAncestryGate: PredecessorGate {
                     feature: inFlight.feature, pushedRepositories: inFlight.pushedRepositories, context: context
                 )
             }
-            return .landed
+            return .open
         }
 
         if let indeterminate { return indeterminate }
@@ -120,13 +120,13 @@ public struct PredecessorAncestryGate: PredecessorGate {
 
         // Recorded only when authoring proceeds: that is the Night a successor is built without the released
         // Feature's work, which is what the Night Summary has to name.
-        for skipped in try journal.predecessorFeature().skippedReleased {
+        for skipped in try journal.unnamedAbandonedArchivedFeatures() {
             try journal.append(
                 .predecessorWalkSkippedReleasedFeature(featureIssueID: skipped.issueID),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
         }
-        return .landed
+        return .open
     }
 
     /// One Feature of U as the quiet skip names it: its unmerged repositories and the Feature Branch in each.

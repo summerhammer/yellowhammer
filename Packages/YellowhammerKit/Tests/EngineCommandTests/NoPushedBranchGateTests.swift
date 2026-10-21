@@ -193,8 +193,8 @@ struct NoPushedBranchGateTests {
         #expect(await world.boards.writing.archiveCalls == 0)
     }
 
-    @Test("A walk predecessor with no touched repositories reads landed, with no pass and no closure")
-    func walkPredecessorWithNoRepositories() async throws {
+    @Test("A Feature with no touched repositories is not in the unmerged Feature stack")
+    func featureWithNoRepositoriesIsNotInTheStack() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(journal, issueID: "FEAT-OLD", branch: "yh-proj-old", repositories: [])
@@ -203,8 +203,6 @@ struct NoPushedBranchGateTests {
                 JournalStore.timestamp(outboxEpoch), featureID
             ])
         }
-        let walk = try journal.predecessorFeature()
-        #expect(walk.predecessor?.pushedRepositories == [])
-        #expect(walk.predecessor?.touchedRepositories == [])
+        #expect(try journal.unmergedFeatureStack().isEmpty)
     }
 }

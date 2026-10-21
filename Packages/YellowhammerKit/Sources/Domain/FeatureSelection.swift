@@ -57,7 +57,7 @@ public struct HeldConsumer: Equatable, Sendable {
 
     public init(
         consumer: String, producer: String, producerFeature: String, producerFeatureIssueID: String = "",
-        hold: ConsumerHold = .awaitingRelease
+        hold: ConsumerHold
     ) {
         self.consumer = consumer
         self.producer = producer

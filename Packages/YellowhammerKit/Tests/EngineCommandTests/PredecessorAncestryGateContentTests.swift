@@ -65,7 +65,7 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await PredecessorAncestryGate(closure: closure).check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(closure.callCount == 1)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
         let mainHead = await repo.run(["rev-parse", "main"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -94,7 +94,7 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
     }
 
@@ -113,7 +113,7 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .ancestry])
     }
 
@@ -132,7 +132,7 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
     }
 
@@ -154,7 +154,7 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
     }
 
@@ -224,7 +224,7 @@ struct PredecessorAncestryGateContentTests {
         let closure = ScriptedPostMergeClosure()
         let gate = PredecessorAncestryGate(closure: closure)
         let (context1, _) = try makeGateContext(journal, repositories: repositories(repo))
-        #expect(try await gate.check(context1, unmergedFeaturesMax: 1) == .landed)
+        #expect(try await gate.check(context1, unmergedFeaturesMax: 1) == .open)
         let recorded = try journal.landings(featureID: featureID)
 
         _ = try await repo.commit(
@@ -234,7 +234,7 @@ struct PredecessorAncestryGateContentTests {
         let (context2, _) = try makeGateContext(journal, repositories: repositories(repo))
         let outcome = try await gate.check(context2, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landings(featureID: featureID) == recorded)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
         #expect(closure.callCount == 1)
@@ -258,7 +258,7 @@ struct PredecessorAncestryGateContentTests {
             landedCommits: ["backend": tip]
         )
         let (recordedContext, _) = try makeGateContext(recordedJournal, repositories: repositories(repo))
-        #expect(try await PredecessorAncestryGate().check(recordedContext, unmergedFeaturesMax: 1) == .landed)
+        #expect(try await PredecessorAncestryGate().check(recordedContext, unmergedFeaturesMax: 1) == .open)
         #expect(try recordedJournal.landingEvidence(featureID: recordedID) == ["backend": .content])
 
         // Without it the branch name is read, and the branch carries a change mainline never received.
@@ -287,7 +287,7 @@ struct PredecessorAncestryGateContentTests {
         )
         let gate = PredecessorAncestryGate()
         let (context1, _) = try makeGateContext(journal, repositories: repositories(repo))
-        #expect(try await gate.check(context1, unmergedFeaturesMax: 1) == .landed)
+        #expect(try await gate.check(context1, unmergedFeaturesMax: 1) == .open)
         #expect(await landedPin(in: repo) == nil)
 
         _ = await repo.run(["branch", "-D", gateBranch])
@@ -297,7 +297,7 @@ struct PredecessorAncestryGateContentTests {
         let (context2, _) = try makeGateContext(journal, repositories: repositories(repo))
         let outcome = try await gate.check(context2, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
     }
 
@@ -317,7 +317,7 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landings(featureID: featureID).keys.sorted() == ["backend"])
         let failures = try journal.events(ofType: .landedPinFailed)
         #expect(failures.count == 1)
@@ -348,7 +348,7 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landings(featureID: featureID).isEmpty)
         #expect(try journal.events(ofType: .predecessorAncestryObserved).isEmpty)
     }

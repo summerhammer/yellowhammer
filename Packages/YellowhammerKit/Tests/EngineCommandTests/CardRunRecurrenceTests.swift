@@ -54,7 +54,8 @@ extension CardRunWorld {
         )
         let next = BuildActContext(
             act: actContext, feature: context.feature, cycleID: context.cycleID,
-            reconciliation: WorktreeReconciliation(), deltaRead: nil
+            reconciliation: WorktreeReconciliation(), deltaRead: nil,
+            recordedBaseMainlines: actContext.mainlines
         )
         return CardRunWorld(
             journal: journal, runID: nextRunID, cardIDs: cardIDs, context: next, boards: nil, worktrees: worktrees

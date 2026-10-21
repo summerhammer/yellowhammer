@@ -83,7 +83,7 @@ struct AuthorActTests {
         let board = ActBoard(
             reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
         )
-        let gate = ScriptedPredecessorGate(outcome: .landed)
+        let gate = ScriptedPredecessorGate(outcome: .open)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
         let invocation = EngineInvocation(
@@ -130,7 +130,7 @@ struct AuthorActTests {
         let board = ActBoard(
             reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
         )
-        let gate = ScriptedPredecessorGate(outcome: .landed)
+        let gate = ScriptedPredecessorGate(outcome: .open)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
         let invocation = EngineInvocation(
@@ -161,7 +161,7 @@ struct AuthorActTests {
                 journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo
             )
 
-            let gate = ScriptedPredecessorGate(outcome: .landed)
+            let gate = ScriptedPredecessorGate(outcome: .open)
             let authoring = ScriptedFeatureAuthoring(outcome: .authored)
             let invocation = EngineInvocation(
                 act: .author, mode: .rehearsal, nightStart: authorActNightStart, journal: journal,
@@ -222,7 +222,7 @@ struct AuthorActTests {
         let board = ActBoard(
             reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
         )
-        let gate = ScriptedPredecessorGate(outcome: .landed)
+        let gate = ScriptedPredecessorGate(outcome: .open)
         let authoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
 
         let invocation = EngineInvocation(
@@ -248,7 +248,7 @@ struct AuthorActTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let log = AuthorActCallLog()
-        let gate = ScriptedPredecessorGate(outcome: .landed, log: log)
+        let gate = ScriptedPredecessorGate(outcome: .open, log: log)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored, log: log)
 
         let invocation = EngineInvocation(

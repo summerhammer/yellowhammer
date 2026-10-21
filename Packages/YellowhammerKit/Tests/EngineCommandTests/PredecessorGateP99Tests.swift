@@ -91,7 +91,7 @@ struct PredecessorGateP99Tests {
 
         let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         let events = try journal.events().map(\.type)
         #expect(!events.contains(.predecessorAncestryObserved))
         let landings = try journal.landings(featureID: featureID)
@@ -116,7 +116,7 @@ struct PredecessorGateP99Tests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: nil)
 
-        #expect(try await gate.check(context, unmergedFeaturesMax: 1) == .landed)
+        #expect(try await gate.check(context, unmergedFeaturesMax: 1) == .open)
         let events = try journal.events().map(\.type)
         #expect(!events.contains(.predecessorWalkSkippedReleasedFeature))
         #expect(!events.contains(.predecessorAncestryObserved))
@@ -169,7 +169,7 @@ struct PredecessorGateP99Tests {
 
         let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         let events = try journal.events()
         let skip = try #require(events.first { $0.type == .predecessorWalkSkippedReleasedFeature })
         guard case .predecessorWalkSkippedReleasedFeature(let issueID) = skip.event else {
@@ -198,7 +198,7 @@ struct PredecessorGateP99Tests {
 
         let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         let skipCount = try journal.events(ofType: .predecessorWalkSkippedReleasedFeature).count
         #expect(skipCount == 2)
     }
@@ -232,7 +232,7 @@ struct PredecessorGateLandingTests {
 
         let (context1, _) = try makeGateContext(journal, repositories: repositories)
         let outcome1 = try await gate.check(context1, unmergedFeaturesMax: 1)
-        #expect(outcome1 == .landed)
+        #expect(outcome1 == .open)
         #expect(try journal.landings(featureID: featureID)["backend"] != nil)
 
         _ = await backend.run(["branch", "-D", "yh-proj-deleted"])
@@ -241,7 +241,7 @@ struct PredecessorGateLandingTests {
         let (context2, _) = try makeGateContext(journal, repositories: repositories)
         let outcome2 = try await gate.check(context2, unmergedFeaturesMax: 1)
 
-        #expect(outcome2 == .landed)
+        #expect(outcome2 == .open)
     }
 
     // Nothing authored; the event and the Night Card line name the repository.
@@ -326,16 +326,15 @@ struct PredecessorGateLandingTests {
         #expect(try journal.landings(featureID: featureID)["backend"] == "aaa")
     }
 
-    @Test("An in-flight Feature (open Cycle) is never picked as the predecessor")
-    func inFlightFeatureIsNeverThePredecessor() async throws {
+    @Test("An in-flight Feature (open Cycle) is never in the unmerged Feature stack")
+    func inFlightFeatureIsNeverInUnmergedStack() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         try insertGateFeature(journal, issueID: "FEAT-6", branch: "yh-proj-inflight", inFlight: true)
 
-        let walk = try journal.predecessorFeature()
+        let stack = try journal.unmergedFeatureStack()
 
-        #expect(walk.predecessor == nil)
-        #expect(walk.skippedReleased.isEmpty)
+        #expect(stack.isEmpty)
     }
 
     // Through AuthorAct at unmerged_features_max = 1: an unmerged predecessor fills the stack, so authoring is

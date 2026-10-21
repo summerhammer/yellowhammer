@@ -81,8 +81,7 @@ public struct FeatureRollUpMaintenance: Sendable {
     }
 
     /// Maintains every Feature Issue candidate this Night touches, deduplicated by issue id: the
-    /// in-flight Feature, the not-yet-released predecessor (its merged fraction still moves after its
-    /// Cycle archives), every Feature this Night's merge pass observed (each Feature of the Unmerged Feature
+    /// in-flight Feature, every Feature this Night's merge pass observed (each Feature of the Unmerged Feature
     /// Stack, whose merged fraction moves too), every Feature this Night's closure events name, and every Refusal/Authoring
     /// Halt Feature Issue not already covered by a real `FeatureRecord`. One candidate's failure never
     /// stops the rest; the first error is rethrown once every candidate has been tried, so the caller
@@ -92,7 +91,6 @@ public struct FeatureRollUpMaintenance: Sendable {
         var errors: [Error] = []
 
         try await maintainInFlight(processed: &processed, errors: &errors)
-        try await maintainPredecessor(processed: &processed, errors: &errors)
         try await maintainObservedThisNight(night, processed: &processed, errors: &errors)
         try await maintainClosedThisNight(night, processed: &processed, errors: &errors)
         try await maintainZeroCardStandings(processed: &processed, errors: &errors)
@@ -113,20 +111,6 @@ public struct FeatureRollUpMaintenance: Sendable {
         guard let (feature, cycleID) = try journal.inFlightFeature() else { return }
         processed.insert(feature.issueID)
         if let error = await attempt({ _ = try await self.maintain(feature: feature, cycleID: cycleID) }) {
-            errors.append(error)
-        }
-    }
-
-    private func maintainPredecessor(processed: inout Set<String>, errors: inout [Error]) async throws {
-        guard
-            let predecessor = try journal.predecessorFeature().predecessor,
-            !processed.contains(predecessor.feature.issueID),
-            let cycleID = try journal.cycleID(featureID: predecessor.feature.id)
-        else {
-            return
-        }
-        processed.insert(predecessor.feature.issueID)
-        if let error = await attempt({ _ = try await self.maintain(feature: predecessor.feature, cycleID: cycleID) }) {
             errors.append(error)
         }
     }

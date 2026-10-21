@@ -61,11 +61,19 @@ final class BuildActFakeWorkspace: Workspace, Sendable {
             state.nextID += 1
             return state.nextID
         }
-        let directory = baseDirectory.appendingPathComponent(name)
+        let directory = baseDirectory.appendingPathComponent("\(name)-\(id)")
         let branch = state.withLock { $0.reportedBranches[repositoryPath] } ?? name
-        // A stand-alone repository with one commit, HEAD on the reported branch: a second build Act
-        // reconciles this held Worktree, and reconciliation refuses one whose HEAD is on another branch.
-        _ = try? await initReconcilerGitRepo(at: directory, git: GitRunner(), branch: branch)
+        // HEAD on the reported branch: a second build Act reconciles this held Worktree, and reconciliation
+        // refuses one whose HEAD is on another branch. Handed a base, the Worktree is cut from it.
+        if let baseBranch {
+            if let failure = await addWorktreeFromBase(
+                repositoryPath: repositoryPath, directory: directory, baseBranch: baseBranch, branch: branch
+            ) {
+                throw WorkspaceError.refused(code: "git", message: failure)
+            }
+        } else {
+            _ = try? await initReconcilerGitRepo(at: directory, git: GitRunner(), branch: branch)
+        }
         return WorkspaceWorktree(
             id: WorktreeID(rawValue: "fake-\(id)"), path: directory.path, branch: branch, displayName: name
         )
@@ -119,6 +127,7 @@ extension BuildActTests {
         let repositories = ProjectRepositories(workingRepos: [
             Repo(name: "backend", path: backendRepository.path, role: .backend)
         ])
+        try await recordHeadAsBase(journal, featureID: featureID, repo: repositories.workingRepos[0])
 
         let invocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal,
@@ -196,8 +205,8 @@ extension BuildActTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
         let repositories = ProjectRepositories(workingRepos: [
-            Repo(name: "backend", path: "/tmp/yh-buildact-fixture/backend", role: .backend),
-            Repo(name: "mobile", path: "/tmp/yh-buildact-fixture/mobile", role: .mobile)
+            try await seedBackendRepo(journal, featureID: featureID, under: workspaceDirectory),
+            try await seedMobileRepo(journal, featureID: featureID, under: workspaceDirectory)
         ])
 
         let recorder = RecordingCardRunner()
@@ -235,7 +244,7 @@ extension BuildActTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
         let repositories = ProjectRepositories(workingRepos: [
-            Repo(name: "backend", path: "/tmp/yh-buildact-fixture/backend", role: .backend)
+            try await seedBackendRepo(journal, featureID: featureID, under: workspaceDirectory)
         ])
 
         let firstRunID = RunID()
@@ -302,7 +311,7 @@ extension BuildActTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
         let repositories = ProjectRepositories(workingRepos: [
-            Repo(name: "backend", path: "/tmp/yh-buildact-fixture/backend", role: .backend)
+            try await seedBackendRepo(journal, featureID: featureID, under: workspaceDirectory)
         ])
 
         let invocation = EngineInvocation(
@@ -338,11 +347,11 @@ extension BuildActTests {
             .appending(component: "yh-buildact-workspace-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
-        let mobilePath = "/tmp/yh-buildact-fixture/mobile"
-        workspace.scriptFailure(forRepositoryPath: mobilePath)
+        let mobileRepo = try await seedMobileRepo(journal, featureID: featureID, under: workspaceDirectory)
+        workspace.scriptFailure(forRepositoryPath: mobileRepo.path)
         let repositories = ProjectRepositories(workingRepos: [
-            Repo(name: "backend", path: "/tmp/yh-buildact-fixture/backend", role: .backend),
-            Repo(name: "mobile", path: mobilePath, role: .mobile)
+            try await seedBackendRepo(journal, featureID: featureID, under: workspaceDirectory),
+            mobileRepo
         ])
 
         let recorder = RecordingCardRunner()

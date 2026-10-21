@@ -26,9 +26,9 @@ struct FeatureMergeClosureTests {
 
             .check(context, unmergedFeaturesMax: 1)
 
-        // An in-flight Feature is observed, never gated on: the outcome is always `.landed` regardless
+        // An in-flight Feature is observed, never gated on: the outcome is always `.open` regardless
         // of merge status — only the closure (or its absence) tells k = 0 apart from k = N.
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try world.journal.inFlightFeature() != nil)
         #expect(try mergeNightTriagedAt(world.journal, nightID: world.landingNightID) == nil)
         #expect(try mergeNightTriagedAt(world.journal, nightID: context.night.id) == nil)
@@ -51,7 +51,7 @@ struct FeatureMergeClosureTests {
 
             .check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         let landings = try world.journal.landings(featureID: world.featureID)
         #expect(landings.keys.sorted() == ["backend"])
         #expect(try world.journal.inFlightFeature() != nil)
@@ -74,7 +74,7 @@ struct FeatureMergeClosureTests {
         let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
 
             .check(context, unmergedFeaturesMax: 1)
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
 
         let row = try mergeFeatureRow(world.journal, featureID: world.featureID)
         #expect(row.state == "closed")
@@ -160,7 +160,7 @@ struct FeatureMergeClosureTests {
 
             .check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try world.journal.landings(featureID: world.featureID).keys.sorted() == ["backend", "mobile"])
         #expect(try world.journal.landingEvidence(featureID: world.featureID) == [
             "backend": .ancestry, "mobile": .content
@@ -201,7 +201,7 @@ struct FeatureMergeClosureTests {
         let outcome2 = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
             .check(context2, unmergedFeaturesMax: 1)
 
-        #expect(outcome2 == .landed)
+        #expect(outcome2 == .open)
         #expect(try world.journal.events(ofType: .featureClosedByMerge).count == 1)
         #expect(try world.journal.events(ofType: .cycleArchived).count == 1)
         #expect(await world.boards.writing.createCommentCalls == 1)
@@ -382,7 +382,7 @@ struct AuthorActFeatureMergeClosureTests {
             act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
             trigger: .forced, runID: RunID(), board: board, repositories: repositories,
             work: AuthorAct(
-                predecessorGate: ScriptedPredecessorGate(outcome: .landed),
+                predecessorGate: ScriptedPredecessorGate(outcome: .open),
                 authoring: ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
             ).work
         )

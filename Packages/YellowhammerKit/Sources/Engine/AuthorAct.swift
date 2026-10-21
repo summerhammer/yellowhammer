@@ -6,7 +6,7 @@ import Journal
 public enum PredecessorGateOutcome: Equatable, Sendable {
     /// The Unmerged Feature Stack U is below `unmerged_features_max` after the merge pass — including U = ∅,
     /// the first Night — or a Feature is in flight (the author Act's own in-flight check skips authoring then).
-    case landed
+    case open
     /// U is at or above `unmerged_features_max` after the merge pass (roadmap P23.5; spec:
     /// feature-authoring/select-the-next-feature, `#unmerged-feature-stack`): authoring must not proceed.
     /// Names every Feature in U, oldest first.
@@ -111,7 +111,7 @@ public protocol FeatureAuthoring: Sendable {
 /// state write a merge closure (P10.8) or a Board disposition (P10.9, P22.2) deferred is otherwise never retried,
 /// because those seams release the Card Lease the instant the deferred write is accepted.
 public struct AuthorAct: Sendable {
-    /// The predecessor-ancestry gate (P9.2); nil is treated as `.landed` — there is no gate to fail
+    /// The predecessor-ancestry gate (P9.2); nil is treated as `.open` — there is no gate to fail
     /// yet, so authoring is never blocked on a check that has not landed.
     public let predecessorGate: (any PredecessorGate)?
     /// Selects and authors the next Feature (P9.3–P9.7); nil keeps this Act's public behaviour of
@@ -205,9 +205,9 @@ public struct AuthorAct: Sendable {
                 .authoringPredecessorIndeterminate(featureIssueID: predecessorIssueID, repositories: repositories),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            try await skipAuthoring(because: .predecessorNotLanded, context: context)
+            try await skipAuthoring(because: .indeterminateTip, context: context)
             return
-        case .landed:
+        case .open:
             break
         }
 
@@ -270,7 +270,7 @@ public struct AuthorAct: Sendable {
     }
 
     private func checkPredecessorGate(context: ActContext) async throws -> PredecessorGateOutcome {
-        guard let predecessorGate else { return .landed }
+        guard let predecessorGate else { return .open }
         return try await predecessorGate.check(context, unmergedFeaturesMax: unmergedFeaturesMax)
     }
 

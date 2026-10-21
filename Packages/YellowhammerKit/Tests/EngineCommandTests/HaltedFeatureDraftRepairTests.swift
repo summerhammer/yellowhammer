@@ -71,7 +71,8 @@ private final class DraftWorld {
                 reading: reading, writing: writing, provisioning: rig.boards.provisioning,
                 descriptionBudget: descriptionBudget
             ),
-            mainlines: selectionMainlines(), workspace: nil, repositories: selectionRepositories()
+            mainlines: selectionMainlines(), workspace: nil, repositories: selectionRepositories(),
+            featureBases: selectionFeatureBases(selectionMainlines())
         )
         previous = context
         return context
@@ -334,7 +335,7 @@ struct HaltedFeatureDraftRepairTests {
             writes: [],
             record: FeatureAuthoringAcceptedPayload(
                 name: "FEAT-1", groupKey: "authoring:test", featureKey: "feature:test", nightID: context.night.id,
-                cards: [], adoptions: []
+                cards: [], adoptions: [], bases: []
             ),
             reusedFeatureIssue: try world.issueID(), repairSnapshot: snapshot
         )

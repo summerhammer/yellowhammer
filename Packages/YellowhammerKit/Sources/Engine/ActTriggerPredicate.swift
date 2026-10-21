@@ -24,13 +24,13 @@ public enum ActTriggerPredicate {
     ///   do not mistake this for the Readiness Check.
     ///
     /// `nightID` and `runID` identify the invocation evaluating the predicate; only the author trigger reads
-    /// them, to recognise the Night's first author firing. Without them no firing is the first.
+    /// them, to recognise the Night's first author firing.
     public static func evaluate(
         act: Act,
         trigger: ActTrigger,
         journal: JournalStore,
-        nightID: Int64? = nil,
-        runID: RunID? = nil
+        nightID: Int64,
+        runID: RunID
     ) throws -> ActTriggerOutcome {
         // Forced triggers always fire.
         if trigger.isForced {
@@ -61,15 +61,14 @@ public enum ActTriggerPredicate {
     /// The first firing is the one with no other author `ActStarted` in this Night; the invocation has
     /// appended its own before this runs, so `runID` excludes it.
     private static func evaluateAuthor(
-        journal: JournalStore, nightID: Int64?, runID: RunID?
+        journal: JournalStore, nightID: Int64, runID: RunID
     ) throws -> ActTriggerOutcome {
         let unfinished = try journal.unfinishedCardCount()
         let cycleInFlight = try journal.inFlightCycleID() != nil
         if !cycleInFlight, unfinished == 0 {
             return .met
         }
-        if let nightID, let runID,
-            try journal.authorActStartedCount(nightID: nightID, excludingRunID: runID) == 0 {
+        if try journal.authorActStartedCount(nightID: nightID, excludingRunID: runID) == 0 {
             return .met
         }
         return cycleInFlight ? .notMet(.featureInFlight) : .notMet(.unfinishedCardsPresent)

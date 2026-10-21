@@ -75,6 +75,12 @@ struct AuthoringPlanner {
                 citation: $0.citation, reason: $0.reason
             )
         }
+        for repository in selection.repositories {
+            guard bases.contains(where: { $0.repository == repository }) else {
+                throw AuthoringTransactionError.missingAuthoringBase(repository: repository)
+            }
+        }
+        let filteredBases = bases.filter { selection.repositories.contains($0.repository) }
         return AuthoringPlan(
             writes: existingFeatureIssueID == nil
                 ? featureWrites + adoptionWrites + cardWrites
@@ -84,7 +90,7 @@ struct AuthoringPlanner {
                 nightID: nightID, cards: cards, adoptions: adoptions,
                 featureClauses: featureClauses, uncitableClauses: uncitable,
                 repositories: selection.repositories,
-                bases: bases.filter { selection.repositories.contains($0.repository) }
+                bases: filteredBases
             ),
             reusedFeatureIssue: existingFeatureIssueID
         )

@@ -85,7 +85,7 @@ func makeSelectionContext(
     let context = ActContext(
         act: .author, mode: .rehearsal, trigger: trigger, runID: runID, journal: journal,
         night: opening.night, outbox: outbox, board: actBoard, mainlines: mainlines,
-        workspace: workspace, repositories: repositories
+        workspace: workspace, repositories: repositories, featureBases: selectionFeatureBases(mainlines)
     )
     return (context, runID)
 }
@@ -115,6 +115,22 @@ func selectionMainlines() -> ResolvedMainlines {
         commit: String(repeating: "c", count: 40)
     )
     return ResolvedMainlines(workingRepos: ["backend": backend, "mobile": mobile], specSource: spec)
+}
+
+/// Mainlines for the named working repositories only, for a Project whose repositories are not the fixture's.
+func selectionMainlines(forWorkingRepos names: [String]) -> ResolvedMainlines {
+    ResolvedMainlines(workingRepos: Dictionary(uniqueKeysWithValues: names.map {
+        ($0, ResolvedMainline(
+            repository: $0, defaultBranch: "main", ref: "refs/heads/main", commit: String(repeating: "d", count: 40)
+        ))
+    }))
+}
+
+/// The `feature_base` rows an unstacked selection records: one per working repo, at that repo's mainline.
+func selectionFeatureBases(_ mainlines: ResolvedMainlines) -> [FeatureBaseRecord] {
+    mainlines.workingRepos.values.sorted { $0.repository < $1.repository }.map {
+        FeatureBaseRecord(repository: $0.repository, baseRef: $0.ref, baseCommit: $0.commit)
+    }
 }
 
 func tableRowCount(_ journal: JournalStore, table: String) throws -> Int {

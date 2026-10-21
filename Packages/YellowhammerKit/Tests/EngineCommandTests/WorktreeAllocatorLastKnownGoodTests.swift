@@ -125,6 +125,7 @@ struct WorktreeAllocatorLastKnownGoodTests {
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID, git: git)
 
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
+        try await recordHeadAsBase(journal, featureID: featureID, repo: repo)
         let result = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
 
         let record = try #require(result["backend"])

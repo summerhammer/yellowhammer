@@ -133,6 +133,9 @@ final class GhostScene {
         tempDir = try makeReconcilerTempDir(name: "ghost-recovery")
         repository = tempDir.appendingPathComponent("backend-repo")
         baseCommit = try await initReconcilerGitRepo(at: repository, git: git)
+        try journal.recordFeatureBases(featureID: featureID, bases: [
+            FeatureBaseRecord(repository: "backend", baseRef: "refs/heads/main", baseCommit: baseCommit)
+        ])
         workspace = OrcaLikeWorkspace(
             baseDirectory: tempDir.appendingPathComponent("worktrees"), git: git, branchPrefix: branchPrefix
         )

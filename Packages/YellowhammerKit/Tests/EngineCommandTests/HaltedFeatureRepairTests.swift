@@ -59,7 +59,8 @@ private final class RepairWorld {
             board: ActBoard(
                 reading: reading, writing: writing, provisioning: rig.boards.provisioning
             ),
-            mainlines: selectionMainlines(), workspace: nil, repositories: repositories
+            mainlines: selectionMainlines(), workspace: nil, repositories: repositories,
+            featureBases: selectionFeatureBases(selectionMainlines())
         )
         previous = context
         return context
@@ -467,7 +468,8 @@ private func makeContext(
             journal: rig.journal, board: rig.boards.writing, runID: runID, act: .author, nightID: opening.night.id
         ),
         board: ActBoard(reading: reading, writing: rig.boards.writing, provisioning: rig.boards.provisioning),
-        mainlines: selectionMainlines(), workspace: nil, repositories: selectionRepositories()
+        mainlines: selectionMainlines(), workspace: nil, repositories: selectionRepositories(),
+            featureBases: selectionFeatureBases(selectionMainlines())
     )
 }
 

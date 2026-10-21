@@ -262,7 +262,9 @@ struct NightCardAuthoringCopyTests {
             PullRequestBody.releaseSentence + "\n" + MergeCommitRecommendation.shared + " " + editSentence
         ))
         #expect(partial.contains(
-            "Merging satisfies the landing gate for the repositories it reached and releases the next Feature."
+            "Merging satisfies the landing gate for the repositories it reached: it clears this Feature's slot "
+                + "in the unmerged Feature stack (`unmerged_features_max`) and releases any downstream Features "
+                + "waiting on it. Leaving it open costs tomorrow night."
                 + "\n" + MergeCommitRecommendation.shared + " " + editSentence
         ))
         #expect(!card.contains(editSentence))

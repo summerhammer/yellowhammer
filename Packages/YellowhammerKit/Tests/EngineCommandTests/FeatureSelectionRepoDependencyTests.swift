@@ -242,7 +242,8 @@ struct FeatureSelectionRepoDependencyTests {
 }
 
 private let heldBackend = HeldConsumer(
-    consumer: "backend", producer: "contracts", producerFeature: "FEAT-K", producerFeatureIssueID: "FEAT-K"
+    consumer: "backend", producer: "contracts", producerFeature: "FEAT-K", producerFeatureIssueID: "FEAT-K",
+    hold: .awaitingRelease
 )
 
 private struct ScriptedReleaseGate: ReleaseGate {
