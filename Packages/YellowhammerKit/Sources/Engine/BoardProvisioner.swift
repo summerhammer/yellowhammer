@@ -8,13 +8,10 @@ import Foundation
 /// 2026-10-20; board-projection/provision-the-board, roadmap P22.8). Every other state is the team's native
 /// state, selected by workflow category and never created (``NativeStateSelection``). Block Reason is a
 /// Journal cause rendered into the Card's Managed Block, and the Card override is one description field
-/// (routing/resolve-a-route-for-a-card): so no `Block Reason` or `Override` label group is provisioned, and
-/// the legacy settle states `Kept in Flight` and `Abandoned` are neither created, verified nor deleted.
-/// A board that still carries any of them keeps them; converting what used them is P22.9.
+/// (routing/resolve-a-route-for-a-card): so no `Block Reason` or `Override` label group is provisioned.
 ///
 /// A same-name state is never adopted by name alone: the two custom states are reused from a persisted id,
-/// a Board Mapping, or a bootstrap on the Project's own Journal provenance; otherwise the name is a
-/// collision (G-6 probe, 2026-09-23; OQ128).
+/// or a Board Mapping; otherwise the name is a collision (G-6 probe, 2026-09-23; OQ128).
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     public static let waitingOnYouState = "Waiting on You"
@@ -34,10 +31,6 @@ public struct BoardProvisioner {
     /// Card type label group and its children.
     public static let cardTypeGroup = "Card Type"
     public static let cardTypeChildren = CardType.allCases.map(\.rawValue)
-
-    /// The legacy Block Reason label group's name. No longer provisioned or verified; read only so
-    /// ``DispositionLabels`` can remove its labels from a Card on a board that still has them.
-    public static let blockReasonGroup = "Block Reason"
 
     /// A label group to be provisioned. Internal, not private: shared with the label-group
     /// provisioning in `BoardProvisioner+Labels.swift`, split out to stay under the file-length limit.

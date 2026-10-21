@@ -25,18 +25,8 @@ extension Doctor {
         let board = bindProvisioning(installation, project.linearProject)
         let store = footprintStore(for: project, installation: installation)
         let report: ProvisioningReport
-        var written: [DoctorFinding] = []
         do {
-            var current = try await provisioningReport(board, project, store)
-            if fix, let adoption = adoptSingleCandidates(in: current, project: project) {
-                written = adoption.messages.map { provisioning(adoption.succeeded ? .info : .warning, $0) }
-                if adoption.succeeded {
-                    var adopted = project
-                    adopted.boardMapping = adoption.mapping
-                    current = try await provisioningReport(board, adopted, store)
-                }
-            }
-            report = current
+            report = try await provisioningReport(board, project, store)
         } catch {
             // Never silent: a board doctor cannot read is not a board that passes.
             return [provisioning(
@@ -54,41 +44,15 @@ extension Doctor {
                 return nil
             }
         } : [])
-        let residual = await residualTaxonomyFindings(report: report, board: board, provisioning)
         guard !failures.isEmpty else {
             let teams = report.linearProject?.teams.map(\.key).joined(separator: ", ") ?? ""
-            guard !teams.isEmpty else { return written + residual }
-            let note = BoardFootprintBinding.retiredNote(project.boardMapping).map { " (\($0))" } ?? ""
-            return written + [provisioning(
+            guard !teams.isEmpty else { return [] }
+            return [provisioning(
                 .pass, "the two custom workflow states, the native category selections and the three Card Type "
-                    + "labels resolve in team \(teams)" + note
-            )] + residual
+                    + "labels resolve in team \(teams)"
+            )]
         }
-        return written + failures.map { provisioning(.failure, $0) } + residual
-    }
-
-    /// The retired taxonomy earlier builds left on a team (roadmap P22.9): the settlement states `Kept in
-    /// Flight` and `Abandoned` and the `Block Reason` and `Override` label groups. Information only: nothing
-    /// reads them, nothing is deleted, and a team that cannot be read says nothing. Other Projects or people
-    /// may still use them, so deleting is the Operator's call in Linear.
-    private func residualTaxonomyFindings(
-        report: ProvisioningReport, board: any BoardProvisioning,
-        _ makeFinding: (DoctorSeverity, String) -> DoctorFinding
-    ) async -> [DoctorFinding] {
-        var findings: [DoctorFinding] = []
-        for team in report.linearProject?.teams ?? [] {
-            guard let states = try? await board.workflowStates(team: team.id),
-                  let labels = try? await board.labels(team: team.id)
-            else { continue }
-            let items = LegacyBoardTaxonomy.residualItems(states: states, labels: labels)
-            guard !items.isEmpty else { continue }
-            findings.append(makeFinding(
-                .info,
-                "team \(team.key) still carries retired Yellowhammer taxonomy: \(items.joined(separator: ", ")). "
-                    + "Retired, unused by Yellowhammer, safe to delete in Linear if no one else uses them."
-            ))
-        }
-        return findings
+        return failures.map { provisioning(.failure, $0) }
     }
 
     /// `--fix` opens (creating) the Project's Journal so what it resolves is recorded; a plain run only reads.

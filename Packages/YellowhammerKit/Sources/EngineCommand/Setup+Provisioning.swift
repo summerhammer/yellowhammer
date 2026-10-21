@@ -31,7 +31,6 @@ extension Setup {
                 )
                 try? footprint.store.recordFootprint(report.footprint)
                 output("Project \(project.id):") // glossary:ignore GL001
-                if let note = BoardFootprintBinding.retiredNote(project.boardMapping) { output("  \(note)") }
                 if let failure = footprint.openFailure, !report.footprint.isEmpty {
                     output("  warning: the Journal could not be opened, so the ids of the board items above were "
                         + "not recorded (\(failure)); delete it and re-run setup")

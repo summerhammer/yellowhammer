@@ -25,8 +25,8 @@ public enum FeatureDisposition: Equatable, Sendable {
     case indeterminate
 
     /// Reads `state` against `scope`: the custom `Waiting on You` and `Blocked` state ids first, then the
-    /// native category. A name decides nothing: a state named like a retired settlement state (`Kept in
-    /// Flight`, `Abandoned`) reads by its category like any other, `continuing` when it is `started`.
+    /// native category. A name decides nothing: any other state reads by its category, `continuing` when
+    /// it is `started`.
     public init(workflowState state: BoardWorkflowState?, scope: BoardStateScope) {
         guard let state else {
             self = .indeterminate

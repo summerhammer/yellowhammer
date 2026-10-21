@@ -142,7 +142,10 @@ struct DeltaReadReReadyTests {
         )
         let payload = try #require(String(data: try JSONEncoder().encode(pending), encoding: .utf8))
         _ = try journal.acceptOutbox(
-            [OutboxDraft(clientID: UUID(), issueID: "card-1", operation: pending.operation, payload: payload)],
+            [OutboxDraft(
+                clientID: UUID(), issueID: "card-1", operation: pending.operation, payload: payload,
+                expectedStateID: stateTodo.id.rawValue
+            )],
             runID: runID, now: deltaEpoch
         )
         guard case .read(let report) = try await read.perform() else {

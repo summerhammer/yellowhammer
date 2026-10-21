@@ -72,12 +72,12 @@ private func blocked(_ subject: ProvisioningEntry.Subject) -> Bool {
 }
 
 private func keptInFlight(_ subject: ProvisioningEntry.Subject) -> Bool {
-    if case .workflowState(LegacyBoardTaxonomy.settleStateNames[0], _) = subject { return true }
+    if case .workflowState("Kept in Flight", _) = subject { return true }
     return false
 }
 
 private func abandoned(_ subject: ProvisioningEntry.Subject) -> Bool {
-    if case .workflowState(LegacyBoardTaxonomy.settleStateNames[1], _) = subject { return true }
+    if case .workflowState("Abandoned", _) = subject { return true }
     return false
 }
 

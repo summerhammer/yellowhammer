@@ -175,25 +175,14 @@ Then, **once per team** the Linear project belongs to (Projects sharing a team s
 
 That is the whole footprint (board-projection/provision-the-board; roadmap P22.8). Every other state is the
 team's **native** state, selected by workflow **category** and never by display name: Todo is the lowest-position
-`unstarted` state, In Progress the lowest-position `started` one (Yellowhammer's own two and the legacy
-`Kept in Flight` / `Abandoned` pair are excluded), Done the lowest-position `completed` one, and Shelved the
+`unstarted` state, In Progress the lowest-position `started` one (Yellowhammer's own two are excluded), Done the lowest-position `completed` one, and Shelved the
 `canceled` one. A position tie goes to the lowest state id. A team that lacks one of those categories is
 reported as an incomplete step naming the category and the team; setup never creates a substitute. No
 `Block Reason` or `Override` label group is provisioned: Block Reason is Card content, and the Card override
-is one description field on each Work Card (P22.7). A board that still carries any of those labels, groups or
-the legacy settle states keeps them: nothing is deleted, verified or required.
-
-**Residual taxonomy (P22.9).** The retired settle states `Kept in Flight` and `Abandoned` (type `started`) and
-the `Block Reason` and `Override` label groups are *retired and unused* by Yellowhammer. Each Act runs a small,
-versioned migration over **tracked** issues only (the Feature in flight and the Work Cards of its Cycle): a
-Feature Card in `Kept in Flight` moves to the team's native `started` state and one in `Abandoned` to its native
-`canceled` state; a Work Card's `Override` label becomes its `Card override:` field when the field is empty
-(several pins, or a pin that disagrees with the field, are left alone and surfaced as a conflict until the
-Operator sets or clears the field); queued writes that would set a retired state or add a retired label are
-superseded; and the retired labels are unassigned from those issues. A Feature Card the Operator moves into one
-of those states later has no special meaning and gets a one-time notice. `yh doctor` reports what the team still
-carries as an `info` finding. Deleting those states and groups is safe once no one else uses them, and is the
-Operator's call in Linear: nothing here deletes a team state, label or group.
+is one description field on each Work Card (P22.7). Yellowhammer makes no backward-compatibility commitment
+before v1.0, so it reads nothing of an earlier taxonomy: when the shape of the board changes, the Operator
+hard-deletes the local Journal and config and Yellowhammer's Linear labels and workflow states, then runs
+setup again (see [#613](https://github.com/summerhammer/yellowhammer/issues/613)).
 
 Every item is reported `present`, `created`, `collision` or `blocked`. A label of the same name
 anywhere the team can see it — a workspace label, a team label, or a label in another group — is a
@@ -205,18 +194,11 @@ live probe found a team-owned `Released` of type `completed` coexisting with our
 ### Persisted ids and the Board Mapping
 
 A matching name alone never adopts a state. Setup records, in the Project's Journal, the id of each of the two
-custom states and of each `Card Type` label with its source: `provisioned` (setup created it), `mapped` (the
-Operator named it) or `bootstrapped`. Later Acts reuse the recorded id and re-verify that it exists with the
-right category. A same-name `started` state with no recorded id is accepted as Yellowhammer's only on this
-Project's own Journal provenance (Yellowhammer once delivered a write that set it on an issue), and recorded
-`bootstrapped`; otherwise it is a **collision**, and `yh doctor` prints the exact lines to adopt it. After an
-upgrade (a new Journal holds no provenance) this is the one-gesture path: run **`yh doctor --fix`** (the app's
-Health **Repair** button runs `doctor --fix --check linear`). For each of the two custom states with exactly one
-same-name `started` state in the team, it writes that id into the Project file's `[board.linear.mapping]` (a
-text edit that keeps every other byte, validated by the loader and written atomically), records it as `mapped`
-in the Journal, and prints the file, keys, ids and state names. Zero or several candidates, a wrong category, or
-a value the file already maps writes nothing for that meaning and keeps the diagnostic. It never creates a
-second same-name state. Plain `yh doctor` stays read-only. The lines it writes look like:
+custom states and of each `Card Type` label with its source: `provisioned` (setup created it) or `mapped` (the
+Operator named it). Later Acts reuse the recorded id and re-verify that it exists with the right category. A
+same-name `started` state with no recorded id and no mapping is a **collision**: delete it in Linear, or map it
+on purpose, and `yh doctor` prints the exact lines to do so. Nothing writes the mapping for the Operator;
+`yh doctor --fix` never edits the Project file. The lines look like:
 
 ```toml
 [board.linear.mapping]
@@ -228,11 +210,11 @@ blocked = "<workflow state id>"
 `waiting_on_you`, `blocked` (both must be `started`), `unstarted`, `started`, `completed`, `canceled`, and the
 `Card Type` label keys `feature_card`, `work_card`, `night_card`. Each id must exist with the right category, no
 id may serve two meanings, and Projects on one Linear project must declare compatible mappings. A mapping that
-fails is reported as a step setup could not do; nothing is inferred from a name in its place. The retired keys
-`block_reason`, `override`, `kept_in_flight` and `abandoned` are accepted and ignored with a note.
+fails is reported as a step setup could not do; nothing is inferred from a name in its place. Any other key
+(`block_reason`, `override`, `kept_in_flight` and `abandoned` included) is an unknown key and fails the load.
 
 The Journal is per Project, so a second Project on a team whose states another Project created has no recorded
-id: it reports the same collision until it maps them (or its own Acts have written to them).
+id: it reports the same collision until it maps them.
 
 ### Running provisioning against the scratch workspace
 

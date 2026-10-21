@@ -10,7 +10,7 @@ struct LinearDeltaReadRequestTests {
     func singleRequest() async throws {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
         _ = try await Fixture.adapter(transport).deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(transport.requests.count == 2) // token + delta read
@@ -24,7 +24,7 @@ struct LinearDeltaReadRequestTests {
     func projectScopeInBothFilters() async throws {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
         _ = try await Fixture.adapter(transport).deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         let variables = try Fixture.variables(transport.requests[1])
@@ -46,7 +46,7 @@ struct LinearDeltaReadRequestTests {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
         let since = Date(timeIntervalSince1970: 1_789_000_000.5)
         _ = try await Fixture.adapter(transport).deltaRead(
-            since: since, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: since, after: nil), comments: .page(since: since, after: nil), pageSize: 50
         )
 
         let variables = try Fixture.variables(transport.requests[1])
@@ -66,7 +66,10 @@ struct LinearDeltaReadRequestTests {
     func sinceNilNoTimeClause() async throws {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
         let adapter = Fixture.adapter(transport)
-        _ = try await adapter.deltaRead(since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50)
+        _ = try await adapter.deltaRead(
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil),
+            pageSize: 50
+        )
 
         let variables = try Fixture.variables(transport.requests[1])
         let issueFilter = try #require(variables["issueFilter"] as? [String: Any])
@@ -80,7 +83,10 @@ struct LinearDeltaReadRequestTests {
     func paginationVariablesAbsentWhenNil() async throws {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
         let adapter = Fixture.adapter(transport)
-        _ = try await adapter.deltaRead(since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50)
+        _ = try await adapter.deltaRead(
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil),
+            pageSize: 50
+        )
 
         let variables = try Fixture.variables(transport.requests[1])
         #expect(variables["first"] as? Int == 50)
@@ -94,9 +100,7 @@ struct LinearDeltaReadRequestTests {
         let issuesCursor = BoardCursor(rawValue: "issue-cursor-123")
         let commentsCursor = BoardCursor(rawValue: "comment-cursor-456")
         _ = try await Fixture.adapter(transport).deltaRead(
-            since: nil,
-            objectsAfter: issuesCursor,
-            commentsAfter: commentsCursor,
+            objects: .page(since: nil, after: issuesCursor), comments: .page(since: nil, after: commentsCursor),
             pageSize: 50
         )
 
@@ -113,7 +117,7 @@ struct LinearDeltaReadRequestTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.nextObjectCursor == BoardCursor(rawValue: "issue-next"))
@@ -131,7 +135,7 @@ struct LinearDeltaReadRequestTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.nextObjectCursor == nil)
@@ -225,7 +229,10 @@ struct LinearDeltaReadRequestTests {
         await #expect(throws: BoardError.rateLimited(
             retryAfter: .seconds(60), budget: BoardBudget(requestsLimit: 5000, requestsRemaining: 0)
         )) {
-            _ = try await adapter.deltaRead(since: nil)
+            _ = try await adapter.deltaRead(
+                objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil),
+                pageSize: 50
+            )
         }
     }
 
@@ -234,7 +241,7 @@ struct LinearDeltaReadRequestTests {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.delta()])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.identity.id == BoardObjectID(rawValue: "app-user-id"))

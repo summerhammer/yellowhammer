@@ -68,16 +68,8 @@ extension DeltaRead {
         guard !pending.isEmpty else { return false }
         let conditioned = pending.filter { $0.expectedStateID != nil }
         // A pending comment or description rewrite says nothing about the issue's state, so the Operator's move
-        // is read as the Operator's. A pending state write with no recorded condition (nothing was known of the
-        // board when it was decided) cannot be tested, and is taken as Yellowhammer's own, in flight.
-        guard let first = conditioned.first else {
-            return pending.contains {
-                if case .updateIssue(_, let change, _)? = try? JSONDecoder().decode(
-                    BoardWrite.self, from: Data($0.payload.utf8)
-                ) { return change.workflowState != nil }
-                return false
-            }
-        }
+        // is read as the Operator's. Every pending state write records the condition it was decided against.
+        guard let first = conditioned.first else { return false }
         var accepted: Set<String> = [first.expectedStateID ?? ""]
         if case .updateIssue(_, let change, _)? = try? JSONDecoder().decode(
             BoardWrite.self, from: Data(first.payload.utf8)

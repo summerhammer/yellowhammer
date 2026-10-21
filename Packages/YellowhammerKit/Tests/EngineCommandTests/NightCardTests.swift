@@ -34,12 +34,10 @@ struct NightCardJournalFixture: ~Copyable {
 }
 
 /// Seeds a team with a complete disposition-label catalogue (every declared child of Card Type, which
-/// ``DispositionLabels`` requires; with `legacyBlockReason`, the retired Block Reason group and one child
-/// per reason too) and returns the minted label ids, keyed by name.
+/// ``DispositionLabels`` requires) and returns the minted label ids, keyed by name.
 @discardableResult
 func seedDispositionLabels(
-    on board: FakeProvisioningBoard, team: BoardObjectID, includeNightCard: Bool = true,
-    legacyBlockReason: Bool = false
+    on board: FakeProvisioningBoard, team: BoardObjectID, includeNightCard: Bool = true
 ) async throws -> [String: BoardObjectID] {
     await board.seed(label: BoardProvisioner.cardTypeGroup, team: team, isGroup: true)
     let cardTypeGroupID = try await board.labels(team: team).first {
@@ -48,15 +46,6 @@ func seedDispositionLabels(
     var ids: [String: BoardObjectID] = [:]
     for child in BoardProvisioner.cardTypeChildren where child != CardType.nightCard.rawValue || includeNightCard {
         await board.seed(label: child, team: team, parent: cardTypeGroupID)
-    }
-    if legacyBlockReason {
-        await board.seed(label: BoardProvisioner.blockReasonGroup, team: team, isGroup: true)
-        let blockReasonGroupID = try await board.labels(team: team).first {
-            $0.name == BoardProvisioner.blockReasonGroup && $0.isGroup
-        }!.id
-        for reason in BlockReason.allCases {
-            await board.seed(label: reason.rawValue, team: team, parent: blockReasonGroupID)
-        }
     }
     for label in try await board.labels(team: team) {
         ids[label.name] = label.id
@@ -74,10 +63,6 @@ func seedBoardScope(on board: FakeProvisioningBoard, team: BoardObjectID) async 
     // The team's native `started` and `canceled` states: every category Yellowhammer uses must resolve.
     await board.seed(state: "In Progress", team: team, category: .started)
     await board.seed(state: "Canceled", team: team, category: .shelved)
-    // A board provisioned by an earlier build also holds the legacy settle pair, which stays unverified.
-    for name in LegacyBoardTaxonomy.settleStateNames {
-        await board.seed(state: name, team: team, category: .started)
-    }
 }
 
 /// The boards ``makeBoards()`` hands a test: a provisioning board seeded with every disposition

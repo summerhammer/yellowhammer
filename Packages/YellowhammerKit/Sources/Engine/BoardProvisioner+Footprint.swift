@@ -67,7 +67,7 @@ extension BoardProvisioner {
         }
         let unusable = Set(mapping.ids.keys).subtracting(valid.keys)
         return MappingVerification(
-            mapping: BoardMapping(ids: valid, retiredKeys: mapping.retiredKeys), unusable: unusable, entries: entries
+            mapping: BoardMapping(ids: valid), unusable: unusable, entries: entries
         )
     }
 
@@ -79,10 +79,9 @@ extension BoardProvisioner {
     // MARK: - The two custom workflow states
 
     /// Provisions one custom state. In order: a Board Mapping entry for it; the id persisted by earlier
-    /// provisioning, verified present with category `started`; a same-name `started` state on this Project's
-    /// own Journal provenance (a write Yellowhammer delivered that set it), recorded as bootstrapped; or,
-    /// when no same-name state exists, a create. A same-name state with none of those is a collision, never
-    /// reused and never a reason to create a second one. A matching name alone is never sufficient.
+    /// provisioning, verified present with category `started`; or, when no same-name state exists, a create.
+    /// A same-name state with neither is a collision, never reused and never a reason to create a second
+    /// one. A matching name alone is never sufficient.
     static func provisionCustomState(
         _ role: BoardMappingRole,
         board: Target,
@@ -109,18 +108,11 @@ extension BoardProvisioner {
             await createCustomState(name: name, board: board, team: team, subject: subject, into: &entries)
             return
         }
-        // A run bound with no footprint store at all (test fakes) has nothing to prove provenance with, and
-        // takes a `started` state of the provisioned name, as before P22.8. Every real caller passes a store.
+        // A run bound with no footprint store at all (test fakes) has nothing persisted to check against, and
+        // takes a `started` state of the provisioned name. Every real caller passes a store.
         if board.store == nil, let byName = sameName.first(where: { $0.category == provisionedStateCategory }) {
             entries.append(ProvisioningEntry(subject: subject, outcome: .present, id: byName.id))
             return
-        }
-        for candidate in sameName where candidate.category == provisionedStateCategory {
-            let provenance = (try? board.store?.hasDeliveredStateWrite(to: candidate.id)) ?? false
-            if provenance {
-                entries.append(ProvisioningEntry(subject: subject, outcome: .present, id: candidate.id))
-                return
-            }
         }
         entries.append(collision(role, sameName: sameName, subject: subject))
     }
@@ -160,7 +152,7 @@ extension BoardProvisioner {
         }).joined(separator: "\n")
         return ProvisioningEntry(
             subject: subject, outcome: .collision("team"), collidesWith: described.joined(separator: " and "),
-            mappingHint: hint, candidates: adoptable.map(\.id)
+            mappingHint: hint
         )
     }
 
@@ -204,8 +196,7 @@ extension BoardProvisioner {
     // MARK: - Records to persist
 
     /// The footprint ids the run resolved that the Journal does not already hold: a created object
-    /// (`provisioned`), a mapped one (`mapped`), an existing one accepted on provenance or group
-    /// membership (`bootstrapped`). Custom states and `Card Type` labels only; native states are selected
+    /// (`provisioned`) or a mapped one (`mapped`). Custom states and `Card Type` labels only; native states are selected
     /// afresh each Act and never persisted.
     static func footprintRecords(
         from entries: [ProvisioningEntry], mapping: BoardMapping, persisted: [BoardFootprintRecord]
@@ -217,10 +208,8 @@ extension BoardProvisioner {
                 source = .provisioned
             } else if mapping[role] == id {
                 source = .mapped
-            } else if persisted.contains(where: { $0.team == team.id && $0.role == role && $0.objectID == id }) {
-                return nil
             } else {
-                source = .bootstrapped
+                return nil
             }
             let record = BoardFootprintRecord(team: team.id, role: role, objectID: id, source: source)
             return persisted.contains(record) ? nil : record

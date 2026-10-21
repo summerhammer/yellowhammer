@@ -62,7 +62,6 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case routeUsageLimited = "RouteUsageLimited"
     case routeExhausted = "RouteExhausted"
     case overrideRefused = "OverrideRefused"
-    case legacyBoardObserved = "LegacyBoardObserved"
     case routePreflightRan = "RoutePreflightRan"
     case attemptEnded = "AttemptEnded"
     case routeRetried = "RouteRetried"

@@ -71,8 +71,7 @@ public struct BoardStateScope: Equatable, Sendable {
     /// The two custom states come from a Board Mapping entry or the id persisted by earlier provisioning,
     /// re-verified present with category `started`; a name alone never selects one. The native three are
     /// selected by category: an explicit Board Mapping entry, else the lowest-position eligible state, a tie
-    /// broken by state id; the custom ids and the legacy settlement states are excluded from generic
-    /// `started` selection. Throws ``BoardStateScopeError/stateNotProvisioned(name:team:)`` for a state that
+    /// broken by state id; the custom ids are excluded from generic `started` selection. Throws ``BoardStateScopeError/stateNotProvisioned(name:team:)`` for a state that
     /// resolves neither way.
     public static func resolve(using board: ActBoard) async throws -> BoardStateScope {
         try await resolve(using: board.provisioning, mapping: board.mapping, footprint: board.footprint)

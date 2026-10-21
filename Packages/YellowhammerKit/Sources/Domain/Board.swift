@@ -66,22 +66,6 @@ extension Board {
     ) async throws(BoardError) -> BoardPage {
         try await objects(updatedSince: updatedSince, after: after, pageSize: Self.defaultPageSize)
     }
-
-    /// The page size the spec's compound document names: `first: 50` on each root.
-    public static var deltaPageSize: Int { 50 }
-
-    /// Both roots from the same `since`, each resumed from its own cursor: the shape of a first request
-    /// (nil cursors) and of a caller that has no per-root state.
-    public func deltaRead(
-        since: Date?, objectsAfter: BoardCursor? = nil, commentsAfter: BoardCursor? = nil,
-        pageSize: Int = Self.deltaPageSize
-    ) async throws(BoardError) -> BoardDelta {
-        try await deltaRead(
-            objects: .page(since: since, after: objectsAfter),
-            comments: .page(since: since, after: commentsAfter),
-            pageSize: pageSize
-        )
-    }
 }
 
 /// What one request asks of one root of the Delta Read (objects or comments).

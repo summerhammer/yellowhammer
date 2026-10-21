@@ -77,7 +77,7 @@ public struct BoardWorkflowState: Hashable, Sendable, Codable {
     }
 
     /// True when the board itself says this state is shelved: its category is the cancelled one. A name
-    /// decides nothing (a team's own state called `Shelved` is not Yellowhammer's, roadmap P22.9). The one
+    /// decides nothing (a team's own state called `Shelved` is not Yellowhammer's). The one
     /// shared predicate every Shelved comparison routes through.
     public var isShelved: Bool {
         category == .shelved

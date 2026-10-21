@@ -7,7 +7,7 @@ extension BoardProvisioner {
     struct Target {
         let board: any BoardProvisioning
         let createsMissing: Bool
-        /// The Project's store of persisted footprint ids and provenance; nil for a run that has none.
+        /// The Project's store of persisted footprint ids; nil for a run that has none.
         var store: (any BoardFootprintStore)?
         /// The Board Mapping entries that passed verification; invalid ones are reported, never used.
         var mapping: BoardMapping = .empty

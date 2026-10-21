@@ -43,7 +43,10 @@ struct LinearScratchTests {
         }
         #expect(await adapter.latestBudget?.requestsLimit != nil)
 
-        let delta = try await adapter.deltaRead(since: nil)
+        let delta = try await adapter.deltaRead(
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil),
+            pageSize: 50
+        )
         #expect(!delta.identity.id.rawValue.isEmpty)
         for comment in delta.newComments {
             #expect(!comment.issueKey.isEmpty)
@@ -142,7 +145,10 @@ struct LinearScratchTests {
         }
         let replyID = BoardObjectID(rawValue: created.id)
 
-        let delta = try await adapter.deltaRead(since: issue.since)
+        let delta = try await adapter.deltaRead(
+            objects: .page(since: issue.since, after: nil), comments: .page(since: issue.since, after: nil),
+            pageSize: 50
+        )
         let reply = delta.newComments.first { $0.id == replyID }
         #expect(reply?.parent == issue.questionCommentID)
 

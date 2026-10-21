@@ -43,8 +43,7 @@ extension ProvisioningReport {
         case .collision:
             let existing = entry.collidesWith ?? "an existing item of the same name"
             let adopt = entry.mappingHint.map {
-                "; if it is Yellowhammer's, add to the Project file instead "
-                    + "(or run `yh doctor --fix` to write them):\n\($0)"
+                "; to adopt it on purpose, add to the Project file instead:\n\($0)"
             }
             return "\(entry.subject) is not provisioned: its name is held by the \(existing); "
                 + "rename or delete that one in Linear, then run `yh doctor --fix --check linear`" + (adopt ?? "")

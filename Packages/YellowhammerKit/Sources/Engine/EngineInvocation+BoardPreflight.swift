@@ -59,7 +59,7 @@ extension EngineInvocation {
             footprint: BoardFootprintInputs(mapping: board.mapping, store: board.footprint)
         )
         _ = try? journal.append(.linearReached, act: act, runID: runID, nightID: night.id)
-        // A mapped or bootstrapped id is recorded the first time it resolves, so later Acts reuse it and
+        // A mapped id is recorded the first time it resolves, so later Acts reuse it and
         // verify id and category rather than a name. Verification never creates, so nothing is `provisioned`.
         if !report.footprint.isEmpty { try board.footprint?.recordFootprint(report.footprint) }
         let unfinished = report.unfinishedItems

@@ -172,7 +172,7 @@ struct AuthorActLandedCycleReadTests {
     @Test("While an unlanded Cycle is in flight the author Act reads, but the Cards stay the build Act's")
     func readsWhileAnUnlandedCycleIsInFlight() async throws {
         let world = try await makeSettleWorld(landed: false)
-        await world.seedFeatureIssueState(LegacyBoardTaxonomy.settleStateNames[0])
+        await world.seedFeatureIssueState("In Progress", category: .started)
         let authoring = CandidateRecordingAuthoring()
 
         try await authorAct(world, reading: world.reading, authoring: authoring).run()
@@ -213,16 +213,14 @@ private func resolveWaitingCard(_ world: SettleWorld) throws {
     }
 }
 
-/// Moves the Feature Issue to *abandoned* on the writing board itself: a reading board linked through
+/// Moves the Feature Issue to the team's `canceled` state on the writing board itself: a reading board linked through
 /// ``FakeReadingBoard/readThrough(_:team:)`` answers the settle gesture's issue read from there, not from
 /// a seeded issue.
 private func abandonOnTheBoard(_ world: SettleWorld) async throws {
-    let abandonedName = LegacyBoardTaxonomy.settleStateNames[1]
-    await world.boards.provisioning.seed(state: abandonedName, team: teamID, category: .started)
     let states = try await world.boards.provisioning.workflowStates(team: teamID)
-    let abandoned = try #require(states.first { $0.name == abandonedName })
+    let canceled = try #require(states.first { $0.category == .shelved })
     _ = try await world.boards.writing.updateIssue(
-        BoardObjectID(rawValue: "FEAT-1"), BoardIssueChange(workflowState: abandoned.id)
+        BoardObjectID(rawValue: "FEAT-1"), BoardIssueChange(workflowState: canceled.id)
     )
 }
 

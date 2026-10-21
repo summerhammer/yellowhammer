@@ -6,8 +6,6 @@ import Journal
 /// `answered` in the Journal and, when the Feature Issue is known and this invocation has an Outbox and a
 /// Board, moves it out of Waiting on You — or out of Blocked, when the Refusal had already expired — to
 /// Todo (the contention state) with the Block Reason label removed, under one idempotent Outbox key.
-///
-/// Resolving an Authoring Halt follows the equivalent flow via ``AuthoringHaltResolution``.
 public enum RefusalAnswer {
     @discardableResult
     public static func apply(feature: FeatureName, citation: String, context: ActContext) async throws -> Bool {

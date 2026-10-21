@@ -337,34 +337,6 @@ struct ManagedBlockInputPreservationTests {
         #expect(try journal.events(ofType: .managedBlockInputImported).count == 1)
     }
 
-    @Test("The Operator clearing a migrated Card override completes the legacy conversion (P22.9)")
-    func clearingAMigratedOverrideCompletesTheConversion() async throws {
-        let fixture = try OutboxJournalFixture()
-        let journal = try fixture.open()
-        let rig = try await makeBlockRig(journal)
-        let issueID = rig.issue.rawValue
-        try journal.recordLegacyConversion(
-            issueID: issueID, kind: .override, status: .converted, detail: "codex/o3/high",
-            version: LegacyBoardMigration.version, runID: rig.runID
-        )
-        // The migration's own line coming back through an import leaves the conversion open.
-        try await rig.operatorEdits {
-            $0.replacingOccurrences(of: "\nCard override:\n", with: "\nCard override: codex/o3/high\n")
-        }
-        try rig.changeJournalOutput()
-        _ = try await rig.maintain()
-        #expect(try journal.legacyConversion(issueID: issueID, kind: .override)?.status == .converted)
-
-        // The Operator clears it: the conversion is complete for good.
-        try await rig.operatorEdits {
-            $0.replacingOccurrences(of: "\nCard override: codex/o3/high\n", with: "\nCard override:\n")
-        }
-        try rig.changeJournalOutput(reason: .reviewerRejection)
-        _ = try await rig.maintain()
-        #expect(try journal.legacyConversion(issueID: issueID, kind: .override)?.status == .complete)
-        #expect(try journal.cardOverrideLines(cardID: rig.cardID).isEmpty)
-    }
-
     @Test("A malformed or duplicated Card override is imported as written and rendered back verbatim")
     func malformedCardOverrideIsRetainedVerbatim() async throws {
         let fixture = try OutboxJournalFixture()

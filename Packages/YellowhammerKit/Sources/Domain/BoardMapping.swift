@@ -70,19 +70,10 @@ public enum BoardMappingRole: String, CaseIterable, Sendable, Codable {
 public struct BoardMapping: Equatable, Sendable {
     public var ids: [BoardMappingRole: BoardObjectID]
 
-    /// Keys of retired mapping entries the file still carried (`block_reason`, `override`,
-    /// `kept_in_flight`, `abandoned`). Accepted and ignored: they neither fail the load nor cause setup to
-    /// recreate the state or group they once mapped.
-    public var retiredKeys: [String]
-
     public static let empty = BoardMapping()
 
-    /// Every key a retired mapping entry may still be spelled with.
-    public static let retiredKeyNames: Set<String> = ["block_reason", "override", "kept_in_flight", "abandoned"]
-
-    public init(ids: [BoardMappingRole: BoardObjectID] = [:], retiredKeys: [String] = []) {
+    public init(ids: [BoardMappingRole: BoardObjectID] = [:]) {
         self.ids = ids
-        self.retiredKeys = retiredKeys
     }
 
     public subscript(role: BoardMappingRole) -> BoardObjectID? { ids[role] }
@@ -96,8 +87,6 @@ public enum BoardFootprintSource: String, Sendable, Codable {
     case provisioned
     /// The Operator named it in a Board Mapping.
     case mapped
-    /// An existing same-name object accepted as Yellowhammer's own on this Project's Journal provenance.
-    case bootstrapped
 }
 
 /// One resolved id of the footprint, as the Journal holds it for a team.

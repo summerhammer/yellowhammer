@@ -164,8 +164,8 @@ struct BoardStateScopeTests {
         #expect(scope.states[.inProgress] != nil)
     }
 
-    @Test("The custom states and the legacy settle states are excluded from generic started selection")
-    func customAndLegacyStatesAreNotGenericStarted() async throws {
+    @Test("The custom states are excluded from generic started selection")
+    func customStatesAreNotGenericStarted() async throws {
         let provisioning = board()
         try await seedDispositionLabels(on: provisioning, team: scopeTeam.id)
         await provisioning.seed(state: "Todo", team: scopeTeam.id, category: .unstarted)
@@ -174,11 +174,8 @@ struct BoardStateScopeTests {
             state: "Waiting on You", team: scopeTeam.id, category: .started, position: 0
         )
         let blocked = await provisioning.seed(state: "Blocked", team: scopeTeam.id, category: .started, position: 1)
-        for name in LegacyBoardTaxonomy.settleStateNames {
-            await provisioning.seed(state: name, team: scopeTeam.id, category: .started, position: 2)
-        }
-        // Every `started` state at a lower position than the real one is Yellowhammer's or a legacy one.
-        let native = await provisioning.seed(state: "In Progress", team: scopeTeam.id, category: .started, position: 3)
+        // Every `started` state at a lower position than the real one is Yellowhammer's.
+        let native = await provisioning.seed(state: "In Progress", team: scopeTeam.id, category: .started, position: 2)
 
         let scope = try await BoardStateScope.resolve(
             using: provisioning, footprint: persisted(waiting: waiting, blocked: blocked)
@@ -213,10 +210,10 @@ struct BoardStateScopeTests {
         }
     }
 
-    @Test("Feature contention change moves to contention state and strips legacy block reason labels")
+    @Test("Feature contention change moves to contention state and sets the Feature Card label")
     func featureContentionChangeSetsStateAndLabels() async throws {
         let provisioning = board()
-        let ids = try await seedDispositionLabels(on: provisioning, team: scopeTeam.id, legacyBlockReason: true)
+        let ids = try await seedDispositionLabels(on: provisioning, team: scopeTeam.id)
         await provisioning.seed(state: "Todo", team: scopeTeam.id, category: .unstarted)
         await provisioning.seed(state: "In Progress", team: scopeTeam.id, category: .started)
         await provisioning.seed(state: "Done", team: scopeTeam.id, category: .completed)
@@ -227,9 +224,6 @@ struct BoardStateScopeTests {
         let change = try scope.featureContentionChange()
         #expect(change.workflowState == (try scope.id(for: .todo)))
         #expect(change.addLabels.contains(try #require(ids[CardType.featureCard.rawValue])))
-        for reason in BlockReason.allCases {
-            #expect(change.removeLabels.contains(try #require(ids[reason.rawValue])))
-        }
     }
 
     @Test("A Card Type label named by a Board Mapping is the one the scope hands out")

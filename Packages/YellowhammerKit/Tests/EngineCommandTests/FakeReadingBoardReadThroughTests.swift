@@ -19,7 +19,10 @@ struct FakeReadingBoardReadThroughTests {
         try await reading.readThrough(boards)
 
         _ = try await boards.writing.updateIssue(issue, BoardIssueChange(workflowState: todo.id))
-        let delta = try await reading.deltaRead(since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50)
+        let delta = try await reading.deltaRead(
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil),
+            pageSize: 50
+        )
 
         #expect(delta.updatedObjects.map(\.workflowState) == [todo])
         #expect(await boards.writing.writes(to: issue) == [.update(BoardIssueChange(workflowState: todo.id))])
@@ -35,7 +38,10 @@ struct FakeReadingBoardReadThroughTests {
         ])
         try await reading.readThrough(boards)
 
-        let delta = try await reading.deltaRead(since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50)
+        let delta = try await reading.deltaRead(
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil),
+            pageSize: 50
+        )
 
         #expect(delta.updatedObjects.map(\.workflowState) == [stateCanceledByCategory])
         #expect(delta.updatedObjects.map(\.description) == ["edited by hand"])
@@ -49,7 +55,10 @@ struct FakeReadingBoardReadThroughTests {
         try await reading.readThrough(boards)
 
         try await boards.writing.archiveIssue(issue)
-        let delta = try await reading.deltaRead(since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50)
+        let delta = try await reading.deltaRead(
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil),
+            pageSize: 50
+        )
 
         #expect(delta.updatedObjects.first?.archivedAt != nil)
     }

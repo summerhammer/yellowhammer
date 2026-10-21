@@ -37,22 +37,4 @@ extension JournalStore {
             }
         }
     }
-
-    /// True when Yellowhammer delivered a write to the board that set `stateID` as an issue's workflow
-    /// state (an `applied` Outbox entry whose payload carries it). The one provenance leg of the
-    /// bootstrap: the id is an observation of nothing Yellowhammer did not itself write, so a human moving
-    /// a card into a same-name foreign state never counts.
-    public func hasDeliveredStateWrite(stateID: BoardObjectID) throws -> Bool {
-        try read { db in
-            try Bool.fetchOne(
-                db,
-                sql: """
-                    SELECT EXISTS (
-                        SELECT 1 FROM outbox WHERE state = 'applied' AND instr(payload, ?) > 0
-                    )
-                    """,
-                arguments: ["\"workflowState\":\"\(stateID.rawValue)\""]
-            ) ?? false
-        }
-    }
 }

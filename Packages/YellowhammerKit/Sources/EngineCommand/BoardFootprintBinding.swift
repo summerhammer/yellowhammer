@@ -25,7 +25,7 @@ enum BoardFootprintBinding {
     }
 
     /// `yh doctor` without `--fix`: reads an existing Journal, never creating or writing one. A Project
-    /// with no Journal yet has no persisted ids and no provenance, which is what the empty store says.
+    /// with no Journal yet has no persisted ids, which is what the empty store says.
     static func readOnly(configurationDirectory: URL, projectID: ProjectID) -> any BoardFootprintStore {
         let url = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
         return (try? JournalStore.openReadOnly(at: url, projectID: projectID)) ?? InMemoryBoardFootprintStore()
@@ -40,13 +40,5 @@ enum BoardFootprintBinding {
     ) throws -> ActBoard? {
         guard let board = try bindBoard?(configuration, project) else { return nil }
         return tracking ? board.binding(mapping: project.boardMapping, footprint: journal) : board
-    }
-
-    /// The note a Project's retired mapping keys earn, or nil: they are accepted and ignored, and never
-    /// cause setup to recreate the state or group they once mapped.
-    static func retiredNote(_ mapping: BoardMapping) -> String? {
-        guard !mapping.retiredKeys.isEmpty else { return nil }
-        let keys = mapping.retiredKeys.map { "`\($0)`" }.joined(separator: ", ")
-        return "note: `[board.linear.mapping]` keys \(keys) are retired and ignored; they can be removed"
     }
 }

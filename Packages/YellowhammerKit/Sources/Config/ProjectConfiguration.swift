@@ -45,7 +45,7 @@ public struct ProjectConfiguration: Sendable {
     public var rehearsalLinearProject: String?
     /// The Project's Board Mapping (`[board.linear.mapping]`): ids of existing Linear workflow states and
     /// `Card Type` labels that stand in for what Yellowhammer provisions or selects by category. Empty when
-    /// the file declares none; keys of retired entries are kept only as a note (``BoardMapping/retiredKeys``).
+    /// the file declares none.
     public var boardMapping: BoardMapping
     /// The path of this Project's rehearsal Journal (`[rehearsal] journal`), as written. Declared, never
     /// derived: a Project that declares none has no Rehearsal (OQ149).
