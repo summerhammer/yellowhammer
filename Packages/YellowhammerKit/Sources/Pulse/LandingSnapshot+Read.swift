@@ -62,6 +62,8 @@ extension ProjectSnapshot {
             snapshot.journalFailure = "\(error)"
             snapshot.pulse.now.status = status
         }
+        // The Bound is Config's fact, so it is filled even when the Journal is missing or unreadable.
+        snapshot.pulse.unmergedFeatures.unmergedFeaturesMax = project.bounds.unmergedFeaturesMax
         if let upcoming = UpcomingSchedule(schedule: project.schedule, staggerIndex: staggerIndex, asOf: asOf) {
             snapshot.pulse.now.nextAct = upcoming.nextAct
             snapshot.pulse.scheduledNight = upcoming.night

@@ -42,12 +42,13 @@ extension PulseSnapshot {
             needsYou: try needsYou(journal, inFlight: inFlight),
             now: now,
             feature: try feature(
-                journal, inFlight: try inFlight ?? featureLandedTonight(journal, night: selectedNight, events: events),
+                journal, inFlight: inFlight,
                 now: now,
                 runningLanes: runningLanes(night: selectedNight, events: events, liveRunID: liveRunID)
             ),
             night: try selectedNight.map { try night($0, journal: journal, events: events) },
-            health: (failures.flags + outboxFlags).isEmpty ? nil : failures.flags + outboxFlags
+            health: (failures.flags + outboxFlags).isEmpty ? nil : failures.flags + outboxFlags,
+            unmergedFeatures: try unmergedFeatures(journal, night: selectedNight)
         )
     }
 
@@ -131,21 +132,6 @@ extension PulseSnapshot {
 
     // MARK: Feature
 
-    /// With no Feature in flight, the latest Feature whose Cycle landed during `night` — the slot is free again
-    /// the moment the land Act archives the Cycle (a periodic author firing may select the next Feature within
-    /// minutes), and without this the Feature group would be empty right after a mid-Night landing. Nil when
-    /// no Cycle landed in this Night. The Pulse shows no other member of the Unmerged Feature Stack.
-    private static func featureLandedTonight(
-        _ journal: JournalStore, night: NightRecord?, events: [JournalEventRecord]
-    ) throws -> (feature: FeatureRecord, cycleID: Int64)? {
-        guard let night else { return nil }
-        let landed = events.reversed().first { $0.nightID == night.id && $0.type == .cycleLanded }
-        guard let landed, case .cycleLanded(let cycleID) = landed.event,
-            let feature = try journal.feature(cycleID: cycleID)
-        else { return nil }
-        return (feature, cycleID)
-    }
-
     private static func feature(
         _ journal: JournalStore,
         inFlight: (feature: FeatureRecord, cycleID: Int64)?,
@@ -186,7 +172,8 @@ extension PulseSnapshot {
                 key: inFlight.feature.issueIDForDisplay ?? inFlight.feature.issueKey,
                 url: inFlight.feature.issueURL
             ),
-            verification: try verification.map { try counts(of: $0, journal, cycleID: inFlight.cycleID) }
+            verification: try verification.map { try counts(of: $0, journal, cycleID: inFlight.cycleID) },
+            stackedOn: try stackedOn(journal, featureID: featureID)
         )
     }
 
@@ -252,7 +239,7 @@ extension PulseSnapshot {
 
     /// The pull request's number is the last path component of its URL; nil when there is no URL, it is
     /// not an `https` or `http` URL, or it does not end in a number.
-    private static func chip(_ record: PullRequestRecord) -> PullRequestChip? {
+    static func chip(_ record: PullRequestRecord) -> PullRequestChip? {
         guard
             let text = record.url, let url = LinearIssueLink.webURL(text),
             let number = Int(text.split(separator: "/").last ?? "")
@@ -301,7 +288,8 @@ extension PulseSnapshot {
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
             cardsAbsence: absence,
             nightCard: nightCard,
-            firstFailureHeadline: failures.firstHeadline, failureNotices: failures.notices
+            firstFailureHeadline: failures.firstHeadline, failureNotices: failures.notices,
+            stackFullSkip: stackFullSkip(nightEvents: nightEvents)
         )
     }
 
