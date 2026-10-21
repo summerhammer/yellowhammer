@@ -225,7 +225,9 @@ public struct EngineInvocation: Sendable {
             }
 
             // Evaluate the trigger predicate under the lease.
-            switch try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal) {
+            switch try ActTriggerPredicate.evaluate(
+                act: act, trigger: trigger, journal: journal, nightID: night.id, runID: runID
+            ) {
             case .notMet(let reason):
                 _ = try? journal.append(.actIdle(reason: reason), act: act, runID: runID, nightID: night.id)
             case .met:

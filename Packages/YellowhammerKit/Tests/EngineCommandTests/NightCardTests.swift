@@ -213,7 +213,8 @@ struct NightCardTests {
         // Act, idle or not — its Feature Issue needs a fenced description to post against.
         await writing.seed(issue: "FEATURE-1", description: ManagedBlockFence.initialDescription(rendered: ""))
 
-        // A todo Card makes the author trigger unmet: there is already dispatchable work.
+        // A todo Card makes the land trigger unmet: the Cycle still has unfinished Cards. (An author firing cannot
+        // stand in: the Night's first one always works.)
         try journal.write { db in
             let timestamp = Date(timeIntervalSince1970: 1_800_000_000).formatted(.iso8601)
             try db.execute(
@@ -235,7 +236,7 @@ struct NightCardTests {
         }
 
         let invocation = EngineInvocation(
-            act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .scheduled, runID: run, board: board,
             work: { _ in Issue.record("Work should not run") }
         )

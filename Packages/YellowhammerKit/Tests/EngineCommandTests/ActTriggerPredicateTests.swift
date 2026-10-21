@@ -97,6 +97,15 @@ private func claimLease(_ journal: JournalStore, runID: RunID, act: Act = .autho
     }
 }
 
+private func archiveCycle(_ journal: JournalStore, _ cycleID: Int64) throws {
+    try journal.write { db in
+        try db.execute(
+            sql: "UPDATE cycle SET archived_at = ? WHERE id = ?",
+            arguments: [JournalStore.timestamp(epoch), cycleID]
+        )
+    }
+}
+
 // MARK: - Author Act Tests
 
 @Test("author trigger: met when no Cards exist")
@@ -114,12 +123,16 @@ func authorMetAllDone() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .done)
-    _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .done)
+    let first = try insertFixtureCard(journal, issueID: "CARD-1", state: .done)
+    _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .done, cycleID: first.cycleID)
 
-    let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
-
-    #expect(outcome == .met)
+    // The Cycle is still open, so a Feature is in flight until the land Act archives it.
+    #expect(
+        try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
+            == .notMet(.featureInFlight)
+    )
+    try archiveCycle(journal, first.cycleID)
+    #expect(try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal) == .met)
 }
 
 @Test("author trigger: met when all Cards are in finished states (Blocked, Waiting on You, Shelved)")
@@ -127,9 +140,10 @@ func authorMetAllFinished() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .blocked)
-    _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .waitingOnYou)
-    _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .shelved)
+    let first = try insertFixtureCard(journal, issueID: "CARD-1", state: .blocked)
+    _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .waitingOnYou, cycleID: first.cycleID)
+    _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .shelved, cycleID: first.cycleID)
+    try archiveCycle(journal, first.cycleID)
 
     let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
 
@@ -145,7 +159,7 @@ func authorNotMetTodo() throws {
 
     let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
 
-    #expect(outcome == .notMet(.unfinishedCardsPresent))
+    #expect(outcome == .notMet(.featureInFlight))
 }
 
 @Test("author trigger: not met when an In Progress Card exists")
@@ -157,7 +171,7 @@ func authorNotMetInProgress() throws {
 
     let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
 
-    #expect(outcome == .notMet(.unfinishedCardsPresent))
+    #expect(outcome == .notMet(.featureInFlight))
 }
 
 // MARK: - Build Act Tests
@@ -392,4 +406,95 @@ func forcedForFeatureAuthorOverridesNotMet() throws {
     )
 
     #expect(outcome == .met)
+}
+
+// MARK: - Author Act: the Night's first firing
+
+/// Opens the Night as `EngineInvocation` does — lease, Night, then `ActStarted` — and returns the invocation's
+/// identity the way the trigger is handed it.
+private func startAuthorFiring(
+    _ journal: JournalStore, runID: String, nightStart: String = "2026-10-20"
+) throws -> (nightID: Int64, runID: RunID) {
+    let run = try #require(RunID(rawValue: runID))
+    try claimLease(journal, runID: run)
+    let night = try journal.openNight(
+        nightStart: try #require(NightStart(rawValue: nightStart)), mode: .real, act: .author, runID: run
+    ).night
+    try journal.append(.actStarted, act: .author, runID: run, nightID: night.id)
+    try journal.releaseActLease(runID: run)
+    return (night.id, run)
+}
+
+@Test("author trigger: the Night's first firing is met with a Cycle in flight; a second one is not")
+func authorFirstFiringOfTheNightIsMetInFlight() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .done)
+
+    let first = try startAuthorFiring(journal, runID: "run-1")
+    #expect(
+        try ActTriggerPredicate.evaluate(
+            act: .author, trigger: .scheduled, journal: journal, nightID: first.nightID, runID: first.runID
+        ) == .met
+    )
+
+    let second = try startAuthorFiring(journal, runID: "run-2")
+    #expect(
+        try ActTriggerPredicate.evaluate(
+            act: .author, trigger: .scheduled, journal: journal, nightID: second.nightID, runID: second.runID
+        ) == .notMet(.featureInFlight)
+    )
+}
+
+@Test("author trigger: a firing after the Cycle archived is met, as is a forced one while in flight")
+func authorLaterFiringMetAfterArchive() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let card = try insertFixtureCard(journal, issueID: "CARD-1", state: .done)
+    _ = try startAuthorFiring(journal, runID: "run-1")
+    let later = try startAuthorFiring(journal, runID: "run-2")
+
+    #expect(
+        try ActTriggerPredicate.evaluate(
+            act: .author, trigger: .forced, journal: journal, nightID: later.nightID, runID: later.runID
+        ) == .met
+    )
+    try archiveCycle(journal, card.cycleID)
+    #expect(
+        try ActTriggerPredicate.evaluate(
+            act: .author, trigger: .scheduled, journal: journal, nightID: later.nightID, runID: later.runID
+        ) == .met
+    )
+}
+
+@Test("author trigger: unfinished Cards with no Cycle in flight still read as unfinished Cards")
+func authorUnfinishedCardsWithoutOpenCycle() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let card = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo)
+    try archiveCycle(journal, card.cycleID)
+    let firing = try startAuthorFiring(journal, runID: "run-1")
+    let second = try startAuthorFiring(journal, runID: "run-2")
+
+    #expect(
+        try ActTriggerPredicate.evaluate(
+            act: .author, trigger: .scheduled, journal: journal, nightID: second.nightID, runID: second.runID
+        ) == .notMet(.unfinishedCardsPresent)
+    )
+    _ = firing
+}
+
+@Test("author trigger: another Night's author firing does not make this Night's firing a later one")
+func authorFirstFiringIsPerNight() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .done)
+    _ = try startAuthorFiring(journal, runID: "run-1", nightStart: "2026-10-19")
+    let tonight = try startAuthorFiring(journal, runID: "run-2", nightStart: "2026-10-20")
+
+    #expect(
+        try ActTriggerPredicate.evaluate(
+            act: .author, trigger: .scheduled, journal: journal, nightID: tonight.nightID, runID: tonight.runID
+        ) == .met
+    )
 }
