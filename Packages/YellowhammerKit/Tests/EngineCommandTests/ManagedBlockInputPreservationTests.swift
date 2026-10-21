@@ -376,4 +376,27 @@ struct ManagedBlockInputPreservationTests {
         #expect(try journal.cardOverrideLines(cardID: rig.cardID).isEmpty)
         #expect(try await rig.description().components(separatedBy: "\n").contains("Card override:"))
     }
+
+    @Test("An escape-only rewrite of an unchanged Card override is not an edit")
+    func escapeOnlyRewriteIsNotAnEdit() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let rig = try await makeBlockRig(journal)
+        try await rig.operatorEdits {
+            $0.replacingOccurrences(of: "\nCard override:\n", with: "\nCard override: codex/gpt-5.6_sol/high\n")
+        }
+        try rig.changeJournalOutput()
+        _ = try await rig.maintain()
+        let imports = try journal.events(ofType: .managedBlockInputImported).count
+        // Linear re-serialises the description with the underscore escaped.
+        try await rig.operatorEdits {
+            $0.replacingOccurrences(of: "gpt-5.6_sol", with: "gpt-5.6\\_sol")
+        }
+        try rig.changeJournalOutput(reason: .routeFailure)
+
+        _ = try await rig.maintain()
+
+        #expect(try journal.events(ofType: .managedBlockInputImported).count == imports)
+        #expect(try journal.cardOverrideLines(cardID: rig.cardID) == ["Card override: codex/gpt-5.6_sol/high"])
+    }
 }
