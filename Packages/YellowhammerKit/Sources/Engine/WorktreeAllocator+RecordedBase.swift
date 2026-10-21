@@ -9,8 +9,6 @@ struct RecordedBaseCut: Sendable {
     let ref: String
     /// The recorded `baseCommit`; the new Worktree's initial HEAD must equal it.
     let expected: String
-    /// Whether ``ref`` is a ``RecordedBasePin`` ref to delete once the Worktree exists.
-    let pinned: Bool
 }
 
 // Stacked Worktree allocation on `effective_base(R)` (roadmap P23.3; spec:
@@ -21,9 +19,8 @@ extension WorktreeAllocator {
     private static let landedPrefix = "refs/yellowhammer/landed/"
 
     /// The cut for `repo`, nil when the Feature recorded no base there. A stacked record is cut from its
-    /// landed-tip pin, else the remote-tracking `refs/remotes/origin/<b_last>`; an unstacked one is cut from a
-    /// pin of its `baseCommit`. A pin that cannot be written throws
-    /// ``WorktreeAllocationError/recordedBaseMismatch(repository:ref:expected:found:)`` before any Worktree is made.
+    /// landed-tip pin, else the remote-tracking `refs/remotes/origin/<b_last>`; an unstacked one is cut
+    /// directly from `baseCommit` (Orca ADE's `--base-branch` accepts a bare commit SHA).
     func recordedBaseCut(
         featureID: Int64, repo: Repo, repositoryPath: String, worktreeName: WorktreeName
     ) async throws -> RecordedBaseCut? {
@@ -32,27 +29,16 @@ extension WorktreeAllocator {
 
         if record.stackedOnFeatureID != nil {
             if await resolves(record.baseRef, in: repositoryPath) {
-                return RecordedBaseCut(ref: record.baseRef, expected: record.baseCommit, pinned: false)
+                return RecordedBaseCut(ref: record.baseRef, expected: record.baseCommit)
             }
             let branch = record.baseRef.hasPrefix(Self.landedPrefix)
                 ? String(record.baseRef.dropFirst(Self.landedPrefix.count)) : record.baseRef
             return RecordedBaseCut(
-                ref: "refs/remotes/origin/\(branch)", expected: record.baseCommit, pinned: false
+                ref: "refs/remotes/origin/\(branch)", expected: record.baseCommit
             )
         }
 
-        let pin = RecordedBasePin(git: git)
-        guard case .done = await pin.pin(
-            commit: record.baseCommit, worktreeName: worktreeName.rawValue, repositoryPath: repositoryPath
-        ) else {
-            throw WorktreeAllocationError.recordedBaseMismatch(
-                repository: repo.name, ref: RecordedBasePin.ref(for: worktreeName.rawValue),
-                expected: record.baseCommit, found: nil
-            )
-        }
-        return RecordedBaseCut(
-            ref: RecordedBasePin.ref(for: worktreeName.rawValue), expected: record.baseCommit, pinned: true
-        )
+        return RecordedBaseCut(ref: record.baseCommit, expected: record.baseCommit)
     }
 
     /// Strict (a nil `cut` — no record, or a recovery pin in use — checks nothing): the new Worktree's initial HEAD must equal the recorded `baseCommit`; an unresolvable HEAD is a
@@ -68,29 +54,19 @@ extension WorktreeAllocator {
         )
     }
 
-    /// Asks Orca ADE for the Worktree on `baseBranch`; the ``RecordedBasePin`` is only needed for the call, so it
-    /// is dropped whether or not the call succeeded. A Workspace failure is wrapped as
+    /// Asks Orca ADE for the Worktree on `baseBranch`. A Workspace failure is wrapped as
     /// ``WorktreeAllocationError/workspace(repository:_:)``.
     func createWorktree(
         repo: Repo, repositoryPath: String, worktreeName: WorktreeName, baseBranch: String?,
         recordedBase: RecordedBaseCut?
     ) async throws -> WorkspaceWorktree {
-        let result: Result<WorkspaceWorktree, WorkspaceError>
         do {
-            result = .success(try await workspace.createWorktree(
+            return try await workspace.createWorktree(
                 repositoryPath: repositoryPath, name: worktreeName.rawValue, baseBranch: baseBranch
-            ))
+            )
         } catch {
-            result = .failure(error)
+            throw WorktreeAllocationError.workspace(repository: repo.name, error)
         }
-        await dropBasePin(recordedBase, worktreeName: worktreeName, repositoryPath: repositoryPath)
-        return try result.mapError { WorktreeAllocationError.workspace(repository: repo.name, $0) }.get()
-    }
-
-    /// Deletes the ``RecordedBasePin`` once the Worktree exists (or could not be made): only the creation needs it.
-    func dropBasePin(_ cut: RecordedBaseCut?, worktreeName: WorktreeName, repositoryPath: String) async {
-        guard cut?.pinned == true else { return }
-        await RecordedBasePin(git: git).unpin(worktreeName: worktreeName.rawValue, repositoryPath: repositoryPath)
     }
 
     private func resolves(_ ref: String, in repositoryPath: String) async -> Bool {

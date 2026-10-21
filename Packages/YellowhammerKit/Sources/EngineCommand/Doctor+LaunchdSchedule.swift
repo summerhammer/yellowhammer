@@ -82,7 +82,7 @@ extension Doctor {
             let installed = FileManager.default.fileExists(atPath: plistURL.path(percentEncoded: false))
             let loaded = installed ? await launchAgents.isLoaded(label: label) : false
             let difference = installed ? expected.flatMap {
-                scheduleDifference(wanted: Self.firings(of: act, in: $0), plistURL: plistURL)
+                scheduleDifference(act: act, wanted: Self.firings(of: act, in: $0), plistURL: plistURL)
             } : nil
             let executablePath = ScheduledExecutable.installedPath(at: plistURL)
             states.append(LaunchdJobState(
@@ -153,7 +153,7 @@ extension Doctor {
     }
 
     /// Nil when the plist at `plistURL` carries exactly the `wanted` firings; otherwise what differs.
-    private func scheduleDifference(wanted: [TimeOfDay], plistURL: URL) -> String? {
+    private func scheduleDifference(act: Act, wanted: [TimeOfDay], plistURL: URL) -> String? {
         guard let data = try? Data(contentsOf: plistURL) else {
             return "its StartCalendarInterval could not be read as Hour and Minute firings"
         }
@@ -176,6 +176,9 @@ extension Doctor {
         let unexpected = Self.sorted(installed.subtracting(wantedSet))
         if let first = unexpected.first {
             parts.append("unexpected \(first)" + (unexpected.count > 1 ? " and \(unexpected.count - 1) more" : ""))
+        }
+        if act == .author, !missing.isEmpty {
+            parts[0] = "the author job fires after every periodic land tick (Multi-Feature Night Ruling): " + parts[0]
         }
         return parts.joined(separator: ", ")
     }

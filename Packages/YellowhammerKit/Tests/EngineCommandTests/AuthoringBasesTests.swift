@@ -112,17 +112,25 @@ struct AuthoringBasesTests {
         #expect(context.authoring(against: bases).featureBases == bases.records)
     }
 
-    @Test("With the pin absent, the remote-tracking Feature Branch is the base")
+    @Test("With the pin absent, the remote-tracking Feature Branch is the base and its ref is recorded")
     func pinAbsentFallsBackToTheOriginBranch() async throws {
         let world = try await StackedWorld.make(pin: false, originBranch: true)
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        try seedF1(journal, landedCommit: world.tip)
+        let f1 = try seedF1(journal, landedCommit: world.tip)
 
         let bases = try await AuthoringBases.fromStack(context: try authorContext(journal, world: world))
 
         #expect(bases.faults.isEmpty)
         #expect(bases.mainlines["repo-a"]?.commit == world.tip)
+        #expect(bases.mainlines["repo-a"]?.ref == "refs/remotes/origin/yh-f1")
+        #expect(bases.records == [
+            FeatureBaseRecord(
+                repository: "repo-a", baseRef: "refs/remotes/origin/yh-f1", baseCommit: world.tip,
+                stackedOnFeatureID: f1
+            ),
+            FeatureBaseRecord(repository: "repo-b", baseRef: "refs/remotes/origin/main", baseCommit: "b0")
+        ])
     }
 
     @Test("A pin at a commit other than the recorded one is a fault, never a fallback to mainline")

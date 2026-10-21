@@ -135,6 +135,8 @@ struct DoctorLaunchdScheduleTests {
         let warning = try #require(findings.first { $0.check == .launchd && $0.subject == authorLabel })
         #expect(warning.severity == .warning)
         #expect(warning.message.contains("Project alpha author"))
+        #expect(warning.message.contains("the author job fires after every periodic land tick"))
+        #expect(warning.message.contains("Multi-Feature Night Ruling"))
         #expect(warning.message.contains("1 installed firings"))
         #expect(warning.message.contains("missing"))
         #expect(warning.message.contains("yh doctor --fix"))

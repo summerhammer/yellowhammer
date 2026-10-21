@@ -15,7 +15,7 @@ struct CLIProbeTests {
     private func makeProbe(keychain: ProbeKeychain = StubProbeKeychain().keychain) -> CLIProbe {
         CLIProbe(
             dispatchTimeout: .seconds(10),
-            holdObservationTimeout: .seconds(5),
+            holdObservationTimeout: .seconds(10),
             pollInterval: .milliseconds(50),
             gracePeriod: .milliseconds(300),
             keychain: keychain

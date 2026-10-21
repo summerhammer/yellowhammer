@@ -200,7 +200,7 @@ struct WorktreeAllocatorRecordedBaseTests {
         #expect(try await scene.headOfHeldWorktree() == scene.commitB)
     }
 
-    @Test("An unstacked record cuts at its baseCommit through a base pin, even after mainline moved on")
+    @Test("An unstacked record cuts directly at its baseCommit, even after mainline moved on")
     func unstackedRecordCutsAtRecordedCommit() async throws {
         let root = ScratchRoot()
         let scene = try await Scene(journal: try Self.journal(root), root: root.url)
@@ -216,10 +216,8 @@ struct WorktreeAllocatorRecordedBaseTests {
             featureID: scene.featureID, worktreeName: scene.worktreeName, repos: [scene.repo]
         )
 
-        let pinRef = RecordedBasePin.ref(for: scene.worktreeName.rawValue)
-        #expect(scene.workspace.createCalls.map(\.baseBranch) == [pinRef])
+        #expect(scene.workspace.createCalls.map(\.baseBranch) == [scene.commitA])
         #expect(try await scene.headOfHeldWorktree() == scene.commitA)
-        #expect(await !scene.refResolves(pinRef), "the pin is dropped once the Worktree exists")
     }
 
     @Test("A HEAD other than baseCommit removes the Worktree, throws recordedBaseMismatch and records nothing")
@@ -231,9 +229,8 @@ struct WorktreeAllocatorRecordedBaseTests {
         ))
         scene.workspace.ignoreBase()
 
-        let pinRef = RecordedBasePin.ref(for: scene.worktreeName.rawValue)
         await #expect(throws: WorktreeAllocationError.recordedBaseMismatch(
-            repository: "backend", ref: pinRef, expected: scene.commitB, found: scene.commitA
+            repository: "backend", ref: scene.commitB, expected: scene.commitB, found: scene.commitA
         )) {
             _ = try await scene.allocator.allocate(
                 featureID: scene.featureID, worktreeName: scene.worktreeName, repos: [scene.repo]

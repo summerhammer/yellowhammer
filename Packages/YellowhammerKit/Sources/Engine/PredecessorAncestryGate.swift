@@ -180,11 +180,21 @@ public struct PredecessorAncestryGate: PredecessorGate {
             try await closure?.closeByMerge(feature: feature, context: context)
         }
 
+        let unmerged = (pass.unmerged + pass.indeterminate).sorted()
+        let previousEvents = try journal.events(ofType: .predecessorAncestryObserved)
+        if let previousInRun = previousEvents.last(where: {
+            guard case .predecessorAncestryObserved(let id, _, _) = $0.event else { return false }
+            return id == feature.issueID && $0.runID == context.runID
+        }), case .predecessorAncestryObserved(_, let prevMerged, let prevUnmerged) = previousInRun.event,
+           prevMerged == pass.merged && prevUnmerged == unmerged {
+            return
+        }
+
         try journal.append(
             .predecessorAncestryObserved(
                 featureIssueID: feature.issueID,
                 mergedRepositories: pass.merged,
-                unmergedRepositories: (pass.unmerged + pass.indeterminate).sorted()
+                unmergedRepositories: unmerged
             ),
             act: context.act, runID: context.runID, nightID: context.night.id
         )

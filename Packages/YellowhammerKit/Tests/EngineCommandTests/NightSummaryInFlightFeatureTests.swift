@@ -96,6 +96,35 @@ struct NightSummaryInFlightFeatureTests {
         #expect(kMiddle.contains("1 of 3 Feature Branches merged"))
     }
 
+    @Test("Duplicate predecessorAncestryObserved events in the Journal are tolerated; latest observation wins")
+    func duplicateObservationsToleratedAndLatestWins() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        try await EngineInvocation(
+            act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        ).run()
+        let night = try #require(try journal.currentNight())
+        try insertInFlightFeature(journal, featureIssueID: "FEAT-1", repositories: ["backend", "frontend"])
+
+        for _ in 0..<3 {
+            try journal.append(
+                .predecessorAncestryObserved(
+                    featureIssueID: "FEAT-1", mergedRepositories: ["backend"], unmergedRepositories: ["frontend"]
+                ),
+                act: .land, runID: RunID(), nightID: night.id
+            )
+        }
+        let observation = try FeatureMainlineObservationReader.latestAncestryObservation(
+            featureIssueID: "FEAT-1", journal: journal
+        )
+        #expect(observation == FeatureMainlineObservation(merged: ["backend"], unmerged: ["frontend"]))
+        let line = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+        #expect(line.contains("1 of 2 Feature Branches merged"))
+    }
+
     @Test("Nights held counts recorded Nights from the selected Night through the reference Night")
     func nightsHeldAcrossSeveralNights() async throws {
         let fixture = try NightCardJournalFixture()

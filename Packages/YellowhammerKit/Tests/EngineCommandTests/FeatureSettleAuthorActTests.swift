@@ -89,6 +89,15 @@ struct FeatureSettleAuthorActTests {
         #expect(try world.journal.inFlightFeature() == nil)
         let types = try world.journal.events().map(\.type)
         #expect(!types.contains(.authoringSkippedFeatureInFlight))
+        let observedEvents = try world.journal.events(ofType: .predecessorAncestryObserved)
+        let feat1Observations = observedEvents.filter {
+            guard case .predecessorAncestryObserved(let id, _, _) = $0.event else { return false }
+            return id == "FEAT-1"
+        }
+        #expect(
+            feat1Observations.count == 1,
+            "an unchanged observation is not re-appended when settle re-runs the gate in the same Act"
+        )
         let blocked = try world.journal.events(ofType: .authoringSkippedUnmergedStackFull)
         guard case .authoringSkippedUnmergedStackFull(let features, 1)? = blocked.first?.event else {
             Issue.record("expected authoringSkippedUnmergedStackFull at max 1")
