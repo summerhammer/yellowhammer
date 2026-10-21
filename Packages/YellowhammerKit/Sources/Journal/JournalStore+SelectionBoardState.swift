@@ -10,14 +10,16 @@ extension JournalStore {
     /// How many Features the selection pass is told about, most recent first.
     public static let selectionBoardStateFeatureCap = 20
 
-    /// The Features authored for this Project (newest first, capped) and the Cards in Waiting on You across
-    /// the Journal. Never carries an issue id: only the human identifiers a board shows.
+    /// The Features authored for this Project (newest first, capped), the Cards in Waiting on You across
+    /// the Journal, and every Feature in the Unmerged Feature Stack U (roadmap P23.2), oldest first. Never
+    /// carries an issue id: only the human identifiers a board shows.
     ///
     /// The `feature` table has no name column; a Feature's name is read from the `FeatureAuthored` event
     /// that finalised it, joined on the Feature Issue's id. A Feature with no such event (the log predates
     /// it) is listed without a name.
     public func selectionBoardState() throws -> SelectionBoardState {
-        try read { db in
+        let stack = try unmergedFeatureStack()
+        return try read { db in
             var namesByIssueID: [String: String] = [:]
             for record in try Self.events(db, ofType: .featureAuthored) {
                 if case .featureAuthored(let payload) = record.event {
@@ -56,8 +58,27 @@ extension JournalStore {
                     reason: card.waitingReason?.rawValue ?? "no reason recorded"
                 )
             }
-            return SelectionBoardState(features: features, waitingCards: waiting)
+            return SelectionBoardState(features: features, waitingCards: waiting, unmergedFeatures: stack.map {
+                Self.unmergedFeature($0, name: namesByIssueID[$0.feature.issueID])
+            })
         }
+    }
+
+    private static func unmergedFeature(
+        _ member: UnmergedFeature, name: String?
+    ) -> SelectionBoardState.UnmergedFeature {
+        SelectionBoardState.UnmergedFeature(
+            name: name,
+            identifier: featureIdentifier(member.feature),
+            touchedRepositories: member.touchedRepositories,
+            unmergedBranches: member.unmergedRepositories.map { repository in
+                SelectionBoardState.UnmergedBranch(
+                    repository: repository,
+                    branch: member.branches[repository]?.name
+                        ?? member.feature.worktreeName?.rawValue ?? "no branch recorded"
+                )
+            }
+        )
     }
 
     private static func featureIdentifier(_ feature: FeatureRecord) -> String {

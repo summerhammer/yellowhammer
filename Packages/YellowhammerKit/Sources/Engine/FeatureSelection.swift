@@ -127,10 +127,12 @@ public struct FeatureSelection: FeatureAuthoring {
                 issueID: $0.issueID, repository: $0.repository, title: $0.title, blockReason: $0.blockReason
             )
         }
-        let boardState = try context.journal.selectionBoardState()
-        // The Operator named one Feature: the walk never re-selects (roadmap P11.6).
         let held = try await releaseGate?.heldConsumers(context) ?? []
-        let scope = SelectionScope(repositories: repositories, candidates: candidates, held: held)
+        let scope = SelectionScope(
+            repositories: repositories, candidates: candidates, held: held,
+            boardState: try context.journal.selectionBoardState()
+        )
+        // The Operator named one Feature: the walk never re-selects (roadmap P11.6).
         var walk = WalkProgress(depth: 0, refusedThisNight: [], allowsReselection: context.trigger.namedFeature == nil)
 
         while true {
@@ -142,8 +144,7 @@ public struct FeatureSelection: FeatureAuthoring {
                 namedFeature: context.trigger.namedFeature,
                 adoptionCandidates: candidates,
                 refusedThisNight: walk.refusedThisNight,
-                heldConsumers: held,
-                boardState: boardState
+                heldConsumers: held, boardState: scope.boardState
             )
 
             let outcome: FeatureSelectionOutcome
@@ -188,6 +189,9 @@ public struct FeatureSelection: FeatureAuthoring {
         let repositories: ProjectRepositories
         let candidates: [AdoptionCandidate]
         let held: [HeldConsumer]
+        /// What the Journal knows of the board, including the Unmerged Feature Stack U a selection must not
+        /// name again (roadmap P23.2).
+        let boardState: SelectionBoardState
     }
 
     /// One `.selected` outcome of the re-selection walk (roadmap P11.6): validates and records it, then
@@ -260,6 +264,9 @@ public struct FeatureSelection: FeatureAuthoring {
         if !repairing, let named = context.trigger.namedFeature, named != selected.name {
             throw FeatureSelectionError.namedFeatureIgnored(named: named, selected: selected.name)
         }
+        if let refused = try refuseUnmergedReselection(selected, scope: scope, context: context) {
+            return refused
+        }
         let sortedRepositories = Set(selected.repositories).sorted()
         let checkpointed = SelectedFeature(
             name: selected.name, reasoning: selected.reasoning, sequence: selected.sequence,
@@ -330,7 +337,7 @@ public struct FeatureSelection: FeatureAuthoring {
             try context.journal.append(
                 .authoringReleaseGateHeld(
                     featureName: selected.name.rawValue, consumer: edge.consumer, producer: edge.producer,
-                    producerFeatureIssueID: edge.producerFeatureIssueID
+                    producerFeatureIssueID: edge.producerFeatureIssueID, hold: edge.hold
                 ),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )

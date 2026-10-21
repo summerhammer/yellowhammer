@@ -3,9 +3,10 @@ import Foundation
 import Journal
 import Repositories
 
-/// The release gate for `tag` Repo Dependencies (feature-authoring/select-the-next-feature, `#release-gate`):
-/// which consumer Repos the author Act must not select a Feature for tonight, because they read a producer by
-/// tag and no release of the producer contains the producer's latest Feature yet.
+/// The release gate for Repo Dependencies (feature-authoring/select-the-next-feature, `#release-gate` and
+/// `#effective-base`): which consumer Repos the author Act must not select a Feature for tonight, because their
+/// producer has a Feature in the Unmerged Feature Stack U without an Observed Merge there, or because they read
+/// a producer by tag and no release of the producer contains the producer's latest Feature yet.
 public protocol ReleaseGate: Sendable {
     func heldConsumers(_ context: ActContext) async throws -> [HeldConsumer]
 }
@@ -13,8 +14,8 @@ public protocol ReleaseGate: Sendable {
 /// Opens a producer when an Observed Release is recorded for its latest pushed Feature, finding and recording
 /// one when a release-shaped tag of the producer contains that Feature's work. Pure local git, run once per
 /// author Act before selection; the tags are as the Act-start tag fetch left them, so a tag the fetch could not
-/// bring is absent and the gate stays closed. It never reads a consumer's version requirement, and a `mainline`
-/// edge adds nothing.
+/// bring is absent and the gate stays closed. It never reads a consumer's version requirement. A `mainline` edge
+/// adds nothing beyond the Observed Merge its producer's Feature in U awaits (roadmap P23.2).
 public struct ObservedReleaseGate: ReleaseGate {
     public let tags: ReleaseTagReader
     public let mergeTester: MergeTester
@@ -26,13 +27,17 @@ public struct ObservedReleaseGate: ReleaseGate {
 
     public func heldConsumers(_ context: ActContext) async throws -> [HeldConsumer] {
         guard let repositories = context.repositories else { return [] }
+        // A consumer of a producer with a Feature in U is held until that Feature's Observed Merge, whichever way
+        // it reads the producer (roadmap P23.2; `#effective-base`); only then does a `tag` edge wait for a release.
+        let awaitingMerge = try Self.awaitingMerge(repositories, stack: context.journal.unmergedFeatureStack())
+        let mergeHeld = Set(awaitingMerge.map { [$0.consumer, $0.producer] })
         var consumersByProducer: [String: [String]] = [:]
         for repo in repositories.workingRepos {
-            for edge in repo.consumes where edge.via == .tag {
+            for edge in repo.consumes where edge.via == .tag && !mergeHeld.contains([repo.name, edge.producer]) {
                 consumersByProducer[edge.producer, default: []].append(repo.name)
             }
         }
-        var held: [HeldConsumer] = []
+        var held = awaitingMerge
         for producer in consumersByProducer.keys.sorted() {
             guard let repo = repositories.workingRepo(named: producer),
                   let feature = try context.journal.latestFeaturePushed(in: producer),
@@ -46,6 +51,24 @@ public struct ObservedReleaseGate: ReleaseGate {
             }
         }
         return held.sorted { ($0.consumer, $0.producer) < ($1.consumer, $1.producer) }
+    }
+
+    /// Every declared edge, `mainline` or `tag`, whose producer has a Feature in U with no Observed Merge in the
+    /// producer yet: held on the most recent such Feature. A Feature merged in the producer but not elsewhere
+    /// releases the producer's consumers.
+    static func awaitingMerge(_ repositories: ProjectRepositories, stack: [UnmergedFeature]) -> [HeldConsumer] {
+        repositories.workingRepos.flatMap { consumer in
+            consumer.consumes.compactMap { edge -> HeldConsumer? in
+                guard let member = stack.last(where: { $0.unmergedRepositories.contains(edge.producer) }) else {
+                    return nil
+                }
+                return HeldConsumer(
+                    consumer: consumer.name, producer: edge.producer,
+                    producerFeature: member.feature.displayIdentifier,
+                    producerFeatureIssueID: member.feature.issueID, hold: .awaitingMerge
+                )
+            }
+        }
     }
 
     /// Whether `feature` has an Observed Release in `producer`: read from the record when there is one, else

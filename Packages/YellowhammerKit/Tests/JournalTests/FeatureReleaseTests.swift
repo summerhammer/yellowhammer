@@ -114,7 +114,8 @@ struct FeatureReleaseTests {
             featureIssueID: "FEAT-1", repository: "contracts", tagName: "v1.2.3", tagCommit: "abc123"
         )
         let held = JournalEvent.authoringReleaseGateHeld(
-            featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-1"
+            featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-1",
+                hold: .awaitingRelease
         )
         try journal.append(recorded, act: .author, runID: run)
         try journal.append(held, act: .author, runID: run)

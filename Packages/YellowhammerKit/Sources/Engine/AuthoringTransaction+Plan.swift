@@ -46,6 +46,9 @@ struct AuthoringPlanner {
     /// The repaired halted Feature's draft child each drafted Card IS, aligned by index with `breakdown.cards`
     /// (roadmap P22.6); a Card whose entry is nil — or every Card, when this is empty — is created.
     var draftChildren: [RepairedDraftChild?] = []
+    /// `effective_base(R)` per working repository as selection resolved it (roadmap P23.2): the plan carries the
+    /// rows of the repositories this Feature touches, so `finaliseAuthoring` records them with the Feature.
+    var bases: [FeatureBaseRecord] = []
     /// The key the stop that opened `existingFeatureIssueID` created it under (``AuthoringStopBoard/createKey(_:_:)``).
     let stopCreateKey: String
 
@@ -80,7 +83,8 @@ struct AuthoringPlanner {
                 name: selection.name.rawValue, groupKey: "authoring:\(prefix)", featureKey: featureKey,
                 nightID: nightID, cards: cards, adoptions: adoptions,
                 featureClauses: featureClauses, uncitableClauses: uncitable,
-                repositories: selection.repositories
+                repositories: selection.repositories,
+                bases: bases.filter { selection.repositories.contains($0.repository) }
             ),
             reusedFeatureIssue: existingFeatureIssueID
         )

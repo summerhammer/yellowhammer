@@ -16,53 +16,6 @@ public struct AdoptionCandidate: Equatable, Sendable {
     }
 }
 
-/// What this Project's own Journal already knows about its board, handed to the selection pass so it has
-/// no reason to go looking for state itself (issue #556). Plain values: no Journal types, and no issue
-/// ids — only the human identifiers an Operator would recognise.
-public struct SelectionBoardState: Equatable, Sendable {
-    /// A Feature authored for this Project earlier.
-    public struct AuthoredFeature: Equatable, Sendable {
-        /// The Feature's name, when the event log still holds it.
-        public let name: String?
-        /// The Feature Issue's board identifier (e.g. `YLH-360`).
-        public let identifier: String
-        /// `landed`, `abandoned`, or the Feature's recorded state.
-        public let outcome: String
-
-        public init(name: String?, identifier: String, outcome: String) {
-            self.name = name
-            self.identifier = identifier
-            self.outcome = outcome
-        }
-    }
-
-    /// A Card in Waiting on You.
-    public struct WaitingCard: Equatable, Sendable {
-        public let identifier: String
-        public let title: String
-        public let repository: String
-        public let reason: String
-
-        public init(identifier: String, title: String, repository: String, reason: String) {
-            self.identifier = identifier
-            self.title = title
-            self.repository = repository
-            self.reason = reason
-        }
-    }
-
-    /// Most recent first.
-    public let features: [AuthoredFeature]
-    public let waitingCards: [WaitingCard]
-
-    public init(features: [AuthoredFeature] = [], waitingCards: [WaitingCard] = []) {
-        self.features = features
-        self.waitingCards = waitingCards
-    }
-
-    public var isEmpty: Bool { features.isEmpty && waitingCards.isEmpty }
-}
-
 /// A declared Repo Dependency whose consumer and producer a selected Feature both touches
 /// (feature-authoring/select-the-next-feature, `#repo-dependency-halt`).
 public struct SpannedRepoDependency: Equatable, Sendable {
@@ -77,9 +30,21 @@ public struct SpannedRepoDependency: Equatable, Sendable {
     }
 }
 
-/// A consumer Repo the release gate holds back tonight: it reads `producer` by tag, and no release of the
-/// producer contains the producer's Feature `producerFeature` yet. Shown to the selection model so it does
-/// not select a Feature that touches the consumer.
+/// Why a consumer Repo is held back tonight (feature-authoring/select-the-next-feature, `#release-gate` and
+/// `#effective-base`).
+public enum ConsumerHold: String, Equatable, Sendable {
+    /// The consumer reads the producer by tag, and no release of the producer contains the producer's latest
+    /// Feature yet: an Observed Release is awaited.
+    case awaitingRelease = "release"
+    /// The producer has a Feature in the Unmerged Feature Stack U with no Observed Merge in the producer yet
+    /// (roadmap P23.2): the consumer waits for that merge, whichever way it reads the producer.
+    case awaitingMerge = "merge"
+}
+
+/// A consumer Repo the release gate holds back tonight: the producer's Feature `producerFeature` has no
+/// Observed Merge in the producer yet (``ConsumerHold/awaitingMerge``), or the consumer reads `producer` by
+/// tag and no release of the producer contains that Feature yet (``ConsumerHold/awaitingRelease``). Shown to
+/// the selection model so it does not select a Feature that touches the consumer.
 public struct HeldConsumer: Equatable, Sendable {
     public let consumer: String
     public let producer: String
@@ -87,12 +52,18 @@ public struct HeldConsumer: Equatable, Sendable {
     public let producerFeature: String
     /// The producer Feature's issue id, for the Journal and the Night Card; empty when not known.
     public let producerFeatureIssueID: String
+    /// What the consumer waits for.
+    public let hold: ConsumerHold
 
-    public init(consumer: String, producer: String, producerFeature: String, producerFeatureIssueID: String = "") {
+    public init(
+        consumer: String, producer: String, producerFeature: String, producerFeatureIssueID: String = "",
+        hold: ConsumerHold = .awaitingRelease
+    ) {
         self.consumer = consumer
         self.producer = producer
         self.producerFeature = producerFeature
         self.producerFeatureIssueID = producerFeatureIssueID
+        self.hold = hold
     }
 }
 

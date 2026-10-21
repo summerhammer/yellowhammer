@@ -196,7 +196,8 @@ struct FeatureSelectionRepoDependencyTests {
         #expect(!events.contains { $0.type == .featureSelected })
         #expect(events.filter { $0.type == .authoringReleaseGateHeld }.map(\.event) == [
             .authoringReleaseGateHeld(
-                featureName: "FEAT-1", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K"
+                featureName: "FEAT-1", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K",
+                hold: .awaitingRelease
             )
         ])
     }

@@ -117,7 +117,8 @@ extension JournalStore {
         }
     }
 
-    /// Writes the Feature, its Cycle and its Cards in ONE transaction and appends `featureAuthored`.
+    /// Writes the Feature, its Cycle, its Cards and its recorded bases (`feature_base`) in ONE transaction and
+    /// appends `featureAuthored`.
     /// Adopted Cards move into the new Cycle: `cycle_id` and `authored_order` change and nothing else —
     /// counters, Block Reason, state and budget epoch are untouched, so an adopted Card gets no new
     /// budgets. Idempotent: a Feature row with this issue id already there writes nothing and returns nil —
@@ -156,6 +157,11 @@ extension JournalStore {
             )
             let cycleID = db.lastInsertedRowID
             try Self.insertFeatureRepositories(db, featureID: featureID, repositories: plan.repositories)
+            // The base each touched repository was authored against is recorded with the Feature itself
+            // (roadmap P23.2; spec `#effective-base`): every Worktree of the Feature is cut from this record.
+            try Self.recordFeatureBases(
+                db, featureID: featureID, bases: plan.bases.filter { plan.repositories.contains($0.repository) }
+            )
 
             for card in cards {
                 try Self.insertAuthoredCard(db, card, cycleID: cycleID, timestamp: timestamp)

@@ -35,7 +35,7 @@ public struct EffectiveBase: Equatable, Sendable {
 
 /// One row of `feature_base`: the base a Feature was authored against in one repository, recorded at
 /// selection (spec `#effective-base`).
-public struct FeatureBaseRecord: Equatable, Sendable {
+public struct FeatureBaseRecord: Codable, Equatable, Sendable {
     public let repository: String
     /// `refs/yellowhammer/landed/<branch>` when stacked on a Feature in U, else the mainline ref.
     public let baseRef: String

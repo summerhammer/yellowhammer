@@ -153,7 +153,8 @@ struct NightSummaryVerdictTests {
         let night = try await openNightForVerdictTest(journal: journal, board: board)
         try journal.append(
             .authoringReleaseGateHeld(
-                featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K"
+                featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K",
+                hold: .awaitingRelease
             ),
             act: .author, runID: RunID(), nightID: night.id
         )

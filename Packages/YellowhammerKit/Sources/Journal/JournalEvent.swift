@@ -90,11 +90,14 @@ public enum JournalEvent: Equatable, Sendable {
     /// Observed Release; feature-authoring/select-the-next-feature, `#release-gate`). Journal-only: no Night
     /// Card or Night Summary line.
     case observedReleaseRecorded(featureIssueID: String, repository: String, tagName: String, tagCommit: String)
-    /// The release gate held a consumer Repo the selected Feature touched: the consumer reads `producer` by
-    /// tag, and no release of the producer contains `producerFeatureIssueID` yet. The author Act authored
-    /// nothing. A quiet Night, not a failure. One per held edge.
+    /// The release gate held a consumer Repo the selected Feature touched: `producerFeatureIssueID` has no
+    /// Observed Merge in `producer` yet (`hold` ``ConsumerHold/awaitingMerge``, roadmap P23.2), or the
+    /// consumer reads `producer` by tag and no release of the producer contains that Feature yet
+    /// (``ConsumerHold/awaitingRelease``). The author Act authored nothing. A quiet Night, not a failure.
+    /// One per held edge.
     case authoringReleaseGateHeld(
-        featureName: String, consumer: String, producer: String, producerFeatureIssueID: String
+        featureName: String, consumer: String, producer: String, producerFeatureIssueID: String,
+        hold: ConsumerHold
     )
     /// The predecessor walk (roadmap P9.9) stepped past a released Feature on its way to the
     /// predecessor to check: more recent than the predecessor, its Cycle archived, and released. A

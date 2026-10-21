@@ -72,4 +72,17 @@ struct AuthoringInstructionRepoDependencyTests {
         #expect(!rendered.contains("## Held by the release gate tonight"))
         #expect(!rendered.contains("A Feature never touches both ends"))
     }
+
+    @Test("A consumer held awaiting a merge renders the awaiting-merge bullet")
+    func awaitingMergeConsumer() throws {
+        let held = [HeldConsumer(
+            consumer: "backend", producer: "contracts", producerFeature: "FEAT-7", hold: .awaitingMerge
+        )]
+        let rendered = try instruction(.selection, consumes: [], held: held)
+        #expect(rendered.contains(
+            "- backend: it consumes contracts, and Feature FEAT-7 is implemented in contracts but awaits its "
+                + "Observed Merge there. Do not select a Feature that touches backend tonight."
+        ))
+        #expect(!rendered.contains("by tag"))
+    }
 }

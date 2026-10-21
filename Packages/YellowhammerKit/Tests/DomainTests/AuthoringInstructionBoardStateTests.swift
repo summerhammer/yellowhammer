@@ -4,13 +4,14 @@ import Testing
 private let issueUUID = "8f14e45f-ceea-467a-9575-1c5f0b1c2d3e"
 
 private func instruction(
-    _ pass: RunPass, boardState: SelectionBoardState?, adoption: [AdoptionCandidate] = []
+    _ pass: RunPass, boardState: SelectionBoardState?, adoption: [AdoptionCandidate] = [],
+    mainlines: ResolvedMainlines = ResolvedMainlines()
 ) throws -> String {
     AuthoringInstruction(
         pass: pass, route: try #require(Route(cli: "claude", model: "opus", effort: "high")),
         specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
         repos: [Repo(name: "backend", path: "/b", role: .backend)],
-        mainlines: ResolvedMainlines(), namedFeature: nil, adoptionCandidates: adoption,
+        mainlines: mainlines, namedFeature: nil, adoptionCandidates: adoption,
         refusedThisNight: [FeatureName(rawValue: "Refused one")].compactMap { $0 },
         selectedFeature: nil, boardState: boardState
     ).render()
@@ -85,5 +86,42 @@ struct AuthoringInstructionBoardStateTests {
         #expect(rendered.contains("- a-2 (repository: backend)\n"))
         #expect(!rendered.contains("No Feature has been authored"))
         #expect(rendered.contains("Blocked Cards left by closed Features are listed under Adoption candidates."))
+    }
+
+    @Test("The selection pass lists each Feature awaiting merge, the breakdown pass does not")
+    func unmergedGroup() throws {
+        let state = SelectionBoardState(unmergedFeatures: [
+            .init(
+                name: "Add login", identifier: "YLH-1", touchedRepositories: ["repo-a", "repo-b"],
+                unmergedBranches: [.init(repository: "repo-a", branch: "yh-f1")]
+            )
+        ])
+        let rendered = try instruction(.selection, boardState: state)
+        #expect(rendered.contains(
+            "Features already implemented and awaiting merge, oldest first. Do not select any of these again; "
+                + "the next Feature is authored on top of their branches:\n\n"
+                + "- Add login (YLH-1): touches repo-a, repo-b; awaiting merge in repo-a at branch `yh-f1`"
+        ))
+        #expect(!rendered.contains("No Feature has been authored"))
+        #expect(!(try instruction(.breakdown, boardState: state)).contains("awaiting merge"))
+    }
+
+    @Test("A repository stacked on a landed tip says so, and a mainline repository does not")
+    func stackedOnLine() throws {
+        let stacked = ResolvedMainlines(workingRepos: [
+            "backend": ResolvedMainline(
+                repository: "backend", defaultBranch: "main", ref: "refs/yellowhammer/landed/yh-f1", commit: "c1"
+            )
+        ])
+        let rendered = try instruction(.selection, boardState: nil, mainlines: stacked)
+        #expect(rendered.contains(
+            "  Stacked on: refs/yellowhammer/landed/yh-f1, the landed tip of a Feature awaiting merge"
+        ))
+        let plain = ResolvedMainlines(workingRepos: [
+            "backend": ResolvedMainline(
+                repository: "backend", defaultBranch: "main", ref: "refs/remotes/origin/main", commit: "m1"
+            )
+        ])
+        #expect(!(try instruction(.selection, boardState: nil, mainlines: plain)).contains("Stacked on:"))
     }
 }

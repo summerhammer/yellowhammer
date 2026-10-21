@@ -59,6 +59,7 @@ extension AuthoringTransaction {
             existingFeatureIssueID: existing, stopCreateKey: stopCreateKey
         )
         planner.draftChildren = snapshot?.draftChildren ?? []
+        planner.bases = context.featureBases
         var plan = try planner.plan()
         plan.repairSnapshot = snapshot
         guard let budget = board.descriptionBudget else { return (plan, nil) }

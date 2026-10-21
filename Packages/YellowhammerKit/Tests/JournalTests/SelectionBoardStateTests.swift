@@ -154,3 +154,72 @@ func waitingOnYouCards() throws {
         .init(identifier: "YLH-12", title: "Second", repository: "web", reason: "overreach")
     ])
 }
+
+private func seedUnmergedFeature(
+    _ journal: JournalStore, issueID: String, key: String, name: String, landed: Bool = false
+) throws {
+    try journal.write { db in
+        let stamp = JournalStore.timestamp(boardStateEpoch)
+        try db.execute(
+            sql: """
+            INSERT INTO feature (issue_id, issue_key, state, created_at, closed_by)
+            VALUES (?, ?, 'closed', ?, 'verification')
+            """,
+            arguments: [issueID, key, stamp]
+        )
+        let featureID = db.lastInsertedRowID
+        try db.execute(
+            sql: "INSERT INTO cycle (feature_id, created_at, archived_at, landed_at) VALUES (?, ?, ?, ?)",
+            arguments: [featureID, stamp, stamp, stamp]
+        )
+        try db.execute(
+            sql: """
+            INSERT INTO feature_repository (feature_id, repository, branch, landed_commit)
+            VALUES (?, 'repo-a', ?, 'c1')
+            """,
+            arguments: [featureID, "yh-\(issueID)"]
+        )
+    }
+    if landed {
+        let featureID = try #require(try journal.read { db in
+            try Int64.fetchOne(db, sql: "SELECT id FROM feature WHERE issue_id = ?", arguments: [issueID])
+        })
+        try journal.recordLanding(
+            featureID: featureID, repository: "repo-a", mainlineCommit: "main-a", evidence: .ancestry
+        )
+    }
+    try journal.append(.featureAuthored(FeatureAuthoredPayload(
+        name: name, groupKey: "g-\(issueID)", featureIssueID: issueID, cycleID: 1, cardCount: 1, adoptedCount: 0
+    )))
+}
+
+@Suite("Board state: Unmerged Feature Stack (P23.2)")
+struct SelectionBoardStateUnmergedTests {
+    @Test("A Feature in U is listed with its name, identifier, touched repositories and unmerged branches")
+    func unmergedFeatureIsListed() throws {
+        let fixture = try BoardStateJournalFixture()
+        let journal = try fixture.open()
+        try seedUnmergedFeature(journal, issueID: "f1", key: "YLH-1", name: "Add login")
+
+        let state = try journal.selectionBoardState()
+
+        #expect(state.unmergedFeatures == [
+            .init(
+                name: "Add login", identifier: "YLH-1", touchedRepositories: ["repo-a"],
+                unmergedBranches: [.init(repository: "repo-a", branch: "yh-f1")]
+            )
+        ])
+        #expect(!state.isEmpty)
+        #expect(state.unmergedFeature(named: "  add LOGIN ")?.identifier == "YLH-1")
+        #expect(state.unmergedFeature(named: "other") == nil)
+    }
+
+    @Test("A fully merged Feature is not listed")
+    func mergedFeatureIsNotListed() throws {
+        let fixture = try BoardStateJournalFixture()
+        let journal = try fixture.open()
+        try seedUnmergedFeature(journal, issueID: "f1", key: "YLH-1", name: "Add login", landed: true)
+
+        #expect(try journal.selectionBoardState().unmergedFeatures.isEmpty)
+    }
+}

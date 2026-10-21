@@ -164,13 +164,19 @@ struct ReleaseGateTests {
         #expect(try journal.releases(featureID: featureID)["contracts"]?.tagCommit == world.after)
     }
 
-    @Test("With no landing recorded, a recorded tip that is an ancestor of the tag opens the gate")
-    func tipAncestryOpensWithoutALanding() async throws {
+    @Test("With the Observed Merge recorded past the tag, a recorded tip that is an ancestor of the tag opens the gate")
+    func tipAncestryOpensWithALandingPastTheTag() async throws {
         let world = try await ProducerWorld.make()
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        try seedFeature(journal, world: world, landed: false)
+        let featureID = try seedFeature(journal, world: world, landed: false)
         await world.repo.run(["tag", "v1.0.0", world.after])
+        // The merge was first observed at a mainline commit no release contains yet (roadmap P23.2: a producer
+        // Feature with no Observed Merge holds its consumers on the merge, before any release is looked for).
+        let later = try await world.repo.commit(filename: "later.txt", message: "after the tag")
+        try journal.recordLanding(
+            featureID: featureID, repository: "contracts", mainlineCommit: later, evidence: .content
+        )
 
         #expect(try await heldConsumers(journal, producerPath: world.repo.path).isEmpty)
     }
@@ -193,9 +199,61 @@ struct ReleaseGateTests {
             journal, issueID: "FEAT-K", branch: "yh-feat", repositories: ["contracts"],
             landedCommits: ["contracts": tip]
         )
+        let later = try await repo.commit(filename: "later.txt", message: "after the tag")
+        try journal.recordLanding(
+            featureID: featureID, repository: "contracts", mainlineCommit: later, evidence: .content
+        )
 
         #expect(try await heldConsumers(journal, producerPath: repo.path).isEmpty)
         #expect(try journal.releases(featureID: featureID)["contracts"]?.tagName == "v1.0.0")
+    }
+
+    @Test("A mainline consumer of a producer with a Feature in U is held on its merge, and released once it lands")
+    func mainlineConsumerOfAnUnmergedProducerIsHeld() async throws {
+        let world = try await ProducerWorld.make()
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try seedFeature(journal, world: world, landed: false)
+        let (context, _) = try makeGateContext(
+            journal, repositories: repositories(producerPath: world.repo.path, via: .mainline)
+        )
+
+        #expect(try await ObservedReleaseGate().heldConsumers(context) == [HeldConsumer(
+            consumer: "backend", producer: "contracts", producerFeature: "FEAT-K", producerFeatureIssueID: "FEAT-K",
+            hold: .awaitingMerge
+        )])
+
+        try journal.recordLanding(
+            featureID: featureID, repository: "contracts", mainlineCommit: world.merge, evidence: .ancestry
+        )
+        #expect(try await ObservedReleaseGate().heldConsumers(context).isEmpty)
+    }
+
+    @Test("A tag consumer of a producer with a Feature in U waits on the merge before any release, even if tagged")
+    func tagConsumerOfAnUnmergedProducerWaitsOnTheMerge() async throws {
+        let world = try await ProducerWorld.make()
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try seedFeature(journal, world: world, landed: false)
+        await world.repo.run(["tag", "v1.0.0", world.after])
+
+        #expect(try await heldConsumers(journal, producerPath: world.repo.path) == [HeldConsumer(
+            consumer: "backend", producer: "contracts", producerFeature: "FEAT-K", producerFeatureIssueID: "FEAT-K",
+            hold: .awaitingMerge
+        )])
+        #expect(try journal.releases(featureID: featureID).isEmpty)
+    }
+
+    @Test("The Night Card line for a consumer held on its producer's merge names the Feature and the producer")
+    func awaitingMergeNightCardLine() {
+        let held = JournalEvent.authoringReleaseGateHeld(
+            featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K",
+            hold: .awaitingMerge
+        )
+        #expect(NightCardMaintenance.authoringLine(for: held) == """
+            Authoring was skipped: backend consumes contracts, awaiting the Observed Merge of Feature `FEAT-K` in \
+            contracts. Merge its pull request. A quiet Night, not a failure.
+            """)
     }
 
     @Test("A mainline edge holds nothing")
@@ -221,7 +279,8 @@ struct ReleaseGateTests {
     @Test("The Night Card line reads exactly, and an Observed Release is Journal-only")
     func nightCardLine() {
         let held = JournalEvent.authoringReleaseGateHeld(
-            featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K"
+            featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K",
+                hold: .awaitingRelease
         )
         #expect(NightCardMaintenance.authoringLine(for: held) == """
             Authoring was skipped: backend reads contracts by tag, and no release of contracts contains \

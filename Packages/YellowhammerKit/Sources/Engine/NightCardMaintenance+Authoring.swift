@@ -142,9 +142,14 @@ extension NightCardMaintenance {
     }
 
     private static func releaseGateHeldLine(
-        consumer: String, producer: String, producerFeatureIssueID: String, journal: JournalStore?
+        consumer: String, producer: String, producerFeatureIssueID: String, hold: ConsumerHold,
+        journal: JournalStore?
     ) -> String {
         let featureRef = renderFeatureReference(issueID: producerFeatureIssueID, journal: journal)
+        if hold == .awaitingMerge {
+            return "Authoring was skipped: \(consumer) consumes \(producer), awaiting the Observed Merge of "
+                + "Feature \(featureRef) in \(producer). Merge its pull request. A quiet Night, not a failure."
+        }
         return "Authoring was skipped: \(consumer) reads \(producer) by tag, and no release of \(producer) "
             + "contains Feature \(featureRef) yet. Cut a release of \(producer) that includes it. "
             + "A quiet Night, not a failure."
@@ -171,10 +176,10 @@ extension NightCardMaintenance {
                 Authoring was skipped: the pushed tip of predecessor Feature \(featureRef) could not be \
                 found in \(named). A quiet Night, not a failure.
                 """
-        case .authoringReleaseGateHeld(_, let consumer, let producer, let producerFeatureIssueID):
+        case .authoringReleaseGateHeld(_, let consumer, let producer, let producerFeatureIssueID, let hold):
             return releaseGateHeldLine(
                 consumer: consumer, producer: producer, producerFeatureIssueID: producerFeatureIssueID,
-                journal: journal
+                hold: hold, journal: journal
             )
         case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)

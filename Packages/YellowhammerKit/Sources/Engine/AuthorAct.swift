@@ -77,7 +77,8 @@ public protocol FeatureAuthoring: Sendable {
 /// 3. The predecessor-ancestry gate (``predecessorGate``, P9.2) runs. A predecessor not yet landed in
 ///    every repository stops authoring: no Worktree is allocated, nothing is dispatched, no Attempt
 ///    is recorded.
-/// 4. Selecting and authoring the Feature (``authoring``, P9.3–P9.7) runs only once the gate clears.
+/// 4. Selecting and authoring the Feature (``authoring``, P9.3–P9.7) runs only once the gate clears, against
+///    `effective_base(R)` per working repository (``AuthoringBases``, roadmap P23.2), not this Act's mainline.
 ///    A halt (``FeatureAuthoringOutcome/halted``), a rolled-back transaction
 ///    (``FeatureAuthoringOutcome/authoringRolledBack``) and an accepted-but-undelivered one
 ///    (``FeatureAuthoringOutcome/authoringPending``) are treated the same as a successful authoring:
@@ -211,7 +212,7 @@ public struct AuthorAct: Sendable {
             throw EngineInvocationError.notImplemented(.author)
         }
 
-        switch try await authoring.selectAndAuthor(context) {
+        switch try await selectAndAuthorOnEffectiveBases(authoring, context: context) {
         case .noWorkAvailable:
             try journal.recordAuthoringNoWorkAvailable(
                 nightID: context.night.id, act: context.act, runID: context.runID
@@ -220,6 +221,25 @@ public struct AuthorAct: Sendable {
             break
         }
         try await writeBack(context: context)
+    }
+
+    /// Selection and authoring read `effective_base(R)` per working repository, not mainline (roadmap P23.2; spec:
+    /// feature-authoring/select-the-next-feature, `#effective-base`): the landed tip of the most recent Feature in
+    /// the Unmerged Feature Stack U that pushed there. Only the selection call gets that snapshot; this Act's own
+    /// `context.mainlines` stays the real mainline. A stacked base that cannot be resolved, or that resolves to a
+    /// commit other than the recorded one, is an authoring fault — never a silent fallback to mainline.
+    private func selectAndAuthorOnEffectiveBases(
+        _ authoring: any FeatureAuthoring, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome {
+        let bases = try await AuthoringBases.fromStack(context: context)
+        guard bases.faults.isEmpty else {
+            try context.journal.append(
+                .featureSelectionFailed(reason: bases.faults.map(\.description).joined(separator: "; ")),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            return .authoringRolledBack
+        }
+        return try await authoring.selectAndAuthor(context.authoring(against: bases))
     }
 
     /// A quiet Night: authoring does not run, so a repair the Operator asked for is answered with the reason

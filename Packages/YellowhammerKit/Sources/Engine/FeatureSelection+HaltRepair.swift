@@ -79,14 +79,15 @@ extension FeatureSelection {
             )
         }
         let held = try await releaseGate?.heldConsumers(context) ?? []
-        let scope = SelectionScope(repositories: repositories, candidates: candidates, held: held)
+        let board = try journal.selectionBoardState()
+        let scope = SelectionScope(repositories: repositories, candidates: candidates, held: held, boardState: board)
 
         let selection: SelectedFeature
         if let stored = checkpoint.selection {
             selection = stored
         } else {
             switch try await pinnedSelection(
-                of: feature, scope: scope, board: try journal.selectionBoardState(), context: context
+                of: feature, scope: scope, board: scope.boardState, context: context
             ) {
             case .selected(let chosen): selection = chosen
             case .stopped(let outcome): return try await conclude(outcome, request, context: context)
