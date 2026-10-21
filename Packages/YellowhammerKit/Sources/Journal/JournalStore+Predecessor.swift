@@ -73,8 +73,7 @@ extension JournalStore {
                 // its Cycle ever landed has no landing record, so nothing was pushed: N = 0, never the
                 // touched list, whose branches were never pushed or recorded (triage-the-morning).
                 let landedAt: String? = row["landed_at"]
-                let pushed = feature.closedBy == .completion && landedAt == nil
-                    ? [] : try Self.pushedRepositories(db, featureID: feature.id)
+                let pushed = try Self.closedFeaturePushedRepositories(db, feature: feature, landedAt: landedAt)
                 return PredecessorWalk(
                     predecessor: PredecessorFeature(
                         feature: feature, touchedRepositories: repositories, pushedRepositories: pushed
@@ -110,6 +109,16 @@ extension JournalStore {
             }
             return observed == featureIssueID && !mergedRepositories.isEmpty && unmergedRepositories.isEmpty
         }
+    }
+
+    /// N for an archived Feature: the finalized landing record's pushed set, or none for a Feature the Board
+    /// completed (`closed_by = 'completion'`) before its Cycle ever landed — nothing was pushed then.
+    /// Shared by the predecessor walk and the Unmerged Feature Stack read.
+    static func closedFeaturePushedRepositories(
+        _ db: Database, feature: FeatureRecord, landedAt: String?
+    ) throws -> [String] {
+        feature.closedBy == .completion && landedAt == nil
+            ? [] : try pushedRepositories(db, featureID: feature.id)
     }
 
     static func touchedRepositories(_ db: Database, featureID: Int64) throws -> [String] {

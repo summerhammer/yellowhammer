@@ -217,6 +217,41 @@ struct NightSummaryInstrumentedRatesTests {
         #expect(current.contains("`overdue_nights_max`: 5 of 3 (highest Card count)."))
         #expect(current.contains("`failed_adoptions_max`: 4 of 2."))
     }
+
+    @Test("Bound proximity reports |U| against unmerged_features_max (P23.1)")
+    func unmergedFeaturesProximity() throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let run = RunID()
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .real)
+        let night = try journal.openNight(
+            nightStart: try #require(NightStart(rawValue: "2026-09-25")), mode: .real, act: .author, runID: run
+        ).night
+        let bounds = NightCardMaintenance.Bounds(unmergedFeaturesMax: 2)
+        let empty = try NightSummary.instrumentedRateLines(night: night, journal: journal, bounds: bounds)
+        #expect(empty.contains("`unmerged_features_max`: 0 of 2 (Features awaiting merge)."))
+
+        try journal.write { db in
+            let stamp = JournalStore.timestamp(Date())
+            try db.execute(
+                sql: """
+                INSERT INTO feature (issue_id, state, created_at, closed_by) VALUES (?, 'closed', ?, 'verification')
+                """,
+                arguments: ["FEAT-U", stamp]
+            )
+            let featureID = db.lastInsertedRowID
+            try db.execute(
+                sql: "INSERT INTO cycle (feature_id, created_at, archived_at, landed_at) VALUES (?, ?, ?, ?)",
+                arguments: [featureID, stamp, stamp, stamp]
+            )
+            try db.execute(
+                sql: "INSERT INTO feature_repository (feature_id, repository) VALUES (?, 'backend')",
+                arguments: [featureID]
+            )
+        }
+        let one = try NightSummary.instrumentedRateLines(night: night, journal: journal, bounds: bounds)
+        #expect(one.contains("`unmerged_features_max`: 1 of 2 (Features awaiting merge)."))
+    }
 }
 
 extension NightSummaryInstrumentedRatesTests {
@@ -362,7 +397,7 @@ extension NightSummaryInstrumentedRatesTests {
         #expect(lines.contains("`author_supplied_citation_count`: 1 (at this Night's close)."))
         #expect(lines.contains("`reselections_max`: 0 of 2."))
         #expect(lines.contains("`consecutive_refusals_max`: 0 of 3."))
-        #expect(lines.filter { $0.contains("_max`:") || $0.contains("attempts_per_work_card`:") }.count == 7)
+        #expect(lines.filter { $0.contains("_max`:") || $0.contains("attempts_per_work_card`:") }.count == 8)
 
         let firstLines = try NightSummary.instrumentedRateLines(
             night: try #require(try journal.night(id: first.id)), journal: journal, bounds: .init()
