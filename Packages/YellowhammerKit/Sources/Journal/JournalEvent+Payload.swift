@@ -44,10 +44,12 @@ extension JournalEvent {
                 "feature_issue_id": featureIssueID, "repository": repository,
                 "tag_name": tagName, "tag_commit": tagCommit
             ]
-        case .authoringReleaseGateHeld(let featureName, let consumer, let producer, let producerFeatureIssueID):
+        case .authoringReleaseGateHeld(
+            let featureName, let consumer, let producer, let producerFeatureIssueID, let hold
+        ):
             [
                 "feature_name": featureName, "consumer": consumer, "producer": producer,
-                "producer_feature_issue_id": producerFeatureIssueID
+                "producer_feature_issue_id": producerFeatureIssueID, "hold": hold.rawValue
             ]
         case .authoringPredecessorIndeterminate(let featureIssueID, let repositories):
             [

@@ -58,6 +58,46 @@ func featureAuthoringAcceptedRoundTrips() throws {
     #expect(read == plan)
 }
 
+@Test("featureAuthoringAccepted round-trips its effective bases (roadmap P23.2)")
+func featureAuthoringAcceptedRoundTripsBases() throws {
+    let fixture = try AuthoringJournalFixture()
+    let journal = try fixture.open()
+    let withBases = FeatureAuthoringAcceptedPayload(
+        name: "FEAT-1", groupKey: "authoring:FEAT-1:0", featureKey: "feature:FEAT-1:0:create", nightID: 7,
+        cards: [], adoptions: [], repositories: ["backend", "mobile"],
+        bases: [
+            FeatureBaseRecord(
+                repository: "backend", baseRef: "refs/yellowhammer/landed/yh-f1", baseCommit: "c1",
+                stackedOnFeatureID: 4
+            ),
+            FeatureBaseRecord(repository: "mobile", baseRef: "refs/remotes/origin/main", baseCommit: "m1")
+        ]
+    )
+
+    try journal.append(.featureAuthoringAccepted(withBases), act: .author, runID: RunID(), now: epoch)
+    guard case .featureAuthoringAccepted(let read) = try journal.events()[0].event else {
+        Issue.record("Event is not featureAuthoringAccepted")
+        return
+    }
+    #expect(read == withBases)
+    #expect(read.bases[0].stackedOnFeatureID == 4)
+    #expect(read.bases[1].stackedOnFeatureID == nil)
+}
+
+@Test("A featureAuthoringAccepted payload with no bases key decodes with no bases")
+func featureAuthoringAcceptedDecodesWithoutBases() throws {
+    let legacyRow: [String: String] = [
+        "name": "FEAT-1", "group_key": "authoring:FEAT-1:0", "feature_key": "feature:FEAT-1:0:create",
+        "night_id": "7", "cards": "[]", "adoptions": "[]"
+    ]
+    let event = try JournalEvent(type: .featureAuthoringAccepted, payload: legacyRow, rowID: 1)
+    guard case .featureAuthoringAccepted(let read) = event else {
+        Issue.record("Event is not featureAuthoringAccepted")
+        return
+    }
+    #expect(read.bases.isEmpty)
+}
+
 @Test("featureAuthoringAccepted round-trips clauses and uncitable clauses (roadmap P9.5)")
 func featureAuthoringAcceptedRoundTripsClauses() throws {
     let fixture = try AuthoringJournalFixture()

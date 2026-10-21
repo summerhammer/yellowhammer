@@ -46,6 +46,10 @@ extension AuthoringInstruction {
             lines.append("  Role: \(repo.role.rawValue)")
             lines.append("  Path: \(repo.path)")
             lines.append("  Mainline: \(mainlines[repo]?.commit ?? "not resolved")")
+            // A stacked repository's commit is `effective_base(R)` (roadmap P23.2): say whose tip it is.
+            if let ref = mainlines[repo]?.ref, ref.hasPrefix("refs/yellowhammer/landed/") {
+                lines.append("  Stacked on: \(ref), the landed tip of a Feature awaiting merge")
+            }
         }
         return lines.joined(separator: "\n")
     }
@@ -86,9 +90,16 @@ extension AuthoringInstruction {
     /// Selection pass only, and only when the release gate holds a consumer back tonight.
     private var heldConsumersSection: String? {
         guard !heldConsumers.isEmpty else { return nil }
-        let bullets = heldConsumers.map {
-            "- \($0.consumer): it reads \($0.producer) by tag, and no release of \($0.producer) contains "
-                + "Feature \($0.producerFeature) yet. Do not select a Feature that touches \($0.consumer) tonight."
+        let bullets = heldConsumers.map { held in
+            let why = switch held.hold {
+            case .awaitingRelease:
+                "it reads \(held.producer) by tag, and no release of \(held.producer) contains Feature "
+                    + "\(held.producerFeature) yet."
+            case .awaitingMerge:
+                "it consumes \(held.producer), and Feature \(held.producerFeature) is implemented in "
+                    + "\(held.producer) but awaits its Observed Merge there."
+            }
+            return "- \(held.consumer): \(why) Do not select a Feature that touches \(held.consumer) tonight."
         }
         return (["## Held by the release gate tonight", ""] + bullets).joined(separator: "\n")
     }
@@ -129,6 +140,7 @@ extension AuthoringInstruction {
             groups.append((["Features already authored for this Project, most recent first:", ""] + bullets)
                 .joined(separator: "\n"))
         }
+        if let unmergedGroup { groups.append(unmergedGroup) }
         if !boardState.waitingCards.isEmpty {
             let bullets = boardState.waitingCards.map {
                 "- \($0.identifier) (repository: \($0.repository)): \($0.title) — waiting on you: \($0.reason)"
@@ -139,6 +151,22 @@ extension AuthoringInstruction {
             groups.append("Blocked Cards left by closed Features are listed under Adoption candidates.")
         }
         return (["## Board state"] + groups).joined(separator: "\n\n")
+    }
+
+    /// Every Feature in the Unmerged Feature Stack U (roadmap P23.2; spec: feature-authoring/
+    /// select-the-next-feature, `#effective-base`), oldest first: already implemented, awaiting merge, and never
+    /// to be selected again. Human identifiers and branch names only.
+    private var unmergedGroup: String? {
+        guard let boardState, !boardState.unmergedFeatures.isEmpty else { return nil }
+        let bullets = boardState.unmergedFeatures.map { feature in
+            let label = feature.name.map { "\($0) (\(feature.identifier))" } ?? feature.identifier
+            let branches = feature.unmergedBranches.map { "\($0.repository) at branch `\($0.branch)`" }
+            return "- \(label): touches \(feature.touchedRepositories.joined(separator: ", ")); awaiting merge in "
+                + branches.joined(separator: ", ")
+        }
+        let header = "Features already implemented and awaiting merge, oldest first. Do not select any of these "
+            + "again; the next Feature is authored on top of their branches:"
+        return ([header, ""] + bullets).joined(separator: "\n")
     }
 
     /// Features refused earlier in this Night's re-selection walk (roadmap P11.6): must not be chosen again.

@@ -13,10 +13,13 @@ extension JournalEvent {
     }
 
     static func decodeAuthoringReleaseGateHeld(_ reader: PayloadReader) throws -> JournalEvent {
-        .authoringReleaseGateHeld(
+        guard let hold = ConsumerHold(rawValue: try reader.require("hold")) else {
+            throw JournalError.eventUnreadable(id: reader.rowID)
+        }
+        return .authoringReleaseGateHeld(
             featureName: try reader.require("feature_name"), consumer: try reader.require("consumer"),
             producer: try reader.require("producer"),
-            producerFeatureIssueID: try reader.require("producer_feature_issue_id")
+            producerFeatureIssueID: try reader.require("producer_feature_issue_id"), hold: hold
         )
     }
 

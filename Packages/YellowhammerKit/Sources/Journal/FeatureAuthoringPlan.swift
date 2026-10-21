@@ -200,12 +200,16 @@ public struct FeatureAuthoringAcceptedPayload: Equatable, Sendable {
     /// predecessor gate's source of truth, recorded at selection rather than derived from Cards. Empty
     /// for a pre-P9.9 plan decoded from a legacy `featureAuthoringAccepted` event.
     public let repositories: [String]
+    /// `effective_base(R)` for each of ``repositories``, as resolved when the Feature was selected (roadmap
+    /// P23.2; spec: feature-authoring/select-the-next-feature, `#effective-base`): carried on the plan so a
+    /// transaction resumed by a later Act records the bases selection used, never a base computed later.
+    public let bases: [FeatureBaseRecord]
 
     public init(
         name: String, groupKey: String, featureKey: String, nightID: Int64,
         cards: [PlannedCard], adoptions: [PlannedAdoption],
         featureClauses: [PlannedClause] = [], uncitableClauses: [PlannedUncitableClause] = [],
-        repositories: [String] = []
+        repositories: [String] = [], bases: [FeatureBaseRecord] = []
     ) {
         self.name = name
         self.groupKey = groupKey
@@ -216,6 +220,7 @@ public struct FeatureAuthoringAcceptedPayload: Equatable, Sendable {
         self.featureClauses = featureClauses
         self.uncitableClauses = uncitableClauses
         self.repositories = repositories
+        self.bases = bases
     }
 }
 
@@ -247,7 +252,7 @@ extension FeatureAuthoringAcceptedPayload {
             "name": name, "group_key": groupKey, "feature_key": featureKey, "night_id": String(nightID),
             "cards": Self.json(cards), "adoptions": Self.json(adoptions),
             "feature_clauses": Self.json(featureClauses), "uncitable_clauses": Self.json(uncitableClauses),
-            "repositories": Self.json(repositories)
+            "repositories": Self.json(repositories), "bases": Self.json(bases)
         ]
     }
 
@@ -265,6 +270,7 @@ extension FeatureAuthoringAcceptedPayload {
             let featureClausesJSON = reader.payload?["feature_clauses"] ?? "[]"
             let uncitableClausesJSON = reader.payload?["uncitable_clauses"] ?? "[]"
             let repositoriesJSON = reader.payload?["repositories"] ?? "[]"
+            let basesJSON = reader.payload?["bases"] ?? "[]"
             return FeatureAuthoringAcceptedPayload(
                 name: try reader.require("name"),
                 groupKey: try reader.require("group_key"),
@@ -278,7 +284,8 @@ extension FeatureAuthoringAcceptedPayload {
                 uncitableClauses: try decoder.decode(
                     [PlannedUncitableClause].self, from: Data(uncitableClausesJSON.utf8)
                 ),
-                repositories: try decoder.decode([String].self, from: Data(repositoriesJSON.utf8))
+                repositories: try decoder.decode([String].self, from: Data(repositoriesJSON.utf8)),
+                bases: try decoder.decode([FeatureBaseRecord].self, from: Data(basesJSON.utf8))
             )
         } catch is DecodingError {
             throw JournalError.eventUnreadable(id: reader.rowID)
