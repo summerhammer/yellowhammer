@@ -57,7 +57,8 @@ struct LegacyBoardMigration {
         try supersedePending(taxonomy)
         var open = false
         var keys = Accepted()
-        for target in try trackedTargets() {
+        guard let targets = try trackedTargets() else { return }
+        for target in targets {
             guard let object = try await board.reading.issue(BoardObjectID(rawValue: target.issueID)),
                   object.archivedAt == nil
             else { continue }
@@ -77,7 +78,7 @@ struct LegacyBoardMigration {
         }
 
         _ = try await outbox.deliverPending()
-        try finish(keys, conflictsOpen: open)
+        try finish(keys, conflictsOpen: open || keys.deferred)
     }
 
     /// After delivery: a settle whose entry left `pending` is complete, and the whole migration is complete when
@@ -99,6 +100,8 @@ struct LegacyBoardMigration {
     private struct Accepted {
         var all: [String] = []
         var settles: [(issueID: String, key: String)] = []
+        /// Something could not be planned this Act (no native state to move to): the migration stays open.
+        var deferred = false
 
         mutating func add(_ key: String, settle issueID: String? = nil) {
             all.append(key)
@@ -120,11 +123,17 @@ struct LegacyBoardMigration {
         }
     }
 
-    /// The Feature in flight and the Work Cards of its Cycle that the board has not lost.
-    private func trackedTargets() throws -> [Target] {
-        // A Journal that breaks "one in-flight Feature" is reported by the Acts that depend on it; the migration
-        // reads nothing from it rather than guess which Cycle is the tracked one.
-        guard let flight = try? journal.inFlightFeature() else { return [] }
+    /// The Feature in flight and the Work Cards of its Cycle that the board has not lost; nil when the Journal
+    /// holds more than one open Cycle. That breaks "one in-flight Feature" and is reported by the Acts that
+    /// depend on it: the migration reads nothing rather than guess which Cycle is tracked, and stays open.
+    private func trackedTargets() throws -> [Target]? {
+        let flight: (feature: FeatureRecord, cycleID: Int64)?
+        do {
+            flight = try journal.inFlightFeature()
+        } catch JournalError.multipleOpenCycles {
+            return nil
+        }
+        guard let flight else { return [] }
         let cards = try journal.cards(cycleID: flight.cycleID).filter { !$0.isRemovedFromBoard }
         return [.feature(flight.feature.issueID)] + cards.map(Target.card)
     }
@@ -148,6 +157,7 @@ struct LegacyBoardMigration {
                 "migration-deferred", issueID: issueID,
                 detail: "no native state to move '\(retired.name)' to; the team has none of that category"
             )
+            accepted.deferred = true
             return
         }
         try record(issueID: issueID, kind: .settle, status: .planned, detail: retired.id.rawValue)
