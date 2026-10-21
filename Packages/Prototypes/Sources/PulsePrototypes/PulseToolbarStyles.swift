@@ -81,19 +81,20 @@ private struct PulseNightCardButton: View {
 private struct PulseFeatureButton: View {
     let model: PulseToolbarModel
 
-    private static func absence(of feature: FeatureInFlight?) -> String {
-        feature == nil ? "No Feature in flight" : "No Feature link recorded"
+    private static func absence(of feature: FeatureInFlight?, stack: UnmergedFeatureStack) -> String {
+        feature == nil ? PulseStackText.absence(stack) : "No Feature link recorded"
     }
 
     var body: some View {
         let feature = model.project?.pulse.feature
         let link = feature?.link
+        let stack = model.project?.pulse.unmergedFeatures ?? .empty
         Button {
             if let link { model.actions.open(.linearIssue(link.url)) }
         } label: {
             Label("Feature in Linear", systemImage: "flag")
         }
-        .help(link.map { "Open \($0.identifier) in Linear" } ?? Self.absence(of: feature))
+        .help(link.map { "Open \($0.identifier) in Linear" } ?? Self.absence(of: feature, stack: stack))
         .disabled(link == nil)
     }
 }

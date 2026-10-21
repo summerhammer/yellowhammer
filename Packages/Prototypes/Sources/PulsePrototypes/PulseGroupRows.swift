@@ -95,6 +95,10 @@ struct PulseGroupRows: View {
                 .pulseRowHighlight(actions.inspected == .feature(feature.id), tint: palette.accent)
             }
             .buttonStyle(.plain)
+            if let caption = PulseStackText.stackedOnCaption(feature) {
+                Label(caption, systemImage: "square.stack.3d.up")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if feature.lanes.isEmpty {
                 PulseAbsence(text: "No Repo Lane yet — the Feature is authoring", systemImage: "hourglass")
             } else {
@@ -103,8 +107,10 @@ struct PulseGroupRows: View {
                 }
             }
         } else {
-            PulseAbsence(text: "No Feature in flight", systemImage: "flag.slash")
+            let stack = context.pulse.unmergedFeatures
+            PulseAbsence(text: PulseStackText.absence(stack), systemImage: PulseStackText.absenceImage(stack))
         }
+        PulseAwaitingMerge(context: context)
     }
 
     @ViewBuilder
@@ -129,6 +135,7 @@ struct PulseGroupRows: View {
                 Text("started \(PulseFormat.time(night.startedAt))").font(.caption).foregroundStyle(.secondary)
             }
             PulseDispositionCounts(night: night)
+            if let skip = night.stackFullSkip { PulseStackFullLine(skip: skip) }
         } else {
             PulseAbsence(text: "No Night yet", systemImage: "moon.zzz")
         }
