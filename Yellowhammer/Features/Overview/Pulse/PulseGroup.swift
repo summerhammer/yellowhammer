@@ -65,10 +65,16 @@ enum PulseGroup: String, CaseIterable, Identifiable {
         return now.attempts.isEmpty ? now.statusLine : "\(now.status.rawValue) · \(now.attempts.count) running"
     }
 
-    static func summary(of feature: FeatureInFlight?) -> String {
-        guard let feature else { return "No Feature in flight" }
+    static func summary(of feature: FeatureInFlight?, stack: UnmergedFeatureStack = .empty) -> String {
+        guard let feature else {
+            // Proposed amendment, yellowhammer-spec#132: a Feature awaiting merge is not "in flight".
+            if stack.isEmpty { return "No Feature in flight" }
+            return stack.unmergedFeaturesMax == nil ? stack.awaitingText : "Awaiting merge · \(stack.countText)"
+        }
         let rollUp = feature.rollupState?.rawValue ?? "rollup state unknown"
-        return [feature.issueIDForDisplay ?? feature.id, rollUp].joined(separator: " · ")
+        var parts = [feature.issueIDForDisplay ?? feature.id, rollUp]
+        if !stack.isEmpty { parts.append("\(stack.count) awaiting merge") }
+        return parts.joined(separator: " · ")
     }
 
     static func summary(of night: NightPulse?, scheduled: ScheduledNight? = nil) -> String {
