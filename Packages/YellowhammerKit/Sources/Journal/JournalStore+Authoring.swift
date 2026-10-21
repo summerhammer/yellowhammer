@@ -159,9 +159,7 @@ extension JournalStore {
             try Self.insertFeatureRepositories(db, featureID: featureID, repositories: plan.repositories)
             // The base each touched repository was authored against is recorded with the Feature itself
             // (roadmap P23.2; spec `#effective-base`): every Worktree of the Feature is cut from this record.
-            try Self.recordFeatureBases(
-                db, featureID: featureID, bases: plan.bases.filter { plan.repositories.contains($0.repository) }
-            )
+            try Self.recordFeatureBases(db, featureID: featureID, plan: plan)
 
             for card in cards {
                 try Self.insertAuthoredCard(db, card, cycleID: cycleID, timestamp: timestamp)
@@ -286,5 +284,19 @@ extension JournalStore {
                 timestamp: timestamp
             )
         }
+    }
+}
+
+extension JournalStore {
+    /// Records the plan's bases, one per touched repository; a touched repository with none faults.
+    fileprivate static func recordFeatureBases(
+        _ db: Database, featureID: Int64, plan: FeatureAuthoringAcceptedPayload
+    ) throws {
+        for repository in plan.repositories where !plan.bases.contains(where: { $0.repository == repository }) {
+            throw JournalError.missingFeatureBase(featureID: featureID, repository: repository)
+        }
+        try recordFeatureBases(
+            db, featureID: featureID, bases: plan.bases.filter { plan.repositories.contains($0.repository) }
+        )
     }
 }

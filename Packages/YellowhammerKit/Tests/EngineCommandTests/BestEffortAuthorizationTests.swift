@@ -46,7 +46,7 @@ struct BestEffortAuthorizationTests {
         let world = try makeRollUpWorld(journal)
         await world.board.seed(issue: "FEAT-1", description: ManagedBlockFence.initialDescription(rendered: ""))
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-1", branch: "yh-proj-feat", repositories: ["backend"]
+            journal, issueID: "FEAT-1", branch: "yh-proj-feat", repositories: ["backend"], inFlight: true
         )
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertRollUpCard(

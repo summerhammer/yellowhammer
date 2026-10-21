@@ -43,9 +43,7 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
         if branch.name != defaultBranch {
             let recordedBase = try context.act.journal.featureBases(featureID: context.feature.id)
                 .first { $0.repository == repository }
-            guard await hasCompletedWork(
-                branch: branch, path: path, recordedBase: recordedBase, mainlines: context.act.mainlines, repo: repo
-            ) else {
+            guard await hasCompletedWork(branch: branch, path: path, recordedBase: recordedBase) else {
                 return LanePushOutcome(kind: .noCompletedWork)
             }
         }
@@ -69,13 +67,12 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
     /// base. The base is the Feature's **recorded** `effective_base(R)` (`feature_base.base_commit`, written at
     /// selection; spec: landing/open-one-pull-request-per-repository, `hasNetChange`; agent ruling 11), never a
     /// base recomputed at landing: once a stacked-on predecessor has merged, a recomputed base would read
-    /// mainline commits the predecessor's tip lacks as this lane's work. Only a repository with no recorded
-    /// base keeps Mainline. A branch that does not exist, or has zero commits ahead of its base, has no
-    /// completed work and is never pushed. When the base cannot be resolved at all, or `rev-list` fails, the
-    /// branch is treated as having work — this must never drop commits.
+    /// mainline commits the predecessor's tip lacks as this lane's work. A branch that does not exist, or has zero
+    /// commits ahead of its base, has no completed work and is never pushed. When the base cannot be resolved at
+    /// all (including a missing recorded base), or `rev-list` fails, the branch is treated as having work — this
+    /// must never drop commits.
     private func hasCompletedWork(
-        branch: FeatureBranch, path: String, recordedBase: FeatureBaseRecord?, mainlines: ResolvedMainlines,
-        repo: Repo
+        branch: FeatureBranch, path: String, recordedBase: FeatureBaseRecord?
     ) async -> Bool {
         let branchRef = "refs/heads/\(branch.name)"
         let branchExists = await pusher.git.run([
@@ -83,14 +80,10 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
         ]).isSuccess
         guard branchExists else { return false }
 
-        let baseCommit: String
-        if let recordedBase {
-            baseCommit = recordedBase.baseCommit
-        } else if let mainlineCommit = await resolveMainlineCommit(repo: repo, path: path, mainlines: mainlines) {
-            baseCommit = mainlineCommit
-        } else {
+        guard let recordedBase else {
             return true
         }
+        let baseCommit = recordedBase.baseCommit
 
         let result = await pusher.git.run(["-C", path, "rev-list", "--count", "\(baseCommit)..\(branchRef)"])
         guard
@@ -100,29 +93,6 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
             return true
         }
         return count > 0
-    }
-
-    /// Mirrors ``AncestryTester``'s and ``MergeTester``'s own mainline resolution: the pre-resolved
-    /// commit from ``ActContext/mainlines`` when this repository has one, else the repository's default
-    /// branch resolved locally (remote-tracking ref, then local ref, then `HEAD`). Nil when none of
-    /// these resolve.
-    private func resolveMainlineCommit(repo: Repo, path: String, mainlines: ResolvedMainlines) async -> String? {
-        if let resolved = mainlines[repo.name] {
-            return resolved.commit
-        }
-        let defaultBranch = await MainlineRefresher(git: pusher.git).resolveDefaultBranch(for: repo, in: path)
-        let candidates = [
-            "refs/remotes/origin/\(defaultBranch)",
-            "refs/heads/\(defaultBranch)",
-            "HEAD"
-        ]
-        for ref in candidates {
-            let result = await pusher.git.run(["-C", path, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"])
-            guard result.isSuccess else { continue }
-            let sha = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sha.isEmpty { return sha }
-        }
-        return nil
     }
 
     private static func map(_ outcome: PushOutcome) -> LanePushOutcome {

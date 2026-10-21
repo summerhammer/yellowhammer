@@ -13,7 +13,7 @@ extension LandActPushTests {
     func heldWorktreeDeallocatedOnZeroCommitsSkippedPush() async throws {
         let local = TestGitRepo(name: "push-zero-dealloc-local")
         await local.initRepo(defaultBranch: "main")
-        _ = try await local.commit(message: "initial")
+        let base = try await local.commit(message: "initial")
         _ = await local.run(["checkout", "-b", "yh-proj-feat"])
 
         let remote = TestGitRepo(name: "push-zero-dealloc-remote")
@@ -24,6 +24,9 @@ extension LandActPushTests {
         let workspace = ReconcilerFakeWorkspace()
         let env = try await Environment.make(repos: [repo], workspace: workspace)
         let (feature, cycleID) = try env.setUpFeature()
+        try env.journal.recordFeatureBases(featureID: feature.id, bases: [
+            FeatureBaseRecord(repository: "backend", baseRef: "refs/heads/main", baseCommit: base)
+        ])
         try env.recordHeldWorktree(featureID: feature.id, repository: "backend", worktreeID: "wt-backend")
 
         let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))

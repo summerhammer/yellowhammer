@@ -234,7 +234,7 @@ private final class ContextCapture: PredecessorGate, FeatureAuthoring, Sendable 
 
     func check(_ context: ActContext, unmergedFeaturesMax: Int) async throws -> PredecessorGateOutcome {
         state.withLock { $0.gate = context }
-        return .landed
+        return .open
     }
 
     func selectAndAuthor(_ context: ActContext) async throws -> FeatureAuthoringOutcome {

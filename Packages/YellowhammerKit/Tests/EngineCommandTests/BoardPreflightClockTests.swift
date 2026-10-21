@@ -156,12 +156,13 @@ struct BoardPreflightClockTests {
             .appending(component: "yh-buildact-workspace-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
-        let path = "/tmp/yh-buildact-fixture/backend"
+        let backend = try await seedBackendRepo(journal, featureID: featureID, under: workspaceDirectory)
+        let path = backend.path
         workspace.scriptReportedBranch("somebody/else", forRepositoryPath: path)
         let invocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal,
             trigger: .scheduled, runID: runID,
-            repositories: ProjectRepositories(workingRepos: [Repo(name: "backend", path: path, role: .backend)]),
+            repositories: ProjectRepositories(workingRepos: [backend]),
             workspace: workspace, work: BuildAct(cardRunner: RecordingCardRunner()).work
         )
 

@@ -75,11 +75,9 @@ extension JournalStore {
             guard member.feature.id != excludingFeatureID, member.unmergedRepositories.contains(repository) else {
                 continue
             }
-            // A pushed repository always has a recorded branch; the Worktree name is the same fallback
-            // `resolvedFeatureBranch` uses for an unallocated lane.
-            guard let branch = member.branches[repository]
-                ?? member.feature.worktreeName.map({ FeatureBranch(rawValue: $0.rawValue) })
-            else { continue }
+            guard let branch = member.branches[repository] else {
+                throw JournalError.missingFeatureBranch(featureID: member.feature.id, repository: repository)
+            }
             return EffectiveBase(
                 featureID: member.feature.id, featureIssueID: member.feature.issueID, branch: branch,
                 landedCommit: member.landedCommits[repository]

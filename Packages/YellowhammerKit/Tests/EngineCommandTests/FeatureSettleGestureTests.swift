@@ -302,8 +302,8 @@ struct FeatureSettleGestureTests {
         #expect(comment.body.hasPrefix("**Abandoned.**"))
         #expect(comment.body.contains("backend"))
 
-        // The walk skips a cancelled Feature.
-        #expect(try world.journal.predecessorFeature().predecessor == nil)
+        // An abandoned Feature does not enter the unmerged Feature stack.
+        #expect(try world.journal.unmergedFeatureStack().isEmpty)
     }
 
     @Test("A tracked Feature Card in a started state is continuing: nothing is posted and the Feature stays in flight")

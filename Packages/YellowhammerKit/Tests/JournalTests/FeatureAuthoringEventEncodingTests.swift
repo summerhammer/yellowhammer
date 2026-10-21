@@ -37,7 +37,8 @@ private let plan = FeatureAuthoringAcceptedPayload(
         ),
         PlannedCard(key: "card:FEAT-1:0:mobile:1:create", repository: "mobile", kind: "*", order: 1, title: "Mobile")
     ],
-    adoptions: [PlannedAdoption(key: "adopt:FEAT-1:0:CARD-1", cardIssueID: "CARD-1", repository: "backend", order: 1)]
+    adoptions: [PlannedAdoption(key: "adopt:FEAT-1:0:CARD-1", cardIssueID: "CARD-1", repository: "backend", order: 1)],
+    bases: []
 )
 
 @Test("featureAuthoringAccepted round-trips its whole plan")
@@ -84,20 +85,6 @@ func featureAuthoringAcceptedRoundTripsBases() throws {
     #expect(read.bases[1].stackedOnFeatureID == nil)
 }
 
-@Test("A featureAuthoringAccepted payload with no bases key decodes with no bases")
-func featureAuthoringAcceptedDecodesWithoutBases() throws {
-    let legacyRow: [String: String] = [
-        "name": "FEAT-1", "group_key": "authoring:FEAT-1:0", "feature_key": "feature:FEAT-1:0:create",
-        "night_id": "7", "cards": "[]", "adoptions": "[]"
-    ]
-    let event = try JournalEvent(type: .featureAuthoringAccepted, payload: legacyRow, rowID: 1)
-    guard case .featureAuthoringAccepted(let read) = event else {
-        Issue.record("Event is not featureAuthoringAccepted")
-        return
-    }
-    #expect(read.bases.isEmpty)
-}
-
 @Test("featureAuthoringAccepted round-trips clauses and uncitable clauses (roadmap P9.5)")
 func featureAuthoringAcceptedRoundTripsClauses() throws {
     let fixture = try AuthoringJournalFixture()
@@ -117,7 +104,8 @@ func featureAuthoringAcceptedRoundTripsClauses() throws {
                 level: "card", workCardTitle: "One", text: "Dropped", citation: "epic/ghost",
                 reason: "the citation could not be resolved"
             )
-        ]
+        ],
+        bases: []
     )
 
     try journal.append(.featureAuthoringAccepted(withClauses), act: .author, runID: RunID(), now: epoch)
@@ -149,7 +137,8 @@ func featureAuthoringAcceptedRoundTripsBriefAndTranscriptions() throws {
                 ]
             )
         ],
-        adoptions: []
+        adoptions: [],
+        bases: []
     )
 
     try journal.append(.featureAuthoringAccepted(withBrief), act: .author, runID: RunID(), now: epoch)
@@ -175,89 +164,12 @@ func plannedTranscriptionDecodesWithoutRanges() throws {
     #expect(decoded.mainlineCommit == "deadbeef")
 }
 
-@Test("A P9.5-era featureAuthoringAccepted payload with no brief or transcriptions keys decodes empty")
-func featureAuthoringAcceptedDecodesLegacyPayloadWithoutBriefOrTranscriptions() throws {
-    // A P9.5-era payload carried "clauses" but never "brief" or "transcriptions": decoding the event
-    // directly (bypassing `append`) is how this simulates a row an earlier build actually wrote.
-    let legacyCards = [
-        PlannedCard(
-            key: "card:FEAT-1:0:backend:1:create", repository: "backend", kind: "impl.a", order: 1, title: "One",
-            clauses: [PlannedClause(cid: "c1", text: "Card clause", citation: "epic/story")]
-        )
-    ]
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = .sortedKeys
-    // Encode via the CodingKeys that predate "brief"/"transcriptions": strip those keys back out of the
-    // JSON `PlannedCard`'s own (current) Encodable would otherwise include.
-    struct LegacyPlannedCard: Encodable {
-        let key: String
-        let repository: String
-        let kind: String
-        let order: Int
-        let title: String
-        let clauses: [PlannedClause]
-    }
-    let legacyEncoded = legacyCards.map {
-        LegacyPlannedCard(
-            key: $0.key, repository: $0.repository, kind: $0.kind, order: $0.order, title: $0.title,
-            clauses: $0.clauses
-        )
-    }
-    let legacyRow: [String: String] = [
-        "name": "FEAT-1", "group_key": "authoring:FEAT-1:0", "feature_key": "feature:FEAT-1:0:create",
-        "night_id": "7",
-        "cards": String(data: try encoder.encode(legacyEncoded), encoding: .utf8) ?? "[]",
-        "adoptions": "[]"
-    ]
-
-    let event = try JournalEvent(type: .featureAuthoringAccepted, payload: legacyRow, rowID: 1)
-
-    guard case .featureAuthoringAccepted(let read) = event else {
-        Issue.record("Event is not featureAuthoringAccepted")
-        return
-    }
-    #expect(read.cards.count == 1)
-    #expect(read.cards[0].brief == "")
-    #expect(read.cards[0].transcriptions.isEmpty)
-    #expect(read.cards[0].clauses == legacyCards[0].clauses)
-}
-
-@Test("A legacy featureAuthoringAccepted payload with no clause keys decodes with empty clause lists")
-func featureAuthoringAcceptedDecodesLegacyPayloadWithoutClauses() throws {
-    // A P9.4-era payload never wrote "feature_clauses" or "uncitable_clauses" keys at all: decoding the
-    // event directly (bypassing `append`, which would always write the current, clause-carrying shape)
-    // is how this simulates a row an earlier build of the engine actually wrote.
-    let legacyCards = [
-        PlannedCard(
-            key: "card:FEAT-1:0:backend:1:create", repository: "backend", kind: "impl.a", order: 1, title: "One"
-        )
-    ]
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = .sortedKeys
-    let legacyRow: [String: String] = [
-        "name": "FEAT-1", "group_key": "authoring:FEAT-1:0", "feature_key": "feature:FEAT-1:0:create",
-        "night_id": "7",
-        "cards": String(data: try encoder.encode(legacyCards), encoding: .utf8) ?? "[]",
-        "adoptions": "[]"
-    ]
-
-    let event = try JournalEvent(type: .featureAuthoringAccepted, payload: legacyRow, rowID: 1)
-
-    guard case .featureAuthoringAccepted(let read) = event else {
-        Issue.record("Event is not featureAuthoringAccepted")
-        return
-    }
-    #expect(read.featureClauses.isEmpty)
-    #expect(read.uncitableClauses.isEmpty)
-    #expect(read.cards == legacyCards)
-}
-
 @Test("featureAuthoringAccepted round-trips an empty plan")
 func featureAuthoringAcceptedRoundTripsEmptyLists() throws {
     let fixture = try AuthoringJournalFixture()
     let journal = try fixture.open()
     let empty = FeatureAuthoringAcceptedPayload(
-        name: "F", groupKey: "g", featureKey: "k", nightID: 1, cards: [], adoptions: []
+        name: "F", groupKey: "g", featureKey: "k", nightID: 1, cards: [], adoptions: [], bases: []
     )
 
     try journal.append(.featureAuthoringAccepted(empty), act: .author, runID: RunID(), now: epoch)

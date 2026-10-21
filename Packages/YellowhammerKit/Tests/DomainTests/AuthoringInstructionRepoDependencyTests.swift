@@ -46,7 +46,9 @@ struct AuthoringInstructionRepoDependencyTests {
 
     @Test("A held consumer is named, and only when the release gate holds one")
     func heldConsumers() throws {
-        let held = [HeldConsumer(consumer: "backend", producer: "contracts", producerFeature: "FEAT-7")]
+        let held = [HeldConsumer(
+            consumer: "backend", producer: "contracts", producerFeature: "FEAT-7", hold: .awaitingRelease
+        )]
         let rendered = try instruction(.selection, consumes: [], held: held)
         #expect(rendered.contains("## Held by the release gate tonight"))
         #expect(rendered.contains(
@@ -57,7 +59,9 @@ struct AuthoringInstructionRepoDependencyTests {
 
     @Test("The breakdown pass has the invariant and the two breakdown sentences, and no edges or held consumers")
     func breakdownPass() throws {
-        let held = [HeldConsumer(consumer: "backend", producer: "contracts", producerFeature: "FEAT-7")]
+        let held = [HeldConsumer(
+            consumer: "backend", producer: "contracts", producerFeature: "FEAT-7", hold: .awaitingRelease
+        )]
         let rendered = try instruction(
             .breakdown, consumes: [RepoDependency(producer: "contracts", via: .tag)], held: held
         )

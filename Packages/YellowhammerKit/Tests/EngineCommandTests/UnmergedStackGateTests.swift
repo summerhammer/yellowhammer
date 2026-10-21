@@ -171,13 +171,13 @@ struct UnmergedStackGateTests {
         let gate = PredecessorAncestryGate(closure: closure)
 
         let (first, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
-        #expect(try await gate.check(first, unmergedFeaturesMax: 1) == .landed)
+        #expect(try await gate.check(first, unmergedFeaturesMax: 1) == .open)
         #expect(closure.callCount == 2)
         #expect(try journal.unmergedFeatureStack().isEmpty)
 
         try journal.releaseActLease(runID: first.runID)
         let (second, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
-        #expect(try await gate.check(second, unmergedFeaturesMax: 1) == .landed)
+        #expect(try await gate.check(second, unmergedFeaturesMax: 1) == .open)
         #expect(closure.callCount == 2)
     }
 }
@@ -242,7 +242,7 @@ struct UnmergedStackInFlightTests {
         #expect(await pinExists(backend, branch: "yh-f1"))
         let (context, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
 
-        #expect(try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 3) == .landed)
+        #expect(try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 3) == .open)
 
         #expect(!(await pinExists(backend, branch: "yh-f1")))
     }

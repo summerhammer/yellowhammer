@@ -117,7 +117,7 @@ struct GhostWorktreeRecoveryGoneBranchTests {
         #expect(lostDoneCardIDs == [lane.doneCard])
 
         _ = try await scene.allocate()
-        #expect(scene.workspace.createCalls.last?.baseBranch == nil)
+        #expect(scene.workspace.createCalls.last?.baseBranch == scene.baseCommit)
     }
 
     @Test("Work already pushed survives on the remote: nothing is recorded as lost")

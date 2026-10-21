@@ -89,6 +89,8 @@ func unknownStateStopsEveryTrigger(_ act: Act) throws {
     _ = try insertCardWithUnknownState(journal, state: "pending")
 
     #expect(throws: JournalError.unknownCardState(cardID: 1, state: "pending")) {
-        _ = try ActTriggerPredicate.evaluate(act: act, trigger: .scheduled, journal: journal)
+        _ = try ActTriggerPredicate.evaluate(
+            act: act, trigger: .scheduled, journal: journal, nightID: 1, runID: RunID()
+        )
     }
 }

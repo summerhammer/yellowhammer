@@ -51,9 +51,8 @@ struct RecordedBaseReadinessTests {
         let fixture = EngineGitFixture(name: "recorded-base-readiness")
         let commits = try await Self.seedStack(in: fixture)
         let (commitA, commitB) = (commits[0], commits[1])
-        let repositories = ProjectRepositories(
-            workingRepos: [Repo(name: "backend", path: fixture.path, role: .backend)]
-        )
+        let backend = Repo(name: "backend", path: fixture.path, role: .backend)
+        let repositories = ProjectRepositories(workingRepos: [backend])
 
         let scenario = try await makeReadinessScenario()
         defer { cleanup(scenario) }
@@ -63,9 +62,7 @@ struct RecordedBaseReadinessTests {
             throw JournalError.actLeaseLost(runID: runID, holder: nil)
         }
         defer { _ = try? journal.releaseActLease(runID: runID) }
-        let opening = try journal.openNight(
-            nightStart: readinessNightStart, mode: .rehearsal, act: .build, runID: runID
-        )
+        let opened = try journal.openNight(nightStart: readinessNightStart, mode: .rehearsal, act: .build, runID: runID)
         let (feature, cycleID) = try #require(try journal.inFlightFeature())
         let predecessor = try insertReconcilerFeature(journal, issueID: "FEAT-PRED")
         try journal.recordFeatureBases(featureID: feature.id, bases: [FeatureBaseRecord(
@@ -78,7 +75,7 @@ struct RecordedBaseReadinessTests {
         )
         let mainlines = ResolvedMainlines(workingRepos: ["backend": realMainline])
         let act = ActContext(
-            act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: opening.night,
+            act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: opened.night,
             mainlines: mainlines, repositories: repositories
         )
         let recorded = try AuthoringBases.fromRecord(journal: journal, featureID: feature.id, context: act)
@@ -97,7 +94,9 @@ struct RecordedBaseReadinessTests {
 
         // Without the recorded base the same Act reads the real mainline and cannot see the file.
         let atMainline = BuildActContext(
-            act: act, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(), deltaRead: nil)
+            act: act, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(), deltaRead: nil,
+            recordedBaseMainlines: act.mainlines
+        )
         guard case .notReady = try await readiness.evaluate(card: card, context: atMainline) else {
             Issue.record("expected the citation not to resolve at real mainline")
             return

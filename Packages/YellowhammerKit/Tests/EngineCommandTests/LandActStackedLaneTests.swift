@@ -68,7 +68,8 @@ struct LandActStackedLaneTests {
 
     /// An unstacked Feature with a recorded mainline base `M0`: its lane's own commit `L` sits on `M0`, and
     /// mainline has since moved forward to include `L`. Counted against the recorded base the lane has work
-    /// (`M0..L` = 1); counted against today's mainline it would have none. Without a record, mainline is used.
+    /// (`M0..L` = 1); counted against today's mainline it would have none. Without a record the lane is never counted
+    /// against mainline: the branch is treated as having work and pushed, because landing must never drop commits.
     @Test("An unstacked lane counts commits against its recorded mainline base, not mainline as it stands",
           arguments: [true, false])
     func unstackedLaneUsesRecordedMainlineBase(recorded: Bool) async throws {
@@ -105,8 +106,8 @@ struct LandActStackedLaneTests {
             await #expect(remote.revParse("refs/heads/\(landBranch.name)") == ownCommit)
             #expect(try pushedOutcomes(env.journal).isEmpty)
         } else {
-            await #expect(remote.revParse("refs/heads/\(landBranch.name)") == nil)
-            #expect(try pushedOutcomes(env.journal) == ["backend"])
+            await #expect(remote.revParse("refs/heads/\(landBranch.name)") == ownCommit)
+            #expect(try pushedOutcomes(env.journal).isEmpty)
         }
     }
 

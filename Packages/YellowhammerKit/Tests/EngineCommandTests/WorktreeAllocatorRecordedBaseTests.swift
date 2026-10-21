@@ -240,16 +240,16 @@ struct WorktreeAllocatorRecordedBaseTests {
         #expect(try scene.journal.heldWorktree(featureID: scene.featureID, repository: "backend") == nil)
     }
 
-    @Test("No feature_base row keeps today's behaviour: no --base-branch")
-    func noRecordPassesNoBase() async throws {
+    @Test("No feature_base row faults with missingRecordedBase")
+    func noRecordFaults() async throws {
         let root = ScratchRoot()
         let scene = try await Scene(journal: try Self.journal(root), root: root.url)
 
-        _ = try await scene.allocator.allocate(
-            featureID: scene.featureID, worktreeName: scene.worktreeName, repos: [scene.repo]
-        )
-
-        #expect(scene.workspace.createCalls.map(\.baseBranch) == [nil])
+        await #expect(throws: WorktreeAllocationError.missingRecordedBase(repository: "backend")) {
+            _ = try await scene.allocator.allocate(
+                featureID: scene.featureID, worktreeName: scene.worktreeName, repos: [scene.repo]
+            )
+        }
     }
 
     @Test("A recovery pin still wins over a stacked record")

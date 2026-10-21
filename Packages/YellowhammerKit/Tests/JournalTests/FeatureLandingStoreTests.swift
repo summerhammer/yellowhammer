@@ -132,8 +132,6 @@ struct FeatureLandingStoreTests {
 
         try journal.markFeatureAbandoned(featureID: featureID, now: epoch)
 
-        let walk = try journal.predecessorFeature()
-        _ = walk
         let abandonedAt: String? = try journal.read { db in
             try String.fetchOne(db, sql: "SELECT abandoned_at FROM feature WHERE id = ?", arguments: [featureID])
         }

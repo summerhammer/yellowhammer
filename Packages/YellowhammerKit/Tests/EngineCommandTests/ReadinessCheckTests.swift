@@ -120,7 +120,8 @@ func directEvaluate(
         night: opening.night, repositories: repositories
     )
     let context = BuildActContext(
-        act: act, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(), deltaRead: nil
+        act: act, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(), deltaRead: nil,
+        recordedBaseMainlines: act.mainlines
     )
     return try await readiness.evaluate(card: card, context: context)
 }
@@ -299,7 +300,8 @@ func evaluateNeverThrowsWithNoOutbox() async throws {
     )
     let buildContext = BuildActContext(
         act: act, feature: feature, cycleID: inFlightCycleID,
-        reconciliation: WorktreeReconciliation(), deltaRead: nil
+        reconciliation: WorktreeReconciliation(), deltaRead: nil,
+        recordedBaseMainlines: act.mainlines
     )
     let readiness = ReadinessCheck(provenance: FakeProvenanceTester(), citations: FakeCitationResolver())
 

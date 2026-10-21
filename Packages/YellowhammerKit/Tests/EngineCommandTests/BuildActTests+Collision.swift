@@ -9,13 +9,12 @@ import Testing
 // OQ123(c)): the Cards stay Todo, no Attempt is spent, no Card Lease, no Block Reason.
 
 extension BuildActTests {
-    private static let backendPath = "/tmp/yh-buildact-fixture/backend"
-    private static let mobilePath = "/tmp/yh-buildact-fixture/mobile"
-
-    private static func repositories() -> ProjectRepositories {
+    private static func repositories(
+        _ journal: JournalStore, featureID: Int64, under root: URL
+    ) async throws -> ProjectRepositories {
         ProjectRepositories(workingRepos: [
-            Repo(name: "backend", path: backendPath, role: .backend),
-            Repo(name: "mobile", path: mobilePath, role: .mobile)
+            try await seedBackendRepo(journal, featureID: featureID, under: root),
+            try await seedMobileRepo(journal, featureID: featureID, under: root)
         ])
     }
 
@@ -46,12 +45,13 @@ extension BuildActTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
         // Lanes derive sorted by repository, so mobile is second: backend is already allocated.
-        workspace.scriptReportedBranch("somebody/else", forRepositoryPath: Self.mobilePath)
+        let repositories = try await Self.repositories(journal, featureID: featureID, under: workspaceDirectory)
+        workspace.scriptReportedBranch("somebody/else", forRepositoryPath: repositories.workingRepos[1].path)
 
         let recorder = RecordingCardRunner()
         let invocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal,
-            trigger: .scheduled, runID: runID, repositories: Self.repositories(), workspace: workspace,
+            trigger: .scheduled, runID: runID, repositories: repositories, workspace: workspace,
             work: BuildAct(cardRunner: recorder).work
         )
 
@@ -75,8 +75,7 @@ extension BuildActTests {
         // The pre-pass already allocated backend; it is kept and reused by the next Act.
         #expect(try journal.heldWorktree(featureID: featureID, repository: "backend") != nil)
         #expect(try journal.heldWorktree(featureID: featureID, repository: "mobile") == nil)
-        #expect(workspace.removeCalls.count == 1)
-        #expect(workspace.removeCalls.first?.force == true)
+        #expect(workspace.removeCalls.map(\.force) == [true])
     }
 
     @Test("A collision against a recorded Feature Branch names the recorded branch as the one expected")
@@ -105,12 +104,14 @@ extension BuildActTests {
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
         // Orca ADE's prefix was turned off: it now reports the plain name.
-        workspace.scriptReportedBranch(name, forRepositoryPath: Self.backendPath)
+        let repositories = try await Self.repositories(journal, featureID: featureID, under: workspaceDirectory)
+        let backendPath = try #require(repositories.workingRepos.first { $0.name == "backend" }).path
+        workspace.scriptReportedBranch(name, forRepositoryPath: backendPath)
 
         let recorder = RecordingCardRunner()
         let invocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal,
-            trigger: .scheduled, runID: runID, repositories: Self.repositories(), workspace: workspace,
+            trigger: .scheduled, runID: runID, repositories: repositories, workspace: workspace,
             work: BuildAct(cardRunner: recorder).work
         )
 

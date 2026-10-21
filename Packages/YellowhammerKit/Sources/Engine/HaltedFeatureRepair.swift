@@ -156,13 +156,13 @@ enum HaltedFeatureRepair {
 
     enum DeferralReason {
         case featureInFlight
-        case predecessorNotLanded
+        case indeterminateTip
         case unmergedStackFull
 
         var key: String {
             switch self {
             case .featureInFlight: "feature-in-flight"
-            case .predecessorNotLanded: "predecessor-not-landed"
+            case .indeterminateTip: "indeterminate-tip"
             case .unmergedStackFull: "unmerged-stack-full"
             }
         }
@@ -175,10 +175,11 @@ enum HaltedFeatureRepair {
                 one Feature is in flight at a time. The Feature stays as you set it; it is validated on a later \
                 author Act once the slot is free.
                 """
-            case .predecessorNotLanded:
+            case .indeterminateTip:
                 """
-                Repair of Feature '\(feature)' is deferred: the predecessor Feature has not landed yet. The Feature \
-                stays as you set it; it is validated on a later author Act once the predecessor has landed.
+                Repair of Feature '\(feature)' is deferred: a Feature in the unmerged Feature stack has an \
+                indeterminate tip. The Feature stays as you set it; it is validated on a later author Act once the \
+                tip resolves.
                 """
             case .unmergedStackFull:
                 """

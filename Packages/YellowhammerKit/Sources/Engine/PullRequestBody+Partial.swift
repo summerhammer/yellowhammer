@@ -49,7 +49,9 @@ extension PullRequestBody {
                 + "and releases nothing."
         )
         lines.append(
-            "Merging satisfies the landing gate for the repositories it reached and releases the next Feature."
+            "Merging satisfies the landing gate for the repositories it reached: it clears this Feature's slot "
+                + "in the unmerged Feature stack (`unmerged_features_max`) and releases any downstream Features "
+                + "waiting on it. Leaving it open costs tomorrow night."
         )
         lines.append(MergeCommitRecommendation.pullRequestBody)
         lines.append("")

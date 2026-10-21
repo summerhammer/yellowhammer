@@ -176,7 +176,7 @@ func crashing(_ base: ActContext, boards: NightCardTestBoards, afterApplying cou
     return ActContext(
         act: base.act, mode: base.mode, trigger: base.trigger, runID: base.runID, journal: base.journal,
         night: base.night, outbox: outbox, board: base.board, mainlines: base.mainlines,
-        workspace: base.workspace, repositories: base.repositories
+        workspace: base.workspace, repositories: base.repositories, featureBases: base.featureBases
     )
 }
 

@@ -133,7 +133,7 @@ struct AuthoringStopReselectionTests {
         _ = try await AuthoringHalt.record(feature: feature, cause: haltCause, context: halted)
         let plan = FeatureAuthoringAcceptedPayload(
             name: "FEAT-1", groupKey: "authoring:FEAT-1:0", featureKey: "feature:FEAT-1:0:create",
-            nightID: halted.night.id, cards: [], adoptions: []
+            nightID: halted.night.id, cards: [], adoptions: [], bases: []
         )
         // A rollback through the rig never gets accepted, so the accepted / failed pair is appended directly.
         _ = try rig.journal.append(

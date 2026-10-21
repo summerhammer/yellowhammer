@@ -307,7 +307,7 @@ struct AuthorActFeatureReturnTests {
         let board = ActBoard(
             reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
         )
-        let gate = ScriptedPredecessorGate(outcome: .landed)
+        let gate = ScriptedPredecessorGate(outcome: .open)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
         let invocation = EngineInvocation(
@@ -336,7 +336,7 @@ struct AuthorActFeatureReturnTests {
         let board = ActBoard(
             reading: FakeReadingBoard.quiet(), writing: boards.writing, provisioning: boards.provisioning
         )
-        let gate = ScriptedPredecessorGate(outcome: .landed)
+        let gate = ScriptedPredecessorGate(outcome: .open)
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
         let invocation = EngineInvocation(

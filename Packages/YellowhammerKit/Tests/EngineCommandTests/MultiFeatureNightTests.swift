@@ -222,7 +222,7 @@ struct MultiFeatureNightTests {
         let gateContext = world.context(act: .author, runID: authorRun, mainlineCommit: merged)
         let outcome = try await PredecessorAncestryGate().check(gateContext, unmergedFeaturesMax: 3)
 
-        #expect(outcome == .landed)
+        #expect(outcome == .open)
         #expect(try journal.landings(featureID: first)["repo-a"] != nil)
         #expect(try journal.unmergedFeatureStack().map(\.feature.issueID) == ["FEAT-2"])
         #expect(await world.local.revParse("refs/yellowhammer/landed/yh-f1") == nil)

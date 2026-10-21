@@ -58,24 +58,26 @@ extension JournalStore {
                     reason: card.waitingReason?.rawValue ?? "no reason recorded"
                 )
             }
-            return SelectionBoardState(features: features, waitingCards: waiting, unmergedFeatures: stack.map {
-                Self.unmergedFeature($0, name: namesByIssueID[$0.feature.issueID])
+            return SelectionBoardState(features: features, waitingCards: waiting, unmergedFeatures: try stack.map {
+                try Self.unmergedFeature($0, name: namesByIssueID[$0.feature.issueID])
             })
         }
     }
 
     private static func unmergedFeature(
         _ member: UnmergedFeature, name: String?
-    ) -> SelectionBoardState.UnmergedFeature {
+    ) throws -> SelectionBoardState.UnmergedFeature {
         SelectionBoardState.UnmergedFeature(
             name: name,
             identifier: featureIdentifier(member.feature),
             touchedRepositories: member.touchedRepositories,
-            unmergedBranches: member.unmergedRepositories.map { repository in
-                SelectionBoardState.UnmergedBranch(
+            unmergedBranches: try member.unmergedRepositories.map { repository in
+                guard let branch = member.branches[repository]?.name else {
+                    throw JournalError.missingFeatureBranch(featureID: member.feature.id, repository: repository)
+                }
+                return SelectionBoardState.UnmergedBranch(
                     repository: repository,
-                    branch: member.branches[repository]?.name
-                        ?? member.feature.worktreeName?.rawValue ?? "no branch recorded"
+                    branch: branch
                 )
             }
         )

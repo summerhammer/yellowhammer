@@ -12,10 +12,18 @@ public enum AuthoringBaseFault: Equatable, Sendable, CustomStringConvertible {
     case commitMismatch(
         repository: String, branch: String, featureIssueID: String, resolved: String, recorded: String
     )
+    /// Mainline head commit could not be resolved for a repository that is not stacked on another feature.
+    case mainlineUnresolved(repository: String)
+    /// A recorded feature_base row is missing for a touched repository.
+    case missingRecord(repository: String)
 
     public var repository: String {
         switch self {
-        case .unresolved(let repository, _, _), .commitMismatch(let repository, _, _, _, _): repository
+        case .unresolved(let repository, _, _),
+             .commitMismatch(let repository, _, _, _, _),
+             .mainlineUnresolved(let repository),
+             .missingRecord(let repository):
+            repository
         }
     }
 
@@ -28,6 +36,10 @@ public enum AuthoringBaseFault: Equatable, Sendable, CustomStringConvertible {
         case .commitMismatch(let repository, let branch, _, let resolved, let recorded):
             "the effective base of \(repository) resolves to \(resolved) for branch \(branch), not to the commit "
                 + "\(recorded) the land Act recorded when it pushed"
+        case .mainlineUnresolved(let repository):
+            "the mainline base of \(repository) could not be resolved"
+        case .missingRecord(let repository):
+            "the recorded base of \(repository) is missing from feature_base"
         }
     }
 }
@@ -67,6 +79,8 @@ public enum AuthoringBases {
                     records.append(FeatureBaseRecord(
                         repository: repo.name, baseRef: mainline.ref, baseCommit: mainline.commit
                     ))
+                } else {
+                    faults.append(.mainlineUnresolved(repository: repo.name))
                 }
                 continue
             }
@@ -92,11 +106,12 @@ public enum AuthoringBases {
     }
 
     /// The bases a selected Feature was authored against, from its `feature_base` record — what the build Act
-    /// resolves a Card against (roadmap P23.3). A repository with no record keeps the Act's mainline.
+    /// resolves a Card against (roadmap P23.3). A touched repository with no record faults.
     public static func fromRecord(
         journal: JournalStore, featureID: Int64, context: ActContext
     ) throws -> AuthoringBasesResult {
         let records = try journal.featureBases(featureID: featureID)
+        let touched = try journal.touchedRepositories(featureID: featureID)
         var entries = context.mainlines.workingRepos
         for record in records {
             let repo = context.repositories?.workingRepo(named: record.repository)
@@ -106,9 +121,11 @@ public enum AuthoringBases {
                 ref: record.baseRef, commit: record.baseCommit
             )
         }
+        let recorded = Set(records.map(\.repository))
+        let faults = touched.filter { !recorded.contains($0) }.map { AuthoringBaseFault.missingRecord(repository: $0) }
         return AuthoringBasesResult(
             mainlines: ResolvedMainlines(workingRepos: entries, specSource: context.mainlines.specSource),
-            records: records, faults: []
+            records: records, faults: faults
         )
     }
 

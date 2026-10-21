@@ -25,7 +25,6 @@ public struct BuildActContext: Sendable {
     /// (``AuthoringBases/fromRecord(journal:featureID:context:)``), because the Brief and the Readiness Check were
     /// authored on that base. Only ``ReadinessCheck`` reads it; `act.mainlines` stays the real mainline for
     /// everything else in the build Act (Worktree reconciliation, banked-reply stamps, fetch-failure reporting).
-    /// Defaults to `act.mainlines`, which is also what a repository with no record resolves to.
     public let recordedBaseMainlines: ResolvedMainlines
 
     public init(
@@ -34,13 +33,13 @@ public struct BuildActContext: Sendable {
         cycleID: Int64,
         reconciliation: WorktreeReconciliation,
         deltaRead: DeltaReadReport?,
-        recordedBaseMainlines: ResolvedMainlines? = nil
+        recordedBaseMainlines: ResolvedMainlines
     ) {
         self.act = act
         self.feature = feature
         self.cycleID = cycleID
         self.reconciliation = reconciliation
         self.deltaRead = deltaRead
-        self.recordedBaseMainlines = recordedBaseMainlines ?? act.mainlines
+        self.recordedBaseMainlines = recordedBaseMainlines
     }
 }
