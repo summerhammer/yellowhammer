@@ -126,4 +126,22 @@ extension JournalStore {
             }
         }
     }
+
+    /// Whether an unarchived Cycle's Feature recorded `baseRef` as its base in `repository` (spec:
+    /// feature-authoring/select-the-next-feature, `#tested-tip`): a landed pin it names is kept past its own
+    /// Feature's Observed Merge until that Cycle archives, because a lane not yet allocated is cut from it.
+    public func isBaseOfOpenCycle(repository: String, baseRef: String) throws -> Bool {
+        try read { db in
+            try Bool.fetchOne(
+                db,
+                sql: """
+                SELECT EXISTS (
+                    SELECT 1 FROM feature_base JOIN cycle ON cycle.feature_id = feature_base.feature_id
+                    WHERE cycle.archived_at IS NULL AND feature_base.repository = ? AND feature_base.base_ref = ?
+                )
+                """,
+                arguments: [repository, baseRef]
+            ) ?? false
+        }
+    }
 }

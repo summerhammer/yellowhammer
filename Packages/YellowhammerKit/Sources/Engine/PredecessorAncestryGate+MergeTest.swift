@@ -143,9 +143,12 @@ extension PredecessorAncestryGate {
     }
 
     /// Records the Observed Merge (first observation wins), then deletes the repository's
-    /// `refs/yellowhammer/landed/<branch>` pin. A pin that cannot be deleted is reported by a Journal-only
+    /// `refs/yellowhammer/landed/<branch>` pin — unless an unarchived Cycle's recorded base names it (spec:
+    /// `#tested-tip`, agent rulings item 1): that Cycle's lanes not yet allocated are cut from it, so the pin is
+    /// kept and deleted when that Cycle archives (``LandedPinRelease/releaseBasePins(of:repositories:journal:)``).
+    /// A pin that cannot be deleted is reported by a Journal-only
     /// ``JournalEvent/landedPinFailed(featureIssueID:repository:branch:commit:operation:reason:)`` and never
-    /// changes the gate's outcome. An Observed Merge recorded by an earlier pass already had its pin deleted.
+    /// changes the gate's outcome. An Observed Merge recorded by an earlier pass already had its pin handled.
     private func recordObservedMerge(
         _ merge: ObservedMerge, scope: TestScope
     ) async throws {
@@ -160,6 +163,11 @@ extension PredecessorAncestryGate {
             let branch = scope.pinBranches[merge.repository],
             let repo = scope.repos.first(where: { $0.name == merge.repository })
         else {
+            return
+        }
+        guard !(try context.journal.isBaseOfOpenCycle(
+            repository: merge.repository, baseRef: LandedTipPin.ref(for: branch)
+        )) else {
             return
         }
         let path = (repo.path as NSString).expandingTildeInPath

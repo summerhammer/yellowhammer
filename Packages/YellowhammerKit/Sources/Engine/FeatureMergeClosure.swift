@@ -50,7 +50,7 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
         let acceptedCards = cards.filter { $0.state == .done }.map(\.issueID).sorted()
         let triagedNightID = try journal.triagedNightID(cycleID: cycleID, currentNightID: context.night.id)
 
-        _ = try journal.closeFeatureByMerge(
+        let closed = try journal.closeFeatureByMerge(
             NewFeatureMergeClosure(
                 featureID: feature.id, cycleID: cycleID, featureIssueID: feature.issueID,
                 triagedNightID: triagedNightID, mergedRepositories: mergedRepositories,
@@ -58,6 +58,11 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
             ),
             runID: context.runID, act: context.act, nightID: context.night.id
         )
+        if closed {
+            await LandedPinRelease(act: context.act, runID: context.runID, nightID: context.night.id).releaseBasePins(
+                of: feature, repositories: context.repositories?.workingRepos ?? [], journal: journal
+            )
+        }
 
         let computed = Computed(
             cycleID: cycleID, feature: feature, mergedRepositories: mergedRepositories, blockedCards: blockedCards,

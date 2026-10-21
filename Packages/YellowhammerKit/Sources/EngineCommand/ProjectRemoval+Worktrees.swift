@@ -172,9 +172,9 @@ extension ProjectRemoval {
         else {
             return
         }
-        await LandedPinRelease(pin: LandedTipPin(git: git), act: nil, runID: runID, nightID: nil).release(
-            feature: feature, repositories: project.repositories.workingRepos, journal: journal
-        )
+        let pinRelease = LandedPinRelease(pin: LandedTipPin(git: git), act: nil, runID: runID, nightID: nil)
+        await pinRelease.release(feature: feature, repositories: project.repositories.workingRepos, journal: journal)
+        await pinRelease.releaseBasePins(of: feature, repositories: project.repositories.workingRepos, journal: journal)
     }
 
     /// The ref an unpushed rehearsal Feature Branch tip is kept at once its Worktree is removed.
