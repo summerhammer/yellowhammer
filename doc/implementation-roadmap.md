@@ -2687,7 +2687,7 @@ Block Reason, settlement and the Override become Card content or Journal state i
 objects. Read the ruling and the cited stories; do not restate them here.
 
 **Order.** P22.1 comes first: `DispositionLabels` throws on any absent Block Reason child, so a later
-layer that adds a `BlockReason` case would halt every board that was not re-provisioned. P22.2–P22.8
+layer that adds a `BlockReason` case would halt every board that was not re-provisioned. P22.2–P22.9
 build on it in the order listed. Existing boards keep their old labels; nothing here deletes a team label.
 
 Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
@@ -2755,14 +2755,27 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 - **Done when** — A Route named in the description field is the Card's Override; the label group is neither
   provisioned nor required.
 
-### [ ] P22.8 Two-state footprint, Board Mapping, legacy migration
-- **Work** — Provision only the two Yellowhammer states and the `Card Type` group; map the board's native
-  states through a Board Mapping; migrate boards that still carry the retired labels and states without
-  deleting them.
+### [x] P22.8 Two-state footprint, Board Mapping, native category selection
+- **Work** — Provision only the two Yellowhammer states and the `Card Type` group; select every other state
+  natively by workflow category (a Board Mapping entry, else the lowest position, a tie broken by state id);
+  persist the resolved ids per Project and reuse them; accept `[board.linear.mapping]`, with the retired keys
+  accepted and ignored.
+- **Spec** — `board-projection/provision-the-board`, `shift-scheduling/diagnose-the-installation`.
+- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
+- **Done when** — A fresh board gets exactly the two-state footprint; a renamed native Done is selected by
+  category; an unrelated same-name `Blocked` is a collision that prints the mapping lines, never adopted by
+  name; a team missing a native category is an incomplete step; `yh doctor` verifies the two custom states,
+  the native selections and the three Card Type labels.
+
+### [ ] P22.9 Legacy Board migration
+- **Work** — A versioned, replayable migration of tracked legacy settlement states (`Kept in Flight` to native
+  `started`, `Abandoned` to native `canceled`), legacy Override labels to the Card override field, superseding
+  queued legacy writes, and unassigning the retired labels from tracked issues only; removes the P22.2 name
+  bridge. Nothing is bulk-deleted.
 - **Spec** — `board-projection/provision-the-board`.
 - **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
-- **Done when** — A fresh board gets exactly the two-state footprint; a legacy board verifies clean and is
-  migrated by the Board Mapping; `yh doctor` reports no finding for retired objects.
+- **Done when** — A legacy board's tracked issues are converted and a replay after interruption changes
+  nothing; the P22.2 name bridge is gone.
 
 ---
 
@@ -2771,7 +2784,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 | Story ID | Steps |
 |---|---|
 | `shift-scheduling/fire-an-act-on-schedule` | P4.1, P4.3, P3.2, P13.2, P8.1, P19.1, P19.3 |
-| `shift-scheduling/diagnose-the-installation` | P19.1 |
+| `shift-scheduling/diagnose-the-installation` | P19.1, P22.8 |
 | `shift-scheduling/open-and-close-the-night-card` | P4.4, P5.7, P12.1 |
 | `shift-scheduling/do-one-acts-work-and-exit` | P4.2, P3.3 |
 | `loop-state/claim-and-heartbeat-a-run-lease` | P3.4, P8.4 |
@@ -2783,7 +2796,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 | `board-projection/authorize-linear-via-remote-approval` | P17.9, P18.16 |
 | `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3, P22.3 |
 | `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3, P19.6, P19.7, P22.1 |
-| `board-projection/provision-the-board` | P22.1, P22.8 |
+| `board-projection/provision-the-board` | P22.1, P22.8, P22.9 |
 | `board-projection/check-card-readiness-at-dispatch` | P8.2, P6.4 |
 | `routing/resolve-a-route-for-a-card` | P2.4, P7.6, P9.11, P22.7 |
 | `routing/exclude-tried-routes-on-retry` | P7.7 |
