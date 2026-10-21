@@ -171,7 +171,7 @@ struct NightCardAuthoringCopyTests {
         let line = try #require(NightCardMaintenance.authoringLine(for: event, journal: journal))
         #expect(line.contains("has not merged in web, backend."))
         #expect(line.contains("Not found in mainline: `yh-feature-web` in web, `yh-feature-backend` in backend."))
-        #expect(line.contains(PullRequestBody.mergeCommitRecommendation))
+        #expect(line.contains(MergeCommitRecommendation.shared))
         #expect(line.contains("(`git merge -s ours`) with a merge commit opens this gate."))
         #expect(!line.contains("An edit to the same lines"))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
@@ -182,7 +182,7 @@ struct NightCardAuthoringCopyTests {
         let event = JournalEvent.authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
         let line = try #require(NightCardMaintenance.authoringLine(for: event))
         #expect(!line.contains("Not found in mainline"))
-        #expect(line.contains(PullRequestBody.mergeCommitRecommendation))
+        #expect(line.contains(MergeCommitRecommendation.shared))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
     }
 
@@ -193,7 +193,7 @@ struct NightCardAuthoringCopyTests {
             "Squash and merge or Rebase and merge works too, but it is recognised only while mainline "
                 + "still shows this branch's changes."
         ]
-        #expect(PullRequestBody.mergeCommitRecommendation == sentences.joined(separator: " "))
+        #expect(MergeCommitRecommendation.shared == sentences.joined(separator: " "))
 
         let done = PullRequestBodyCard(
             title: "BACK-1", repository: "backend", state: .done, routeSummary: "r", checkSummary: "c", roundCount: 1
@@ -225,12 +225,11 @@ struct NightCardAuthoringCopyTests {
             #expect(!pullRequestBody.contains("git merge -s ours"))
         }
         #expect(complete.contains(
-            "Merging this pull request is what releases the next Feature; leaving it open costs tomorrow night."
-                + "\n" + PullRequestBody.mergeCommitRecommendation + " " + editSentence
+            PullRequestBody.releaseSentence + "\n" + MergeCommitRecommendation.shared + " " + editSentence
         ))
         #expect(partial.contains(
             "Merging satisfies the landing gate for the repositories it reached and releases the next Feature."
-                + "\n" + PullRequestBody.mergeCommitRecommendation + " " + editSentence
+                + "\n" + MergeCommitRecommendation.shared + " " + editSentence
         ))
         #expect(!card.contains(editSentence))
     }

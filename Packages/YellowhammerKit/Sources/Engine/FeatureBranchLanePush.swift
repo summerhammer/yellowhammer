@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import Journal
 import Repositories
 
 /// Pushes a Repo Lane's Feature Branch to GitHub (P10.2), the real seam behind ``LanePushing``. Reuses
@@ -40,8 +41,11 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
         // refused Mainline push, left to ``FeatureBranchPusher`` itself to report.
         let defaultBranch = await MainlineRefresher(git: pusher.git).resolveDefaultBranch(for: repo, in: path)
         if branch.name != defaultBranch {
-            guard await hasCompletedWork(branch: branch, path: path, mainlines: context.act.mainlines, repo: repo)
-            else {
+            let recordedBase = try context.act.journal.featureBases(featureID: context.feature.id)
+                .first { $0.repository == repository }
+            guard await hasCompletedWork(
+                branch: branch, path: path, recordedBase: recordedBase, mainlines: context.act.mainlines, repo: repo
+            ) else {
                 return LanePushOutcome(kind: .noCompletedWork)
             }
         }
@@ -61,12 +65,17 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
         return Self.map(outcome)
     }
 
-    /// Whether the Feature Branch exists in the repository and has at least one commit not already in
-    /// Mainline. A branch that does not exist, or has zero commits ahead of Mainline, has no completed
-    /// work and is never pushed. When Mainline cannot be resolved at all, the branch is treated as
-    /// having work — this must never drop commits.
+    /// Whether the Feature Branch exists in the repository and has at least one commit not already in its
+    /// base. The base is the Feature's **recorded** `effective_base(R)` (`feature_base.base_commit`, written at
+    /// selection; spec: landing/open-one-pull-request-per-repository, `hasNetChange`; agent ruling 11), never a
+    /// base recomputed at landing: once a stacked-on predecessor has merged, a recomputed base would read
+    /// mainline commits the predecessor's tip lacks as this lane's work. Only a repository with no recorded
+    /// base keeps Mainline. A branch that does not exist, or has zero commits ahead of its base, has no
+    /// completed work and is never pushed. When the base cannot be resolved at all, or `rev-list` fails, the
+    /// branch is treated as having work — this must never drop commits.
     private func hasCompletedWork(
-        branch: FeatureBranch, path: String, mainlines: ResolvedMainlines, repo: Repo
+        branch: FeatureBranch, path: String, recordedBase: FeatureBaseRecord?, mainlines: ResolvedMainlines,
+        repo: Repo
     ) async -> Bool {
         let branchRef = "refs/heads/\(branch.name)"
         let branchExists = await pusher.git.run([
@@ -74,11 +83,16 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
         ]).isSuccess
         guard branchExists else { return false }
 
-        guard let mainlineCommit = await resolveMainlineCommit(repo: repo, path: path, mainlines: mainlines) else {
+        let baseCommit: String
+        if let recordedBase {
+            baseCommit = recordedBase.baseCommit
+        } else if let mainlineCommit = await resolveMainlineCommit(repo: repo, path: path, mainlines: mainlines) {
+            baseCommit = mainlineCommit
+        } else {
             return true
         }
 
-        let result = await pusher.git.run(["-C", path, "rev-list", "--count", "\(mainlineCommit)..\(branchRef)"])
+        let result = await pusher.git.run(["-C", path, "rev-list", "--count", "\(baseCommit)..\(branchRef)"])
         guard
             result.isSuccess,
             let count = Int(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))

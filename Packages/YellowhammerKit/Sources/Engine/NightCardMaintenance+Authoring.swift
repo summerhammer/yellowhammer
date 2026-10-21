@@ -256,7 +256,7 @@ extension NightCardMaintenance {
 
     /// The not-landed line (issue #448; OQ164): names the branches the gate did not find in mainline,
     /// resolved from the Journal rather than the event payload, recommends a merge commit with the reason
-    /// (``PullRequestBody/mergeCommitRecommendation``), and says how to open the gate when mainline
+    /// (``MergeCommitRecommendation/shared``), and says how to open the gate when mainline
     /// already has the changes. It never claims a squash or rebase merge happened, and never says one
     /// stalls the next Feature for good: the engine cannot tell an open pull request from a merged one.
     private static func predecessorNotLandedLine(
@@ -278,7 +278,7 @@ extension NightCardMaintenance {
         let predecessor = completedOnBoard ? "\(featureRef), completed on the Board," : featureRef
         return "Authoring was skipped: predecessor Feature \(predecessor) has not merged in \(named)."
             + branchSentence
-            + " \(PullRequestBody.mergeCommitRecommendation)"
+            + " \(MergeCommitRecommendation.shared)"
             + " If mainline already has the changes, a content-free merge of the Feature Branch "
             + "(`git merge -s ours`) with a merge commit opens this gate. A quiet Night, not a failure."
     }

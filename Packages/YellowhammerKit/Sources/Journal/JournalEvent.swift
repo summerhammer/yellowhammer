@@ -455,6 +455,16 @@ public enum JournalEvent: Equatable, Sendable {
         featureIssueID: String, repository: String, branch: String, commit: String,
         operation: LandedPinOperation, reason: String
     )
+    /// The land Act opened `featureIssueID`'s pull request in `repository` against a predecessor's Feature
+    /// Branch, because `effective_base(R)` computed at landing from the Unmerged Feature Stack U was that
+    /// predecessor (spec: landing/open-one-pull-request-per-repository `#stack-notice`; OQ177). Appended
+    /// right after the pull request is recorded, once per Feature and repository, so the Night Summary can name
+    /// the predecessor's pull request. `predecessorPullRequestURL` is nil when the Journal records none for
+    /// the predecessor in that repository.
+    case pullRequestStacked(
+        featureIssueID: String, repository: String, predecessorFeatureIssueID: String,
+        predecessorBranch: String, predecessorPullRequestURL: String?
+    )
     /// Verification judged this Cycle's Definition of Done clause by clause (roadmap P10.5): once per
     /// Cycle. Counts only — never a pass/fail headline; the per-clause verdicts are in the report.
     case featureVerified(cycleID: Int64, met: Int, unmet: Int, unresolved: Int, notChecked: Int = 0)

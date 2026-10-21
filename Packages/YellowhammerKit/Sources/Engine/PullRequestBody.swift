@@ -110,13 +110,17 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     /// the Partial Landing's Roll-up sentence (roadmap P19.7; risks OQ108). A complete landing has no
     /// Roll-up sentence, so it renders none.
     public let noPullRequestRepositories: [String]
+    /// Set on a stacked pull request (spec `#stack-notice`): the notice follows the Roll-up opening directly,
+    /// before any other content. Nil on a pull request against the default branch.
+    public let stackNotice: PullRequestStackNotice?
 
     public init(
         featureTitle: String, featureIssueURL: String?, nightID: Int64, nightTimestamp: String,
         repository: String, pushedRepositoryCount: Int, mergedCount: Int,
         cycleCards: [PullRequestBodyCard], mergeVerdict: PullRequestBodyMergeVerdict,
         unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil,
-        workCardTitles: [String: String] = [:], noPullRequestRepositories: [String] = []
+        workCardTitles: [String: String] = [:], noPullRequestRepositories: [String] = [],
+        stackNotice: PullRequestStackNotice? = nil
     ) {
         self.featureTitle = featureTitle
         self.featureIssueURL = featureIssueURL
@@ -131,6 +135,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         self.verificationReport = verificationReport
         self.workCardTitles = workCardTitles
         self.noPullRequestRepositories = noPullRequestRepositories
+        self.stackNotice = stackNotice
     }
 
     /// The unmet list the body prints: every clause the report did not find `met` (unmet and
@@ -163,18 +168,13 @@ public struct PullRequestBodyInput: Equatable, Sendable {
 /// per-repository, landing/announce-a-partial-landing). Pure: a value in, a `String` out, no Journal
 /// or board access. Never renders model-authored content (diffs, verdict prose, briefs).
 public enum PullRequestBody {
-    /// The merge-commit recommendation and its reason (OQ164; spec: landing/open-one-pull-request-per-
-    /// repository#merge-commit-recommendation). Shared word for word by this body and the Night Card's
-    /// not-landed line so the two cannot drift. A squash or rebase merge is recognised only while
-    /// mainline still shows the branch's changes; it is never claimed to have happened.
-    static let mergeCommitRecommendation =
-        "Merging with **Create a merge commit** always releases the next Feature. "
-        + "Squash and merge or Rebase and merge works too, but it is recognised only while mainline "
-        + "still shows this branch's changes."
-
-    static let mergeCommitLine =
-        mergeCommitRecommendation
-        + " An edit to the same lines before the next Night holds the next Feature back."
+    /// What merging a verified Feature's pull request releases (spec: landing/open-one-pull-request-per-
+    /// repository; OQ177): its slot in the Unmerged Feature Stack and any Feature waiting on it. Followed by
+    /// ``MergeCommitRecommendation/pullRequestBody``.
+    static let releaseSentence =
+        "Merging this pull request is what releases the next Feature: it clears this Feature's slot in the "
+        + "unmerged Feature stack (`unmerged_features_max`) and releases any downstream Features waiting on it. "
+        + "Leaving it open costs tomorrow night."
 
     public static func render(_ input: PullRequestBodyInput) -> String {
         input.isPartialLanding ? renderPartial(input) : renderComplete(input)
@@ -182,8 +182,14 @@ public enum PullRequestBody {
 
     // MARK: - Complete landing
 
+    /// A complete landing's body has no bold Roll-up sentence (only a Partial Landing's opens with one), so
+    /// on a stacked pull request the stack notice is its first line, before any other content.
     private static func renderComplete(_ input: PullRequestBodyInput) -> String {
         var lines: [String] = []
+        if let notice = input.stackNotice {
+            lines.append(notice.rendered)
+            lines.append("")
+        }
         lines.append("Feature: \(input.featureTitle)")
         lines.append("")
         lines.append("This pull request carries this repository's (`\(input.repository)`) Cards for the Feature.")
@@ -194,10 +200,8 @@ public enum PullRequestBody {
             lines.append(report.markdownSection())
             lines.append("")
         }
-        lines.append(
-            "Merging this pull request is what releases the next Feature; leaving it open costs tomorrow night."
-        )
-        lines.append(mergeCommitLine)
+        lines.append(releaseSentence)
+        lines.append(MergeCommitRecommendation.pullRequestBody)
         lines.append("")
         lines.append(mainlineVerdictLine(input))
         lines.append("")

@@ -6,7 +6,9 @@ import Repositories
 /// The land Act's real pull request seam (roadmap P10.4), the real ``PullRequestOpening``. Written
 /// once per (Feature, repository): if the Journal already records a pull request it returns that
 /// outcome and calls nothing — never updates, duplicates or reopens one. The title is the Project's
-/// `pull_request_title` Message Template, rendered once with the body and never revised.
+/// `pull_request_title` Message Template, rendered once with the body and never revised. The `base` is
+/// computed at landing from the Unmerged Feature Stack U as it then stands (``stackedBase(context:defaultBranch:)``):
+/// a predecessor's Feature Branch when stacked, else the default branch.
 public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     private let publication: any Publication
     private let slugResolver: GitHubRepositorySlugResolver
@@ -66,13 +68,15 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         let featureObject = await BoardObjectLookup.find(
             ids: [context.feature.issueID], board: context.act.board
         )[context.feature.issueID]
+        let defaultBranch = await resolveDefaultBranch(context: context, repo: repo, path: path)
+        let stacked = try stackedBase(context: context, defaultBranch: defaultBranch)
         let (body, isPartial) = try await renderBody(
-            context: context, mergeOutcome: mergeOutcome, featureObject: featureObject
+            context: context, mergeOutcome: mergeOutcome, featureObject: featureObject, stackNotice: stacked?.notice
         )
         let title = try renderTitle(
             context: context, featureObject: featureObject, branch: branch, isPartial: isPartial
         )
-        let base = await resolveDefaultBranch(context: context, repo: repo, path: path)
+        let base = stacked?.predecessor.branch.name ?? defaultBranch
         let narrativeScrub = scrub()
         let draft = PullRequestDraft(
             owner: slug.owner, repository: slug.repository, head: branch.name, base: base,
@@ -81,7 +85,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
 
         do {
             let receipt = try await publication.openPullRequest(draft)
-            return await record(receipt, laneContext: context)
+            return await record(receipt, laneContext: context, stacked: stacked)
         } catch {
             return await failPublication(error, laneContext: context)
         }
@@ -99,15 +103,20 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         return await MainlineRefresher(git: GitRunner()).resolveDefaultBranch(for: repo, in: path)
     }
 
-    private func record(_ receipt: PullRequestReceipt, laneContext: LandActLaneContext) async -> PullRequestOutcome {
+    private func record(
+        _ receipt: PullRequestReceipt, laneContext: LandActLaneContext, stacked: StackedPullRequestBase?
+    ) async -> PullRequestOutcome {
         let journal = laneContext.act.journal
         let repository = laneContext.lane.repository
         switch receipt {
         case .opened(let url):
-            _ = try? journal.recordPullRequest(
+            let inserted = (try? journal.recordPullRequest(
                 featureID: laneContext.feature.id, repository: repository, url: url,
                 nightID: laneContext.act.night.id, runID: laneContext.act.runID, now: clock()
-            )
+            )) ?? false
+            if inserted, let stacked {
+                recordStacked(stacked, laneContext: laneContext)
+            }
             await postLinks(url: url, laneContext: laneContext)
             return PullRequestOutcome(opened: true, detail: url)
         case .alreadyOpen:
@@ -175,7 +184,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     // MARK: - Body assembly
 
     private func renderBody(
-        context: LandActLaneContext, mergeOutcome: MergeTestOutcome?, featureObject: BoardObject?
+        context: LandActLaneContext, mergeOutcome: MergeTestOutcome?, featureObject: BoardObject?,
+        stackNotice: PullRequestStackNotice?
     ) async throws -> (body: String, isPartial: Bool) {
         let journal = context.act.journal
         let repository = context.lane.repository
@@ -220,7 +230,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             unmetClauses: unmetClauses,
             verificationReport: report,
             workCardTitles: workCardTitles,
-            noPullRequestRepositories: noPullRequest
+            noPullRequestRepositories: noPullRequest,
+            stackNotice: stackNotice
         )
         return (PullRequestBody.render(input), input.isPartialLanding)
     }
