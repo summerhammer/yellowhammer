@@ -13,11 +13,21 @@ extension Schedule {
     /// one stands down. With `build_every_minutes == 1` there is no room for the offset, so it is zero.
     static let buildFiringOffsetMinutes = 1
 
+    /// How much later than its land tick each periodic author fires (Multi-Feature Night Ruling
+    /// 2026-10-20, point 3): the tick order is land +0, build +1, author +2, so an author Act finds the
+    /// Feature the land Act just archived. With `build_every_minutes == 2` only one minute is left, and
+    /// with `build_every_minutes == 1` none, so the offset shrinks to `1` and `0`.
+    static let authorFiringOffsetMinutes = 2
+
     /// The minutes after the Night-closing land (`night_end + o`) at which the three flush firings fire
     /// (Transient Board Failure Ruling 2026-10-09 item 6; OQ155 (2)): 15 minutes, 1 hour and 3 hours.
     public static let flushFiringOffsetsMinutes = [15, 60, 180]
 
     /// One Project's author, build and land firings, each in firing order and deduplicated.
+    ///
+    /// `author` fires at `night_start + o` and again `authorFiringOffsetMinutes` after every periodic land
+    /// tick, so a Feature verified and landed by one tick can be followed by the next Feature in the same
+    /// Night; no author firing falls at or after `night_end + o`.
     ///
     /// `build` fires one minute after each periodic land tick (see `buildFiringOffsetMinutes`), so the
     /// two never share a minute — except that with `build_every_minutes == 1` they do, and that the last
@@ -47,8 +57,9 @@ extension Schedule {
     /// `staggerIndex * staggerStepMinutes` (`o`), wrapping at midnight. For each `k` with
     /// `o + k × build_every_minutes` inside the window, land fires at
     /// `night_start + o + k × build_every_minutes` and build one minute later; author fires at
-    /// `night_start + o` and the Night-closing land at `night_end + o`, followed by the flush firings
-    /// (``flushFiringOffsetsMinutes`` after it).
+    /// `night_start + o` and again two minutes after each periodic land tick (one minute when
+    /// `build_every_minutes == 2`, none when it is 1), and the Night-closing land at `night_end + o`,
+    /// followed by the flush firings (``flushFiringOffsetsMinutes`` after it).
     ///
     /// Throws when the offset consumes the whole Night window (`offset >= L`) or when the window spans
     /// a full 24 hours (`night_start == night_end`): a 24-hour window has no land firing that belongs to
@@ -87,8 +98,6 @@ extension Schedule {
             return result
         }
 
-        let author = [time(offset)]
-
         var buildOffsets: [Int] = []
         var multiplier = 1
         while offset + multiplier * buildEveryMinutes < length {
@@ -100,6 +109,9 @@ extension Schedule {
         // adds, drops or merges one, even when the last build lands on the Night-closing land's minute.
         let buildShift = buildEveryMinutes == 1 ? 0 : Self.buildFiringOffsetMinutes
         let build = deduplicated(buildOffsets.map { time($0 + buildShift) })
+        // Author fires after build: +2 when there is room, else +1, else with the land tick itself.
+        let authorShift = buildEveryMinutes >= 3 ? Self.authorFiringOffsetMinutes : buildEveryMinutes - 1
+        let author = deduplicated(([offset] + buildOffsets.map { $0 + authorShift }).map(time))
         let nightLand = deduplicated(buildOffsets.map(time) + [time(offset + length)])
 
         // Lead draft, pending sponsor (Transient Board Failure Ruling, "Drafted by the lead"): a flush
@@ -112,7 +124,7 @@ extension Schedule {
         let flush = deduplicated(flushOffsets.map { time(offset + length + $0) }).filter { !taken.contains($0) }
 
         return ScheduledFirings(
-            author: deduplicated(author), build: build, land: deduplicated(nightLand + flush), flush: flush
+            author: author, build: build, land: deduplicated(nightLand + flush), flush: flush
         )
     }
 }
