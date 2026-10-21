@@ -11,15 +11,16 @@ extension ProvisioningReport {
             let existing = entry.collidesWith ?? "the existing item of that name"
             switch entry.subject {
             case .workflowState(let name, let team):
+                let adopt = entry.mappingHint.map { "; or, if it is Yellowhammer's, add to the Project file:\n\($0)" }
                 return "- rename or delete the \(existing) in team \(team.key); it holds the name of "
-                    + "workflow state `\(name)` (category started)"
+                    + "workflow state `\(name)` (category started)" + (adopt ?? "")
             case .labelGroup(let name, let team):
                 return "- rename or delete the \(existing) in team \(team.key); it holds the name of "
                     + "label group `\(name)`"
             case .label(let name, let group, let team):
                 return "- rename or delete the \(existing) in team \(team.key); it holds the name of "
                     + "label `\(name)` in group `\(group)`"
-            case .linearProject, .team:
+            case .linearProject, .team, .nativeCategory, .boardMapping:
                 return nil
             }
         }

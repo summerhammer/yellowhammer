@@ -18,13 +18,24 @@ public struct NightCardScope: Equatable, Sendable {
     ///
     /// A Linear project spanning several teams creates the Night Card in the first team listed — the
     /// Linear project, not the team, is a Project's Night Card boundary (one per Project per Night).
-    public static func resolve(using board: any BoardProvisioning) async throws -> NightCardScope {
+    public static func resolve(using board: ActBoard) async throws -> NightCardScope {
+        try await resolve(using: board.provisioning, mapping: board.mapping, footprint: board.footprint)
+    }
+
+    /// ``resolve(using:)-(ActBoard)`` for a bare provisioning surface and an explicit Board Mapping.
+    public static func resolve(
+        using board: any BoardProvisioning, mapping: BoardMapping = .empty,
+        footprint: (any BoardFootprintStore)? = nil
+    ) async throws -> NightCardScope {
         let project = try await board.linearProject()
         guard let team = project.teams.first else {
             throw NightCardScopeError.noTeam
         }
         let labels = try await board.labels(team: team.id)
-        let nightCardLabel = try DispositionLabels(labels: labels).cardType[.nightCard]
+        let known = BoardFootprintLookup.cardTypeLabelIDs(
+            team: team.id, labels: labels, mapping: mapping, footprint: footprint
+        )
+        let nightCardLabel = try DispositionLabels(labels: labels, known: known).cardType[.nightCard]
         guard let nightCardLabel else {
             // DispositionLabels already verifies every declared child is present; this only guards
             // against its map changing shape underneath this call.
@@ -33,7 +44,10 @@ public struct NightCardScope: Equatable, Sendable {
             )
         }
         let states = try await board.workflowStates(team: team.id)
-        guard let completedState = states.first(where: { $0.category == .completed }) else {
+        // The native Done: an explicit Board Mapping entry, else the lowest-position `completed` state.
+        guard let completedState = NativeStateSelection.select(
+            category: .completed, mapped: mapping[.completed], among: states, excluding: []
+        ) else {
             throw NightCardScopeError.noCompletedState(team: team.id)
         }
         return NightCardScope(team: team.id, nightCardLabel: nightCardLabel, completedState: completedState.id)

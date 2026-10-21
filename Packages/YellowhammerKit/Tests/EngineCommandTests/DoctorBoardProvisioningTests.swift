@@ -1,6 +1,7 @@
 import Domain
 import Engine
 import Foundation
+import Journal
 @testable import EngineCommand
 import Testing
 
@@ -28,8 +29,8 @@ struct DoctorBoardProvisioningTests {
             await fixture.acme.seed(label: child, team: engineeringTeam.id, parent: objectType)
         }
         // Setup ran and reported the collision as an unfinished step.
-        _ = try await BoardProvisioner.provision(
-            using: fixture.acme, projectName: "lp-alpha", createIn: nil
+        await DoctorLinearFixture.recordSetup(
+            of: fixture.acme, project: "lp-alpha", in: fixture.directory.url, for: ["alpha"], workspace: "ws-acme"
         )
         let createsAfterSetup = await fixture.acme.creates
 
@@ -53,8 +54,8 @@ struct DoctorBoardProvisioningTests {
         let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
 
         let failures = findings.linear("acme", subject: "provisioning").filter { $0.severity == .failure }
-        // Four workflow states and the Card Type group; a missing group's labels are covered by the group.
-        #expect(failures.count == 5)
+        // Two custom workflow states and the Card Type group; a missing group's labels are covered by the group.
+        #expect(failures.count == 3)
         #expect(failures.contains { $0.message.contains("group label `Card Type` (team ENG) is missing") })
         #expect(!failures.contains { $0.message.contains("Night Card") })
         #expect(failures.allSatisfy { $0.message.contains("run `yh doctor --fix --check linear`") })
@@ -196,5 +197,41 @@ struct DoctorBoardProvisioningTests {
 
         #expect(findings.linear("acme", subject: "team").contains { $0.severity == .failure })
         #expect(findings.linear("acme", subject: "provisioning").isEmpty)
+    }
+
+    @Test("An unrelated same-name Blocked is a failure naming the exact Board Mapping lines, and nothing is created")
+    func unrelatedBlockedPrintsMappingLines() async throws {
+        let fixture = try await DoctorLinearFixture(provisionAcme: false)
+        let unrelated = await fixture.acme.seed(state: "Blocked", team: engineeringTeam.id, category: .started)
+
+        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
+
+        let failures = findings.linear("acme", subject: "provisioning").filter { $0.severity == .failure }
+        let collision = try #require(failures.first { $0.message.contains("workflow state `Blocked`") })
+        #expect(collision.message.contains("[board.linear.mapping]"))
+        #expect(collision.message.contains("blocked = \"\(unrelated)\""))
+        #expect(await fixture.acme.creates == 0)
+    }
+
+    @Test("doctor --fix records the ids it creates in the Project's Journal, and a plain doctor then passes")
+    func fixRecordsTheFootprint() async throws {
+        let fixture = try await DoctorLinearFixture(provisionAcme: false)
+        let project = ProjectID(rawValue: "alpha")
+
+        let repaired = await fixture.doctor(projectFilter: project, fix: true).run()
+        #expect(repaired.linear("acme", subject: "provisioning").allSatisfy { $0.severity == .pass })
+
+        let journal = try JournalStore.open(
+            configurationDirectory: fixture.directory.url, projectID: try #require(project),
+            linearWorkspace: BoardObjectID(rawValue: "ws-acme")
+        )
+        let sources = Dictionary(uniqueKeysWithValues: try journal.boardFootprint().map { ($0.role, $0.source) })
+        #expect(sources[.waitingOnYou] == .provisioned && sources[.blocked] == .provisioned)
+        #expect(sources[.featureCard] == .provisioned && sources[.workCard] == .provisioned)
+        let creates = await fixture.acme.creates
+
+        let plain = await fixture.doctor(projectFilter: project).run()
+        #expect(plain.linear("acme", subject: "provisioning").allSatisfy { $0.severity == .pass })
+        #expect(await fixture.acme.creates == creates)
     }
 }

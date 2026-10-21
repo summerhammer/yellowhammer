@@ -10,6 +10,11 @@ public struct ProvisioningEntry: Sendable {
         case workflowState(String, team: BoardTeam)
         case labelGroup(String, team: BoardTeam)
         case label(String, group: String, team: BoardTeam)
+        /// A native workflow category (`unstarted`, `started`, `completed`, `canceled`) the team must hold
+        /// a state of, selected by category and never created (board-projection/provision-the-board).
+        case nativeCategory(String, team: BoardTeam)
+        /// A Board Mapping entry (its `[board.linear.mapping]` key) that failed verification.
+        case boardMapping(String)
     }
 
     public enum Outcome: Equatable, Sendable {
@@ -31,18 +36,31 @@ public struct ProvisioningEntry: Sendable {
         /// `Override` label whose Route text collides with another Route's, or that the board refuses
         /// as a label name (OQ126). The reason names the Routing Entries to change.
         case refused(String)
+        /// A Board Mapping entry that fails verification: the id does not exist, has the wrong category, or
+        /// serves two meanings. Nothing is inferred from a matching name in its place.
+        case invalidMapping(String)
     }
 
     public var subject: Subject
     public var outcome: Outcome
+    /// The board id of the item, for a `.present` or `.created` one that has an id worth recording.
+    public var id: BoardObjectID?
+    /// For a `.collision` of a custom workflow state: the exact `[board.linear.mapping]` lines the Operator
+    /// can add to adopt an existing state as Yellowhammer's own. Nil otherwise.
+    public var mappingHint: String?
     /// For a `.collision`: the existing item that holds the name, as the Operator would find it in
     /// Linear (e.g. label `Night Card` in group `Object Type`), so the fix can name it. Nil otherwise.
     public var collidesWith: String?
 
-    public init(subject: Subject, outcome: Outcome, collidesWith: String? = nil) {
+    public init(
+        subject: Subject, outcome: Outcome, collidesWith: String? = nil, id: BoardObjectID? = nil,
+        mappingHint: String? = nil
+    ) {
         self.subject = subject
         self.outcome = outcome
         self.collidesWith = collidesWith
+        self.id = id
+        self.mappingHint = mappingHint
     }
 }
 
@@ -52,10 +70,17 @@ public struct ProvisioningReport: Sendable {
     /// The Linear project that was found or created, or nil when missing. Setup needs the created
     /// project's id to write into the Project file.
     public var linearProject: BoardProjectScope?
+    /// The footprint ids this run resolved and that the Project's Journal does not yet hold (or holds
+    /// differently): the ids of states setup created, a mapped object, a bootstrapped one. The caller
+    /// records them; a run that only verifies never writes.
+    public var footprint: [BoardFootprintRecord]
 
-    public init(entries: [ProvisioningEntry], linearProject: BoardProjectScope? = nil) {
+    public init(
+        entries: [ProvisioningEntry], linearProject: BoardProjectScope? = nil, footprint: [BoardFootprintRecord] = []
+    ) {
         self.entries = entries
         self.linearProject = linearProject
+        self.footprint = footprint
     }
 
     /// The entries where outcome is created.
@@ -92,7 +117,7 @@ public struct ProvisioningReport: Sendable {
     public var unfinished: [ProvisioningEntry] {
         entries.filter { entry in
             switch entry.outcome {
-            case .notAMember, .permissionRefused, .collision, .blocked:
+            case .notAMember, .permissionRefused, .collision, .blocked, .invalidMapping:
                 true
             case .present, .created, .missing, .refused:
                 false
@@ -133,7 +158,7 @@ public struct ProvisioningReport: Sendable {
                 lines.append("- label group `\(name)` in team \(team.key)")
             case .label(let name, let group, let team):
                 lines.append("- label `\(name)` in group `\(group)` in team \(team.key)")
-            case .linearProject:
+            case .linearProject, .nativeCategory, .boardMapping:
                 break
             }
         }
@@ -175,6 +200,8 @@ extension ProvisioningReport: CustomStringConvertible {
             "permission refused (\(reason))"
         case .refused(let reason):
             "refused  (\(reason))"
+        case .invalidMapping(let reason):
+            "invalid mapping  (\(reason))"
         }
     }
 }
@@ -193,6 +220,10 @@ extension ProvisioningEntry.Subject: CustomStringConvertible {
             "group label `\(name)` (team \(team.key))"
         case .label(let name, let group, let team):
             "label `\(name)` in group `\(group)` (team \(team.key))"
+        case .nativeCategory(let category, let team):
+            "native workflow category `\(category)` (team \(team.key))"
+        case .boardMapping(let key):
+            "Board Mapping `\(key)`"
         }
     }
 }

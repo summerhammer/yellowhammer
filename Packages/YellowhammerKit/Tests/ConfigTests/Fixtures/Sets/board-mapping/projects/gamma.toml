@@ -1,0 +1,19 @@
+id = "gamma"
+name = "Gamma"
+spec_source = "~/dev/spec-gamma"
+
+[board.linear]
+connection = "acme"
+project = "OTHER"
+
+[board.linear.mapping]
+started = "state-b"
+
+[[repos]]
+name = "gamma"
+path = "~/dev/gamma"
+role = "backend"
+check = "swift test"
+
+[code_hosting]
+connection = "github"

@@ -58,6 +58,9 @@ struct LinearWorkflowStateNode: Decodable {
     /// "canceled"); translated to ``BoardWorkflowStateCategory`` at the Port boundary, never crossed
     /// as-is (an adapter translates, never decides).
     let type: String?
+    /// Linear's `position` (a float): the order the team lists its states in. Optional so a response
+    /// that omits it still decodes.
+    let position: Double?
 }
 
 struct LinearWorkflowStateCreatePayload: Decodable {

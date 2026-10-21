@@ -42,7 +42,8 @@ protocol ActCommand: AsyncParsableCommand {
         bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)?,
         bindWorkspace: (() -> any Workspace)?,
         notifier: ExceptionNotifier,
-        environment: [String: String]
+        environment: [String: String],
+        tracksBoardFootprint: Bool
     ) throws -> EngineInvocation
 }
 
@@ -57,7 +58,8 @@ extension ActCommand {
         bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)? = nil,
         bindWorkspace: (() -> any Workspace)? = nil,
         notifier: ExceptionNotifier = .silent,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        tracksBoardFootprint: Bool = false
     ) throws -> EngineInvocation {
         let (configuration, resolved) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
@@ -92,7 +94,7 @@ extension ActCommand {
         let isFlushFiring = Self.act == .land && !rehearsal && night == nil && trigger == .scheduled
             && project.schedule.isFlushFiring(at: now, in: window, staggerIndex: staggerIndex)
 
-        let board = try bindBoard?(configuration, project)
+        let board = try BoardFootprintBinding.bind(bindBoard, configuration, project, journal, tracksBoardFootprint)
         let workspace = bindWorkspace?()
         // Built once, here, and carried on every `ActContext` this invocation hands its work (roadmap #114).
         let operatorIdentity = Self.operatorIdentity(configuration: configuration, project: project)
@@ -190,7 +192,8 @@ extension ActCommand {
                 try BoardBinding.actBoard(machine: configuration.machine, project: project)
             },
             bindWorkspace: { WorkspaceBinding.workspace() },
-            notifier: .headlessApp()
+            notifier: .headlessApp(),
+            tracksBoardFootprint: true
         )
         // Only an Act command runs under signal handling (issue #151): a Ctrl-C at an interactive
         // `setup` prompt, or any other subcommand, keeps the default disposition. `EngineInvocation`

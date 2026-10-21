@@ -49,8 +49,8 @@ struct BlockReasonAsContentTests {
         let labels = try DispositionLabels(labels: try await board.labels(team: teamID))
         #expect(labels.blockReason.count == BlockReason.allCases.count)
 
-        for reason in BlockReason.allCases {
-            let change = labels.change(for: .blocked, blockReason: reason)
+        for _ in BlockReason.allCases {
+            let change = labels.workCardChange()
             #expect(Set(change.addLabels) == [labels.cardType[.workCard]!])
             #expect(Set(change.removeLabels).isSuperset(of: Set(labels.blockReason.values)))
         }

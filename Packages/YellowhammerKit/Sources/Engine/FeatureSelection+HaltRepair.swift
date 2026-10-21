@@ -36,7 +36,7 @@ extension FeatureSelection {
             // Todo is read again here: the request was recorded earlier in this Act, and the Operator may since
             // have moved the Feature Card on.
             guard let object = try await board.reading.issue(BoardObjectID(rawValue: issueID)) else { continue }
-            let scope = try await BoardStateScope.resolve(using: board.provisioning)
+            let scope = try await BoardStateScope.resolve(using: board)
             guard FeatureDisposition(workflowState: object.workflowState, scope: scope) == .ready else {
                 try journal.withdrawAuthoringRepairRequest(haltID: halt.id)
                 continue

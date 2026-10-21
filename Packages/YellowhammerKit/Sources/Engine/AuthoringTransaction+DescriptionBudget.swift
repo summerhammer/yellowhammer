@@ -42,7 +42,7 @@ extension AuthoringTransaction {
         repairing snapshot: HaltRepairSnapshot? = nil, context: ActContext
     ) async throws -> (plan: AuthoringPlan, violation: AuthoringBudgetViolation?) {
         guard let board = context.board else { throw AuthoringTransactionError.noBoard }
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         let attempt = try context.journal.authoringTransactionCount(feature: selection.name.rawValue)
         let stopCreateKey = try AuthoringStopBoard.createKey(selection.name, context.journal)
         // Reuse a stop's Feature Issue only when this generation's stop created it: finalise reads the id

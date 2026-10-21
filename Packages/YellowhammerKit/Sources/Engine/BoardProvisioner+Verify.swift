@@ -7,6 +7,24 @@ extension BoardProvisioner {
     struct Target {
         let board: any BoardProvisioning
         let createsMissing: Bool
+        /// The Project's store of persisted footprint ids and provenance; nil for a run that has none.
+        var store: (any BoardFootprintStore)?
+        /// The Board Mapping entries that passed verification; invalid ones are reported, never used.
+        var mapping: BoardMapping = .empty
+        /// Roles whose Board Mapping entry failed verification: reported, and never filled by a default,
+        /// a created object or a name match in its place.
+        var unusable: Set<BoardMappingRole> = []
+        /// The ids earlier provisioning persisted.
+        var persisted: [BoardFootprintRecord] = []
+
+        /// The id of the `Card Type` label `name` that a Board Mapping entry or the persisted footprint names,
+        /// when it is still a label (not a group) the team can see; nil to look the label up in its group.
+        func labelOverride(_ name: String, among labels: [BoardLabel], team: BoardObjectID) -> BoardObjectID? {
+            guard let type = CardType(rawValue: name) else { return nil }
+            let role = BoardMappingRole(cardType: type)
+            let candidates = [mapping[role], persisted.first { $0.team == team && $0.role == role }?.objectID]
+            return candidates.compactMap { $0 }.first { id in labels.contains { $0.id == id && !$0.isGroup } }
+        }
 
         func workflowStates(team: BoardObjectID) async throws(BoardError) -> [BoardWorkflowState] {
             try await board.workflowStates(team: team)
@@ -36,10 +54,10 @@ extension BoardProvisioner {
     /// would create is reported `.missing` instead, and every other outcome — present, collision,
     /// not a member — is reported exactly as setup reports it. Creates nothing.
     public static func verify(
-        using board: any BoardProvisioning, projectName: String
+        using board: any BoardProvisioning, projectName: String, footprint: BoardFootprintInputs = .none
     ) async throws(BoardError) -> ProvisioningReport {
         try await run(
-            using: board, projectName: projectName, createIn: nil, createsMissing: false
+            using: board, projectName: projectName, createIn: nil, createsMissing: false, footprint: footprint
         )
     }
 }

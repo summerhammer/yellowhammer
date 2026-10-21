@@ -21,7 +21,7 @@ public enum AuthoringHaltResolution {
         guard let issueID = cleared.record.issueID, let outbox = context.outbox, let board = context.board else {
             return true
         }
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         let change = try scope.featureContentionChange()
         let key = "feature:\(feature.rawValue):authoring-halt:cleared:\(cleared.record.id)"
         _ = try await outbox.post(OutboxWrite(

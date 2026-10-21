@@ -43,6 +43,10 @@ public struct ProjectConfiguration: Sendable {
     /// as an opaque reference, reached through the same Board Connection. Nil when not declared; see
     /// ``rehearsalContext(realJournal:)`` for when a declared value still does not count (OQ149).
     public var rehearsalLinearProject: String?
+    /// The Project's Board Mapping (`[board.linear.mapping]`): ids of existing Linear workflow states and
+    /// `Card Type` labels that stand in for what Yellowhammer provisions or selects by category. Empty when
+    /// the file declares none; keys of retired entries are kept only as a note (``BoardMapping/retiredKeys``).
+    public var boardMapping: BoardMapping
     /// The path of this Project's rehearsal Journal (`[rehearsal] journal`), as written. Declared, never
     /// derived: a Project that declares none has no Rehearsal (OQ149).
     public var rehearsalJournal: String?
@@ -71,8 +75,10 @@ public struct ProjectConfiguration: Sendable {
         wipCommitMessage: MessageTemplate = .default(.wipCommitMessage),
         rehearsalLinearProject: String? = nil,
         rehearsalJournal: String? = nil,
-        passTimeoutMinutes: Int = ProjectConfiguration.defaultPassTimeoutMinutes
+        passTimeoutMinutes: Int = ProjectConfiguration.defaultPassTimeoutMinutes,
+        boardMapping: BoardMapping = .empty
     ) {
+        self.boardMapping = boardMapping
         self.id = id
         self.name = name
         self.linearInstallationName = linearInstallationName
@@ -139,6 +145,7 @@ extension ProjectConfiguration: Equatable {
             && lhs.wipCommitMessage == rhs.wipCommitMessage
             && lhs.rehearsalLinearProject == rhs.rehearsalLinearProject
             && lhs.rehearsalJournal == rhs.rehearsalJournal
+            && lhs.boardMapping == rhs.boardMapping
     }
 }
 

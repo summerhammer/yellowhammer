@@ -152,7 +152,7 @@ public struct BuildAct: Sendable {
     /// repost below: both write through the same projection, over the same resolved scope.
     private func resolveBoardProjection(context: ActContext) async throws -> BoardStateProjection? {
         guard let board = context.board, let outbox = context.outbox else { return nil }
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         return BoardStateProjection(journal: context.journal, outbox: outbox, scope: scope)
     }
 

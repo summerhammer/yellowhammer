@@ -82,7 +82,8 @@ struct BoardProvisionerCollisionTests {
             if case .workflowState("Blocked", _) = $0.subject { return true }
             return false
         })
-        #expect(blocked.collidesWith == "workflow state `Blocked` of category completed")
+        #expect(blocked.collidesWith?.hasPrefix("workflow state `Blocked` (") == true)
+        #expect(blocked.collidesWith?.hasSuffix(") of category completed") == true)
         #expect(report.hasUnfinishedSteps)
         #expect(report.collisionGuideline?.contains("workflow state `Blocked` (category started)") == true)
     }

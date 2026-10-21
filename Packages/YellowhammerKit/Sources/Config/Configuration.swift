@@ -135,6 +135,7 @@ extension Configuration {
         // Project ids are unique across files already: the decoder refuses an id that differs from
         // its file stem, and a directory holds each file name once.
         let conflicts = workingRepoConflicts(among: decoded)
+            .merging(boardMappingConflicts(among: decoded)) { $0 + $1 }
         var projects: [ProjectConfiguration] = []
         for (file, configuration) in decoded {
             if let errors = conflicts[file] {
@@ -254,6 +255,44 @@ extension Configuration {
         return errors.mapValues { errors in
             errors.sorted { ($0.line, $0.description) < ($1.line, $1.description) }
         }
+    }
+
+    // MARK: - Board Mapping compatibility
+
+    /// Projects on the same Board Connection and Linear project share its team(s), and so the two custom
+    /// states and every native category. Their Board Mappings must agree: the same role may not name two
+    /// ids, and one id may not serve two roles (board-projection/provision-the-board, "Projects sharing a
+    /// team with conflicting mappings are refused at load"). Projects that share a team only through
+    /// different Linear projects are checked by `yh doctor`, which can see the teams. Only the conflicting
+    /// Projects are refused.
+    private static func boardMappingConflicts(
+        among projects: [(file: String, configuration: ProjectConfiguration)]
+    ) -> [String: [ConfigurationError]] {
+        var errors: [String: [ConfigurationError]] = [:]
+        for (index, first) in projects.enumerated() {
+            for second in projects[(index + 1)...]
+            where first.configuration.linearInstallationName == second.configuration.linearInstallationName
+                && first.configuration.linearProject == second.configuration.linearProject {
+                for role in BoardMappingRole.allCases {
+                    let (one, other) = (first.configuration.boardMapping, second.configuration.boardMapping)
+                    let clash = [(one, other), (other, one)].contains { mine, theirs in
+                        guard let id = mine[role] else { return false }
+                        return theirs[role].map { $0 != id } ?? false
+                            || theirs.ids.contains { $0.key != role && $0.value == id }
+                    }
+                    guard clash else { continue }
+                    for (me, other) in [(first, second), (second, first)] {
+                        errors[me.file, default: []].append(ConfigurationError(
+                            file: me.file, line: 1, key: "board.linear.mapping",
+                            reason: .boardMappingConflict(
+                                role: role.rawValue, project: other.configuration.id, file: other.file
+                            )
+                        ))
+                    }
+                }
+            }
+        }
+        return errors
     }
 
     /// Whether two URLs name the same file, once standardized. Used to find the file a substituted

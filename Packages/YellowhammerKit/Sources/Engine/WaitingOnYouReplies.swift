@@ -149,7 +149,7 @@ enum WaitingOnYouReplies {
     /// every other seam in this phase uses, so a Journal-only Project still resumes the Card.
     private static func transition(_ card: CardRecord, to state: CardTransition, context: ActContext) async throws {
         if let board = context.board, let outbox = context.outbox {
-            let scope = try await BoardStateScope.resolve(using: board.provisioning)
+            let scope = try await BoardStateScope.resolve(using: board)
             let projection = BoardStateProjection(journal: context.journal, outbox: outbox, scope: scope)
             _ = try await projection.transition(card: card, to: state)
         } else {

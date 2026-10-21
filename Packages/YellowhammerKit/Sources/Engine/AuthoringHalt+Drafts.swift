@@ -40,7 +40,7 @@ enum HaltDrafts {
         let pending = try journal.authoringHaltDrafts(haltID: halt.id)
             .filter { $0.issueID == nil && $0.source == .authored }
         guard !pending.isEmpty else { return }
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         guard let label = scope.labels.cardType[.workCard] else {
             throw DispositionLabelsError.missing(
                 group: BoardProvisioner.cardTypeGroup, label: CardType.workCard.rawValue

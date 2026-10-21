@@ -1,0 +1,19 @@
+id = "alpha"
+name = "Alpha"
+spec_source = "~/dev/spec-alpha"
+
+[board.linear]
+connection = "acme"
+project = "SHARED"
+
+[board.linear.mapping]
+started = "state-a"
+
+[[repos]]
+name = "alpha"
+path = "~/dev/alpha"
+role = "backend"
+check = "swift test"
+
+[code_hosting]
+connection = "github"

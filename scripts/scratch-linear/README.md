@@ -39,12 +39,12 @@ points at are P15.2's concern, not this tool's.
      teams… → SCRATCH" at install does this already; "All public teams" would not, and Linear then
      refuses label creation with `FORBIDDEN` — setup reports that as "the Project's Linear project
      is not visible".
-   - **Create the four workflow states by hand if setup is refused them:** `Waiting on You`,
-     `Blocked`, `Kept in Flight` and `Abandoned`, all under **Started**. (`Kept in Flight` and
-     `Abandoned` are a legacy pair, still provisioned until P22.8: a Feature Card is settled by Linear's
-     native **Done** or **Cancelled** type, not by them.) A same-named state in
-     another category (such as `Abandoned` under Completed) is a collision and is never used.
-     Whether team membership also lifts this refusal is unconfirmed (yellowhammer-spec#58).
+   - **Create the two workflow states by hand if setup is refused them:** `Waiting on You` and `Blocked`,
+     both under **Started**. Those are Yellowhammer's whole workflow-state footprint (P22.8): every other state is
+     the team's native one, selected by category (Todo, In Progress, Done and Cancelled must each exist).
+     `Kept in Flight` and `Abandoned` are no longer provisioned or verified, and an existing pair is left alone.
+     A same-named state with no recorded id is a collision, never adopted by name: `yh doctor` prints the
+     `[board.linear.mapping]` lines that would adopt it.
    - The `Card Type` group provisions `Feature Card`, `Work Card`, and `Night Card`, none of
      which collides with Linear's default `Feature` workspace label (OQ125).
 

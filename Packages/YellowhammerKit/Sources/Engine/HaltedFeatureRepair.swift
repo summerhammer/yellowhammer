@@ -23,7 +23,7 @@ enum HaltedFeatureRepair {
     static func observe(context: ActContext) async throws {
         guard let board = context.board else { return }
         let journal = context.journal
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         for halt in try journal.liveAuthoringHalts() {
             guard let issueID = halt.issueID, let feature = FeatureName(rawValue: halt.featureName),
                   let checkpoint = try journal.authoringHaltCheckpoint(haltID: halt.id),
@@ -87,7 +87,7 @@ enum HaltedFeatureRepair {
         guard let issue = plan.reusedFeatureIssue, let feature = FeatureName(rawValue: plan.record.name),
               let board = context.board, let object = try await board.reading.issue(issue)
         else { return nil }
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         let disposition = FeatureDisposition(workflowState: object.workflowState, scope: scope)
         if let halt = try context.journal.liveAuthoringHalts().first(where: { $0.issueID == issue.rawValue }) {
             try context.journal.recordAuthoringHaltObservation(
@@ -206,11 +206,9 @@ enum HaltedFeatureRepair {
         halt: AuthoringHaltRecord, seq: Int, todo: BoardWorkflowState, context: ActContext
     ) async throws {
         guard let outbox = context.outbox, let board = context.board, let issueID = halt.issueID else { return }
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         let target: CardState = halt.state == .expired ? .blocked : .waitingOnYou
-        var change = scope.labels.change(
-            cardType: .featureCard, state: target, blockReason: target == .blocked ? .replyOverdue : nil
-        )
+        var change = scope.labels.change(cardType: .featureCard)
         change.workflowState = try scope.id(for: target)
         _ = try await outbox.post(OutboxWrite(
             key: commentKey(halt: halt, seq: seq, kind: "restore"),

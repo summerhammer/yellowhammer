@@ -5,26 +5,16 @@ extension BoardProvisioner {
     static func provisionGroup(
         board: Target,
         group: LabelGroupDeclaration,
-        team: BoardTeam,
-        existingLabels: [BoardLabel],
+        snapshot: TeamSnapshot,
         into entries: inout [ProvisioningEntry]
     ) async throws(BoardError) {
+        let (team, existingLabels) = (snapshot.team, snapshot.labels)
         // Check for group collisions: any non-group label with group's name.
         let groupCollision = existingLabels.first { label in
             label.name.lowercased() == group.name.lowercased() && !label.isGroup
         }
         if let collision = groupCollision {
-            entries.append(ProvisioningEntry(
-                subject: .labelGroup(group.name, team: team),
-                outcome: .collision(scopeDescription(collision.team)),
-                collidesWith: describe(collision, among: existingLabels)
-            ))
-            for child in group.children {
-                entries.append(ProvisioningEntry(
-                    subject: .label(child, group: group.name, team: team),
-                    outcome: .blocked("group name collision")
-                ))
-            }
+            reportGroupNameCollision(collision, group: group, board: board, snapshot: snapshot, into: &entries)
             return
         }
         let groupExists = existingLabels.contains { $0.name.lowercased() == group.name.lowercased() && $0.isGroup }
@@ -33,8 +23,10 @@ extension BoardProvisioner {
                 subject: .labelGroup(group.name, team: team), outcome: .missing(notProvisioned)
             ))
             for child in group.children {
+                let reused = board.labelOverride(child, among: existingLabels, team: team.id)
                 entries.append(ProvisioningEntry(
-                    subject: .label(child, group: group.name, team: team), outcome: .missing(notProvisioned)
+                    subject: .label(child, group: group.name, team: team),
+                    outcome: reused == nil ? .missing(notProvisioned) : .present, id: reused
                 ))
             }
             return
@@ -55,6 +47,28 @@ extension BoardProvisioner {
             try await provisionChildLabel(
                 board: board, childName: childName, context: context, existingLabels: existingLabels, into: &entries
             )
+        }
+    }
+
+    /// A non-group label holds the group's name: the group is a collision and blocks its children, except
+    /// those a Board Mapping or a persisted id already names.
+    private static func reportGroupNameCollision(
+        _ collision: BoardLabel, group: LabelGroupDeclaration, board: Target, snapshot: TeamSnapshot,
+        into entries: inout [ProvisioningEntry]
+    ) {
+        let (team, labels) = (snapshot.team, snapshot.labels)
+        entries.append(ProvisioningEntry(
+            subject: .labelGroup(group.name, team: team),
+            outcome: .collision(scopeDescription(collision.team)),
+            collidesWith: describe(collision, among: labels)
+        ))
+        for child in group.children {
+            let subject = ProvisioningEntry.Subject.label(child, group: group.name, team: team)
+            if let reused = board.labelOverride(child, among: labels, team: team.id) {
+                entries.append(ProvisioningEntry(subject: subject, outcome: .present, id: reused))
+            } else {
+                entries.append(ProvisioningEntry(subject: subject, outcome: .blocked("group name collision")))
+            }
         }
     }
 
@@ -93,9 +107,17 @@ extension BoardProvisioner {
     ) async throws(BoardError) {
         let (group, team, groupId) = (context.group, context.team, context.groupId)
         let subject = ProvisioningEntry.Subject.label(childName, group: group.name, team: team)
+        if let type = CardType(rawValue: childName), board.unusable.contains(BoardMappingRole(cardType: type)) {
+            return // its Board Mapping entry failed verification and is reported; nothing is made in its place
+        }
+        if let reused = board.labelOverride(childName, among: existingLabels, team: team.id) {
+            // A Board Mapping entry, or the id persisted by earlier provisioning, verified present.
+            entries.append(ProvisioningEntry(subject: subject, outcome: .present, id: reused))
+            return
+        }
         let child = existingLabels.first { $0.name.lowercased() == childName.lowercased() && $0.parent == groupId }
-        if child != nil {
-            entries.append(ProvisioningEntry(subject: subject, outcome: .present))
+        if let child {
+            entries.append(ProvisioningEntry(subject: subject, outcome: .present, id: child.id))
             return
         }
         let collision = existingLabels.first { label in
@@ -113,8 +135,8 @@ extension BoardProvisioner {
             return
         }
         do {
-            _ = try await board.createLabel(name: childName, team: team.id, isGroup: false, parent: groupId)
-            entries.append(ProvisioningEntry(subject: subject, outcome: .created))
+            let created = try await board.createLabel(name: childName, team: team.id, isGroup: false, parent: groupId)
+            entries.append(ProvisioningEntry(subject: subject, outcome: .created, id: created.id))
         } catch .forbidden(let reason) {
             entries.append(ProvisioningEntry(subject: subject, outcome: .permissionRefused(reason)))
         }

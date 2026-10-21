@@ -183,7 +183,7 @@ struct AuthoringPlanner {
                 // The draft IS the Work Card: its Managed Block is rewritten to the accepted rendering (which
                 // takes the draft headline away) and it moves to Todo, keeping its issue id and its place under
                 // the Feature Card. Nothing is created, so a replay finds the same issue.
-                var change = scope.labels.change(cardType: .workCard, state: .todo, blockReason: nil)
+                var change = scope.labels.change(cardType: .workCard)
                 change.workflowState = todo
                 writes.append(OutboxWrite(key: "\(key):block", write: .rewriteManagedBlock(
                     issue: child.issue, rendered: Self.cardBlock(draft, clauses: clauses, transcriptions: blocks)

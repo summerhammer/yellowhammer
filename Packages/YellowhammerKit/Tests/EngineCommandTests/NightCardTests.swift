@@ -71,6 +71,10 @@ func seedDispositionLabels(
 func seedBoardScope(on board: FakeProvisioningBoard, team: BoardObjectID) async {
     await board.seed(state: BoardProvisioner.waitingOnYouState, team: team, category: .started)
     await board.seed(state: BoardProvisioner.blockedState, team: team, category: .started)
+    // The team's native `started` and `canceled` states: every category Yellowhammer uses must resolve.
+    await board.seed(state: "In Progress", team: team, category: .started)
+    await board.seed(state: "Canceled", team: team, category: .shelved)
+    // A board provisioned by an earlier build also holds the legacy settle pair, which stays unverified.
     for name in FeatureDisposition.legacySettleStateNames {
         await board.seed(state: name, team: team, category: .started)
     }

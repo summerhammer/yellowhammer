@@ -102,8 +102,7 @@ public struct ManagedBlockMaintenance: Sendable {
 
         // Accept the labels write (if labels are being maintained)
         if let labels = labels {
-            let blockReasonEnum = card.blockReason.flatMap { BlockReason(rawValue: $0) }
-            let labelChange = labels.change(for: card.state, blockReason: blockReasonEnum)
+            let labelChange = labels.workCardChange()
 
             let labelKey = "labels:\(card.issueID):\(hash)"
             let labelWrite = BoardWrite.updateIssue(

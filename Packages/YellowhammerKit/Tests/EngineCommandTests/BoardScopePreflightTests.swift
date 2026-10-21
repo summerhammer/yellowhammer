@@ -7,9 +7,10 @@ import Synchronization
 import Testing
 
 // Every Act resolves the Project's board scope before it creates the Night Card or does any work
-// (spec rulings OQ85, OQ136; issue #353): the four provisioned `started` workflow states, the
-// `Card Type` label group with its children (the Card override is a description field, so no `Override`
-// group is required, P22.7). An
+// (spec rulings OQ85, OQ136; issue #353): the two custom `started` workflow states, a native state for each
+// category Yellowhammer selects, and the `Card Type` label group with its children (the Card override is a
+// description field, so no `Override` group is required, P22.7; the legacy `Kept in Flight` and `Abandoned`
+// are neither required nor verified, P22.8). An
 // unresolved item halts the Act with one Journal event naming it, `.actIncomplete`, and the local
 // *halted* notification — once per Night.
 
@@ -37,7 +38,7 @@ private final class NotificationRecorder: Sendable {
 
 /// One member of the board scope, how to take it off a complete board, and how a refusal names it.
 enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
-    case waitingOnYou, blocked, keptInFlight, abandoned, cardTypeGroup
+    case waitingOnYou, blocked, completedCategory, cardTypeGroup
 
     var testDescription: String { name }
 
@@ -45,8 +46,7 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
         switch self {
         case .waitingOnYou: BoardProvisioner.waitingOnYouState
         case .blocked: BoardProvisioner.blockedState
-        case .keptInFlight: FeatureDisposition.legacySettleStateNames[0]
-        case .abandoned: FeatureDisposition.legacySettleStateNames[1]
+        case .completedCategory: "completed"
         case .cardTypeGroup: BoardProvisioner.cardTypeGroup
         }
     }
@@ -54,15 +54,18 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
     /// The item as `yh setup` and `yh doctor` name it.
     var item: String {
         switch self {
-        case .waitingOnYou, .blocked, .keptInFlight, .abandoned: "workflow state `\(name)` (team ENG)"
+        case .waitingOnYou, .blocked: "workflow state `\(name)` (team ENG)"
+        case .completedCategory: "native workflow category `\(name)` (team ENG)"
         case .cardTypeGroup: "group label `\(name)` (team ENG)"
         }
     }
 
     func remove(from board: FakeProvisioningBoard) async {
         switch self {
-        case .waitingOnYou, .blocked, .keptInFlight, .abandoned:
+        case .waitingOnYou, .blocked:
             await board.remove(state: name, team: teamID)
+        case .completedCategory:
+            await board.remove(state: "Done", team: teamID)
         case .cardTypeGroup:
             await board.remove(label: name, team: teamID)
         }
@@ -222,7 +225,7 @@ struct BoardScopePreflightTests {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
-        await BoardScopeItem.keptInFlight.remove(from: boards.provisioning)
+        await BoardScopeItem.completedCategory.remove(from: boards.provisioning)
         let recorder = NotificationRecorder()
 
         await #expect(throws: BoardScopeUnresolved.self) {
@@ -230,9 +233,7 @@ struct BoardScopePreflightTests {
         }
         #expect(await boards.writing.createIssueCalls == 0)
 
-        await boards.provisioning.seed(
-            state: FeatureDisposition.legacySettleStateNames[0], team: teamID, category: .started
-        )
+        await boards.provisioning.seed(state: "Done", team: teamID, category: .completed)
         let workRan = Mutex(false)
         try await invocation(
             .build, journal: journal, boards: boards, recorder: recorder,
@@ -278,7 +279,7 @@ struct BoardScopePreflightTests {
     @Test("The preflight and yh doctor name the same missing item with the same message")
     func preflightAndDoctorAgree() async throws {
         let doctorFixture = try await DoctorLinearFixture()
-        await doctorFixture.acme.remove(state: FeatureDisposition.legacySettleStateNames[0], team: engineeringTeam.id)
+        await doctorFixture.acme.remove(state: "Done", team: engineeringTeam.id)
         let journalFixture = try NightCardJournalFixture()
         let journal = try journalFixture.open()
         let writing = FakeWritingBoard()
@@ -297,7 +298,7 @@ struct BoardScopePreflightTests {
         #expect(steps.count == 1)
         #expect(failures.count == 1)
         let step = try #require(steps.first)
-        #expect(step.contains(BoardScopeItem.keptInFlight.item))
+        #expect(step.contains(BoardScopeItem.completedCategory.item))
         #expect(try #require(failures.first).message.hasSuffix(step))
     }
 }

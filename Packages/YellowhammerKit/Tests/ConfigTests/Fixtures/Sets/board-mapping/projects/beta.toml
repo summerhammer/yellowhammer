@@ -1,0 +1,19 @@
+id = "beta"
+name = "Beta"
+spec_source = "~/dev/spec-beta"
+
+[board.linear]
+connection = "acme"
+project = "SHARED"
+
+[board.linear.mapping]
+started = "state-b"
+
+[[repos]]
+name = "beta"
+path = "~/dev/beta"
+role = "backend"
+check = "swift test"
+
+[code_hosting]
+connection = "github"

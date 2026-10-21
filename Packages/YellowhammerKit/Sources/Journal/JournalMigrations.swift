@@ -11,7 +11,7 @@ import GRDB
 /// migration this build does not.
 enum JournalMigrations {
     /// The identifier of the single schema migration. Bump it whenever the schema changes.
-    static let schemaIdentifier = "journal-schema-21"
+    static let schemaIdentifier = "journal-schema-22"
 
     /// Every identifier this build knows, in registration order. Derived from the migrator so that
     /// the list and the registrations cannot drift apart.
@@ -50,7 +50,7 @@ enum JournalMigrations {
             try createProjectStateTable(db, linearWorkspace: linearWorkspace)
             try createEventTable(db)
             try createActLeaseTable(db)
-            try createBoardSyncTable(db)
+            try createBoardSyncTables(db)
             try createArchitecturalBriefTable(db)
             try createCardScopeTable(db)
             try createRefusalTable(db)

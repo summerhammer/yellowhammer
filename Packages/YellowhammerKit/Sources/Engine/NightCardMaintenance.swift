@@ -15,14 +15,20 @@ public struct NightCardMaintenance: Sendable {
     /// so an Act with a live Night Card needs no provisioning reads.
     public let provisioning: any BoardProvisioning
     public let bounds: Bounds
+    /// The Project's Board Mapping and footprint store, handed to ``NightCardScope`` when it resolves.
+    public let mapping: BoardMapping
+    public let footprint: (any BoardFootprintStore)?
 
     public init(
-        journal: JournalStore, outbox: Outbox, provisioning: any BoardProvisioning, bounds: Bounds = Bounds()
+        journal: JournalStore, outbox: Outbox, provisioning: any BoardProvisioning, bounds: Bounds = Bounds(),
+        mapping: BoardMapping = .empty, footprint: (any BoardFootprintStore)? = nil
     ) {
         self.journal = journal
         self.outbox = outbox
         self.provisioning = provisioning
         self.bounds = bounds
+        self.mapping = mapping
+        self.footprint = footprint
     }
 
     public static func createKey(nightStart: NightStart) -> String {
@@ -79,7 +85,7 @@ public struct NightCardMaintenance: Sendable {
         guard let act = outbox.act else {
             throw NightCardError.notOpened(reason: "the Outbox has no Act to stamp the Night Card with")
         }
-        let scope = try await NightCardScope.resolve(using: provisioning)
+        let scope = try await NightCardScope.resolve(using: provisioning, mapping: mapping, footprint: footprint)
         let key = predecessor.map { Self.replacementKey(nightStart: night.nightStart, predecessor: $0.id.rawValue) }
             ?? Self.createKey(nightStart: night.nightStart)
         var description = ManagedBlockFence.initialDescription(
@@ -135,7 +141,7 @@ public struct NightCardMaintenance: Sendable {
         guard let issueID = night.nightCardIssueID else {
             throw NightCardError.noNightCard(nightStart: night.nightStart)
         }
-        let scope = try await NightCardScope.resolve(using: provisioning)
+        let scope = try await NightCardScope.resolve(using: provisioning, mapping: mapping, footprint: footprint)
         let issue = BoardObjectID(rawValue: issueID)
         let renderings = try completedRenderings(night: night)
         let hash = ManagedBlockFence.sha256(renderings[0])

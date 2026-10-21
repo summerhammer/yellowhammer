@@ -21,10 +21,21 @@ extension Setup {
             }
             do {
                 let board = bindProvisioning(installation, project.linearProject)
-                let report = try await BoardProvisioner.provision(
-                    using: board, projectName: project.name, createIn: nil
+                let footprint = BoardFootprintBinding.writable(
+                    configurationDirectory: configurationDirectory, project: project,
+                    workspace: installation.workspace
                 )
+                let report = try await BoardProvisioner.provision(
+                    using: board, projectName: project.name, createIn: nil,
+                    footprint: BoardFootprintInputs(mapping: project.boardMapping, store: footprint.store)
+                )
+                try? footprint.store.recordFootprint(report.footprint)
                 output("Project \(project.id):") // glossary:ignore GL001
+                if let note = BoardFootprintBinding.retiredNote(project.boardMapping) { output("  \(note)") }
+                if let failure = footprint.openFailure, !report.footprint.isEmpty {
+                    output("  warning: the Journal could not be opened, so the ids of the board items above were "
+                        + "not recorded (\(failure)); delete it and re-run setup")
+                }
                 // A lingering refusal must still be named on a re-run that changes nothing, so the
                 // per-item "permission refused"/"not a member" lines are never silently dropped.
                 output(report.isChanged || report.hasUnfinishedSteps ? report.description : "  no changes")

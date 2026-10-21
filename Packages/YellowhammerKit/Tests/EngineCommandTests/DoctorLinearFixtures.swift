@@ -1,6 +1,9 @@
 import Domain
 import Engine
 @testable import EngineCommand
+import Foundation
+import Journal
+import Testing
 
 /// Two Board Connections, `acme` (Projects alpha, gamma) and `globex` (Project beta), with a credential per
 /// installation and one fake board each, for the per-installation Check 4 tests.
@@ -49,6 +52,40 @@ struct DoctorLinearFixture: ~Copyable {
         }
         acme = await Self.board(workspaceName: "Acme Inc", project: "lp-alpha", provisioned: provisionAcme)
         globex = await Self.board(workspaceName: "Globex Corp", project: "lp-beta")
+        if provisionAcme {
+            await Self.recordSetup(
+                of: acme, project: "lp-alpha", in: directory.url,
+                for: projects.filter { $0.installation == "acme" }.map(\.id), workspace: "ws-acme"
+            )
+        }
+        await Self.recordSetup(
+            of: globex, project: "lp-beta", in: directory.url,
+            for: projects.filter { $0.installation == "globex" }.map(\.id), workspace: "ws-globex"
+        )
+    }
+
+    /// What `yh setup` does for a Project's board: provision it and record the ids it resolved in the
+    /// Project's own Journal, so a later `yh doctor` finds them and never adopts a state by name.
+    /// Projects sharing the board are each given the ids, as if each had been mapped to them.
+    static func recordSetup(
+        of board: FakeProvisioningBoard, project: String, in directory: URL, for projects: [String], workspace: String
+    ) async {
+        do {
+            let report = try await BoardProvisioner.provision(
+                using: board, projectName: project, createIn: nil,
+                footprint: BoardFootprintInputs(store: InMemoryBoardFootprintStore())
+            )
+            for id in projects {
+                guard let projectID = ProjectID(rawValue: id) else { continue }
+                let journal = try JournalStore.open(
+                    configurationDirectory: directory, projectID: projectID,
+                    linearWorkspace: BoardObjectID(rawValue: workspace)
+                )
+                try journal.recordBoardFootprint(report.footprint)
+            }
+        } catch {
+            Issue.record("fixture setup could not provision \(project): \(error)")
+        }
     }
 
     static func board(workspaceName: String, project: String, provisioned: Bool = true) async -> FakeProvisioningBoard {
@@ -61,12 +98,12 @@ struct DoctorLinearFixture: ~Copyable {
                 name: "yellowhammer", displayName: "Yellowhammer"
             )
         ))
-        // Healthy means provisioned: setup has run, so Check 4's provisioning verification passes.
-        if provisioned {
-            _ = try? await BoardProvisioner.provision(
-                using: board, projectName: project, createIn: nil
-            )
-        }
+        // The native states Linear gives every team, provisioned or not: setup selects them by category and
+        // never creates one.
+        await board.seed(state: "Todo", team: engineeringTeam.id, category: .unstarted)
+        await board.seed(state: "In Progress", team: engineeringTeam.id, category: .started)
+        await board.seed(state: "Done", team: engineeringTeam.id, category: .completed)
+        await board.seed(state: "Canceled", team: engineeringTeam.id, category: .shelved)
         return board
     }
 
