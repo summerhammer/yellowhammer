@@ -97,7 +97,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
             )
         )
 
-        _ = try journal.settleFeatureCompleted(
+        let wrote = try journal.settleFeatureCompleted(
             NewFeatureCompletion(
                 featureID: feature.id, cycleID: cycleID, featureIssueID: feature.issueID,
                 carriedForward: blockedCards.map(\.issueID).sorted(), acceptedCards: acceptedCards,
@@ -105,6 +105,12 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
             ),
             runID: context.runID, act: context.act, nightID: context.night.id
         )
+        // After the Journal write that archives the Cycle: a pin only its recorded bases still named goes now.
+        if wrote {
+            await LandedPinRelease(act: context.act, runID: context.runID, nightID: context.night.id).releaseBasePins(
+                of: feature, repositories: context.repositories?.workingRepos ?? [], journal: journal
+            )
+        }
     }
 
     /// Releases each held Worktree whose work is pushed, and returns (sorted) the repositories whose
@@ -167,10 +173,12 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         guard wrote else { return }
 
         // After the Journal write, so the pins outlive nothing but a crash between the two; a pin that
-        // cannot be deleted is reported in the Journal and never fails the abandon.
-        await LandedPinRelease(act: context.act, runID: context.runID, nightID: context.night.id).release(
-            feature: feature, repositories: context.repositories?.workingRepos ?? [], journal: journal
-        )
+        // cannot be deleted is reported in the Journal and never fails the abandon. The pins this Feature's own
+        // bases kept past their Observed Merge go too: its Cycle is archived now.
+        let pinRelease = LandedPinRelease(act: context.act, runID: context.runID, nightID: context.night.id)
+        let workingRepos = context.repositories?.workingRepos ?? []
+        await pinRelease.release(feature: feature, repositories: workingRepos, journal: journal)
+        await pinRelease.releaseBasePins(of: feature, repositories: workingRepos, journal: journal)
 
         let computed = AbandonComputed(
             cycleID: cycleID, feature: feature, blockedCards: blockedCards, acceptedCards: acceptedCards,

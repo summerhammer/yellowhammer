@@ -18,12 +18,15 @@ public struct CycleArchiveFault: Error, Equatable, Sendable, CustomStringConvert
 /// verified-feature), the real ``CycleArchiving``. Called only when Verification's verdict is all-met,
 /// after every lane's pull request has opened.
 ///
-/// The Feature is no longer in flight once archived: the author Act may select a new one. Surviving
-/// Blocked Cards are detached from the Feature Issue (`parentId` cleared) with their counters, round
-/// history and Block Reason intact — nothing else touches those Journal rows here, so a later adoption
-/// reads them unchanged. Archival never merges or closes a pull request, and it does not by itself
-/// release the next Feature: the predecessor-ancestry gate (P9.2) still requires the Feature Branches to
-/// be ancestors of mainline, so a verified, archived, unmerged Feature still yields a quiet Night.
+/// The Feature is no longer in flight once archived, and archival releases the in-flight slot (spec:
+/// verification/archive-the-cycle-on-a-verified-feature): the Feature enters the Unmerged Feature Stack U until
+/// an Observed Merge in every repository it pushed to, and the author Act may author its successor on its landed
+/// tips while |U| stays below `unmerged_features_max` (roadmap P23.5). At the bound the author Act authors
+/// nothing — a quiet Night. Surviving Blocked Cards are detached from the Feature Issue (`parentId` cleared) with
+/// their counters, round history and Block Reason intact — nothing else touches those Journal rows here, so a
+/// later adoption reads them unchanged. Archival never merges or closes a pull request. Once the Cycle is
+/// archived, a landed pin its recorded bases kept past their Observed Merge is deleted
+/// (``LandedPinRelease/releaseBasePins(of:repositories:journal:)``).
 public struct CycleArchive: CycleArchiving, Sendable {
     public init() { }
 
@@ -49,6 +52,10 @@ public struct CycleArchive: CycleArchiving, Sendable {
                     detachedCards: detachedCards
                 ),
                 act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+            )
+            let act = context.act
+            await LandedPinRelease(act: act.act, runID: act.runID, nightID: act.night.id).releaseBasePins(
+                of: context.feature, repositories: act.repositories?.workingRepos ?? [], journal: journal
             )
         }
     }

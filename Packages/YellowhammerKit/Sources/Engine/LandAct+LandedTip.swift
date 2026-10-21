@@ -95,4 +95,45 @@ public struct LandedPinRelease: Sendable {
             )
         }
     }
+
+    /// Deletes the landed pins `feature`'s recorded bases named whose deletion was deferred (spec:
+    /// feature-authoring/select-the-next-feature, `#tested-tip`; agent rulings item 1): run after the Journal
+    /// write that archives `feature`'s Cycle. A base stacked on a Feature that already has its Observed Merge in
+    /// that repository had its pin kept only for this Cycle; it is deleted now unless another unarchived Cycle's
+    /// base still names it. A pin whose Feature has not merged there stays: it is still that Feature's tested tip.
+    /// Never throws; a pin that cannot be deleted is reported against the Feature that owns it, Journal-only.
+    public func releaseBasePins(of feature: FeatureRecord, repositories: [Repo], journal: JournalStore) async {
+        guard let bases = try? journal.featureBases(featureID: feature.id) else { return }
+        for base in bases {
+            guard
+                let ownerID = base.stackedOnFeatureID,
+                let owner = try? journal.feature(id: ownerID),
+                let landings = try? journal.landings(featureID: ownerID), landings[base.repository] != nil,
+                (try? journal.isBaseOfOpenCycle(repository: base.repository, baseRef: base.baseRef)) == false,
+                let branch = Self.branch(pinnedAt: base.baseRef),
+                let repo = repositories.first(where: { $0.name == base.repository })
+            else {
+                continue
+            }
+            let path = (repo.path as NSString).expandingTildeInPath
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            guard case .failed(let reason) = await pin.unpin(branch: branch, repositoryPath: path) else { continue }
+            let commit = (try? journal.landedCommits(featureID: ownerID))?[base.repository] ?? base.baseCommit
+            _ = try? journal.append(
+                .landedPinFailed(
+                    featureIssueID: owner.issueID, repository: base.repository, branch: branch.name,
+                    commit: commit, operation: .unpin, reason: reason
+                ),
+                act: act, runID: runID, nightID: nightID
+            )
+        }
+    }
+
+    /// The Feature Branch a `refs/yellowhammer/landed/<branch>` ref pins (``LandedTipPin/ref(for:)``); nil for any
+    /// other ref, such as a mainline base.
+    static func branch(pinnedAt ref: String) -> FeatureBranch? {
+        let prefix = LandedTipPin.ref(for: FeatureBranch(rawValue: ""))
+        guard ref.hasPrefix(prefix), ref.count > prefix.count else { return nil }
+        return FeatureBranch(rawValue: String(ref.dropFirst(prefix.count)))
+    }
 }

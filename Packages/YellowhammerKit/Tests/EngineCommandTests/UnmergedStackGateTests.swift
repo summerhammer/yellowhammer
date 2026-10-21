@@ -28,6 +28,10 @@ private func tip(_ repo: borrowing GateGitFixture, _ ref: String) async -> Strin
     await repo.run(["rev-parse", ref]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+private func pinExists(_ repo: borrowing GateGitFixture, branch: String) async -> Bool {
+    await repo.run(["show-ref", "--verify", "--quiet", "refs/yellowhammer/landed/\(branch)"]).isSuccess
+}
+
 private func backendRepositories(_ repo: borrowing GateGitFixture) -> ProjectRepositories {
     ProjectRepositories(workingRepos: [Repo(name: "backend", path: repo.path, role: .backend)])
 }
@@ -175,6 +179,93 @@ struct UnmergedStackGateTests {
         let (second, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
         #expect(try await gate.check(second, unmergedFeaturesMax: 1) == .landed)
         #expect(closure.callCount == 2)
+    }
+}
+
+@Suite("Merges observed while a Feature is in flight, and the landed pin's lifetime (P23.5)")
+struct UnmergedStackInFlightTests {
+    // F2 was authored on F1's landed tip and is building; F1's pull request merges with a merge commit.
+    @Test("F1 merged while F2 builds: F1's Observed Merge is recorded, F1 leaves U, F2's base keeps F1's pin")
+    func mergeObservedWhileAnotherFeatureIsInFlight() async throws {
+        let backend = try await backendWithBranches("stack-inflight", branches: ["yh-f1"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let f1 = try await insertLandedFeature(journal, backend, issueID: "F1", branch: "yh-f1")
+        let f2 = try insertGateFeature(
+            journal, issueID: "F2", branch: "yh-f2", repositories: ["backend"], inFlight: true
+        )
+        let baseCommit = await tip(backend, "yh-f1")
+        try journal.recordFeatureBases(featureID: f2, bases: [FeatureBaseRecord(
+            repository: "backend", baseRef: "refs/yellowhammer/landed/yh-f1", baseCommit: baseCommit,
+            stackedOnFeatureID: f1
+        )])
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge f1", "yh-f1"])
+        let authoring = ScriptedFeatureAuthoring(outcome: .authored)
+
+        try await EngineInvocation(
+            act: .author, mode: .rehearsal, nightStart: gateNightStart, journal: journal, trigger: .scheduled,
+            runID: RunID(), repositories: backendRepositories(backend),
+            work: AuthorAct(predecessorGate: PredecessorAncestryGate(), authoring: authoring, unmergedFeaturesMax: 3)
+                .work
+        ).run()
+
+        #expect(!authoring.wasCalled)
+        #expect(try journal.landings(featureID: f1)["backend"] != nil)
+        #expect(try journal.unmergedFeatureStack().isEmpty)
+        #expect(try journal.inFlightFeature()?.0.issueID == "F2")
+        let types = try journal.events().map(\.type)
+        #expect(types.contains(.authoringSkippedFeatureInFlight))
+        #expect(!types.contains(.authoringSkippedUnmergedStackFull))
+        #expect(await pinExists(backend, branch: "yh-f1"))
+
+        // F2's Cycle archives: the pin its base kept past F1's Observed Merge goes now.
+        try journal.write { db in
+            try db.execute(
+                sql: "UPDATE cycle SET archived_at = ? WHERE feature_id = ?",
+                arguments: [JournalStore.timestamp(outboxEpoch), f2]
+            )
+        }
+        let f2Record = try #require(try journal.feature(id: f2))
+        await LandedPinRelease(act: nil, runID: nil, nightID: nil).releaseBasePins(
+            of: f2Record, repositories: backendRepositories(backend).workingRepos, journal: journal
+        )
+        #expect(!(await pinExists(backend, branch: "yh-f1")))
+    }
+
+    @Test("With no open Cycle naming it, a landed pin is deleted at its Observed Merge")
+    func pinDeletedAtObservedMergeWithoutAnOpenBase() async throws {
+        let backend = try await backendWithBranches("stack-pin", branches: ["yh-f1"])
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge f1", "yh-f1"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        try await insertLandedFeature(journal, backend, issueID: "F1", branch: "yh-f1")
+        #expect(await pinExists(backend, branch: "yh-f1"))
+        let (context, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
+
+        #expect(try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 3) == .landed)
+
+        #expect(!(await pinExists(backend, branch: "yh-f1")))
+    }
+
+    @Test("An archive leaves a base's pin alone while its Feature has not merged there: it is still the tested tip")
+    func archiveKeepsThePinOfAnUnmergedBase() async throws {
+        let backend = try await backendWithBranches("stack-keep", branches: ["yh-f1"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let f1 = try await insertLandedFeature(journal, backend, issueID: "F1", branch: "yh-f1")
+        let f2 = try insertGateFeature(journal, issueID: "F2", branch: "yh-f2", repositories: ["backend"])
+        let baseCommit = await tip(backend, "yh-f1")
+        try journal.recordFeatureBases(featureID: f2, bases: [FeatureBaseRecord(
+            repository: "backend", baseRef: "refs/yellowhammer/landed/yh-f1", baseCommit: baseCommit,
+            stackedOnFeatureID: f1
+        )])
+
+        let f2Record = try #require(try journal.feature(id: f2))
+        await LandedPinRelease(act: nil, runID: nil, nightID: nil).releaseBasePins(
+            of: f2Record, repositories: backendRepositories(backend).workingRepos, journal: journal
+        )
+
+        #expect(await pinExists(backend, branch: "yh-f1"))
     }
 }
 
