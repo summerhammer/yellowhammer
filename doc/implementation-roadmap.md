@@ -2847,7 +2847,7 @@ Every step: lead review by Fable 5.1.
   the No-Pushed-Branch Outcome; after the predecessor's Observed Merge the draft has the default branch and no
   notice; a Partial Landing keeps its fixed lines and puts the notice after the stamp.
 
-### [ ] P23.5 Author Act: the stack gate, the quiet skip and pin lifetime
+### [x] P23.5 Author Act: the stack gate, the quiet skip and pin lifetime
 - **Work** — Run the merge pass over every Feature in U on every author Act, in flight or not, and replace the
   single-predecessor gate with a stack gate: full when |U| reaches `unmerged_features_max`. Record the quiet skip
   with the ruled wording (collapsing repeats within a Night) and remove the unmerged-predecessor skip. Delete a
