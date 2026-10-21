@@ -11,7 +11,9 @@ extension ProvisioningReport {
             let existing = entry.collidesWith ?? "the existing item of that name"
             switch entry.subject {
             case .workflowState(let name, let team):
-                let adopt = entry.mappingHint.map { "; or, if it is Yellowhammer's, add to the Project file:\n\($0)" }
+                let adopt = entry.mappingHint.map {
+                    "; or, if it is Yellowhammer's, add to the Project file (or run `yh doctor --fix`):\n\($0)"
+                }
                 return "- rename or delete the \(existing) in team \(team.key); it holds the name of "
                     + "workflow state `\(name)` (category started)" + (adopt ?? "")
             case .labelGroup(let name, let team):
