@@ -249,6 +249,8 @@ extension JournalMigrations {
             table.column("observed_at", .text).notNull()
             table.primaryKey(["feature_id", "repository"])
         }
+
+        try createFeatureBaseTable(db)
     }
 
     /// Records a Repo Lane's opened pull request, once (roadmap P10.4): `url` is nullable because

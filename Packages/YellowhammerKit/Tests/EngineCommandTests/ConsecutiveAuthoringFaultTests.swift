@@ -120,7 +120,7 @@ struct ConsecutiveAuthoringFaultTests {
         #expect(try rig.journal.authoringFaultCount(feature: feature).count < 1)
         #expect(try rig.journal.authoringFaultCount(feature: other).count == 2)
         #expect(try rig.journal.authoringFaultCount(feature: feature, throughEventID: cutoff).count == 1)
-        #expect(try NightSummary.boundProximity(night: context.night, journal: rig.journal, bounds: .init()).count == 7)
+        #expect(try NightSummary.boundProximity(night: context.night, journal: rig.journal, bounds: .init()).count == 8)
     }
 
     @Test("Reused Feature's authored clauses and human prose survive its next Roll-up rewrite")
