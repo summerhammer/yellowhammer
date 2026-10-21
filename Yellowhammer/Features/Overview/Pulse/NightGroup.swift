@@ -56,6 +56,9 @@ struct NightGroup: View {
                     .help("Show it in the Night\u{2019}s account")
                     .accessibilityIdentifier("night-failure-notice")
                 }
+                if let skip = night.stackFullSkip {
+                    StackFullSkipRow(night: night.id, skip: skip)
+                }
                 HStack(spacing: 8) {
                     PulseCountBadge(text: night.state.rawValue, style: night.state.style)
                     Text("started \(night.startedAt.formatted(date: .omitted, time: .shortened))")
@@ -92,6 +95,42 @@ struct NightGroup: View {
             }
         }
         .accessibilityIdentifier("pulse-night")
+    }
+}
+
+/// An author firing that authored nothing because the unmerged Feature stack was full (proposed amendment,
+/// yellowhammer-spec#132). It opens the Night's account at the skip; it is a quiet Night, not a failure, so it
+/// wears no warning symbol and never stands in for `cardsAbsence`.
+private struct StackFullSkipRow: View {
+    let night: Int64
+    let skip: StackFullSkip
+    @Environment(\.openPulseDestination) private var openDestination
+
+    var body: some View {
+        Button { openDestination(.nightAccount(night, at: skip.at)) } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Label(line, systemImage: "square.stack.3d.up")
+                    .font(.callout)
+                    .multilineTextAlignment(.leading)
+                Text("\(skip.features.joined(separator: ", ")) await merge. A quiet Night, not a failure.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .help("Show it in the Night\u{2019}s account")
+        .accessibilityIdentifier("night-stack-full-skip")
+    }
+
+    /// `Authored nothing — … is full (2 of 2) · 03:10`, with `· 3 times` when several firings skipped.
+    private var line: String {
+        let time = skip.at.formatted(date: .omitted, time: .shortened)
+        let times = skip.count > 1 ? " \u{00B7} \(skip.count) times" : ""
+        let stack = "\(skip.features.count) of \(skip.unmergedFeaturesMax)"
+        return "\(StackFullSkip.headline) (\(stack)) \u{00B7} \(time)\(times)"
     }
 }
 

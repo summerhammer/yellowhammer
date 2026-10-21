@@ -76,6 +76,12 @@ struct FeatureDetailView: View {
                         PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
                     }
                     .accessibilityIdentifier("feature-detail-lane-\(lane.repo)")
+                    if let stackedOn = feature.stackedOn[lane.repo] {
+                        LabeledContent("Stacked on") {
+                            Text(stackedOn).textSelection(.enabled)
+                        }
+                        .accessibilityIdentifier("feature-detail-stacked-on-\(lane.repo)")
+                    }
                     if let pullRequest = lane.pullRequest {
                         LabeledContent("Pull request") {
                             Button(pullRequest.label) {

@@ -12,12 +12,15 @@ import SwiftUI
 /// simply omits it.
 struct FeatureGroup: View {
     let feature: FeatureInFlight?
+    /// The Unmerged Feature Stack U: verified Features awaiting merge, shown beside the in-flight Feature
+    /// (proposed amendment, yellowhammer-spec#132).
+    let stack: UnmergedFeatureStack
     /// What the Inspector shows, so the Feature or Repo it names is marked.
     let inspected: PulseSelection?
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        PulseCard(group: .feature, summary: PulseGroup.summary(of: feature)) {
+        PulseCard(group: .feature, summary: PulseGroup.summary(of: feature, stack: stack)) {
             if let feature {
                 Button { openDestination(.inspector(.feature(feature.id))) } label: {
                     FeatureHeader(feature: feature)
@@ -25,6 +28,12 @@ struct FeatureGroup: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("feature-title")
+                if let stackedOnLine = feature.stackedOnLine {
+                    Text(stackedOnLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("feature-stacked-on")
+                }
                 if feature.state == "returned" {
                     ReturnedFeatureGuidance()
                         .accessibilityIdentifier("feature-returned-guidance")
@@ -39,10 +48,24 @@ struct FeatureGroup: View {
                             .pulseRowHighlight(inspected == .repo(lane.repo))
                     }
                 }
-            } else {
+            } else if stack.isEmpty {
                 Label("No Feature in flight", systemImage: "flag.slash")
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("feature-absence")
+            } else if stack.isFull {
+                Label(
+                    "Authoring waits for a merge \u{2014} the unmerged Feature stack is full (\(stack.countText))",
+                    systemImage: "square.stack.3d.up.fill"
+                )
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("feature-stack-full")
+            } else {
+                Label("The in-flight slot is free", systemImage: "flag.slash")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("feature-slot-free")
+            }
+            if !stack.isEmpty {
+                AwaitingMergeSection(stack: stack, inspected: inspected)
             }
         }
         .accessibilityIdentifier("pulse-feature")
@@ -117,22 +140,11 @@ private struct FeatureLaneRow: View {
                 .foregroundStyle(.secondary)
             PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
             if let pullRequest = lane.pullRequest {
-                Button {
-                    openDestination(.pullRequest(pullRequest.url))
-                } label: {
-                    HStack(spacing: 4) {
-                        if let state = pullRequest.state {
-                            Image(systemName: "arrow.triangle.pull").foregroundStyle(state.style)
-                        } else {
-                            Image(systemName: "arrow.triangle.pull")
-                        }
-                        Text(pullRequest.label).monospacedDigit()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Open pull request #\(pullRequest.number) on GitHub")
-                .accessibilityIdentifier("feature-lane-\(lane.repo)-pull-request")
+                PullRequestChipButton(
+                    pullRequest: pullRequest,
+                    identifier: "feature-lane-\(lane.repo)-pull-request",
+                    openDestination: openDestination
+                )
             }
         }
     }
