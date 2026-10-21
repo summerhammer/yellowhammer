@@ -2812,7 +2812,7 @@ Every step: lead review by Fable 5.1.
   Feature with k < N merged, and orders by Feature id; `effectiveBase` picks the most recent pusher per repo;
   the Bounds section renders `|U| of unmerged_features_max`; the UI test Journal fixture is regenerated.
 
-### [ ] P23.2 Authoring against `effective_base(R)`
+### [x] P23.2 Authoring against `effective_base(R)`
 - **Work** — Build the per-Repo bases snapshot from U (the pinned landed tip of the most recent Feature in U
   that pushed there, else mainline; a pin resolving to a commit other than the recorded one is a fault) and pass
   it, not the real mainline snapshot, to selection, transcriptions, citations and the authoring-time Readiness
