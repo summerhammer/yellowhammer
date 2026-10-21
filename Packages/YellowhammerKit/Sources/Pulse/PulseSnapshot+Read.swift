@@ -42,7 +42,8 @@ extension PulseSnapshot {
             needsYou: try needsYou(journal, inFlight: inFlight),
             now: now,
             feature: try feature(
-                journal, inFlight: inFlight, now: now,
+                journal, inFlight: try inFlight ?? featureLandedTonight(journal, night: selectedNight, events: events),
+                now: now,
                 runningLanes: runningLanes(night: selectedNight, events: events, liveRunID: liveRunID)
             ),
             night: try selectedNight.map { try night($0, journal: journal, events: events) },
@@ -129,6 +130,21 @@ extension PulseSnapshot {
     }
 
     // MARK: Feature
+
+    /// With no Feature in flight, the latest Feature whose Cycle landed during `night` — the slot is free again
+    /// the moment the land Act archives the Cycle (a periodic author firing may select the next Feature within
+    /// minutes), and without this the Feature group would be empty right after a mid-Night landing. Nil when
+    /// no Cycle landed in this Night. The Pulse shows no other member of the Unmerged Feature Stack.
+    private static func featureLandedTonight(
+        _ journal: JournalStore, night: NightRecord?, events: [JournalEventRecord]
+    ) throws -> (feature: FeatureRecord, cycleID: Int64)? {
+        guard let night else { return nil }
+        let landed = events.reversed().first { $0.nightID == night.id && $0.type == .cycleLanded }
+        guard let landed, case .cycleLanded(let cycleID) = landed.event,
+            let feature = try journal.feature(cycleID: cycleID)
+        else { return nil }
+        return (feature, cycleID)
+    }
 
     private static func feature(
         _ journal: JournalStore,
