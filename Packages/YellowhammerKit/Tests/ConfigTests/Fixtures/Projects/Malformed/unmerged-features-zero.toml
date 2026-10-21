@@ -1,0 +1,15 @@
+id = "unmerged-features-zero"
+name = "Bounds Zero"
+board = { linear = { connection = "acme", project = "BZ" } }
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[limits]
+unmerged_features_max = 0
+
+[code_hosting]
+connection = "github"

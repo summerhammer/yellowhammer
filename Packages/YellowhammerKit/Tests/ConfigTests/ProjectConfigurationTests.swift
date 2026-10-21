@@ -100,7 +100,8 @@ func projectFullFileLoads() throws {
             reselectionsMax: 3,
             consecutiveRefusalsMax: 5,
             failedAdoptionsMax: 3,
-            consecutiveAuthoringFaultsMax: 7
+            consecutiveAuthoringFaultsMax: 7,
+            unmergedFeaturesMax: 5
         ),
         schedule: Schedule(
             nightStart: try time(hour: 23, minute: 0),
