@@ -14,6 +14,8 @@ struct PulseDesign {
     var inspector: PulseInspectorStyle = .form
     /// What the Inspector shows when the variant first appears, so its detail can be judged filled.
     var opens: PulseOpening = .firstDecisionCard
+    /// How the Awaiting merge list is drawn.
+    var stack: PulseStackStyle = .rows
 }
 
 /// The Inspector's first selection. Each falls back along the Pulse, so the Inspector is filled
@@ -28,7 +30,8 @@ enum PulseOpening {
     func selection(in project: ProjectSnapshot) -> PulseSelection? {
         let pulse = project.pulse
         let card = pulse.needsYou.cards.first.map { PulseSelection.card($0.id) }
-        let feature = pulse.feature.map { PulseSelection.feature($0.id) }
+        // With no Feature in flight, the top of the stack is the Feature there is to inspect.
+        let feature = (pulse.feature?.id ?? pulse.unmergedFeatures.features.last?.id).map(PulseSelection.feature)
         let attempt = pulse.now.attempts.first.map { PulseSelection.attempt($0.id) }
         let repo = (pulse.feature?.lanes.first?.repo ?? project.repos.first).map(PulseSelection.repo)
         return switch self {
@@ -63,6 +66,7 @@ struct PulseComposedVariant: View {
             if design.floatingGlassSidebar { glassLayout } else { splitLayout }
         }
         .tint(palette.accent)
+        .environment(\.pulseStackStyle, design.stack)
         .onAppear {
             guard !didOpen, let project else { return }
             didOpen = true
@@ -200,7 +204,8 @@ struct PulseComposedVariant: View {
         switch selection {
         case nil: false
         case let .card(id): project.pulse.needsYou.cards.contains { $0.id == id }
-        case let .feature(id): project.pulse.feature?.id == id
+        case let .feature(id):
+            project.pulse.feature?.id == id || project.pulse.unmergedFeatures.features.contains { $0.id == id }
         case let .attempt(id): project.pulse.now.attempts.contains { $0.id == id }
         case let .repo(repo): project.repos.contains(repo)
         case let .night(id): project.pulse.night?.id == id

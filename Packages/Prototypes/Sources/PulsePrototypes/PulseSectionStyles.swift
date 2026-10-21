@@ -325,7 +325,10 @@ struct PulseSummaryFigure: View {
             }
             return ("\(pulse.now.attempts.count)", "Attempts running")
         case .feature:
-            guard let feature = pulse.feature else { return ("—", "no Feature in flight") }
+            guard let feature = pulse.feature else {
+                let stack = pulse.unmergedFeatures
+                return stack.isEmpty ? ("—", "no Feature in flight") : ("\(stack.count)", "awaiting merge")
+            }
             let progress = PulseFormat.cardProgress(feature)
             let rollUp = feature.rollupState?.rawValue ?? "roll-up unknown"
             return ("\(progress.done)/\(progress.total)", "Cards · \(rollUp)")

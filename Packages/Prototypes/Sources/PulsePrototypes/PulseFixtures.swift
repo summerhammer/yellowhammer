@@ -18,6 +18,9 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
     case undeliveredWrites = "Undelivered Board writes"
     case starvedNight = "Starved Night"
     case stress = "Stress: long and many"
+    case landedMidNight = "Landed mid-Night, slot free"
+    case stackFull = "Unmerged stack full"
+    case inFlightOverStack = "In flight over the stack"
 
     var id: Self { self }
     var description: String { rawValue }
@@ -79,6 +82,12 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
             pulse.setAttempts(4, across: project.repos)
             pulse.feature = PulseFixtures.feature(rollup: .running, repos: project.repos)
             pulse.setAllHealthFlags(true)
+        case .landedMidNight:
+            pulse = PulseFixtures.landedMidNightPulse(from: pulse)
+        case .stackFull:
+            pulse = PulseFixtures.stackFullPulse(from: pulse)
+        case .inFlightOverStack:
+            pulse = PulseFixtures.inFlightOverStackPulse()
         }
         project.pulse = pulse
         return project
