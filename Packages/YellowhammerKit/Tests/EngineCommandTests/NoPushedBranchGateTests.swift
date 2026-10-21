@@ -66,7 +66,7 @@ struct NoPushedBranchGateTests {
         let context = try world.makeContext(repositories: repositories)
         let gate = PredecessorAncestryGate(closure: FeatureMergeClosure())
 
-        _ = try await gate.check(context)
+        _ = try await gate.check(context, unmergedFeaturesMax: 1)
 
         let first = try #require(try observations(world.journal).last)
         #expect(first.merged.isEmpty)
@@ -91,7 +91,7 @@ struct NoPushedBranchGateTests {
 
         _ = await world.backend.run(["merge", "--no-ff", "-m", "merge", mergeClosureBranch])
         let next = try nextContext(world, after: rollUpContext, repositories: repositories)
-        _ = try await gate.check(next)
+        _ = try await gate.check(next, unmergedFeaturesMax: 1)
 
         #expect(try world.journal.landings(featureID: world.featureID).keys.sorted() == ["backend"])
         let closures = try world.journal.events(ofType: .featureClosedByMerge)
@@ -115,7 +115,7 @@ struct NoPushedBranchGateTests {
         var context = try world.makeContext(repositories: repositories)
         for _ in 0..<2 {
             context = try nextContext(world, after: context, repositories: repositories)
-            _ = try await gate.check(context)
+            _ = try await gate.check(context, unmergedFeaturesMax: 1)
             #expect(try observations(world.journal).isEmpty)
             #expect(try world.journal.landings(featureID: world.featureID).isEmpty)
             #expect(try world.journal.events(ofType: .featureClosedByMerge).isEmpty)

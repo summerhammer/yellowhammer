@@ -50,8 +50,8 @@ extension JournalEvent {
         case .authoringNoWorkAvailable: .authoringNoWorkAvailable
         case .authoringSkippedFeatureInFlight:
             .authoringSkippedFeatureInFlight(featureIssueID: try reader.require("feature_issue_id"))
-        case .authoringPredecessorNotLanded:
-            try Self.decodeAuthoringPredecessorNotLanded(reader)
+        case .authoringSkippedUnmergedStackFull:
+            try Self.decodeAuthoringSkippedUnmergedStackFull(reader)
         case .authoringPredecessorIndeterminate:
             try Self.decodeAuthoringPredecessorIndeterminate(reader)
         case .observedReleaseRecorded:

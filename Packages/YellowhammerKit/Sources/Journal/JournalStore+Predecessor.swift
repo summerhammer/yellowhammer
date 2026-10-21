@@ -2,29 +2,30 @@ import Domain
 import Foundation
 import GRDB
 
-/// A predecessor Feature and the repositories its Cycle touches (roadmap P9.9), as read by the
-/// predecessor-ancestry gate (P9.2). A Feature closed by native completion (`closed_by = 'completion'`,
-/// roadmap P22.2) is a predecessor like a verified or merged one; only an abandoned Feature is walked past.
+/// The most recent archived, unabandoned Feature and the repositories its Cycle touches (roadmap P9.9). The
+/// predecessor-ancestry gate tests every Feature in the Unmerged Feature Stack instead (P23.5,
+/// ``unmergedFeatureStack()``); this one is what the Feature Roll-up maintains as the predecessor. A Feature
+/// closed by native completion (`closed_by = 'completion'`, roadmap P22.2) is a predecessor like a verified or
+/// merged one; only an abandoned Feature is walked past.
 public struct PredecessorFeature: Equatable, Sendable {
     public let feature: FeatureRecord
     /// The distinct, sorted repository names this Feature's Cycle touches, from `feature_repository`
     /// — recorded at selection, never derived from `card` rows. The record of what the Feature was meant
-    /// to touch: it never shrinks, and is not what the gate tests ancestry over (see
-    /// ``pushedRepositories``).
+    /// to touch: it never shrinks, and is not what a merge test runs over (see ``pushedRepositories``).
     public let touchedRepositories: [String]
     /// N: the touched repositories minus those with a recorded No-Pushed-Branch Outcome
-    /// (``JournalStore/pushedRepositories(featureID:)``) — the only repositories the gate tests ancestry
-    /// over.
+    /// (``JournalStore/pushedRepositories(featureID:)``).
     public let pushedRepositories: [String]
 }
 
 /// What walking back from the most recent archived Feature found (roadmap P9.9; spec:
 /// feature-authoring/select-the-next-feature, third story; risks.md Authoring Halt Ruling item 12,
-/// OQ63): the first archived, unreleased Feature the gate must check, and every released Feature the
-/// walk stepped past on the way there — more recent than the predecessor, archived, and released.
+/// OQ63): the first archived, unreleased Feature, and every released Feature the walk stepped past on the way
+/// there — more recent than the predecessor, archived, and released. The gate names those released Features
+/// on a Night it lets authoring proceed (`predecessorWalkSkippedReleasedFeature`).
 public struct PredecessorWalk: Equatable, Sendable {
-    /// The predecessor to check ancestry against; nil when every archived Feature has been released,
-    /// or there is no archived Feature at all (the first Night: the gate is open).
+    /// The most recent archived, unreleased Feature; nil when every archived Feature has been released,
+    /// or there is no archived Feature at all (the first Night).
     public let predecessor: PredecessorFeature?
     /// Released Features the walk skipped, most recent first, so the Engine can record one
     /// `predecessorWalkSkippedReleasedFeature` event per Feature it passed over.
@@ -32,7 +33,7 @@ public struct PredecessorWalk: Equatable, Sendable {
 }
 
 /// A Feature whose open Cycle has landed (roadmap P9.9, 1f): the in-flight Feature the gate observes
-/// ancestry for alongside gating the predecessor. A branch freshly cut from mainline is trivially an
+/// ancestry for alongside the Unmerged Feature Stack. A branch freshly cut from mainline is trivially an
 /// ancestor of it, so a Cycle that has not yet landed is never read as a landing.
 public struct InFlightLandedFeature: Equatable, Sendable {
     public let feature: FeatureRecord
@@ -45,8 +46,7 @@ public struct InFlightLandedFeature: Equatable, Sendable {
 
 extension JournalStore {
     /// Walks back from the most recent archived Feature (its Cycle archived, not the open Cycle),
-    /// skipping every one already released, until it finds one that is not — the predecessor the gate
-    /// checks ancestry against — or runs out.
+    /// skipping every one already released, until it finds one that is not — the predecessor — or runs out.
     ///
     /// A Feature with no Cycle at all (an inconsistent Journal, never produced by this engine) is
     /// never returned: a Cycle's `feature_id` is what this joins on.

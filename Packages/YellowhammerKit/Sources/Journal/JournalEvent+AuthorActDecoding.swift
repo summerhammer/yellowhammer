@@ -23,13 +23,25 @@ extension JournalEvent {
         )
     }
 
-    static func decodeAuthoringPredecessorNotLanded(_ reader: PayloadReader) throws -> JournalEvent {
-        let raw = try reader.require("repositories")
-        let repositories = raw.isEmpty ? [] : raw.components(separatedBy: "\u{1F}")
-        return .authoringPredecessorNotLanded(
-            featureIssueID: try reader.require("feature_issue_id"),
-            repositories: repositories
+    static func decodeAuthoringSkippedUnmergedStackFull(_ reader: PayloadReader) throws -> JournalEvent {
+        let features: [UnmergedStackEntry]
+        do {
+            features = try JSONDecoder().decode(
+                [UnmergedStackEntry].self, from: Data(try reader.require("features").utf8)
+            )
+        } catch {
+            throw JournalError.eventUnreadable(id: reader.rowID)
+        }
+        return .authoringSkippedUnmergedStackFull(
+            features: features, unmergedFeaturesMax: try reader.int("unmerged_features_max")
         )
+    }
+
+    /// The Unmerged Feature Stack entries as sorted-keys JSON, so the stored payload is byte-stable.
+    static func stackEntriesJSON(_ features: [UnmergedStackEntry]) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(features)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
     }
 
     static func decodeAuthoringPredecessorIndeterminate(_ reader: PayloadReader) throws -> JournalEvent {

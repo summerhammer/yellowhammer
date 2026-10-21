@@ -52,10 +52,10 @@ struct PredecessorAncestryGatePrefixTests {
         ])
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
-        let outcome = try await PredecessorAncestryGate().check(context)
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        guard case .notLanded(let issueID, let repos) = outcome else {
-            Issue.record("expected notLanded, got \(outcome)")
+        guard case (let issueID, let repos)? = singleUnmerged(outcome) else {
+            Issue.record("expected stackFull naming one Feature, got \(outcome)")
             return
         }
         #expect(issueID == "FEAT-P")

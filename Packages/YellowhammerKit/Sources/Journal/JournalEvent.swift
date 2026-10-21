@@ -79,9 +79,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// The author Act found a Feature already in flight for this Project (an open Cycle) and authored
     /// nothing: never more than one Feature in flight per Project, even forced. A quiet Night, not a failure.
     case authoringSkippedFeatureInFlight(featureIssueID: String)
-    /// The predecessor-ancestry gate (P9.2) found the named predecessor Feature not yet landed in one
-    /// or more repositories: the author Act authored nothing, dispatched nothing. A quiet Night, not a failure.
-    case authoringPredecessorNotLanded(featureIssueID: String, repositories: [String])
+    /// The Unmerged Feature Stack U reached `unmerged_features_max` (roadmap P23.5; spec: feature-authoring/
+    /// select-the-next-feature, `#unmerged-feature-stack`): the author Act authored nothing, dispatched nothing.
+    /// Names every Feature in U with its unmerged repositories and Feature Branches. A quiet Night, not a failure.
+    case authoringSkippedUnmergedStackFull(features: [UnmergedStackEntry], unmergedFeaturesMax: Int)
     /// The predecessor-ancestry gate (P9.9) could not find the predecessor Feature's Feature Branch in
     /// one or more repositories that have no recorded landing either: the author Act authored nothing,
     /// dispatched nothing. A quiet Night, not a failure.

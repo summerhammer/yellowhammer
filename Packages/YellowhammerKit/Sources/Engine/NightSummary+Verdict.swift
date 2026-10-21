@@ -13,10 +13,10 @@ extension NightSummary {
         .cardStateTransitioned, .attemptEnded, .featureAuthored
     ]
 
-    /// A quiet authoring reason this Night: skipped-in-flight, predecessor not landed or
-    /// indeterminate, a Refusal, an Authoring Halt, or the release gate holding a consumer.
+    /// A quiet authoring reason this Night: skipped-in-flight, a full Unmerged Feature Stack, an
+    /// indeterminate predecessor tip, a Refusal, an Authoring Halt, or the release gate holding a consumer.
     private static let quietAuthoringEventTypes: Set<JournalEventType> = [
-        .authoringSkippedFeatureInFlight, .authoringPredecessorNotLanded, .authoringPredecessorIndeterminate,
+        .authoringSkippedFeatureInFlight, .authoringSkippedUnmergedStackFull, .authoringPredecessorIndeterminate,
         .refusalOpened, .refusalRepeated, .authoringHaltOpened, .authoringHaltRepeated, .featureAuthoringHalted,
         .authoringReleaseGateHeld
     ]

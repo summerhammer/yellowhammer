@@ -16,7 +16,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case absentNightDetected = "AbsentNightDetected"
     case authoringNoWorkAvailable = "AuthoringNoWorkAvailable"
     case authoringSkippedFeatureInFlight = "AuthoringSkippedFeatureInFlight"
-    case authoringPredecessorNotLanded = "AuthoringPredecessorNotLanded"
+    case authoringSkippedUnmergedStackFull = "AuthoringSkippedUnmergedStackFull"
     case authoringPredecessorIndeterminate = "AuthoringPredecessorIndeterminate"
     case observedReleaseRecorded = "ObservedReleaseRecorded"
     case authoringReleaseGateHeld = "AuthoringReleaseGateHeld"

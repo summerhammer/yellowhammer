@@ -146,10 +146,11 @@ extension NightWording {
             NightWords(headline: "Nothing to author")
         case .authoringSkippedFeatureInFlight(let featureIssueID):
             NightWords(headline: "Authored nothing — a Feature is already in flight", detail: feature(featureIssueID))
-        case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
+        case .authoringSkippedUnmergedStackFull(let features, _):
             NightWords(
-                headline: "Authored nothing — the predecessor Feature has not landed",
-                detail: "\(feature(featureIssueID)) in \(repositories.joined(separator: ", "))"
+                headline: "Authored nothing — the unmerged Feature stack is full",
+                detail: features.map { "\($0.identifier) in \($0.unmergedRepositories.joined(separator: ", "))" }
+                    .joined(separator: "; ")
             )
         case .featureSelected(let payload):
             NightWords(headline: "Selected the Feature “\(payload.name)”")

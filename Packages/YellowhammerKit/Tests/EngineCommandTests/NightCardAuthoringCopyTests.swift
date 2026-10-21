@@ -43,8 +43,8 @@ struct NightCardAuthoringCopyTests {
         #expect(indeterminateLine.contains("[\(displayID)](\(url))"))
         #expect(indeterminateLine.contains("A quiet Night, not a failure."))
 
-        let notLanded = JournalEvent.authoringPredecessorNotLanded(
-            featureIssueID: featureUUID, repositories: ["yellowhammer"]
+        let notLanded = stackFullSkip(
+            featureUUID, ["yellowhammer"], identifier: displayID, branches: ["yellowhammer": "yh-ylh-319"]
         )
         let notLandedLine = try #require(NightCardMaintenance.authoringLine(for: notLanded, journal: journal))
         #expect(!notLandedLine.contains(featureUUID))
@@ -130,9 +130,7 @@ struct NightCardAuthoringCopyTests {
         let inFlightLine = try #require(NightCardMaintenance.authoringLine(for: inFlight))
         #expect(inFlightLine.contains("A quiet Night, not a failure."))
 
-        let notLanded = JournalEvent.authoringPredecessorNotLanded(
-            featureIssueID: "FEAT-1", repositories: ["backend"]
-        )
+        let notLanded = stackFullSkip("FEAT-1", ["backend"])
         let notLandedLine = try #require(NightCardMaintenance.authoringLine(for: notLanded))
         #expect(notLandedLine.contains("A quiet Night, not a failure."))
 
@@ -143,8 +141,8 @@ struct NightCardAuthoringCopyTests {
         #expect(indeterminateLine.contains("A quiet Night, not a failure."))
     }
 
-    @Test("Not-landed line names each recorded Feature Branch and how to open the gate (issue #448)")
-    func notLandedLineNamesBranchesAndMergeCommit() throws {
+    @Test("At max 1 the skip reads as the predecessor line, naming each Feature Branch and the route out (#448)")
+    func predecessorLineNamesBranchesAndMergeCommit() throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let featureUUID = "334fe249-d329-47bf-b5f5-ad041a55cbd3"
@@ -157,33 +155,69 @@ struct NightCardAuthoringCopyTests {
                 arguments: [featureUUID, "YLH-321", "selected", JournalStore.timestamp(Date())]
             )
         }
-        let feature = try #require(try journal.feature(issueID: featureUUID))
-        try journal.recordFeatureBranch(
-            featureID: feature.id, repository: "web", branch: FeatureBranch(name: "yh-feature-web")
-        )
-        try journal.recordFeatureBranch(
-            featureID: feature.id, repository: "backend", branch: FeatureBranch(name: "yh-feature-backend")
-        )
 
-        let event = JournalEvent.authoringPredecessorNotLanded(
-            featureIssueID: featureUUID, repositories: ["web", "backend"]
+        let event = stackFullSkip(
+            featureUUID, ["web", "backend"], identifier: "YLH-321",
+            branches: ["web": "yh-feature-web", "backend": "yh-feature-backend"]
         )
         let line = try #require(NightCardMaintenance.authoringLine(for: event, journal: journal))
-        #expect(line.contains("has not merged in web, backend."))
+        #expect(line.hasPrefix("Authoring was skipped: predecessor Feature `YLH-321` has not merged in web, backend."))
         #expect(line.contains("Not found in mainline: `yh-feature-web` in web, `yh-feature-backend` in backend."))
         #expect(line.contains(MergeCommitRecommendation.shared))
         #expect(line.contains("(`git merge -s ours`) with a merge commit opens this gate."))
         #expect(!line.contains("An edit to the same lines"))
+        #expect(!line.contains("unmerged_features_max"))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
     }
 
-    @Test("Not-landed line without a Journal omits the branch sentence but keeps the merge guidance")
-    func notLandedLineWithoutJournal() throws {
-        let event = JournalEvent.authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
+    @Test("The skip line without a Journal names the Feature by its identifier and keeps the branches")
+    func predecessorLineWithoutJournal() throws {
+        let event = stackFullSkip("FEAT-1", ["backend"], identifier: "YLH-1", branches: ["backend": "yh-ylh-1"])
         let line = try #require(NightCardMaintenance.authoringLine(for: event))
-        #expect(!line.contains("Not found in mainline"))
+        #expect(line.contains("predecessor Feature `YLH-1` has not merged in backend."))
+        #expect(line.contains("Not found in mainline: `yh-ylh-1` in backend."))
         #expect(line.contains(MergeCommitRecommendation.shared))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
+    }
+
+    @Test("Above max 1 the skip line names the stack, every Feature, and each unmerged branch, verbatim")
+    func stackFullLineNamesEveryFeatureAndBranch() throws {
+        let features = [
+            UnmergedStackEntry(
+                featureIssueID: "F1", identifier: "YLH-1", unmergedRepositories: ["backend", "mobile"],
+                branches: ["backend": "yh-ylh-1", "mobile": "yh-ylh-1-mobile"]
+            ),
+            UnmergedStackEntry(
+                featureIssueID: "F2", identifier: "YLH-2", unmergedRepositories: ["backend"],
+                branches: ["backend": "yh-ylh-2"]
+            ),
+            UnmergedStackEntry(
+                featureIssueID: "F3", identifier: "YLH-3", unmergedRepositories: ["mobile"],
+                branches: ["mobile": "yh-ylh-3"]
+            )
+        ]
+        let line = try #require(NightCardMaintenance.authoringLine(
+            for: .authoringSkippedUnmergedStackFull(features: features, unmergedFeaturesMax: 3)
+        ))
+        #expect(line == "Authoring was skipped: unmerged Feature stack reached unmerged_features_max "
+            + "(3 unmerged Features: `YLH-1`, `YLH-2`, `YLH-3`). Not found in mainline: `yh-ylh-1` in backend, "
+            + "`yh-ylh-1-mobile` in mobile, `yh-ylh-2` in backend, `yh-ylh-3` in mobile. "
+            + MergeCommitRecommendation.shared
+            + " If mainline already has the changes, a content-free merge of the Feature Branch (`git merge -s ours`) "
+            + "with a merge commit opens this gate. A quiet Night, not a failure.")
+    }
+
+    @Test("At max 1 with more than one Feature in U (the bound lowered), the line names the stack, not a predecessor")
+    func loweredBoundNamesTheStack() throws {
+        let entry = { (id: String) in
+            UnmergedStackEntry(featureIssueID: id, identifier: id, unmergedRepositories: ["backend"], branches: [:])
+        }
+        let line = try #require(NightCardMaintenance.authoringLine(
+            for: .authoringSkippedUnmergedStackFull(features: [entry("F1"), entry("F2")], unmergedFeaturesMax: 1)
+        ))
+        #expect(line.contains("reached unmerged_features_max (2 unmerged Features: `F1`, `F2`)."))
+        #expect(!line.contains("predecessor Feature"))
+        #expect(!line.contains("Not found in mainline"))
     }
 
     @Test("The merge-commit recommendation is word for word the same in both bodies and the Night Card line")
@@ -212,7 +246,7 @@ struct NightCardAuthoringCopyTests {
         let complete = body([done])
         let partial = body([done, blocked])
         let card = try #require(NightCardMaintenance.authoringLine(
-            for: .authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
+            for: stackFullSkip("FEAT-1", ["backend"])
         ))
 
         let editSentence =
@@ -250,7 +284,7 @@ struct NightCardAuthoringCopyTests {
                 mergeVerdict: PullRequestBodyMergeVerdict(conflict: false, untestable: true), unmetClauses: []
             ))
         } + [try #require(NightCardMaintenance.authoringLine(
-            for: .authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
+            for: stackFullSkip("FEAT-1", ["backend"])
         ))]
         let banned = [
             "never becomes an ancestor", "never authored", "writes new commits", "Not an ancestor of mainline",

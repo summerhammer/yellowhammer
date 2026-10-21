@@ -297,11 +297,12 @@ struct AuthorActCycleArchiveTests {
     }
 }
 
-// MARK: - Archival does not release the next Feature: the predecessor-ancestry gate still holds authoring
+// MARK: - Archival enters the Unmerged Feature Stack: at unmerged_features_max = 1 that alone holds authoring
 
-@Suite("Archival alone does not clear the predecessor-ancestry gate (P10.7)")
+@Suite("At unmerged_features_max = 1, an archived unmerged Feature fills the stack (P10.7, P23.5)")
 struct CycleArchivePredecessorGateTests {
-    @Test("An archived Feature whose branch is not merged into mainline still yields a quiet Night")
+    // Archival releases the in-flight slot and the Feature enters U; with max 1, U is full until its merge.
+    @Test("An archived Feature whose branch is not merged into mainline yields a quiet Night at max 1")
     func unmergedArchivedFeatureStillBlocksAuthoring() async throws {
         let backend = GateGitFixture(name: "archive-gate-backend")
         await backend.initRepo()
@@ -325,10 +326,10 @@ struct CycleArchivePredecessorGateTests {
         let gate = PredecessorAncestryGate()
         let (context, _) = try makeGateContext(journal, repositories: repositories)
 
-        let outcome = try await gate.check(context)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        guard case .notLanded(let predecessorIssueID, let unmergedRepositories) = outcome else {
-            Issue.record("expected notLanded, got \(outcome)")
+        guard case (let predecessorIssueID, let unmergedRepositories)? = singleUnmerged(outcome) else {
+            Issue.record("expected stackFull naming one Feature, got \(outcome)")
             return
         }
         #expect(predecessorIssueID == "FEAT-0")

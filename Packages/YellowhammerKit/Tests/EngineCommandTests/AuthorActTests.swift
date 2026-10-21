@@ -37,7 +37,7 @@ final class ScriptedPredecessorGate: PredecessorGate, Sendable {
 
     var wasCalled: Bool { called.withLock { $0 } }
 
-    func check(_ context: ActContext) async throws -> PredecessorGateOutcome {
+    func check(_ context: ActContext, unmergedFeaturesMax: Int) async throws -> PredecessorGateOutcome {
         called.withLock { $0 = true }
         log?.record("gate")
         return outcome
@@ -177,23 +177,25 @@ struct AuthorActTests {
         }
     }
 
-    @Test("A predecessor not landed stops authoring: no Worktree, no Attempt, the reason names it")
-    func predecessorNotLandedStopsAuthoring() async throws {
+    @Test("A full Unmerged Feature Stack stops authoring: no Worktree, no Attempt, the reason names it")
+    func unmergedStackFullStopsAuthoring() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
         let board = ActBoard(
             reading: FakeReadingBoard.quiet(2), writing: boards.writing, provisioning: boards.provisioning
         )
-        let gate = ScriptedPredecessorGate(
-            outcome: .notLanded(predecessorIssueID: "FEAT-0", repositories: ["backend", "mobile"])
+        let stacked = UnmergedStackEntry(
+            featureIssueID: "FEAT-0", identifier: "FEAT-0", unmergedRepositories: ["backend", "mobile"],
+            branches: ["backend": "yh-feat-0", "mobile": "yh-feat-0"]
         )
+        let gate = ScriptedPredecessorGate(outcome: .stackFull(features: [stacked]))
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
         let invocation = EngineInvocation(
             act: .author, mode: .rehearsal, nightStart: authorActNightStart, journal: journal,
             trigger: .forced, runID: RunID(), board: board,
-            work: AuthorAct(predecessorGate: gate, authoring: authoring).work
+            work: AuthorAct(predecessorGate: gate, authoring: authoring, unmergedFeaturesMax: 1).work
         )
         try await invocation.run()
 
@@ -202,13 +204,8 @@ struct AuthorActTests {
         #expect(try journal.inFlightFeature() == nil)
 
         let events = try journal.events()
-        let event = try #require(events.first { $0.type == .authoringPredecessorNotLanded })
-        guard case .authoringPredecessorNotLanded(let issueID, let repositories) = event.event else {
-            Issue.record("expected authoringPredecessorNotLanded")
-            return
-        }
-        #expect(issueID == "FEAT-0")
-        #expect(repositories == ["backend", "mobile"])
+        let event = try #require(events.first { $0.type == .authoringSkippedUnmergedStackFull })
+        #expect(event.event == .authoringSkippedUnmergedStackFull(features: [stacked], unmergedFeaturesMax: 1))
 
         let issue = try #require(await boards.writing.liveIssues.first)
         let description = try #require(issue.description)
@@ -267,7 +264,7 @@ struct AuthorActTests {
 
         let events = try journal.events().map(\.type)
         #expect(!events.contains(.authoringSkippedFeatureInFlight))
-        #expect(!events.contains(.authoringPredecessorNotLanded))
+        #expect(!events.contains(.authoringSkippedUnmergedStackFull))
         #expect(!events.contains(.authoringNoWorkAvailable))
         #expect(try journal.currentNight()?.verdict == nil)
     }
