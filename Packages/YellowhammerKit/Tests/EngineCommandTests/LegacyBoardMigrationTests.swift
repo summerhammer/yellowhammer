@@ -178,6 +178,37 @@ struct LegacyBoardMigrationTests {
         #expect(await legacy.updates(to: legacy.featureIssue).isEmpty)
     }
 
+    @Test("A write the Operator's move made stale is superseded, not delivered (P22.4 conditioning)")
+    func staleSettleWriteIsSuperseded() async throws {
+        let world = try await makeSettleWorld()
+        let legacy = try await LegacyWorld(world: world)
+        let writing = world.boards.writing
+        // The board holds the Feature in Kept in Flight; the migration decides, and the Operator then moves it.
+        await writing.operatorMoves(legacy.featureIssue, to: legacy.keptInFlight.id)
+        try await world.reading.readThrough(world.boards)
+        let board = ActBoard(reading: world.reading, writing: writing, provisioning: world.boards.provisioning)
+        let outbox = Outbox(
+            journal: world.journal, board: writing, reading: world.reading, runID: legacy.context.runID,
+            act: .author, nightID: legacy.context.night.id
+        )
+        let key = "legacy:v\(LegacyBoardMigration.version):settle:FEAT-1:\(legacy.keptInFlight.id.rawValue)"
+        let entry = try outbox.accept(OutboxWrite(
+            key: key,
+            write: .updateIssue(
+                issue: legacy.featureIssue, change: BoardIssueChange(workflowState: legacy.inProgress), undo: nil
+            ),
+            expectedState: legacy.keptInFlight.id
+        ))
+        #expect(entry.expectedStateID == legacy.keptInFlight.id.rawValue)
+        await writing.operatorMoves(legacy.featureIssue, to: legacy.todo.id)
+
+        try await LegacyBoardMigration(board: board, outbox: outbox).run()
+
+        #expect(try world.journal.outboxEntry(id: entry.id)?.state == .superseded)
+        #expect(await writing.writes(to: legacy.featureIssue, since: legacy.baseline).isEmpty)
+        #expect(try world.journal.events(ofType: .boardWriteSuperseded).count == 1)
+    }
+
     @Test("An issue the Journal does not track is never read or written, whatever state it is in")
     func untrackedIssueIsUntouched() async throws {
         let legacy = try await LegacyWorld(world: try await makeSettleWorld())
