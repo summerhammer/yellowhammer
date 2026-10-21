@@ -2860,7 +2860,7 @@ Every step: lead review by Fable 5.1.
   quiet skip; five skips in one Night render one line; F1's merge observed while F2 is in flight removes it from
   U; a pin named by an open Cycle's base survives the Observed Merge and is deleted at that Cycle's archive.
 
-### [ ] P23.6 Periodic author firings, trigger, doctor, standing line and Pulse
+### [x] P23.6 Periodic author firings, trigger, doctor, standing line and Pulse
 - **Work** — Fire the `author` job at `night_start + o` and two minutes after every periodic land tick; its
   trigger is no unarchived Cycle and no unfinished Work Card, or the Night's first author firing. `yh doctor`
   flags and `--fix` regenerates a plist lacking the periodic intervals. The Night Summary counts several landed
