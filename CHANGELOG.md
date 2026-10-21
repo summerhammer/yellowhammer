@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.25.0](https://github.com/summerhammer/yellowhammer/compare/v0.24.0...v0.25.0) (2026-10-21)
+
+
+### Features
+
+* **app:** Pulse lists the Features awaiting merge and a skip on a full stack ([2d56947](https://github.com/summerhammer/yellowhammer/commit/2d56947806e6442693ef920fa3e59fcc1e090fd3))
+* **prototypes:** Pulse scenarios and a Stack Ladder variant for the Unmerged Feature Stack ([170c0a5](https://github.com/summerhammer/yellowhammer/commit/170c0a5a812793817a887c491fedda402f218b2a))
+* **pulse:** read the Unmerged Feature Stack beside the in-flight Feature ([72b0a7d](https://github.com/summerhammer/yellowhammer/commit/72b0a7d65d77785df37314cbeb8abe91c31b52fb))
+
+
+### Bug Fixes
+
+* **app:** put the awaiting-merge detail's repo identifier on its row ([fa07fe8](https://github.com/summerhammer/yellowhammer/commit/fa07fe81ff62306d8a9b60bf6fcf16ec8b46bd67))
+* **landing:** open a complete landing's pull request body with the Roll-up sentence ([48692dd](https://github.com/summerhammer/yellowhammer/commit/48692dd6a90273d49d9de8198af6fb44f1593a97)), closes [#628](https://github.com/summerhammer/yellowhammer/issues/628)
+* **morning-report:** standing line names the Unmerged Feature Stack and shows identifiers ([c394c66](https://github.com/summerhammer/yellowhammer/commit/c394c66ff0c373199723ea68383c522cdcc01e56))
+
 ## [0.24.0](https://github.com/summerhammer/yellowhammer/compare/v0.23.0...v0.24.0) (2026-10-21)
 
 
