@@ -80,7 +80,11 @@ struct CardInputReconciler {
             }
         }
 
-        if try journal.recordCardOverrideLines(cardID: card.id, lines: parsed.cardOverrideLines) {
+        // Linear re-escapes Markdown punctuation in a stored description, so an escape-only difference from
+        // the held lines is Linear's rewrite, not an Operator edit; the held (earlier) spelling stays.
+        if try !CardOverrideField.sameIgnoringEscapes(
+            journal.cardOverrideLines(cardID: card.id), parsed.cardOverrideLines
+        ), try journal.recordCardOverrideLines(cardID: card.id, lines: parsed.cardOverrideLines) {
             imported.fields.append("card override")
         }
 

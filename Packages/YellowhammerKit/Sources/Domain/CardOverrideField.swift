@@ -58,6 +58,41 @@ public enum CardOverrideField {
         if value.last?.isWhitespace == true {
             return .malformed(reason: "`\(line)` has trailing whitespace; the route is read exactly as written")
         }
-        return .value(value)
+        return .value(unescaped(value))
+    }
+
+    /// The value as the Operator meant it, undoing what Linear's Markdown round trip adds: CommonMark
+    /// backslash escapes of ASCII punctuation (`gpt-5.6\_sol` is `gpt-5.6_sol`) and a whole-value autolink
+    /// (`<x>` or `[x](x)`). Used only to interpret; the held line stays exactly as the board spells it.
+    public static func unescaped(_ value: String) -> String {
+        var text = value
+        if text.hasPrefix("<"), text.hasSuffix(">") {
+            text = String(text.dropFirst().dropLast())
+        } else if text.hasPrefix("["), text.hasSuffix(")"), let split = text.range(of: "](") {
+            let label = String(text[text.index(after: text.startIndex)..<split.lowerBound])
+            let target = String(text[split.upperBound...].dropLast())
+            if unescapedText(label) == unescapedText(target) { text = label }
+        }
+        return unescapedText(text)
+    }
+
+    private static func unescapedText(_ text: String) -> String {
+        var result = ""
+        var iterator = text.makeIterator()
+        while let character = iterator.next() {
+            if character == "\\", let next = iterator.next() {
+                if !(next.isASCII && next.isPunctuation || next.isASCII && next.isSymbol) { result.append(character) }
+                result.append(next)
+            } else {
+                result.append(character)
+            }
+        }
+        return result
+    }
+
+    /// Whether two sets of held lines say the same thing once Markdown escapes are undone. Whitespace is
+    /// compared exactly, so fixing a malformed spacing is still an edit.
+    public static func sameIgnoringEscapes(_ lhs: [String], _ rhs: [String]) -> Bool {
+        lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0 == $1 || unescaped($0) == unescaped($1) }
     }
 }

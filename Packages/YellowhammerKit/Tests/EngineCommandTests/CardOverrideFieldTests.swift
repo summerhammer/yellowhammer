@@ -43,6 +43,25 @@ struct CardOverrideFieldReadingTests {
         }
     }
 
+    @Test("Linear's backslash escapes and autolink forms are undone to interpret the value, not to store it")
+    func escapedValuesReadAsTheirRoute() {
+        let expected = CardOverrideField.Reading.value("codex/gpt-5.6_sol/high*")
+        #expect(reading("Card override: codex/gpt-5.6\\_sol/high\\*") == expected)
+        #expect(reading("Card override: <codex/gpt-5.6_sol/high*>") == .value("codex/gpt-5.6_sol/high*"))
+        #expect(reading("Card override: [a/b/c](a/b/c)") == .value("a/b/c"))
+        #expect(reading("Card override: a\\z/b/c") == .value("a\\z/b/c"))
+    }
+
+    @Test("Escapes do not relax the spacing rules, and a genuinely malformed value stays malformed")
+    func escapesKeepSpacingStrict() {
+        guard case .malformed = reading("Card override:  codex/gpt-5.6\\_sol/high") else {
+            Issue.record("expected malformed")
+            return
+        }
+        #expect(CardOverrideField.sameIgnoringEscapes(["Card override: a\\_b/c/d"], ["Card override: a_b/c/d"]))
+        #expect(!CardOverrideField.sameIgnoringEscapes(["Card override: a/b/c"], ["Card override:  a/b/c"]))
+    }
+
     @Test("A duplicated line is malformed whatever the lines say")
     func duplicated() {
         guard case .malformed(let reason) = reading("Card override: a/b/c", "Card override: a/b/c") else {

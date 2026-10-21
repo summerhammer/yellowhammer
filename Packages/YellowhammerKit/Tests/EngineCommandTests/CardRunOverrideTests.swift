@@ -93,6 +93,25 @@ struct CardRunOverrideTests {
         #expect(try world.attempts("BACK-1").first?.route == slashed)
     }
 
+    @Test("An escaped underscore resolves to the same Route as the unescaped value")
+    func escapedValueResolvesLikeTheUnescapedOne() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let route = Route(cli: "codex", model: "gpt-5.6_sol", effort: "high")!
+        let table = RoutingTable(entries: [
+            RoutingEntry(kind: Kind("card")!, route: cardRunOpus),
+            RoutingEntry(kind: Kind("other")!, route: route)
+        ])
+        try saving(["Card override: codex/gpt-5.6\\_sol/high"], on: "BACK-1", in: world)
+
+        try await run(world, resolver: cardRunResolver(table: table))
+
+        #expect(try world.attempts("BACK-1").first?.route == route)
+        // Retained as the board spells it.
+        #expect(try world.journal.cardOverrideLines(cardID: try #require(world.cardIDs["BACK-1"]))
+            == ["Card override: codex/gpt-5.6\\_sol/high"])
+    }
+
     @Test("A field never beats a Probe failure: the Card is refused, nothing is dispatched")
     func probeFailureBeatsTheField() async throws {
         let fixture = try OutboxJournalFixture()
