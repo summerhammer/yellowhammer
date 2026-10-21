@@ -271,7 +271,7 @@ struct ConditionedOutboxWriteTests {
         await rig.reading.seed(issue: object("feature-1", state: started, updatedAt: 50))
 
         // The write the unanswered-position clock queues when the position expires.
-        var change = rig.scope.labels.change(cardType: .featureCard, state: .blocked, blockReason: .replyOverdue)
+        var change = rig.scope.labels.change(cardType: .featureCard)
         change.workflowState = try rig.scope.id(for: .blocked)
         let delivery = try await rig.outbox.post(OutboxWrite(
             key: "feature:FEAT-1:refusal:1:expired", write: .updateIssue(issue: feature, change: change, undo: nil)

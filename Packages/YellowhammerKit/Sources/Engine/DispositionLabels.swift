@@ -18,8 +18,11 @@ public struct DispositionLabels: Equatable, Sendable {
     /// BoardProvisioner.cardTypeGroup, matched case-insensitively; the legacy Block Reason group's
     /// children are resolved when present, and their absence is never an error.
     /// Throws DispositionLabelsError.missing(group:label:) naming the first missing Card Type child.
-    public init(labels: [BoardLabel]) throws {
-        var cardTypeMap: [CardType: BoardObjectID] = [:]
+    ///
+    /// `known` holds the Card Type ids a Board Mapping or the persisted footprint names; they win over the
+    /// group lookup.
+    public init(labels: [BoardLabel], known: [CardType: BoardObjectID] = [:]) throws {
+        var cardTypeMap: [CardType: BoardObjectID] = known
         var blockReasonMap: [BlockReason: BoardObjectID] = [:]
 
         // Find group label IDs
@@ -33,7 +36,7 @@ public struct DispositionLabels: Equatable, Sendable {
 
         // Process card type children
         if let groupID = cardTypeGroupID {
-            for type in CardType.allCases {
+            for type in CardType.allCases where cardTypeMap[type] == nil {
                 let lowerChild = type.rawValue.lowercased()
                 let predicate = { (label: BoardLabel) in
                     label.name.lowercased() == lowerChild && label.parent == groupID
@@ -69,8 +72,7 @@ public struct DispositionLabels: Equatable, Sendable {
     /// The change that puts exactly the right labels on an issue: adds `cardType`'s child label and
     /// removes the other card-type children, and removes every legacy Block Reason label the board
     /// still carries. It never adds one: the Block Reason is the Card's content, not a label.
-    /// `state` and `blockReason` stay in the signature so callers read the same either way.
-    public func change(cardType: CardType, state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
+    public func change(cardType: CardType) -> BoardIssueChange {
         var change = BoardIssueChange()
 
         // Card type: add the named child, remove the others.
@@ -93,9 +95,9 @@ public struct DispositionLabels: Equatable, Sendable {
         return change
     }
 
-    /// `change(cardType:state:blockReason:)` for a Work Card.
-    public func change(for state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
-        change(cardType: .workCard, state: state, blockReason: blockReason)
+    /// ``change(cardType:)`` for a Work Card.
+    public func workCardChange() -> BoardIssueChange {
+        change(cardType: .workCard)
     }
 }
 

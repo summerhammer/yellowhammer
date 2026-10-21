@@ -54,7 +54,7 @@ public struct FeatureReturn: FeatureReturning, Sendable {
     /// workspace member, in which case the state is still written with no assignee.
     private func postWaitingOnYou(context: LandActFeatureContext) async throws {
         guard let outbox = context.act.outbox, let board = context.act.board else { return }
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         let issue = BoardObjectID(rawValue: context.feature.issueID)
         let assignee = await context.act.operatorIdentity.assignee(on: board.reading)
 

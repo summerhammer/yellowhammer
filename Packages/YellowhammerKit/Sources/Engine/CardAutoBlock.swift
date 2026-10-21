@@ -54,7 +54,7 @@ enum CardAutoBlock {
         let journal = context.journal
 
         if let outbox = context.outbox, let board = context.board {
-            let scope = try await BoardStateScope.resolve(using: board.provisioning)
+            let scope = try await BoardStateScope.resolve(using: board)
             let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
             for card in cards {
                 if case .held(let holder) = try journal.claimCardLease(cardID: card.id, runID: context.runID) {

@@ -185,7 +185,8 @@ extension LinearAdapter: BoardProvisioning {
             )
             allStates.append(contentsOf: payload.workflowStates.nodes.map { node in
                 BoardWorkflowState(
-                    id: BoardObjectID(rawValue: node.id), name: node.name, category: Self.category(of: node.type)
+                    id: BoardObjectID(rawValue: node.id), name: node.name,
+                    category: Self.category(of: node.type), position: node.position
                 )
             })
             if !payload.workflowStates.pageInfo.hasNextPage {
@@ -222,7 +223,8 @@ extension LinearAdapter: BoardProvisioning {
             throw .refused("Linear created the workflow state but returned no state data")
         }
         return BoardWorkflowState(
-            id: BoardObjectID(rawValue: stateNode.id), name: stateNode.name, category: Self.category(of: stateNode.type)
+            id: BoardObjectID(rawValue: stateNode.id), name: stateNode.name,
+            category: Self.category(of: stateNode.type), position: stateNode.position
         )
     }
 

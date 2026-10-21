@@ -26,10 +26,11 @@ public enum FeatureDisposition: Equatable, Sendable {
 
     /// The two workflow states earlier builds provisioned as the daily-reset settle gesture.
     ///
-    /// Temporary legacy bridge (P22.2; P22.8 removes it): preflight still verifies both as
-    /// Yellowhammer-provisioned, so a board that has not been migrated may still hold a Feature Card in
-    /// them. `Kept in Flight` reads as ``continuing`` and `Abandoned` as ``canceled``, ahead of the
-    /// category, because both were provisioned with the `started` type.
+    /// Temporary legacy bridge (P22.2; P22.9 removes it): since P22.8 neither state is provisioned or
+    /// verified, but a board provisioned by an earlier build may still hold a Feature Card in either.
+    /// `Kept in Flight` reads as ``continuing`` and `Abandoned` as ``canceled``, ahead of the category,
+    /// because both were provisioned with the `started` type. No id is persisted for them, so they are
+    /// recognised by name; native `started` selection excludes them the same way (``NativeStateSelection``).
     public static let legacySettleStateNames = ["Kept in Flight", "Abandoned"]
 
     /// Reads `state` against `scope`: the custom `Waiting on You` and `Blocked` state ids first, then

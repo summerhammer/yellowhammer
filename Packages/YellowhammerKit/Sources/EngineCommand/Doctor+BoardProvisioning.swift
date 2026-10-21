@@ -3,9 +3,12 @@ import Domain
 import Engine
 
 extension Doctor {
-    /// Every workflow state and label Yellowhammer provisions in each team of `project`'s Linear project,
-    /// verified read-only through the same checks setup runs (Diagnose the Installation, Check 4: "every
-    /// provisioned or mapped item exists"). A missing item or a collision is a failure until it is
+    /// The two custom workflow states and three `Card Type` labels Yellowhammer provisions, the native
+    /// category selections and the Board Mapping, in each team of `project`'s Linear project, verified
+    /// read-only through the same checks setup runs (Diagnose the Installation, Check 4: "every
+    /// provisioned or mapped item exists"). A collision prints the Board Mapping lines that would adopt the
+    /// existing state; a missing native category or a mapping that fails verification is a failure. Mappings
+    /// of Projects on one Linear project that disagree are refused earlier, at load. A missing item or a collision is a failure until it is
     /// fixed, so a board setup could not finish never passes (#361). Run only once the membership check
     /// passed: a team Yellowhammer is not a member of, or a Linear project it cannot read, is reported
     /// once, there. The Card override is a description field, so no `Override` label group is verified.
@@ -21,14 +24,18 @@ extension Doctor {
 
         let board = bindProvisioning(installation, project.linearProject)
         let report: ProvisioningReport
+        let store = footprintStore(for: project, installation: installation)
+        let footprint = BoardFootprintInputs(mapping: project.boardMapping, store: store)
         do {
             if fix {
                 report = try await BoardProvisioner.provision(
-                    using: board, projectName: project.name, createIn: nil
+                    using: board, projectName: project.name, createIn: nil, footprint: footprint
                 )
+                // `--fix` records what it resolved; a plain run only reports (read-only).
+                try? store.recordFootprint(report.footprint)
             } else {
                 report = try await BoardProvisioner.verify(
-                    using: board, projectName: project.name
+                    using: board, projectName: project.name, footprint: footprint
                 )
             }
         } catch {
@@ -51,10 +58,24 @@ extension Doctor {
         guard !failures.isEmpty else {
             let teams = report.linearProject?.teams.map(\.key).joined(separator: ", ") ?? ""
             guard !teams.isEmpty else { return [] }
+            let note = BoardFootprintBinding.retiredNote(project.boardMapping).map { " (\($0))" } ?? ""
             return [provisioning(
-                .pass, "every workflow state and label Yellowhammer provisions is present in team \(teams)"
+                .pass, "the two custom workflow states, the native category selections and the three Card Type "
+                    + "labels resolve in team \(teams)" + note
             )]
         }
         return failures.map { provisioning(.failure, $0) }
+    }
+
+    /// `--fix` opens (creating) the Project's Journal so what it resolves is recorded; a plain run only reads.
+    private func footprintStore(
+        for project: ProjectConfiguration, installation: LinearInstallation
+    ) -> any BoardFootprintStore {
+        guard fix else {
+            return BoardFootprintBinding.readOnly(configurationDirectory: configurationDirectory, projectID: project.id)
+        }
+        return BoardFootprintBinding.writable(
+            configurationDirectory: configurationDirectory, project: project, workspace: installation.workspace
+        ).store
     }
 }

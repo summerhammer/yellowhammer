@@ -30,9 +30,9 @@ public struct BoardScopeUnresolved: Error, Equatable, CustomStringConvertible {
 extension EngineInvocation {
     /// Everything an Act checks about its board before it creates the Night Card or does any work: the
     /// identity is accepted (``authorizationPreflight()``), then the board scope is resolved (OQ85,
-    /// OQ136) — the four provisioned `started` workflow states, the `Card Type` label
-    /// group with its children (Block Reason is Card content, not a label; the Card override is a description
-    /// field, so no `Override` label group is required).
+    /// OQ136) — the two custom `started` workflow states (`Waiting on You`, `Blocked`), a native state
+    /// for each category Yellowhammer uses, and the `Card Type` label group with its children. Block Reason is
+    /// Card content and the Card override a description field, so neither has a label group to require.
     ///
     /// The clock rule (OQ93(f) as widened by OQ136): every halt in which no Act read the board spends
     /// no `overdue_nights_max`; the test is that no Act read the board, not the halt's cause. This runs
@@ -55,9 +55,13 @@ extension EngineInvocation {
     private func resolveBoardScope(night: NightRecord) async throws {
         guard let board else { return }
         let report = try await BoardProvisioner.verify(
-            using: board.provisioning, projectName: journal.projectID.rawValue
+            using: board.provisioning, projectName: journal.projectID.rawValue,
+            footprint: BoardFootprintInputs(mapping: board.mapping, store: board.footprint)
         )
         _ = try? journal.append(.linearReached, act: act, runID: runID, nightID: night.id)
+        // A mapped or bootstrapped id is recorded the first time it resolves, so later Acts reuse it and
+        // verify id and category rather than a name. Verification never creates, so nothing is `provisioned`.
+        if !report.footprint.isEmpty { try board.footprint?.recordFootprint(report.footprint) }
         let unfinished = report.unfinishedItems
         guard unfinished.isEmpty else {
             throw BoardScopeUnresolved(steps: unfinished.map(\.message), items: unfinished.map(\.item))

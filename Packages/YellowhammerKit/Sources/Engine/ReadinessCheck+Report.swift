@@ -44,7 +44,7 @@ extension ReadinessCheck {
     ) async throws -> CardRecord {
         let journal = context.act.journal
         if let outbox = context.act.outbox, let board = context.act.board {
-            let scope = try await BoardStateScope.resolve(using: board.provisioning)
+            let scope = try await BoardStateScope.resolve(using: board)
             let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
             let assignee = await context.act.operatorIdentity.assignee(on: board.reading)
             switch try await projection.transition(card: card, to: .waitingOnYou(reason, operator: assignee)) {

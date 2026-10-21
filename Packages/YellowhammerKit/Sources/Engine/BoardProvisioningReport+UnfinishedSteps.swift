@@ -34,7 +34,7 @@ extension ProvisioningReport {
             return nil
         case .label(_, let group, let team) where !groupIsPresent(group, team: team):
             return nil
-        case .label, .labelGroup, .workflowState:
+        case .label, .labelGroup, .workflowState, .nativeCategory, .boardMapping:
             break
         }
         switch entry.outcome {
@@ -42,8 +42,11 @@ extension ProvisioningReport {
             return "\(entry.subject) is missing: \(reason)"
         case .collision:
             let existing = entry.collidesWith ?? "an existing item of the same name"
+            let adopt = entry.mappingHint.map { "; if it is Yellowhammer's, add to the Project file instead:\n\($0)" }
             return "\(entry.subject) is not provisioned: its name is held by the \(existing); "
-                + "rename or delete that one in Linear, then run `yh doctor --fix --check linear`"
+                + "rename or delete that one in Linear, then run `yh doctor --fix --check linear`" + (adopt ?? "")
+        case .invalidMapping(let reason):
+            return "\(entry.subject) fails verification: \(reason)"
         case .permissionRefused(let reason):
             return "\(entry.subject): permission refused (\(reason))"
         case .present, .created, .blocked, .notAMember, .refused:

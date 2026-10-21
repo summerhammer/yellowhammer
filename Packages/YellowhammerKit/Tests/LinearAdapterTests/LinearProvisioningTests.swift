@@ -103,6 +103,27 @@ struct LinearProvisioningTests {
         #expect(try Fixture.variables(transport.requests[2])["after"] as? String == "cursor-a")
     }
 
+    @Test("Workflow states are requested with their position and read back with it")
+    func workflowStatesCarryPosition() async throws {
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json("""
+                {"data":{"workflowStates":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+                  {"id":"state-1","name":"Done","type":"completed","position":3},
+                  {"id":"state-2","name":"Shipped","type":"completed","position":1.5},
+                  {"id":"state-3","name":"Legacy","type":"canceled"}
+                ]}}}
+                """)
+        ])
+
+        let states = try await Fixture.adapter(transport).workflowStates(team: BoardObjectID(rawValue: "team-1"))
+
+        let query = try #require(try Fixture.body(transport.requests[1])["query"] as? String)
+        #expect(query.contains("nodes { id name type position }"))
+        #expect(states.map(\.position) == [3, 1.5, nil])
+        #expect(states.map(\.category) == [.completed, .completed, .shelved])
+    }
+
     @Test("Create workflow state sends team id, name, type and uses neutral color")
     func createWorkflowStateMutation() async throws {
         let json = """

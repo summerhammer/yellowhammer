@@ -59,7 +59,8 @@ struct ProjectConfigurationDecoder {
             changeType: try changeType(in: root, unvalidated: &unvalidated),
             rehearsalLinearProject: board.rehearsalProject,
             rehearsalJournal: try rehearsalJournal(in: root),
-            passTimeoutMinutes: try passTimeoutMinutes(in: root)
+            passTimeoutMinutes: try passTimeoutMinutes(in: root),
+            boardMapping: board.mapping
         )
         try applyGitHub(in: root, to: &configuration, unvalidated: &unvalidated)
         try applyGit(in: root, to: &configuration, unvalidated: &unvalidated)
@@ -308,6 +309,7 @@ extension ProjectConfigurationDecoder {
         let project: String
         let rehearsalProject: String?
         let connectionLine: Int
+        let mapping: BoardMapping
     }
 
     /// `[board.linear]`: the Board Connection this Project selects by name and the Linear project it
@@ -325,13 +327,14 @@ extension ProjectConfigurationDecoder {
         }
         let linear = try decoding.table(linearValue, key: "board.linear")
         try decoding.rejectUnknownKeys(
-            in: linear, path: "board.linear", allowed: ["connection", "project", "rehearsal_project"]
+            in: linear, path: "board.linear", allowed: ["connection", "project", "rehearsal_project", "mapping"]
         )
         return LinearBoard(
             connection: try decoding.requiredString("connection", in: linear, path: "board.linear"),
             project: try decoding.requiredString("project", in: linear, path: "board.linear"),
             rehearsalProject: try decoding.optionalString("rehearsal_project", in: linear, path: "board.linear"),
-            connectionLine: linear["connection"]?.line ?? linear.line
+            connectionLine: linear["connection"]?.line ?? linear.line,
+            mapping: try boardMapping(in: linear)
         )
     }
 

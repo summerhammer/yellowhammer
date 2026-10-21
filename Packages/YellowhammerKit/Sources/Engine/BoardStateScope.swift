@@ -11,11 +11,19 @@ public struct BoardStateScope: Equatable, Sendable {
     /// A workflow state id for every writable ``CardState`` — everything but `.shelved`.
     public let states: [CardState: BoardObjectID]
     public let labels: DispositionLabels
+    /// The team's native `canceled` state (the Card's Shelved, the Feature's abandonment), selected like the
+    /// others. Kept out of ``states``: Yellowhammer reads Shelved and never writes it. Nil when the team has
+    /// none, which preflight reports as an incomplete step.
+    public let canceledState: BoardObjectID?
 
-    public init(team: BoardObjectID, states: [CardState: BoardObjectID], labels: DispositionLabels) {
+    public init(
+        team: BoardObjectID, states: [CardState: BoardObjectID], labels: DispositionLabels,
+        canceledState: BoardObjectID? = nil
+    ) {
         self.team = team
         self.states = states
         self.labels = labels
+        self.canceledState = canceledState
     }
 
     /// The workflow state id for `state`. Throws ``BoardStateScopeError/shelvedIsNeverWritten`` for
@@ -45,46 +53,73 @@ public struct BoardStateScope: Equatable, Sendable {
     /// The issue change that returns a Feature to contention: transitions to `.todo` (contention)
     /// and clears any Block Reason label.
     public func featureContentionChange() throws -> BoardIssueChange {
-        var change = labels.change(cardType: .featureCard, state: Self.contentionCardState, blockReason: nil)
+        var change = labels.change(cardType: .featureCard)
         change.workflowState = try contentionWorkflowStateID()
         return change
     }
 
-    /// The states resolved by name first, falling back to a category match; Blocked and Waiting on You
-    /// are provisioned by name only, so they never fall back.
-    private static let writableStates: [CardState] = [.todo, .inProgress, .done, .blocked, .waitingOnYou]
-
-    private static let categoryFallback: [CardState: BoardWorkflowStateCategory] = [
-        .todo: .unstarted, .inProgress: .started, .done: .completed
+    /// The Card states Yellowhammer writes, each resolved to a workflow state: Waiting on You and Blocked are
+    /// Yellowhammer's two custom states; Todo, In Progress and Done are the team's native `unstarted`,
+    /// `started` and `completed` states, selected by category (``NativeStateSelection``).
+    private static let nativeCategory: [CardState: (BoardMappingRole, BoardWorkflowStateCategory)] = [
+        .todo: (.unstarted, .unstarted), .inProgress: (.started, .started), .done: (.completed, .completed)
     ]
 
     /// Resolves the scope from the Project's Linear project: first team of the Linear project, the
-    /// disposition label catalogue, and every writable workflow state — exact name match first
-    /// (case-insensitive), then the category fallback for Todo, In Progress and Done. Throws
-    /// ``BoardStateScopeError/stateNotProvisioned(name:team:)`` for a state that resolves neither way.
-    public static func resolve(using board: any BoardProvisioning) async throws -> BoardStateScope {
+    /// disposition label catalogue, and every writable workflow state.
+    ///
+    /// The two custom states come from a Board Mapping entry or the id persisted by earlier provisioning,
+    /// re-verified present with category `started`; a name alone never selects one. The native three are
+    /// selected by category: an explicit Board Mapping entry, else the lowest-position eligible state, a tie
+    /// broken by state id; the custom ids and the legacy settlement states are excluded from generic
+    /// `started` selection. Throws ``BoardStateScopeError/stateNotProvisioned(name:team:)`` for a state that
+    /// resolves neither way.
+    public static func resolve(using board: ActBoard) async throws -> BoardStateScope {
+        try await resolve(using: board.provisioning, mapping: board.mapping, footprint: board.footprint)
+    }
+
+    /// ``resolve(using:)-(ActBoard)`` for a board with an explicit Board Mapping and footprint store (none:
+    /// a board bound with no footprint, where the custom states fall back to name and `started` category).
+    public static func resolve(
+        using board: any BoardProvisioning, mapping: BoardMapping = .empty,
+        footprint: (any BoardFootprintStore)? = nil
+    ) async throws -> BoardStateScope {
         let project = try await board.linearProject()
         guard let team = project.teams.first else {
             throw NightCardScopeError.noTeam
         }
         let boardStates = try await board.workflowStates(team: team.id)
         let boardLabels = try await board.labels(team: team.id)
-        let labels = try DispositionLabels(labels: boardLabels)
+        let labels = try DispositionLabels(
+            labels: boardLabels,
+            known: BoardFootprintLookup.cardTypeLabelIDs(
+                team: team.id, labels: boardLabels, mapping: mapping, footprint: footprint
+            )
+        )
 
+        let customIDs = BoardFootprintLookup.customStateIDs(
+            team: team.id, states: boardStates, mapping: mapping, footprint: footprint
+        )
         var states: [CardState: BoardObjectID] = [:]
-        for state in writableStates {
-            if let exact = boardStates.first(where: { $0.name.lowercased() == state.rawValue.lowercased() }) {
-                states[state] = exact.id
-                continue
+        for (state, role) in [(CardState.waitingOnYou, BoardMappingRole.waitingOnYou), (.blocked, .blocked)] {
+            guard let id = customIDs[role] else {
+                throw BoardStateScopeError.stateNotProvisioned(name: state.rawValue, team: team.id)
             }
-            if let category = categoryFallback[state],
-               let byCategory = boardStates.first(where: { $0.category == category }) {
-                states[state] = byCategory.id
-                continue
-            }
-            throw BoardStateScopeError.stateNotProvisioned(name: state.rawValue, team: team.id)
+            states[state] = id
         }
-        return BoardStateScope(team: team.id, states: states, labels: labels)
+        let excluded = Set(customIDs.values)
+        for (state, native) in nativeCategory {
+            guard let selected = NativeStateSelection.select(
+                category: native.1, mapped: mapping[native.0], among: boardStates, excluding: excluded
+            ) else {
+                throw BoardStateScopeError.stateNotProvisioned(name: state.rawValue, team: team.id)
+            }
+            states[state] = selected.id
+        }
+        let canceled = NativeStateSelection.select(
+            category: .shelved, mapped: mapping[.canceled], among: boardStates, excluding: excluded
+        )
+        return BoardStateScope(team: team.id, states: states, labels: labels, canceledState: canceled?.id)
     }
 }
 

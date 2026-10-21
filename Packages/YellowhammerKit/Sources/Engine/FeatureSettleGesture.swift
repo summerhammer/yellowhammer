@@ -32,7 +32,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         guard let board = context.board, context.outbox != nil else { return }
 
         let object = try await board.reading.issue(BoardObjectID(rawValue: feature.issueID))
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         let disposition = FeatureDisposition(workflowState: object?.workflowState, scope: scope)
 
         // A removed Card (OQ142) is set aside: it takes no part in what is carried forward or accepted.

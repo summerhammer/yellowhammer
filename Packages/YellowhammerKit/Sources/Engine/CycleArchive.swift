@@ -76,7 +76,7 @@ public struct CycleArchive: CycleArchiving, Sendable {
             _ = try await outbox.post(write)
         }
 
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         let projection = BoardStateProjection(journal: context.act.journal, outbox: outbox, scope: scope)
         let featureIssue = BoardObjectID(rawValue: context.feature.issueID)
         _ = try await projection.transition(featureIssue: featureIssue, to: .done)

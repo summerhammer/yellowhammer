@@ -120,8 +120,24 @@ actor FakeProvisioningBoard: BoardProvisioning {
         return label.id
     }
 
-    func seed(state name: String, team: BoardObjectID, category: BoardWorkflowStateCategory? = nil) {
-        states[team, default: []].append(BoardWorkflowState(id: mint(), name: name, category: category))
+    /// Seeds a workflow state and returns its id. `position` and `id` are for the native-selection tests,
+    /// which need an order and a stable id to break a tie on.
+    @discardableResult
+    func seed(
+        state name: String, team: BoardObjectID, category: BoardWorkflowStateCategory? = nil,
+        position: Double? = nil, id: String? = nil
+    ) -> BoardObjectID {
+        let state = BoardWorkflowState(
+            id: id.map { BoardObjectID(rawValue: $0) } ?? mint(), name: name, category: category, position: position
+        )
+        states[team, default: []].append(state)
+        return state.id
+    }
+
+    /// Renames a workflow state in place, as an Operator editing it in Linear would; its id is unchanged.
+    func rename(state id: BoardObjectID, to name: String, team: BoardObjectID) {
+        guard let index = states[team]?.firstIndex(where: { $0.id == id }) else { return }
+        states[team]?[index].name = name
     }
 
     /// Removes every workflow state named `name` from `team`, as an Operator deleting it in Linear would.

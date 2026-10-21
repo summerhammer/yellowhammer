@@ -34,7 +34,7 @@ enum DeferredCardStateReplay {
 
         let scope: BoardStateScope
         do {
-            scope = try await BoardStateScope.resolve(using: board.provisioning)
+            scope = try await BoardStateScope.resolve(using: board)
         } catch BoardError.rateLimited(let retryAfter, _) {
             var reason = "the deferred Card state replay was refused for the rate budget; "
                 + "the board's own workflow states could not be resolved, so \(cards.count) Card(s) stay "

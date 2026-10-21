@@ -109,7 +109,7 @@ enum AdoptionRevalidation {
     private static func transitionToWaitingOnYou(card: CardRecord, context: ActContext) async throws {
         let journal = context.journal
         if let outbox = context.outbox, let board = context.board {
-            let scope = try await BoardStateScope.resolve(using: board.provisioning)
+            let scope = try await BoardStateScope.resolve(using: board)
             let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
             let assignee = await context.operatorIdentity.assignee(on: board.reading)
             let current = try journal.card(id: card.id)

@@ -66,6 +66,11 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case repoDependencyCycle(path: [String])
         /// A Repo Dependency's `via` is neither `mainline` nor `tag`.
         case invalidRepoDependencyVia(String)
+        /// A Board Mapping names an id already named by an earlier key: no id serves two meanings.
+        case duplicateMappingID(firstKey: String)
+        /// Two Projects on the same Linear project declare Board Mappings that disagree: `role` is mapped to
+        /// another id there, or this id serves another meaning there. Reported on both Projects.
+        case boardMappingConflict(role: String, project: ProjectID, file: String)
     }
 
     public let file: String
@@ -144,6 +149,11 @@ extension ConfigurationError.Reason: CustomStringConvertible {
                 + "another is already declared on line \(firstLine)"
         case .undeclaredCLIAdapter(let cli):
             return "route names CLI \"\(cli)\", which has no [cli.\(cli)] adapter declaration"
+        case .duplicateMappingID(let firstKey):
+            return "this id is already mapped by `\(firstKey)`; no id serves two meanings"
+        case .boardMappingConflict(let role, let project, let file):
+            return "Board Mapping `\(role)` conflicts with Project \"\(project.rawValue)\" (\(file)), which shares "
+                + "this Project's Linear project; declare compatible mappings"
         case .workingRepoConflict(let project, let file):
             return "repository is also declared as a working Repo by Project \"\(project.rawValue)\" (\(file))"
         case .duplicateLinearWorkspace(let firstInstallation, let firstLine):

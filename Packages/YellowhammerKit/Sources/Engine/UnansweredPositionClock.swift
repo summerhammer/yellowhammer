@@ -46,10 +46,10 @@ enum UnansweredPositionClock {
             return
         }
 
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let scope = try await BoardStateScope.resolve(using: board)
         for position in expired {
             guard let issueID = position.issueID else { continue }
-            var change = scope.labels.change(cardType: .featureCard, state: .blocked, blockReason: .replyOverdue)
+            var change = scope.labels.change(cardType: .featureCard)
             change.workflowState = try scope.id(for: .blocked)
             let write = OutboxWrite(
                 key: position.key,

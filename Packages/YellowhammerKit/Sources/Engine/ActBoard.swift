@@ -24,17 +24,39 @@ public struct ActBoard: Sendable {
     /// board that enforces none (test fakes): the Engine holds no board's number of its own (ADR-001).
     public let descriptionBudget: DescriptionBudget?
 
+    /// The Project's Board Mapping (`[board.linear.mapping]`): ids of existing board objects that stand in
+    /// for what is provisioned or selected by category. Empty for a Project that declares none.
+    public let mapping: BoardMapping
+
+    /// The Project's persisted board-footprint ids and provenance (its Journal). Nil for a board bound with
+    /// none (test fakes): the two custom states are then looked up by name and `started` category, as
+    /// before P22.8. A real Act always has one, and never adopts a state by name alone.
+    public let footprint: (any BoardFootprintStore)?
+
     public init(
         reading: any Board, writing: any BoardWriting, provisioning: any BoardProvisioning,
         tokenRefreshes: AppInstallationTokenRefreshLog? = nil,
         installation: AppInstallationLabel? = nil,
-        descriptionBudget: DescriptionBudget? = nil
+        descriptionBudget: DescriptionBudget? = nil,
+        mapping: BoardMapping = .empty,
+        footprint: (any BoardFootprintStore)? = nil
     ) {
+        self.mapping = mapping
+        self.footprint = footprint
         self.tokenRefreshes = tokenRefreshes
         self.installation = installation
         self.descriptionBudget = descriptionBudget
         self.reading = reading
         self.writing = writing
         self.provisioning = provisioning
+    }
+
+    /// This board bound to the Project's Board Mapping and footprint store.
+    public func binding(mapping: BoardMapping, footprint: any BoardFootprintStore) -> ActBoard {
+        ActBoard(
+            reading: reading, writing: writing, provisioning: provisioning, tokenRefreshes: tokenRefreshes,
+            installation: installation, descriptionBudget: descriptionBudget, mapping: mapping,
+            footprint: footprint
+        )
     }
 }

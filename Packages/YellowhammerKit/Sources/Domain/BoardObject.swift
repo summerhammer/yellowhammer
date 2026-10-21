@@ -63,11 +63,17 @@ public struct BoardWorkflowState: Hashable, Sendable, Codable {
     /// reported a type this build does not know. An adapter translates the vendor's string into this
     /// enum so nothing above the Board Port ever reads a vendor type directly.
     public var category: BoardWorkflowStateCategory?
+    /// The state's place among its team's states (Linear's `position`, a float). Native selection by
+    /// category takes the lowest position first; nil, for a board that reports none, sorts last.
+    public var position: Double?
 
-    public init(id: BoardObjectID, name: String, category: BoardWorkflowStateCategory? = nil) {
+    public init(
+        id: BoardObjectID, name: String, category: BoardWorkflowStateCategory? = nil, position: Double? = nil
+    ) {
         self.id = id
         self.name = name
         self.category = category
+        self.position = position
     }
 
     /// True when the board itself says this state is shelved — by category, or (a team may have

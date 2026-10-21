@@ -170,26 +170,50 @@ else is touched. The new Linear project's id must then be written to `[board.lin
 
 Then, **once per team** the Linear project belongs to (Projects sharing a team share the result):
 
-- the `Waiting on You`, `Blocked`, `Kept in Flight` and `Abandoned` workflow states (type
-  `started`), each matched by name, case-insensitively (`Kept in Flight` and `Abandoned` are a legacy pair,
-  still provisioned until P22.8; a Feature Card settles by native Done or Cancelled);
-- the label group `Card Type` with `Feature Card`, `Work Card`, `Night Card`;
-- the label group `Block Reason` with `reviewer rejection`, `check failure`, `route failure`,
-  `host crash`, `engine fault`, `operator abort`, `reply overdue`, `decision overdue`,
-  `feature abandoned`, `failure recurrence` (`BlockReason.allCases`).
+- the two custom workflow states, `Waiting on You` and `Blocked` (type `started`);
+- the label group `Card Type` with `Feature Card`, `Work Card`, `Night Card`.
+
+That is the whole footprint (board-projection/provision-the-board; roadmap P22.8). Every other state is the
+team's **native** state, selected by workflow **category** and never by display name: Todo is the lowest-position
+`unstarted` state, In Progress the lowest-position `started` one (Yellowhammer's own two and the legacy
+`Kept in Flight` / `Abandoned` pair are excluded), Done the lowest-position `completed` one, and Shelved the
+`canceled` one. A position tie goes to the lowest state id. A team that lacks one of those categories is
+reported as an incomplete step naming the category and the team; setup never creates a substitute. No
+`Block Reason` or `Override` label group is provisioned: Block Reason is Card content, and the Card override
+is one description field on each Work Card (P22.7). A board that still carries any of those labels, groups or
+the legacy settle states keeps them: nothing is deleted, verified or required (P22.9 converts what used them).
 
 Every item is reported `present`, `created`, `collision` or `blocked`. A label of the same name
 anywhere the team can see it — a workspace label, a team label, or a label in another group — is a
 **collision**: reported, never overwritten, and that one label is not created. (The feasibility
 probe's workspace already had a workspace-level `Feature`.) A non-group label holding a group's name
 blocks the whole group. A workflow state's uniqueness is scoped to (name, type), not name alone (a
-live probe found a team-owned `Released` of type `completed` coexisting with ours of type `started`):
-a same-named workflow state of a different type — including one this build cannot categorize — is
-also a **collision**, reported and never reused. Resolve a collision by hand in Linear, then run
-provisioning again.
+live probe found a team-owned `Released` of type `completed` coexisting with ours of type `started`).
 
-The Card override is one description field on each Work Card (roadmap P22.7), not a label: no `Override`
-label group is provisioned or required, and an existing one is left alone (P22.8 converts it).
+### Persisted ids and the Board Mapping
+
+A matching name alone never adopts a state. Setup records, in the Project's Journal, the id of each of the two
+custom states and of each `Card Type` label with its source: `provisioned` (setup created it), `mapped` (the
+Operator named it) or `bootstrapped`. Later Acts reuse the recorded id and re-verify that it exists with the
+right category. A same-name `started` state with no recorded id is accepted as Yellowhammer's only on this
+Project's own Journal provenance (Yellowhammer once delivered a write that set it on an issue), and recorded
+`bootstrapped`; otherwise it is a **collision**, and `yh doctor` prints the exact lines to adopt it:
+
+```toml
+[board.linear.mapping]
+waiting_on_you = "<workflow state id>"
+blocked = "<workflow state id>"
+```
+
+`[board.linear.mapping]` (in the Project's file) selects existing Linear objects by id: the workflow-state keys
+`waiting_on_you`, `blocked` (both must be `started`), `unstarted`, `started`, `completed`, `canceled`, and the
+`Card Type` label keys `feature_card`, `work_card`, `night_card`. Each id must exist with the right category, no
+id may serve two meanings, and Projects on one Linear project must declare compatible mappings. A mapping that
+fails is reported as a step setup could not do; nothing is inferred from a name in its place. The retired keys
+`block_reason`, `override`, `kept_in_flight` and `abandoned` are accepted and ignored with a note.
+
+The Journal is per Project, so a second Project on a team whose states another Project created has no recorded
+id: it reports the same collision until it maps them (or its own Acts have written to them).
 
 ### Running provisioning against the scratch workspace
 

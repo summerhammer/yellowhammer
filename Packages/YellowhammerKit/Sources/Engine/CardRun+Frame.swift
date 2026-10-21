@@ -134,7 +134,7 @@ extension CardRun {
 
         var projection: BoardStateProjection?
         if let board = context.act.board, let outbox = context.act.outbox {
-            let scope = try await BoardStateScope.resolve(using: board.provisioning)
+            let scope = try await BoardStateScope.resolve(using: board)
             projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
         }
 

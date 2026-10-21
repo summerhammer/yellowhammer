@@ -188,6 +188,9 @@ public struct ProjectFileDraft: Equatable, Sendable {
     var wipCommitMessage: MessageTemplate
     var rehearsalLinearProject: String?
     var rehearsalJournal: String?
+    /// `[board.linear.mapping]`, carried through untouched: this form does not edit it, and saving any other
+    /// field must never drop it. Retired entries are not written back.
+    var boardMapping: BoardMapping
 
     public init(_ project: ProjectConfiguration) {
         id = project.id
@@ -207,6 +210,7 @@ public struct ProjectFileDraft: Equatable, Sendable {
         wipCommitMessage = project.wipCommitMessage
         rehearsalLinearProject = project.rehearsalLinearProject
         rehearsalJournal = project.rehearsalJournal
+        boardMapping = project.boardMapping
     }
 }
 
@@ -237,6 +241,12 @@ extension ProjectFileDraft {
             board.append("rehearsal_project = \(ConfigurationRendering.quoted(rehearsalLinearProject))")
         }
         sections.append(board.joined(separator: "\n"))
+        let mappingLines = BoardMappingRole.allCases.compactMap { role in
+            boardMapping[role].map { "\(role.rawValue) = \(ConfigurationRendering.quoted($0.rawValue))" }
+        }
+        if !mappingLines.isEmpty {
+            sections.append((["[board.linear.mapping]"] + mappingLines).joined(separator: "\n"))
+        }
         sections.append("[code_hosting]\nconnection = \(ConfigurationRendering.quoted(codeHostingConnectionName))")
         if let rehearsalJournal {
             sections.append("[rehearsal]\njournal = \(ConfigurationRendering.quoted(rehearsalJournal))")

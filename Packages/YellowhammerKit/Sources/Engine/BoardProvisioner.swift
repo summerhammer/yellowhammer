@@ -3,29 +3,24 @@ import Foundation
 
 /// The declared provisioning scope for a Linear project.
 ///
-/// These constants define the state name and label groups that Yellowhammer provisions
-/// at setup time. Only the `Card Type` group is provisioned for every Project: Block Reason is a
-/// Journal cause rendered into the Card's Managed Block, not a label (Board Simplification Ruling
-/// 2026-10-20), so a board that still has the legacy `Block Reason` group is neither verified nor
-/// edited here, and none of its labels is deleted. The Card override is one editable description field on
-/// each Work Card, not a label (routing/resolve-a-route-for-a-card, roadmap P22.7), so no `Override` label
-/// group is provisioned or required: a board that still carries one, or the older per-axis `Override CLI`,
-/// `Override Model` and `Override Effort` groups, is neither read, verified nor edited, and none of its
-/// labels is deleted (converting them is P22.8). The settle workflow-state group (`Kept in Flight`, `Abandoned`) is provisioned alongside
-/// `Waiting on You` and `Blocked`; a same-name state of another type is a collision, never reused
-/// (G-6 probe, 2026-09-23; OQ128).
+/// Yellowhammer's footprint on a team is exactly two custom `started` workflow states, `Waiting on You` and
+/// `Blocked`, and the `Card Type` label group with its three children (Board Simplification Ruling
+/// 2026-10-20; board-projection/provision-the-board, roadmap P22.8). Every other state is the team's native
+/// state, selected by workflow category and never created (``NativeStateSelection``). Block Reason is a
+/// Journal cause rendered into the Card's Managed Block, and the Card override is one description field
+/// (routing/resolve-a-route-for-a-card): so no `Block Reason` or `Override` label group is provisioned, and
+/// the legacy settle states `Kept in Flight` and `Abandoned` are neither created, verified nor deleted.
+/// A board that still carries any of them keeps them; converting what used them is P22.9.
+///
+/// A same-name state is never adopted by name alone: the two custom states are reused from a persisted id,
+/// a Board Mapping, or a bootstrap on the Project's own Journal provenance; otherwise the name is a
+/// collision (G-6 probe, 2026-09-23; OQ128).
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     public static let waitingOnYouState = "Waiting on You"
 
     /// The category every workflow state Yellowhammer provisions is created with.
-    private static let provisionedStateCategory: BoardWorkflowStateCategory = .started
-
-    /// The workflow states provisioned once per team, in this order: Waiting on You, Blocked, then
-    /// the legacy settle pair (`FeatureDisposition/legacySettleStateNames`), still provisioned until P22.8.
-    private static var declaredWorkflowStates: [String] {
-        [waitingOnYouState, blockedState] + FeatureDisposition.legacySettleStateNames
-    }
+    static let provisionedStateCategory: BoardWorkflowStateCategory = .started
 
     /// The workflow state for unstarted work.
     public static let todoState = "Todo"
@@ -65,10 +60,11 @@ public struct BoardProvisioner {
     public static func provision(
         using board: any BoardProvisioning,
         projectName: String,
-        createIn team: BoardObjectID?
+        createIn team: BoardObjectID?,
+        footprint: BoardFootprintInputs = .none
     ) async throws(BoardError) -> ProvisioningReport {
         try await run(
-            using: board, projectName: projectName, createIn: team, createsMissing: true
+            using: board, projectName: projectName, createIn: team, createsMissing: true, footprint: footprint
         )
     }
 
@@ -79,7 +75,8 @@ public struct BoardProvisioner {
         using board: any BoardProvisioning,
         projectName: String,
         createIn team: BoardObjectID?,
-        createsMissing: Bool
+        createsMissing: Bool,
+        footprint: BoardFootprintInputs = .none
     ) async throws(BoardError) -> ProvisioningReport {
         var entries: [ProvisioningEntry] = []
         let groups = Self.labelGroups
@@ -111,102 +108,66 @@ public struct BoardProvisioner {
         // provision workflow state and label groups. A team the app is not a member of — including one
         // the Board Connection never selected, invisible to `teams()` too — gets no create attempt at
         // all; it is reported and setup moves on to the next team.
+        let snapshots = try await readMemberTeams(of: project, using: board, into: &entries)
+        let persisted = (try? footprint.store?.persistedFootprint()) ?? []
+        let verified = verifyMapping(footprint.mapping, against: snapshots)
+        entries += verified.entries
+        for snapshot in snapshots {
+            try await provisionTeam(
+                board: Target(
+                    board: board, createsMissing: createsMissing, store: footprint.store,
+                    mapping: verified.mapping, unusable: verified.unusable, persisted: persisted
+                ),
+                snapshot: snapshot, groups: groups, into: &entries
+            )
+        }
+
+        return ProvisioningReport(
+            entries: entries, linearProject: project,
+            footprint: footprintRecords(
+                from: entries, mapping: verified.mapping, persisted: persisted
+            )
+        )
+    }
+
+    /// Reads the states and labels of every team of `project` that Yellowhammer's identity is a member of;
+    /// a team it is not a member of is reported and gets nothing else.
+    private static func readMemberTeams(
+        of project: BoardProjectScope, using board: any BoardProvisioning, into entries: inout [ProvisioningEntry]
+    ) async throws(BoardError) -> [TeamSnapshot] {
         let memberTeamIDs = Set(try await board.memberTeams())
+        var snapshots: [TeamSnapshot] = []
         for team in project.teams {
             guard memberTeamIDs.contains(team.id) else {
                 entries.append(ProvisioningEntry(subject: .team(team), outcome: .notAMember(team.key)))
                 continue
             }
-            try await provisionTeam(
-                board: Target(board: board, createsMissing: createsMissing), team: team, groups: groups,
-                into: &entries
-            )
+            snapshots.append(TeamSnapshot(
+                team: team,
+                states: try await board.workflowStates(team: team.id),
+                labels: try await board.labels(team: team.id)
+            ))
         }
-
-        return ProvisioningReport(entries: entries, linearProject: project)
+        return snapshots
     }
 
     private static func provisionTeam(
         board: Target,
-        team: BoardTeam,
+        snapshot: TeamSnapshot,
         groups: [LabelGroupDeclaration],
         into entries: inout [ProvisioningEntry]
     ) async throws(BoardError) {
-        let existingStates = try await board.workflowStates(team: team.id)
-        let existingLabels = try await board.labels(team: team.id)
+        let (team, existingStates) = (snapshot.team, snapshot.states)
 
-        try await provisionWorkflowState(
-            board: board, team: team, existingStates: existingStates, into: &entries
-        )
+        for role in BoardMappingRole.customStates {
+            try await provisionCustomState(
+                role, board: board, team: team, existingStates: existingStates, into: &entries
+            )
+        }
+        reportNativeCategories(board: board, team: team, states: existingStates, into: &entries)
 
         for groupSpec in groups {
-            try await provisionGroup(
-                board: board, group: groupSpec, team: team, existingLabels: existingLabels, into: &entries
-            )
-        }
-    }
-
-    private static func provisionWorkflowState(
-        board: Target,
-        team: BoardTeam,
-        existingStates: [BoardWorkflowState],
-        into entries: inout [ProvisioningEntry]
-    ) async throws(BoardError) {
-        for stateName in Self.declaredWorkflowStates {
-            try await provisionWorkflowState(
-                named: stateName, board: board, team: team, existingStates: existingStates, into: &entries
-            )
-        }
-    }
-
-    /// Provisions one declared workflow state. Linear's uniqueness is scoped to (name, type), not
-    /// name alone (G-6 probe): a same-name state of a different category — including one this build
-    /// cannot categorize — is a collision, and is never overwritten or reused.
-    private static func provisionWorkflowState(
-        named stateName: String,
-        board: Target,
-        team: BoardTeam,
-        existingStates: [BoardWorkflowState],
-        into entries: inout [ProvisioningEntry]
-    ) async throws(BoardError) {
-        let sameName = existingStates.filter { $0.name.lowercased() == stateName.lowercased() }
-        if let foreign = sameName.first(where: { $0.category != Self.provisionedStateCategory }) {
-            let category = foreign.category.map { "category \($0.rawValue)" } ?? "an unknown category"
-            entries.append(ProvisioningEntry(
-                subject: .workflowState(stateName, team: team),
-                outcome: .collision("team"),
-                collidesWith: "workflow state `\(foreign.name)` of \(category)"
-            ))
-            return
-        }
-        if sameName.contains(where: { $0.category == Self.provisionedStateCategory }) {
-            entries.append(ProvisioningEntry(
-                subject: .workflowState(stateName, team: team),
-                outcome: .present
-            ))
-            return
-        }
-        guard board.createsMissing else {
-            entries.append(ProvisioningEntry(
-                subject: .workflowState(stateName, team: team), outcome: .missing(notProvisioned)
-            ))
-            return
-        }
-        do {
-            _ = try await board.createWorkflowState(
-                name: stateName, category: Self.provisionedStateCategory, team: team.id
-            )
-            entries.append(ProvisioningEntry(
-                subject: .workflowState(stateName, team: team),
-                outcome: .created
-            ))
-        } catch .forbidden(let reason) {
-            // A permission refusal is reported by name — never as the Project's Linear project being
-            // invisible — and setup moves on to the next workflow state (Refusals Ruling).
-            entries.append(ProvisioningEntry(
-                subject: .workflowState(stateName, team: team),
-                outcome: .permissionRefused(reason)
-            ))
+            try await provisionGroup(board: board, group: groupSpec, snapshot: snapshot, into: &entries)
         }
     }
 

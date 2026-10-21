@@ -43,7 +43,8 @@ extension EngineInvocation {
         boxed.transientRetry = outboxTransientRetry
         boxed.countsTransientAttempts = !isFlushFiring
         let maintenance = NightCardMaintenance(
-            journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
+            journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds,
+            mapping: board.mapping, footprint: board.footprint
         )
         return (boxed, maintenance)
     }
