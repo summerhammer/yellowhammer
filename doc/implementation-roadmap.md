@@ -2825,7 +2825,7 @@ Every step: lead review by Fable 5.1.
   and mainline for the rest; selecting F1's name again is refused; a consumer of the stacked Repo is held; the
   lane merge test and banked-reply stamps still read the real mainline.
 
-### [ ] P23.3 Build Act: stacked Worktree allocation and dispatch-time readiness
+### [x] P23.3 Build Act: stacked Worktree allocation and dispatch-time readiness
 - **Work** — Allocate a stacked Feature's Worktree from the recorded landed ref (origin branch as fallback) and
   verify its HEAD equals `base_commit`, removing the Worktree on mismatch; a recovery pin still wins. Resolve the
   build Act's dispatch-time Readiness Check against the Feature's recorded base.
