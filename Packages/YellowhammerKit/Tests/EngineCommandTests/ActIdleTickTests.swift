@@ -67,8 +67,14 @@ func invocationFalsePredicateReturnsNormally() async throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    // Create a scenario where the predicate is false (author with unfinished Cards)
+    // Create a scenario where the predicate is false: an unfinished Card (a Feature in flight) and an
+    // author firing that is not the Night's first.
     try insertTodoCard(journal, issueID: "CARD-1")
+    try await EngineInvocation(
+        act: .author, mode: .real, nightStart: nightStart, journal: journal, trigger: .scheduled,
+        runID: RunID(), leasePolicy: .ruled, work: { _ in }
+    ).run()
+    let eventsBefore = try journal.events().count
 
     let runID = RunID()
     let invocation = EngineInvocation(
@@ -88,24 +94,23 @@ func invocationFalsePredicateReturnsNormally() async throws {
     try await invocation.run()
 
     // Verify the event log contains nightOpened, actStarted, actIdle, actEnded
-    let events = try journal.events()
-    #expect(events.count == 4)
-    #expect(events[0].event == .nightOpened)
-    #expect(events[1].event == .actStarted)
+    let events = Array(try journal.events().dropFirst(eventsBefore))
+    #expect(events.count == 3)
+    #expect(events[0].event == .actStarted)
+    #expect(events[0].act == .author)
+    #expect(events[0].runID == runID)
+
+    guard case .actIdle(let reason) = events[1].event else {
+        Issue.record("Second event should be actIdle")
+        return
+    }
+    #expect(reason == .featureInFlight)
     #expect(events[1].act == .author)
     #expect(events[1].runID == runID)
 
-    guard case .actIdle(let reason) = events[2].event else {
-        Issue.record("Third event should be actIdle")
-        return
-    }
-    #expect(reason == .unfinishedCardsPresent)
+    #expect(events[2].event == .actEnded)
     #expect(events[2].act == .author)
     #expect(events[2].runID == runID)
-
-    #expect(events[3].event == .actEnded)
-    #expect(events[3].act == .author)
-    #expect(events[3].runID == runID)
 
     // Verify the Act lease was released
     let leaseHeld = try journal.claimActLease(act: .author, runID: RunID(), mode: .real)
@@ -133,6 +138,17 @@ func actIdleUnfinishedCardsRoundTrips() throws {
         return
     }
     #expect(reason == .unfinishedCardsPresent)
+}
+
+@Test("actIdle event with featureInFlight round-trips")
+func actIdleFeatureInFlightRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    try journal.append(.actIdle(reason: .featureInFlight), act: .author, runID: RunID(), now: epoch)
+    let records = try journal.events()
+
+    #expect(records.map(\.event) == [.actIdle(reason: .featureInFlight)])
 }
 
 @Test("actIdle event with noFeatureInFlight round-trips")

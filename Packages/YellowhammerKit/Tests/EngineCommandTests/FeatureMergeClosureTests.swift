@@ -405,7 +405,7 @@ struct AuthorActFeatureMergeClosureTests {
 
         let invocation = EngineInvocation(
             act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
-            trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
+            trigger: .forced, runID: RunID(), board: board, repositories: repositories,
             work: AuthorAct(
                 predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()), authoring: authoring
             ).work
@@ -441,7 +441,7 @@ struct AuthorActFeatureMergeClosureTests {
         let firstAuthoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
         let firstInvocation = EngineInvocation(
             act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
-            trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
+            trigger: .forced, runID: RunID(), board: board, repositories: repositories,
             work: AuthorAct(
                 predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()), authoring: firstAuthoring
             ).work
@@ -463,7 +463,7 @@ struct AuthorActFeatureMergeClosureTests {
         let secondAuthoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
         let secondInvocation = EngineInvocation(
             act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
-            trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
+            trigger: .forced, runID: RunID(), board: board, repositories: repositories,
             work: AuthorAct(
                 predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()), authoring: secondAuthoring
             ).work

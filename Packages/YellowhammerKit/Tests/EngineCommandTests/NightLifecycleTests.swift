@@ -37,13 +37,13 @@ private final class ResultBox<Value: Sendable>: Sendable {
     var value: Value? { storage.withLock { $0 } }
 }
 
-@Test("Author invocation with unmet trigger opens Night and records it")
+@Test("An Act with an unmet trigger opens the Night and records it")
 func authorWithUnmetTriggerOpensNight() async throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let run = RunID()
 
-    // Insert a todo card to make author trigger false
+    // Insert a todo card to make the land trigger false: the Cycle still has unfinished Cards
     try journal.write { db in
         let timestamp = epoch.formatted(.iso8601)
         try db.execute(
@@ -65,7 +65,7 @@ func authorWithUnmetTriggerOpensNight() async throws {
     }
 
     let invocation = EngineInvocation(
-        act: .author,
+        act: .land,
         mode: .real,
         nightStart: nightStart,
         journal: journal,

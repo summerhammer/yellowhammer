@@ -6,6 +6,10 @@
 public enum ActIdleReason: String, CaseIterable, Sendable {
     /// author: the Project still holds Cards left to work, so there is nothing to author.
     case unfinishedCardsPresent = "unfinished_cards_present"
+    /// author: a Feature is in flight (an unarchived Cycle, or Cards left to work) and this is not the
+    /// Night's first author firing. Only that opening firing runs while a Feature is in flight; every
+    /// later periodic firing exits quietly until the land Act archives the Cycle.
+    case featureInFlight = "feature_in_flight"
     /// build and land: no Feature is in flight, so there is no Cycle to build or land.
     case noFeatureInFlight = "no_feature_in_flight"
     /// build: the in-flight Cycle has nothing left to build. Nothing *stops* build after land —

@@ -76,6 +76,7 @@ extension NightAccount {
     static func words(idleReason: ActIdleReason) -> String {
         switch idleReason {
         case .unfinishedCardsPresent: "Cards are still left to work, so there is nothing to author"
+        case .featureInFlight: "a Feature is in flight, so there is nothing to author yet"
         case .noFeatureInFlight: "no Feature is in flight"
         case .cycleHasNoUnfinishedCards: "the Cycle has nothing left to build"
         case .cycleHasUnfinishedCards: "the Cycle still has unfinished Cards"
