@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.24.0](https://github.com/summerhammer/yellowhammer/compare/v0.23.0...v0.24.0) (2026-10-21)
+
+
+### Features
+
+* **config:** add the unmerged_features_max Bound ([b4d05e0](https://github.com/summerhammer/yellowhammer/commit/b4d05e077f7c6cd13071d09502d731df69f5804e))
+* **config:** fire the author job after every periodic land tick ([52a3de7](https://github.com/summerhammer/yellowhammer/commit/52a3de710dcd1dd1d7c280178c0bbe5e57ee3ccc))
+* **engine:** author the next Feature against effective_base(R) ([500b0b7](https://github.com/summerhammer/yellowhammer/commit/500b0b7f4d9798f2ffc13e52d17c3524a44f2d29))
+* **engine:** count every Feature a Night landed and list the Unmerged Feature Stack ([a25a83d](https://github.com/summerhammer/yellowhammer/commit/a25a83d014a49cbabc91f6c61d3fab254fb1c3ae))
+* **engine:** cut a stacked Feature's Worktree from its recorded base ([31e705d](https://github.com/summerhammer/yellowhammer/commit/31e705de5c7ee374923c3beb9d61462413d9d94a))
+* **engine:** fire the author Act only with no Cycle in flight, or first in the Night ([903c9b5](https://github.com/summerhammer/yellowhammer/commit/903c9b5ebf2f465c5ee4a1424e8570fe247d97a9))
+* **engine:** gate authoring on the Unmerged Feature Stack ([b6054e6](https://github.com/summerhammer/yellowhammer/commit/b6054e6085552aa267b942f22489e4e5ef92cf43))
+* **engine:** keep a landed pin while an open Cycle's base names it ([25dcd73](https://github.com/summerhammer/yellowhammer/commit/25dcd73c1a9e87835d9e22cd08ee4eada0f226bf))
+* **engine:** open stacked pull requests against the predecessor's Feature Branch ([2ec39cc](https://github.com/summerhammer/yellowhammer/commit/2ec39cceefce5fb7af8437a809a040ac0a1a4871))
+* **journal:** read the Unmerged Feature Stack and record effective bases ([40097ca](https://github.com/summerhammer/yellowhammer/commit/40097ca648fa290a5dd4162d317aae2c1fae9744))
+* **pulse:** count every Feature verified tonight ([41f92ac](https://github.com/summerhammer/yellowhammer/commit/41f92ace16e9ccfbff79077874f3886e3ca59371))
+
 ## [0.23.0](https://github.com/summerhammer/yellowhammer/compare/v0.22.0...v0.23.0) (2026-10-21)
 
 
