@@ -2798,6 +2798,14 @@ directly. Pre-1.0: the Journal keeps one migration, edited in place (`journal-sc
 
 Every step: lead review by Fable 5.1.
 
+**Post-release verification (#627), 2026-10-21:** v0.24.0 (build 763) reports `journal-schema-24`;
+the downloaded binary's doctor detected an old single-firing author plist in an isolated temporary
+home (1 installed firing versus 96 for a five-minute cadence). Upgrade instructions and readiness
+guidance are documented. The live two-Feature Night, quiet skip, periodic idle, plist repair and
+Observed Merge/pin cleanup remain pending: ordinary rehearsal does not push or archive F1, so it
+cannot supply the required predecessor. See the [verification record](phase-23-upgrade-verification.md)
+for evidence, isolation requirements and the outstanding checks. This is not a live Night pass.
+
 ### [x] P23.1 `unmerged_features_max`, the Unmerged Feature Stack read and the `feature_base` schema
 - **Work** — Add the eighth Bound `unmerged_features_max` (default 3, `<= 0` refused) and plumb it to the
   author Act, which stores it unused. Add the Journal's `feature_base` table (the `effective_base(R)` recorded at

@@ -252,3 +252,65 @@ Between rehearsal Night runs, the scratch Linear team's issues need archiving an
 Project's Journal needs clearing, without touching provisioning. See
 `../scripts/scratch-linear/README.md` for the runbook and `scripts/scratch-linear/scratch_linear.py`
 for the `check`/`reset` tool.
+
+## Phase 23 upgrade: v0.24.0
+
+Before the first Act on v0.24.0, complete these steps for **every Project**, including Projects used
+only for rehearsal. This pre-1.0 release changes the Journal to `journal-schema-24` and adds periodic
+`author` firings. The Ledger is retained.
+
+1. Choose a maintenance window with **no Act running**, and prevent scheduled or manual Acts from
+   starting until the reset and job regeneration are complete. Quit the app while replacing Journals.
+   Check the Project's jobs with `launchctl list` and check for running `yh` processes; a sleeping job
+   alone is not evidence that no manual Act is running. Never unload or regenerate a running Act's
+   LaunchAgent ([#407](https://github.com/summerhammer/yellowhammer/issues/407)).
+2. Inventory every old Journal under `~/.config/yellowhammer/journals/`, plus the separate absolute
+   `[rehearsal] journal` path in each Project file. Archive any diagnostic evidence needed, then delete
+   those old Journal databases and their SQLite `-wal` and `-shm` sidecars while all Acts remain stopped.
+   Rehearsal Journals live outside the real Journals directory, so clearing that directory alone is
+   insufficient. **Never delete `~/.config/yellowhammer/ledger.db` or its sidecars.** Never clear the
+   entire config directory: keep configuration, credentials, the Ledger and Repo registrations.
+3. The app and engine **refuse an existing older Journal**; the engine does not delete it automatically.
+   After explicit deletion, the next Act creates the new Journal. Setup can also create a missing
+   Journal during provisioning. Verify the newly created database with
+   `sqlite3 -readonly <journal> "SELECT identifier FROM grdb_migrations;"`: it must report
+   `journal-schema-24`. The app remains read-only and never creates or migrates a Journal. A Journal
+   from a newer build is an upgrade requirement, not a reason to delete it.
+4. From the newly installed app's `yh`, run `yh doctor --project <id> --check launchd` for every
+   Project. A pre-Phase-23 author plist with only the opening firing is reported as a schedule
+   difference when the configured window has periodic firings. Repair each Project with
+   `yh doctor --fix --project <id> --check launchd`, or run `yh setup --install-jobs` to regenerate the
+   eligible Projects' jobs. Run these only in the maintenance window from step 1, then repeat the
+   read-only doctor check and inspect the author plist's `StartCalendarInterval`. Doctor preserves
+   paused jobs as unloaded; restore the intended loaded state before leaving the machine unattended.
+   Doctor can also repair the machine-wide `/usr/local/bin/yh` link; a scratch-home repair needs the
+   [isolation precautions](phase-23-upgrade-verification.md#isolation-for-the-next-live-run).
+5. Author now fires at `night_start + offset`, and two minutes after each periodic land tick (one
+   minute after build). For a two-minute cadence that delay is one minute; for a one-minute cadence
+   it is zero. Keep the Project's existing schedule and let setup/doctor generate the firing grid.
+6. `[limits] unmerged_features_max` defaults to **3**. To retain the previous single-Feature-until-merged
+   behavior, set it to **1** in each Project file that needs it:
+
+   ```toml
+   [limits]
+   unmerged_features_max = 1
+   ```
+
+   Add the key to an existing `[limits]` table rather than declaring the table twice.
+
+The [Phase 23 verification record](phase-23-upgrade-verification.md) tracks the separate live scratch
+checks. Upgrade completion does not establish that the live multi-Feature check passed.
+
+### Release notes upgrade text
+
+Maintain this text locally with the release notes preview; publication follows the
+[release checklist](release-checklist.md#15-release-notes-preview-spec-commit-and-story-ids).
+
+> **Upgrading to v0.24.0:** Before the first Act, stop Acts and prevent new firings, then reset every
+> older Project Journal, including separately configured rehearsal Journals. Existing older Journals
+> are refused; delete them explicitly so the next Act can create `journal-schema-24`. Keep the Ledger.
+> While no Act is running, regenerate every Project's LaunchAgents with `yh doctor --fix` or
+> `yh setup --install-jobs`, then verify `yh doctor` reports no schedule difference. Author now fires
+> periodically, two minutes after land as well as at Night start (short cadences collapse the delay).
+> `[limits] unmerged_features_max` defaults to 3; set it to 1 to keep one unmerged Feature at a time.
+> See the Phase 23 upgrade runbook for the maintenance sequence and rehearsal Journal paths.
