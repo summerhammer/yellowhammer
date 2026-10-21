@@ -21,41 +21,6 @@ struct DoctorBoardProvisioningTests {
         #expect(provisioning.first?.message.contains("team ENG") == true)
     }
 
-    @Test("Retired taxonomy still on the team is reported as info, never a failure, and never deleted (P22.9)")
-    func residualTaxonomyIsInfo() async throws {
-        let fixture = try await DoctorLinearFixture()
-        for name in LegacyBoardTaxonomy.settleStateNames {
-            await fixture.acme.seed(state: name, team: engineeringTeam.id, category: .started)
-        }
-        for group in [LegacyBoardTaxonomy.blockReasonGroup, LegacyBoardTaxonomy.overrideGroup] {
-            await fixture.acme.seed(label: group, team: engineeringTeam.id, isGroup: true)
-        }
-        let creates = await fixture.acme.creates
-        let statesBefore = try await fixture.acme.workflowStates(team: engineeringTeam.id)
-
-        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
-
-        let provisioning = findings.linear("acme", subject: "provisioning")
-        #expect(provisioning.filter { $0.severity == .failure }.isEmpty)
-        #expect(provisioning.contains { $0.severity == .pass })
-        let info = try #require(provisioning.first { $0.severity == .info })
-        for item in LegacyBoardTaxonomy.settleStateNames + [
-            LegacyBoardTaxonomy.blockReasonGroup, LegacyBoardTaxonomy.overrideGroup
-        ] {
-            #expect(info.message.contains("`\(item)`"))
-        }
-        #expect(info.message.contains("safe to delete in Linear"))
-        #expect(await fixture.acme.creates == creates)
-        #expect(try await fixture.acme.workflowStates(team: engineeringTeam.id) == statesBefore)
-    }
-
-    @Test("A board without retired taxonomy reports no residual finding")
-    func cleanBoardReportsNoResidual() async throws {
-        let fixture = try await DoctorLinearFixture()
-        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
-        #expect(findings.linear("acme", subject: "provisioning").allSatisfy { $0.severity == .pass })
-    }
-
     @Test("A board from the previous build: the Night Card collision fails, naming Object Type, until fixed")
     func previousBuildCollisionFails() async throws {
         let fixture = try await DoctorLinearFixture(provisionAcme: false)
@@ -245,6 +210,7 @@ struct DoctorBoardProvisioningTests {
         let collision = try #require(failures.first { $0.message.contains("workflow state `Blocked`") })
         #expect(collision.message.contains("[board.linear.mapping]"))
         #expect(collision.message.contains("blocked = \"\(unrelated)\""))
+        #expect(!collision.message.contains("to write them"), "doctor --fix never writes a mapping")
         #expect(await fixture.acme.creates == 0)
     }
 
@@ -268,123 +234,5 @@ struct DoctorBoardProvisioningTests {
         let plain = await fixture.doctor(projectFilter: project).run()
         #expect(plain.linear("acme", subject: "provisioning").allSatisfy { $0.severity == .pass })
         #expect(await fixture.acme.creates == creates)
-    }
-
-    // MARK: - doctor --fix writes the Board Mapping for already-provisioned states
-
-    private func projectFile(_ fixture: borrowing DoctorLinearFixture, _ id: String = "alpha") -> URL {
-        fixture.directory.url.appending(components: "projects", "\(id).toml", directoryHint: .notDirectory)
-    }
-
-    /// A Project file in the shape `yh setup --init` writes (`[board.linear]` as a table, which a mapping
-    /// sub-table can extend), with `mapping` as a ready-made `[board.linear.mapping]` section.
-    private func tableForm(mapping: String = "") -> String {
-        """
-        id = "alpha"
-        name = "alpha"
-        # a comment the Operator wrote
-        spec_source = "~/Developer/alpha-spec"
-
-        [board.linear]
-        connection = "acme"
-        project = "lp-alpha"
-        \(mapping)
-        [[repos]]
-        name = "backend"
-        path = "~/Developer/alpha-backend"
-        role = "backend"
-        check = "swift test"
-
-        [code_hosting]
-        connection = "github"
-        """
-    }
-
-    private func journalFootprint(_ fixture: borrowing DoctorLinearFixture) throws -> [BoardFootprintRecord] {
-        try JournalStore.open(
-            configurationDirectory: fixture.directory.url, projectID: try #require(ProjectID(rawValue: "alpha")),
-            linearWorkspace: BoardObjectID(rawValue: "ws-acme")
-        ).boardFootprint()
-    }
-
-    @Test("--fix writes both ids for single same-name started states, records them mapped, and a rerun is a no-op")
-    func fixWritesTheMapping() async throws {
-        let fixture = try await DoctorLinearFixture(provisionAcme: false)
-        let waiting = await fixture.acme.seed(state: "Waiting on You", team: engineeringTeam.id, category: .started)
-        let blocked = await fixture.acme.seed(state: "Blocked", team: engineeringTeam.id, category: .started)
-        try fixture.directory.writeProjectFile(id: "alpha", tableForm())
-        let original = try String(contentsOf: projectFile(fixture), encoding: .utf8)
-        let project = ProjectID(rawValue: "alpha")
-
-        let repaired = await fixture.doctor(projectFilter: project, fix: true).run()
-
-        let text = try String(contentsOf: projectFile(fixture), encoding: .utf8)
-        #expect(text.hasPrefix(original), "every original byte is kept; the table is appended")
-        #expect(text.contains("[board.linear.mapping]"))
-        #expect(text.contains("waiting_on_you = \"\(waiting)\"") && text.contains("blocked = \"\(blocked)\""))
-        let provisioning = repaired.linear("acme", subject: "provisioning")
-        #expect(provisioning.contains { $0.message.contains("wrote to [board.linear.mapping]") })
-        #expect(provisioning.allSatisfy { $0.severity != .failure })
-        let sources = Dictionary(uniqueKeysWithValues: try journalFootprint(fixture).map { ($0.role, $0.source) })
-        #expect(sources[.waitingOnYou] == .mapped && sources[.blocked] == .mapped)
-        let held = try await fixture.acme.workflowStates(team: engineeringTeam.id)
-        #expect(held.filter { $0.name == "Blocked" }.count == 1)
-
-        let again = await fixture.doctor(projectFilter: project, fix: true).run()
-        #expect(try String(contentsOf: projectFile(fixture), encoding: .utf8) == text)
-        #expect(!again.linear("acme", subject: "provisioning").contains { $0.message.contains("wrote to") })
-        let plain = await fixture.doctor(projectFilter: project).run()
-        #expect(plain.linear("acme", subject: "provisioning").allSatisfy { $0.severity == .pass })
-    }
-
-    @Test("Plain doctor writes nothing and says how to write the lines")
-    func plainDoctorIsReadOnly() async throws {
-        let fixture = try await DoctorLinearFixture(provisionAcme: false)
-        await fixture.acme.seed(state: "Blocked", team: engineeringTeam.id, category: .started)
-        try fixture.directory.writeProjectFile(id: "alpha", tableForm())
-        let original = try String(contentsOf: projectFile(fixture), encoding: .utf8)
-
-        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
-
-        #expect(try String(contentsOf: projectFile(fixture), encoding: .utf8) == original)
-        let failures = findings.linear("acme", subject: "provisioning").filter { $0.severity == .failure }
-        #expect(failures.contains { $0.message.contains("yh doctor --fix") && $0.message.contains("blocked = ") })
-    }
-
-    @Test("Two same-name started candidates write nothing for that meaning")
-    func twoCandidatesWriteNothing() async throws {
-        let fixture = try await DoctorLinearFixture(provisionAcme: false)
-        await fixture.acme.seed(state: "Blocked", team: engineeringTeam.id, category: .started)
-        await fixture.acme.seed(state: "Blocked", team: engineeringTeam.id, category: .started)
-        let waiting = await fixture.acme.seed(state: "Waiting on You", team: engineeringTeam.id, category: .started)
-        try fixture.directory.writeProjectFile(id: "alpha", tableForm())
-
-        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha"), fix: true).run()
-
-        let text = try String(contentsOf: projectFile(fixture), encoding: .utf8)
-        #expect(text.contains("waiting_on_you = \"\(waiting)\"") && !text.contains("blocked = "))
-        #expect(findings.linear("acme", subject: "provisioning").contains {
-            $0.severity == .failure && $0.message.contains("workflow state `Blocked`")
-        })
-    }
-
-    @Test("An existing mapping value is never overwritten; other meanings and content are preserved")
-    func existingMappingIsKept() async throws {
-        let fixture = try await DoctorLinearFixture(provisionAcme: false)
-        let waiting = await fixture.acme.seed(state: "Waiting on You", team: engineeringTeam.id, category: .started)
-        await fixture.acme.seed(state: "Blocked", team: engineeringTeam.id, category: .started)
-        let original = tableForm(mapping: "\n[board.linear.mapping]\nblocked = \"somewhere-else\"\n")
-        try fixture.directory.writeProjectFile(id: "alpha", original)
-
-        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha"), fix: true).run()
-
-        let text = try String(contentsOf: projectFile(fixture), encoding: .utf8)
-        #expect(text.contains("blocked = \"somewhere-else\"") && !text.contains("blocked = \"state"))
-        #expect(text == original.replacingOccurrences(
-            of: "[board.linear.mapping]\n", with: "[board.linear.mapping]\nwaiting_on_you = \"\(waiting)\"\n"
-        ))
-        #expect(findings.linear("acme", subject: "provisioning").contains {
-            $0.severity == .failure && $0.message.contains("Board Mapping `blocked`")
-        })
     }
 }

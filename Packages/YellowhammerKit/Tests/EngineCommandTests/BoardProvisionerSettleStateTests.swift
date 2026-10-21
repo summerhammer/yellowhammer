@@ -33,8 +33,8 @@ private func outcome(of report: ProvisioningReport, _ state: String) -> Provisio
     }?.outcome
 }
 
-private let keptInFlight = LegacyBoardTaxonomy.settleStateNames[0]
-private let abandoned = LegacyBoardTaxonomy.settleStateNames[1]
+private let keptInFlight = "Kept in Flight"
+private let abandoned = "Abandoned"
 private let waitingOnYou = BoardProvisioner.waitingOnYouState
 
 @Suite("Board provisioning: custom states and the legacy settle pair")

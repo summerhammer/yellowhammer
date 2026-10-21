@@ -53,20 +53,6 @@ struct FeatureDispositionTests {
         #expect(FeatureDisposition(workflowState: blocked, scope: scope) == .blocked)
     }
 
-    @Test("The P22.2 name bridge is gone: a retired settle state name reads by its category, continuing")
-    func retiredSettleStateNamesReadByCategory() async throws {
-        let scope = try await resolvedScope()
-        let kept = BoardWorkflowState(
-            id: BoardObjectID(rawValue: "k"), name: LegacyBoardTaxonomy.settleStateNames[0], category: .started
-        )
-        let abandoned = BoardWorkflowState(
-            id: BoardObjectID(rawValue: "a"), name: LegacyBoardTaxonomy.settleStateNames[1], category: .started
-        )
-
-        #expect(FeatureDisposition(workflowState: kept, scope: scope) == .continuing)
-        #expect(FeatureDisposition(workflowState: abandoned, scope: scope) == .continuing)
-    }
-
     @Test("No state, or a state of no known category, is indeterminate")
     func missingEvidenceIsIndeterminate() async throws {
         let scope = try await resolvedScope()
@@ -320,30 +306,20 @@ struct FeatureSettleGestureTests {
         #expect(try world.journal.predecessorFeature().predecessor == nil)
     }
 
-    @Test(
-        "A tracked Feature Card in a retired settle state is continuing and gets the notice exactly once",
-        arguments: LegacyBoardTaxonomy.settleStateNames
-    )
-    func retiredSettleStateGetsTheNoticeOnce(name: String) async throws {
+    @Test("A tracked Feature Card in a started state is continuing: nothing is posted and the Feature stays in flight")
+    func startedStatePostsNothing() async throws {
         let world = try await makeSettleWorld()
-        await world.seedFeatureIssueState(name, category: .started)
+        await world.seedFeatureIssueState("In Review", category: .started)
         let gesture = FeatureSettleGesture()
         let context = try world.makeContext()
 
         try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
 
-        // Nothing is abandoned or completed: the name decides nothing.
         let row = try settleFeatureRow(world.journal, featureID: world.featureID)
         #expect(row.abandonedAt == nil)
         #expect(row.closedBy == nil)
         #expect(try world.journal.inFlightFeature() != nil)
-        #expect(await world.boards.writing.comments.count == 1)
-        let observed = try world.journal.events(ofType: .legacyBoardObserved)
-        #expect(observed.count == 1)
-        #expect(observed[0].event == .legacyBoardObserved(
-            kind: "retired-state", issueID: "FEAT-1", detail: name
-        ))
+        #expect(await world.boards.writing.comments.isEmpty)
     }
 
     @Test("A Cancelled Feature on a Partial Landing records the unlanded repositories as abandoned")

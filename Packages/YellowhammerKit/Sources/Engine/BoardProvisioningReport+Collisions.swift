@@ -12,7 +12,7 @@ extension ProvisioningReport {
             switch entry.subject {
             case .workflowState(let name, let team):
                 let adopt = entry.mappingHint.map {
-                    "; or, if it is Yellowhammer's, add to the Project file (or run `yh doctor --fix`):\n\($0)"
+                    "; or, to adopt it on purpose, add to the Project file:\n\($0)"
                 }
                 return "- rename or delete the \(existing) in team \(team.key); it holds the name of "
                     + "workflow state `\(name)` (category started)" + (adopt ?? "")

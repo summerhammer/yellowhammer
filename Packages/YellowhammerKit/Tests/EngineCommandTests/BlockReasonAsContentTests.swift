@@ -10,7 +10,7 @@ import Testing
 
 private func blockedBlock(_ reason: BlockReason, state: CardState = .blocked) -> CardManagedBlock {
     CardManagedBlock(
-        kind: "card", repository: "backend", scope: ["Sources/App/"], state: state, blockReason: reason.rawValue,
+        kind: "card", repository: "backend", scope: ["Sources/App/"], state: state, blockReason: reason,
         lanePosition: 1, laneLength: 2, brief: ArchitecturalBrief(prose: "Wire the endpoint.", transcriptions: []),
         definitionOfDone: [
             DoDClause(cid: "c1", text: "It works", citation: "epic/story", citationProvenance: "machine-found")
@@ -25,7 +25,6 @@ struct BlockReasonAsContentTests {
     func boardWithoutBlockReasonGroupIsComplete() async throws {
         let boards = try await makeBoards()
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)
-        #expect(scope.labels.blockReason.isEmpty)
         #expect(scope.labels.cardType.count == CardType.allCases.count)
 
         let provisioned = try await BoardProvisioner.provision(
@@ -38,22 +37,6 @@ struct BlockReasonAsContentTests {
             if case .labelGroup("Block Reason", _) = entry.subject { return true }
             return false
         })
-    }
-
-    @Test("A legacy Block Reason group has its labels removed on a state change and never gets one added")
-    func legacyBlockReasonLabelsAreRemovedNeverAdded() async throws {
-        let boardTeam = BoardTeam(id: teamID, key: "ENG", name: "Engineering")
-        let project = BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "Yellowhammer", teams: [boardTeam])
-        let board = FakeProvisioningBoard(project: project)
-        try await seedDispositionLabels(on: board, team: teamID, legacyBlockReason: true)
-        let labels = try DispositionLabels(labels: try await board.labels(team: teamID))
-        #expect(labels.blockReason.count == BlockReason.allCases.count)
-
-        for _ in BlockReason.allCases {
-            let change = labels.workCardChange()
-            #expect(Set(change.addLabels) == [labels.cardType[.workCard]!])
-            #expect(Set(change.removeLabels).isSuperset(of: Set(labels.blockReason.values)))
-        }
     }
 
     @Test("A Blocked Work Card's managed block leads with its Block Reason and next action")
@@ -76,27 +59,22 @@ struct BlockReasonAsContentTests {
         #expect(BlockReason.checkFailure.nextAction != BlockReason.reviewerRejection.nextAction)
     }
 
-    @Test("A Card that is not Blocked keeps the old State line and gets no headline")
+    @Test("A Card that is not Blocked renders a plain State line and no headline")
     func unblockedCardHasNoHeadline() {
         let rendered = blockedBlock(.checkFailure, state: .inProgress).render()
         #expect(rendered.hasPrefix("**Kind:**"))
-        #expect(rendered.contains("— check failure"))
+        #expect(rendered.contains("**State:** In Progress"))
+        #expect(!rendered.contains("check failure"))
     }
 
-    @Test("The parser reads blocks rendered by the new and the old format alike")
-    func parserReadsOldAndNewFormat() {
-        let new = blockedBlock(.checkFailure).render()
-        let old = new
-            .split(separator: "\n", omittingEmptySubsequences: false).dropFirst()
-            .map { $0.hasPrefix("**State:**") ? "**State:** blocked — check failure" : String($0) }
-            .joined(separator: "\n")
-        for rendered in [new, old] {
-            let parsed = CardManagedBlockParser.parse(block: rendered)
-            #expect(parsed.briefProse == "Wire the endpoint.")
-            #expect(parsed.scope == ["Sources/App/"])
-            #expect(parsed.clauses.count == 1)
-            #expect(DeltaRead.repository(inBlock: rendered) == "backend")
-        }
+    @Test("The parser reads a Blocked block with its headline")
+    func parserReadsABlockedBlock() {
+        let rendered = blockedBlock(.checkFailure).render()
+        let parsed = CardManagedBlockParser.parse(block: rendered)
+        #expect(parsed.briefProse == "Wire the endpoint.")
+        #expect(parsed.scope == ["Sources/App/"])
+        #expect(parsed.clauses.count == 1)
+        #expect(DeltaRead.repository(inBlock: rendered) == "backend")
     }
 
     @Test("A Feature Issue's roll-up names each Blocked member's reason and next action")

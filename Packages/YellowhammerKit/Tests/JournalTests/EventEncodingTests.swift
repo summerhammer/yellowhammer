@@ -63,7 +63,7 @@ func eventTypeRawValues() {
         "FeatureReturned", "CycleArchived",
         "RefusalAnswered", "AuthoringHaltOpened", "AuthoringHaltRepeated", "AuthoringHaltExpired",
         "AuthoringHaltCleared", "AuthoringHaltRepair", "FeatureClosedByMerge", "VerifiedFeatureMergeObserved",
-        "CompletedFeatureMergeObserved", "LegacyBoardObserved",
+        "CompletedFeatureMergeObserved",
         "FeatureCompleted", "FeatureReleased",
         "CardUnansweredBoundFired",
         "AdoptionRefused", "CardAdopted", "AdoptionUntestable",
@@ -94,21 +94,18 @@ func verifiedFeatureMergeObservedRoundTrips() throws {
     #expect(records.map(\.event) == [full, empty])
 }
 
-@Test("completedFeatureMergeObserved and legacyBoardObserved round-trip under their own names")
-func completionMergeAndLegacyObservationRoundTrip() throws {
+@Test("completedFeatureMergeObserved round-trips under its own name")
+func completionMergeRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let completed: JournalEvent = .completedFeatureMergeObserved(
         cycleID: 7, featureIssueID: "FEAT-1", repositories: ["backend"], acceptedCards: [], triagedNightID: 4
     )
-    let observed: JournalEvent = .legacyBoardObserved(kind: "retired-state", issueID: "FEAT-1", detail: "Abandoned")
 
     _ = try journal.append(completed, act: .land, runID: RunID(), now: epoch)
-    _ = try journal.append(observed, act: .author, runID: RunID(), now: epoch)
 
     #expect(try journal.events(ofType: .completedFeatureMergeObserved).map(\.event) == [completed])
     #expect(try journal.events(ofType: .verifiedFeatureMergeObserved).isEmpty)
-    #expect(try journal.events(ofType: .legacyBoardObserved).map(\.event) == [observed])
 }
 
 @Test("The board-write and Managed Block input events round-trip, with and without their optional fields")

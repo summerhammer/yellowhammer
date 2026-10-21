@@ -48,17 +48,14 @@ public struct ProvisioningEntry: Sendable {
     /// For a `.collision` of a custom workflow state: the exact `[board.linear.mapping]` lines the Operator
     /// can add to adopt an existing state as Yellowhammer's own. Nil otherwise.
     public var mappingHint: String?
-    /// For a custom-state `.collision`: the ids of the same-name `started` states that could be adopted.
-    public var candidates: [BoardObjectID]
     /// For a `.collision`: the existing item that holds the name, as the Operator would find it in
     /// Linear (e.g. label `Night Card` in group `Object Type`), so the fix can name it. Nil otherwise.
     public var collidesWith: String?
 
     public init(
         subject: Subject, outcome: Outcome, collidesWith: String? = nil, id: BoardObjectID? = nil,
-        mappingHint: String? = nil, candidates: [BoardObjectID] = []
+        mappingHint: String? = nil
     ) {
-        self.candidates = candidates
         self.subject = subject
         self.outcome = outcome
         self.collidesWith = collidesWith
@@ -74,7 +71,7 @@ public struct ProvisioningReport: Sendable {
     /// project's id to write into the Project file.
     public var linearProject: BoardProjectScope?
     /// The footprint ids this run resolved and that the Project's Journal does not yet hold (or holds
-    /// differently): the ids of states setup created, a mapped object, a bootstrapped one. The caller
+    /// differently): the ids of states setup created or a mapped object. The caller
     /// records them; a run that only verifies never writes.
     public var footprint: [BoardFootprintRecord]
 

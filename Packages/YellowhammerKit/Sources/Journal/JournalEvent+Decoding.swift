@@ -167,12 +167,6 @@ extension JournalEvent {
                 issueID: try reader.require("issue_id"),
                 reason: try reader.require("reason")
             )
-        case .legacyBoardObserved:
-            .legacyBoardObserved(
-                kind: try reader.require("kind"),
-                issueID: try reader.require("issue_id"),
-                detail: try reader.require("detail")
-            )
         case .routePreflightRan:
             try Self.decodeRoutePreflightRan(reader)
         case .attemptEnded:

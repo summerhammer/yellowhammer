@@ -174,7 +174,7 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// duplicated included — and every compaction rung keeps it.
     public var cardOverride: [String]
     public var state: CardState
-    public var blockReason: String?
+    public var blockReason: BlockReason?
     public var lanePosition: Int
     public var laneLength: Int
     public var brief: ArchitecturalBrief
@@ -215,7 +215,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         scope: [String] = [],
         cardOverride: [String] = [],
         state: CardState,
-        blockReason: String? = nil,
+        blockReason: BlockReason? = nil,
         lanePosition: Int,
         laneLength: Int,
         brief: ArchitecturalBrief,
@@ -256,7 +256,7 @@ public struct CardManagedBlock: Equatable, Sendable {
 
         // Blocked headline: the precise Block Reason and the next action lead the managed content, so
         // the State line below does not repeat the reason.
-        let headlineReason = blockReason.flatMap { state == .blocked ? BlockReason(rawValue: $0) : nil }
+        let headlineReason = state == .blocked ? blockReason : nil
         if let headlineReason {
             lines.append(headlineReason.blockedHeadline)
             if let note = headlineReason.blockedNote { lines.append(note) }
@@ -280,12 +280,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         lines.append(contentsOf: CardOverrideField.renderedLines(cardOverride))
 
         // State line
-        var stateLine: String
-        if let blockReason = blockReason, headlineReason == nil {
-            stateLine = "**State:** \(state.rawValue) — \(blockReason)"
-        } else {
-            stateLine = "**State:** \(state.rawValue)"
-        }
+        var stateLine = "**State:** \(state.rawValue)"
         if let unadoptedStanding {
             let nightWord = unadoptedStanding.elapsedNights == 1 ? "Night" : "Nights"
             stateLine += " · un-adopted for \(unadoptedStanding.elapsedNights) \(nightWord) since Feature " +

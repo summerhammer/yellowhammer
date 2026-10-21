@@ -21,7 +21,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.updatedObjects.count == 1)
@@ -47,7 +47,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.updatedObjects.count == 1)
@@ -70,7 +70,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -93,7 +93,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -114,7 +114,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -137,7 +137,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -158,7 +158,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -179,7 +179,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -200,7 +200,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -223,7 +223,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)
@@ -244,7 +244,7 @@ struct LinearDeltaReadDecodingTests {
         ])
         let adapter = Fixture.adapter(transport)
         let delta = try await adapter.deltaRead(
-            since: nil, objectsAfter: nil, commentsAfter: nil, pageSize: 50
+            objects: .page(since: nil, after: nil), comments: .page(since: nil, after: nil), pageSize: 50
         )
 
         #expect(delta.newComments.count == 1)

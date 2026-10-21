@@ -7,14 +7,13 @@ import Testing
 
 // P5.6: Managed Block rendering and hash-skip (Cards) — basic fields
 
-@Test("Render includes kind, repository, state, block reason, and lane position")
+@Test("Render includes kind, repository, state, and lane position")
 func renderBasicFields() {
     let brief = ArchitecturalBrief(prose: "Test brief", transcriptions: [])
     let block = CardManagedBlock(
         kind: "impl.boilerplate",
         repository: "backend",
         state: .inProgress,
-        blockReason: "check failure",
         lanePosition: 2,
         laneLength: 3,
         brief: brief,
@@ -26,7 +25,7 @@ func renderBasicFields() {
 
     #expect(rendered.contains("**Kind:** `impl.boilerplate`"))
     #expect(rendered.contains("**Repository:** `backend`"))
-    #expect(rendered.contains("**State:** In Progress — check failure"))
+    #expect(rendered.contains("**State:** In Progress"))
     #expect(rendered.contains("**Repo Lane position:** 2 of 3"))
 }
 

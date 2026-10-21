@@ -9,7 +9,7 @@ import Testing
 
 private func block(recurrence: FailureRecurrence?, blockReason: BlockReason) -> CardManagedBlock {
     CardManagedBlock(
-        kind: "impl", repository: "backend", state: .blocked, blockReason: blockReason.rawValue,
+        kind: "impl", repository: "backend", state: .blocked, blockReason: blockReason,
         lanePosition: 1, laneLength: 1, brief: ArchitecturalBrief(prose: "", transcriptions: []),
         definitionOfDone: [], attempts: [], failureRecurrence: recurrence
     )

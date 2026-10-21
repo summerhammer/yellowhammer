@@ -126,13 +126,12 @@ struct ManagedBlockMaintenanceTests {
 
     // MARK: - Labels
 
-    @Test("Disposition labels: one card type, and a legacy Block Reason label is removed, never added")
+    @Test("Disposition labels: exactly one card type")
     func labelGroupExclusivity() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let board = FakeWritingBoard()
         let issue = await board.seed(issue: "issue-1", description: ManagedBlockFence.initialDescription(rendered: ""))
-        await board.label(issue, add: labels.blockReason[.reviewerRejection]!)
         await board.label(issue, add: labels.cardType[.featureCard]!)
         let cardID = try insertFixtureCard(journal, issueID: "issue-1")
         try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.checkFailure.rawValue)
@@ -264,7 +263,7 @@ struct ManagedBlockMaintenanceTests {
 
         // Preserved across all compaction rungs
         let block = CardManagedBlock(
-            kind: "impl", repository: "backend", state: .blocked, blockReason: BlockReason.authoringDefect.rawValue,
+            kind: "impl", repository: "backend", state: .blocked, blockReason: .authoringDefect,
             lanePosition: 1, laneLength: 1, brief: brief, definitionOfDone: [], attempts: [],
             authoringDefectNotice: AuthoringDefectNotice(detail: violation)
         )
@@ -307,14 +306,11 @@ struct ManagedBlockMaintenanceTests {
         return outbox
     }
 
-    /// A label catalogue with an id for every child of both groups.
+    /// A label catalogue with an id for every Card Type child.
     var labels: DispositionLabels {
         DispositionLabels(
             cardType: Dictionary(uniqueKeysWithValues: CardType.allCases.map {
                 ($0, BoardObjectID(rawValue: "label-type-\($0.rawValue)"))
-            }),
-            blockReason: Dictionary(uniqueKeysWithValues: BlockReason.allCases.map {
-                ($0, BoardObjectID(rawValue: "label-reason-\($0.rawValue)"))
             })
         )
     }

@@ -28,9 +28,9 @@ public struct ActBoard: Sendable {
     /// for what is provisioned or selected by category. Empty for a Project that declares none.
     public let mapping: BoardMapping
 
-    /// The Project's persisted board-footprint ids and provenance (its Journal). Nil for a board bound with
-    /// none (test fakes): the two custom states are then looked up by name and `started` category, as
-    /// before P22.8. A real Act always has one, and never adopts a state by name alone.
+    /// The Project's persisted board-footprint ids (its Journal). Nil for a board bound with
+    /// none (test fakes): the two custom states are then looked up by name and `started` category. A real
+    /// Act always has one, and never adopts a state by name alone.
     public let footprint: (any BoardFootprintStore)?
 
     public init(

@@ -251,8 +251,6 @@ extension JournalEvent {
         case .routeExhausted(let cardID, let issueID, let reason),
              .overrideRefused(let cardID, let issueID, let reason):
             ["card_id": String(cardID), "issue_id": issueID, "reason": reason]
-        case .legacyBoardObserved(let kind, let issueID, let detail):
-            ["kind": kind, "issue_id": issueID, "detail": detail]
         case .routePreflightRan(let route, let passed, let reason):
             {
                 var dict = [

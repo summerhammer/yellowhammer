@@ -126,8 +126,6 @@ extension JournalEvent {
             .routeExhausted
         case .overrideRefused:
             .overrideRefused
-        case .legacyBoardObserved:
-            .legacyBoardObserved
         case .routePreflightRan:
             .routePreflightRan
         case .attemptEnded:

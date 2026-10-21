@@ -3,8 +3,8 @@ import Engine
 @testable import Journal
 import Testing
 
-// board-projection/provision-the-board (P22.8): the persisted footprint ids, the Board Mapping and the
-// bootstrap of an already-provisioned board. A matching name alone is never sufficient to adopt a state.
+// board-projection/provision-the-board (P22.8): the persisted footprint ids and the
+// Board Mapping. A matching name alone is never sufficient to adopt a state.
 
 private let engineering = BoardTeam(id: BoardObjectID(rawValue: "team-1"), key: "ENG", name: "Engineering")
 
@@ -97,41 +97,9 @@ struct BoardFootprintTests {
         #expect(verified.unfinishedSteps.contains { $0.contains("Blocked") })
     }
 
-    // MARK: - Bootstrap on provenance
+    // MARK: - Collisions
 
-    @Test("A same-name started state Yellowhammer once wrote to is adopted and recorded as bootstrapped")
-    func bootstrapFromDeliveredWrite() async throws {
-        let board = await board()
-        let mine = await board.seed(state: "Waiting on You", team: engineering.id, category: .started)
-        let store = InMemoryBoardFootprintStore(deliveredStateWrites: [mine])
-
-        let first = try await run(board, store: store)
-
-        #expect(first.entries.first(where: state("Waiting on You"))?.outcome == .present)
-        let record = try #require(first.footprint.first { $0.role == .waitingOnYou })
-        #expect(record.objectID == mine && record.source == .bootstrapped)
-        // Blocked had no provenance and no same-name state: it is created, not bootstrapped.
-        #expect(first.footprint.first { $0.role == .blocked }?.source == .provisioned)
-        let held = try await board.workflowStates(team: engineering.id)
-        #expect(held.filter { $0.name == "Waiting on You" }.count == 1)
-
-        let second = try await run(board, store: store)
-        #expect(second.footprint.isEmpty)
-    }
-
-    @Test("Provenance on a state of another name, or of another category, adopts nothing")
-    func provenanceDoesNotCrossNamesOrCategories() async throws {
-        let board = await board()
-        let wrongCategory = await board.seed(state: "Blocked", team: engineering.id, category: .completed)
-        let store = InMemoryBoardFootprintStore(deliveredStateWrites: [wrongCategory])
-
-        let report = try await run(board, store: store)
-
-        #expect(report.entries.first(where: state("Blocked"))?.outcome == .collision("team"))
-        #expect(report.footprint.contains { $0.role == .blocked } == false)
-    }
-
-    @Test("Without provenance the collision prints the exact Board Mapping lines, and creates nothing")
+    @Test("A same-name state with no persisted id or mapping collides, printing the Board Mapping lines")
     func unrelatedSameNameStateCollidesWithMappingLines() async throws {
         let board = await board()
         let unrelated = await board.seed(state: "Blocked", team: engineering.id, category: .started)
@@ -251,23 +219,6 @@ struct BoardFootprintTests {
         #expect(report.unfinishedSteps.filter { $0.contains("no id serves two meanings") }.count == 2)
     }
 
-    @Test("A retired mapping alone verifies clean and recreates nothing")
-    func retiredMappingChangesNothing() async throws {
-        let board = await board()
-        let store = InMemoryBoardFootprintStore()
-        _ = try await run(board, store: store)
-        let creates = await board.creates
-
-        let retired = BoardMapping(retiredKeys: ["abandoned", "block_reason", "kept_in_flight", "override"])
-
-        let report = try await run(board, store: store, mapping: retired)
-
-        #expect(!report.hasUnfinishedSteps && !report.isChanged)
-        #expect(await board.creates == creates)
-        let names = try await board.workflowStates(team: engineering.id).map(\.name)
-        #expect(!names.contains("Kept in Flight") && !names.contains("Abandoned"))
-    }
-
     // MARK: - Native categories
 
     @Test("A team without a required native category is an actionable incomplete step naming category and team")
@@ -294,11 +245,10 @@ struct BoardFootprintTests {
         #expect(!names.contains("Done"))
     }
 
-    @Test("Custom states and legacy settle states do not satisfy the native started category")
+    @Test("Custom states do not satisfy the native started category")
     func customStatesDoNotSatisfyStarted() async throws {
         let board = await board()
         await board.remove(state: "In Progress", team: engineering.id)
-        await board.seed(state: "Kept in Flight", team: engineering.id, category: .started)
 
         let report = try await run(board)
 
@@ -306,35 +256,15 @@ struct BoardFootprintTests {
     }
 }
 
-@Suite("Delivered state writes are the bootstrap's provenance")
-struct DeliveredStateWriteProvenanceTests {
-    @Test("A workflow-state write the Outbox delivered is provenance; another state's id is not")
-    func deliveredWriteIsProvenance() async throws {
-        let fixture = try OutboxJournalFixture()
-        let journal = try fixture.open()
-        let board = FakeWritingBoard()
-        let outbox = try outbox(journal, board: board)
-        await board.seed(issue: "issue-1", description: nil)
-        let delivered = BoardObjectID(rawValue: "state-delivered")
-
-        var change = BoardIssueChange()
-        change.workflowState = delivered
-        let issue = BoardObjectID(rawValue: "issue-1")
-        _ = try await outbox.post(OutboxWrite(
-            key: "state-write", write: .updateIssue(issue: issue, change: change, undo: nil)
-        ))
-
-        #expect(try journal.hasDeliveredStateWrite(stateID: delivered))
-        #expect(try journal.hasDeliveredStateWrite(stateID: BoardObjectID(rawValue: "state-elsewhere")) == false)
-    }
-
+@Suite("The footprint store")
+struct FootprintStoreTests {
     @Test("A footprint id is replaced, not duplicated, when recorded again")
     func footprintRecordsUpsert() throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let team = BoardObjectID(rawValue: "team-1")
         let first = BoardFootprintRecord(
-            team: team, role: .blocked, objectID: BoardObjectID(rawValue: "a"), source: .bootstrapped
+            team: team, role: .blocked, objectID: BoardObjectID(rawValue: "a"), source: .provisioned
         )
         let replacement = BoardFootprintRecord(
             team: team, role: .blocked, objectID: BoardObjectID(rawValue: "b"), source: .mapped

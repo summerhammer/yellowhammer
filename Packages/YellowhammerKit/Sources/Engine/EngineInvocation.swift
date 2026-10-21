@@ -217,7 +217,6 @@ public struct EngineInvocation: Sendable {
             if outbox != nil {
                 night = try journal.night(id: night.id) ?? night
             }
-            try await migrateLegacyBoard(outbox: outbox)
 
             let resolvedMainlines = await refreshMainlines(night: night)
             if opening.isFirstAct {

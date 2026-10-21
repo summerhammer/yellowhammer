@@ -245,14 +245,6 @@ public enum JournalEvent: Equatable, Sendable {
     /// Route that failed its Route Pre-flight: a Readiness Check failure (G-17, OQ126). Nothing was
     /// dispatched, no Attempt was recorded and the Card's state was not touched.
     case overrideRefused(cardID: Int64, issueID: String, reason: String)
-    /// Something about a tracked issue's retired Yellowhammer taxonomy the Operator should see (roadmap P22.9;
-    /// spec: board-projection/provision-the-board, "Repeatable migration before validation"). `kind` is
-    /// `retired-state` (a tracked Feature Card stands in a state named for a retired settlement state, which
-    /// now has no special meaning), `override-conflict` (legacy `Override` pins and the Card override field
-    /// disagree, and migration chose none), or `migration-deferred` (the migration could not run this Act).
-    /// `detail` is the state name, the conflicting values, or the reason. Observation only: no behaviour
-    /// branches on it.
-    case legacyBoardObserved(kind: String, issueID: String, detail: String)
     /// A Route Pre-flight ran (OQ126): the Route's CLI was run once with its model and effort on a trivial
     /// prompt, or a rehearsal fixture answered in its place. Stamped with the Night, it is the verdict
     /// every later Card pinned to the same Route reads for the rest of that Night. `reason` says why it

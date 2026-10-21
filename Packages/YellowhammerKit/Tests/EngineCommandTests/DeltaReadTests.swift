@@ -249,7 +249,10 @@ struct DeltaReadTests {
         )
         let payload = String(data: try JSONEncoder().encode(pending), encoding: .utf8) ?? ""
         _ = try journal.acceptOutbox(
-            [OutboxDraft(clientID: UUID(), issueID: "card-2", operation: pending.operation, payload: payload)],
+            [OutboxDraft(
+                clientID: UUID(), issueID: "card-2", operation: pending.operation, payload: payload,
+                expectedStateID: stateTodo.id.rawValue
+            )],
             runID: runID
         )
 

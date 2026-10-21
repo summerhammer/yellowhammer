@@ -98,7 +98,7 @@ struct AuthoringDescriptionBudget {
     /// Attempts reserve, fenced, with the unit of work after it. Returns the block as well, for the sections.
     private func maintainedWorkCard(_ shape: WorkCardShape) -> (block: CardManagedBlock, description: String) {
         let longestState = CardState.allCases.max { $0.rawValue.count < $1.rawValue.count } ?? .waitingOnYou
-        func block(state: CardState, blockReason: String? = nil) -> CardManagedBlock {
+        func block(state: CardState, blockReason: BlockReason? = nil) -> CardManagedBlock {
             CardManagedBlock(
                 kind: shape.kind, repository: shape.repository, state: state, blockReason: blockReason,
                 lanePosition: shape.lane, laneLength: shape.lane, brief: shape.brief,
@@ -107,7 +107,7 @@ struct AuthoringDescriptionBudget {
         }
         // A Blocked Card leads with its Block Reason and next action, so the widest one is reserved too.
         let candidates = [block(state: longestState)]
-            + BlockReason.allCases.map { block(state: .blocked, blockReason: $0.rawValue) }
+            + BlockReason.allCases.map { block(state: .blocked, blockReason: $0) }
         func rendered(_ block: CardManagedBlock) -> String {
             longestRoute.map { block.renderReservingAttempts(longestRoute: $0) } ?? block.render()
         }

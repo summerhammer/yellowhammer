@@ -86,8 +86,6 @@ struct CardInputReconciler {
             journal.cardOverrideLines(cardID: card.id), parsed.cardOverrideLines
         ), try journal.recordCardOverrideLines(cardID: card.id, lines: parsed.cardOverrideLines) {
             imported.fields.append("card override")
-            // An explicit set or clear resolves an open legacy `Override` conversion for good (P22.9).
-            try journal.noteCardOverrideEdited(issueID: card.issueID, lines: parsed.cardOverrideLines)
         }
 
         if let prose = parsed.briefProse {

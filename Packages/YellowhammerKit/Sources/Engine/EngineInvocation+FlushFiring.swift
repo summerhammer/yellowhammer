@@ -36,8 +36,8 @@ extension EngineInvocation {
     }
 
     /// The closing land died, halted or stood down on the Lease: close the Night exactly as the closing
-    /// land would — close reason `night_end`, the Night Card completion through the Outbox, Kept in Flight
-    /// reset, and the `closed` notification (a flush firing that closes a Night is its closing Act).
+    /// land would — close reason `night_end`, the Night Card completion through the Outbox, and the `closed`
+    /// notification (a flush firing that closes a Night is its closing Act).
     private func closeOpenNightFromFlush(_ opened: NightRecord) async throws {
         var night = opened
         var nightCard: NightCardMaintenance?

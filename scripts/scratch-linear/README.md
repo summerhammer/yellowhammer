@@ -42,13 +42,10 @@ points at are P15.2's concern, not this tool's.
    - **Create the two workflow states by hand if setup is refused them:** `Waiting on You` and `Blocked`,
      both under **Started**. Those are Yellowhammer's whole workflow-state footprint (P22.8): every other state is
      the team's native one, selected by category (Todo, In Progress, Done and Cancelled must each exist).
-     `Kept in Flight` and `Abandoned` are no longer provisioned or verified, and an existing pair is left alone:
-     it is retired, unused taxonomy that `yh doctor` reports as `info` and that is safe to delete in Linear if
-     no other Project uses it (the `Block Reason` and `Override` label groups likewise). Tracked issues still in
-     one are migrated by the next Act (P22.9).
-     A same-named state with no recorded id is a collision, never adopted by name: `yh doctor` prints the
-     `[board.linear.mapping]` lines that would adopt it, and `yh doctor --fix` writes them when exactly one
-     same-name `started` state exists.
+     A same-named state with no recorded id and no mapping is a collision, never adopted by name: delete it in
+     Linear, or map it on purpose with the `[board.linear.mapping]` lines `yh doctor` prints. After a change to
+     the board's shape, hard-delete the local Journal and config and Yellowhammer's Linear labels and workflow
+     states, then run setup again (see #613).
    - The `Card Type` group provisions `Feature Card`, `Work Card`, and `Night Card`, none of
      which collides with Linear's default `Feature` workspace label (OQ125).
 

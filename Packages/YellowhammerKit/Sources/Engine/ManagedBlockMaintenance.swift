@@ -142,7 +142,7 @@ public struct ManagedBlockMaintenance: Sendable {
             scope: scope,
             cardOverride: try journal.cardOverrideLines(cardID: card.id),
             state: card.state,
-            blockReason: card.blockReason,
+            blockReason: card.blockReason.flatMap { BlockReason(rawValue: $0) },
             lanePosition: card.authoredOrder,
             laneLength: laneLength,
             brief: brief,

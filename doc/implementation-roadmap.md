@@ -2758,8 +2758,9 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 ### [x] P22.8 Two-state footprint, Board Mapping, native category selection
 - **Work** — Provision only the two Yellowhammer states and the `Card Type` group; select every other state
   natively by workflow category (a Board Mapping entry, else the lowest position, a tie broken by state id);
-  persist the resolved ids per Project and reuse them; accept `[board.linear.mapping]`, with the retired keys
-  accepted and ignored.
+  persist the resolved ids per Project and reuse them; accept `[board.linear.mapping]`. Pre-1.0 there is no
+  upgrade path (#614): no retired-key tolerance, no adoption of a same-name state on Journal provenance, and no
+  `doctor --fix` mapping write.
 - **Spec** — `board-projection/provision-the-board`, `shift-scheduling/diagnose-the-installation`.
 - **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
 - **Done when** — A fresh board gets exactly the two-state footprint; a renamed native Done is selected by
@@ -2767,15 +2768,11 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
   name; a team missing a native category is an incomplete step; `yh doctor` verifies the two custom states,
   the native selections and the three Card Type labels.
 
-### [x] P22.9 Legacy Board migration
-- **Work** — A versioned, replayable migration of tracked legacy settlement states (`Kept in Flight` to native
-  `started`, `Abandoned` to native `canceled`), legacy Override labels to the Card override field, superseding
-  queued legacy writes, and unassigning the retired labels from tracked issues only; removes the P22.2 name
-  bridge. Nothing is bulk-deleted.
-- **Spec** — `board-projection/provision-the-board`.
-- **Agent** — Sonnet 5.5 medium (lead review Opus 5.5).
-- **Done when** — A legacy board's tracked issues are converted and a replay after interruption changes
-  nothing; the P22.2 name bridge is gone.
+### P22.9 Legacy Board migration — removed
+Yellowhammer makes no backward-compatibility commitment before v1.0, so the migration this step built was
+deleted (#614): there is no conversion of tracked issues, no settle-state notice and no Doctor residual-taxonomy
+finding. A changed board shape is handled by hard-deleting the local Journal and config and Yellowhammer's
+Linear labels and workflow states, then running setup again (#613).
 
 ## Phase 23 — Multi-Feature Night and PR Stack
 

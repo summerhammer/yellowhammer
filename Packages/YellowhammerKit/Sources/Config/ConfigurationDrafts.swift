@@ -193,7 +193,7 @@ public struct ProjectFileDraft: Equatable, Sendable {
     var rehearsalLinearProject: String?
     var rehearsalJournal: String?
     /// `[board.linear.mapping]`, carried through untouched: this form does not edit it, and saving any other
-    /// field must never drop it. Retired entries are not written back.
+    /// field must never drop it.
     var boardMapping: BoardMapping
 
     public init(_ project: ProjectConfiguration) {

@@ -74,36 +74,22 @@ struct BoardMappingConfigurationTests {
         #expect(mapping[.completed] == id("s5") && mapping[.canceled] == id("s6"))
         #expect(mapping[.featureCard] == id("l1") && mapping[.workCard] == id("l2"))
         #expect(mapping[.nightCard] == id("l3"))
-        #expect(mapping.retiredKeys.isEmpty)
     }
 
-    @Test("Retired keys are accepted and ignored with a note, never an unknown key")
-    func retiredKeysAreAccepted() throws {
-        let configuration = try loaded("""
+    @Test("A key of a settled-away meaning is an ordinary unknown key", arguments: [
+        "block_reason", "override", "kept_in_flight", "abandoned"
+    ])
+    func formerKeysAreUnknown(key: String) throws {
+        let refusal = try error(of: """
             [board.linear.mapping]
-            block_reason = "label-group"
-            override = "label-group"
-            kept_in_flight = "state-1"
-            abandoned = "state-2"
-            blocked = "state-3"
+            \(key) = "state-1"
             """)
 
-        #expect(configuration.boardMapping.retiredKeys == ["abandoned", "block_reason", "kept_in_flight", "override"])
-        #expect(configuration.boardMapping.ids == [.blocked: id("state-3")])
+        #expect(refusal.reason == .unknownKey)
+        #expect(refusal.key == "board.linear.mapping.\(key)")
     }
 
-    @Test("A retired mapping alone loads and maps nothing")
-    func retiredMappingAloneLoads() throws {
-        let configuration = try loaded("""
-            [board.linear.mapping]
-            kept_in_flight = "state-1"
-            """)
-
-        #expect(configuration.boardMapping.isEmpty)
-        #expect(configuration.boardMapping.retiredKeys == ["kept_in_flight"])
-    }
-
-    @Test("An unknown mapping key is still refused")
+    @Test("An unknown mapping key is refused")
     func unknownKeyIsRefused() throws {
         let refusal = try error(of: """
             [board.linear.mapping]
@@ -137,14 +123,12 @@ struct BoardMappingConfigurationTests {
             [board.linear.mapping]
             started = "s4"
             night_card = "l3"
-            kept_in_flight = "gone"
             """)
 
         let rendered = ProjectFileDraft(configuration).renderedTOML
 
         #expect(rendered.contains("[board.linear.mapping]"))
         #expect(rendered.contains("started = \"s4\"") && rendered.contains("night_card = \"l3\""))
-        #expect(!rendered.contains("kept_in_flight"))
     }
 
     @Test("Projects on one Linear project with disagreeing mappings are both refused; the others load")

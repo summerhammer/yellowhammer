@@ -18,8 +18,7 @@ public protocol FeatureSettle: Sendable {
 /// - ``FeatureDisposition/completed`` (native Done): stop-with-salvage, closed `completion`.
 /// - ``FeatureDisposition/canceled``: abandonment (`feature abandoned`).
 /// - Every other disposition (backlog, ready, continuing, Waiting on You, Blocked, indeterminate): no Board
-///   write and no Journal acceptance, except the one-time notice a `continuing` Feature Card gets when it
-///   stands in a retired settlement state (``noteRetiredState(of:object:context:)``). The Feature stays in flight and the author Act's in-flight skip holds
+///   write and no Journal acceptance. The Feature stays in flight and the author Act's in-flight skip holds
 ///   the slot — a `started` state posts nothing and never resets.
 ///
 /// Both terminal dispositions defer, by throwing ``CycleArchiveFault``, while another run holds a Card
@@ -43,9 +42,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
             try await applyCompleted(feature: feature, cycleID: cycleID, context: context)
         case .canceled:
             try await applyAbandoned(feature: feature, cycleID: cycleID, cards: cards, context: context)
-        case .continuing:
-            try await noteRetiredState(of: feature, object: object, context: context)
-        case .backlog, .ready, .waitingOnYou, .blocked, .indeterminate:
+        case .backlog, .ready, .continuing, .waitingOnYou, .blocked, .indeterminate:
             return
         }
     }
