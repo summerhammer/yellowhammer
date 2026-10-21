@@ -42,9 +42,13 @@ struct InspectorView: View {
                 CardDetailView(project: project.id, card: card, asOf: asOf)
                     .id(CardDetailIdentity(project: project.id, card: id))
             }
-        case .feature:
-            if let feature = project.pulse.feature {
+        case let .feature(id):
+            // The in-flight Feature, else the member of the Unmerged Feature Stack the id names (proposed
+            // amendment, yellowhammer-spec#132).
+            if let feature = project.pulse.feature, feature.id == id {
                 FeatureDetailView(feature: feature, decisionCardIDs: decisionCardIDs)
+            } else if let awaiting = project.pulse.unmergedFeatures.features.first(where: { $0.id == id }) {
+                AwaitingMergeFeatureDetailView(feature: awaiting)
             }
         case let .attempt(id):
             if let attempt = project.runningAttempt(id: id) {

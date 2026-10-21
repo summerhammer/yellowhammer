@@ -8,7 +8,7 @@ import SwiftUI
 extension PulseVariant {
     /// The variants the Playground and Gallery offer. Every other variant stays in `all`, reachable by
     /// name from a `#Preview`, so a shelved idea can come back without being rewritten.
-    static let shown: Set<String> = ["Strip and Cards"]
+    static let shown: Set<String> = ["Strip and Cards", "Stack Ladder"]
 
     /// The shown variants, in catalog order.
     static var inPlay: [PulseVariant] { all.filter { shown.contains($0.name) } }
@@ -116,6 +116,14 @@ extension PulseVariant {
             idea: "The summary strip over tinted cards; each figure jumps to its card; the Now line in the toolbar",
             design: PulseDesign(
                 sections: .stripCards, sidebar: .badged, toolbar: .status, inspector: .headerForm, opens: .attempt
+            )
+        ),
+        PulseVariant(
+            "Stack Ladder",
+            idea: "Strip and Cards, with Awaiting merge as a ladder: top of the stack first, bottom rung merges first",
+            design: PulseDesign(
+                sections: .stripCards, sidebar: .badged, toolbar: .status, inspector: .headerForm, opens: .attempt,
+                stack: .ladder
             )
         ),
         PulseVariant(

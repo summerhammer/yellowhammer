@@ -62,7 +62,13 @@ private struct PulseSummaryFigure: View {
             }
             return ("\(pulse.now.attempts.count)", "Attempts running")
         case .feature:
-            guard let feature = pulse.feature else { return ("—", "no Feature in flight") }
+            guard let feature = pulse.feature else {
+                let stack = pulse.unmergedFeatures
+                if stack.isEmpty { return ("—", "no Feature in flight") }
+                // Proposed amendment, yellowhammer-spec#132: with nothing in flight, the figure counts U.
+                let caption = stack.unmergedFeaturesMax.map { "of \($0) awaiting merge" } ?? "awaiting merge"
+                return ("\(stack.count)", caption)
+            }
             let progress = feature.cardProgress
             let rollUp = feature.rollupState?.rawValue ?? "rollup state unknown"
             return ("\(progress.done)/\(progress.total)", "Cards · \(rollUp)")

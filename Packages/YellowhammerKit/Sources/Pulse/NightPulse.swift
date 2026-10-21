@@ -24,6 +24,8 @@ public struct NightPulse: Equatable, Sendable {
     /// The Night's Act failures in Journal order, consecutive runs failing for the same reason folded into one.
     /// Recovered ones are kept, so Tonight and Health count the same runs; Tonight lists only the others.
     public var failureNotices: [FailureNotice]
+    /// The Night's author firings that authored nothing because the Unmerged Feature Stack was full; nil when none.
+    public var stackFullSkip: StackFullSkip?
 
     public init(
         id: Int64,
@@ -34,7 +36,8 @@ public struct NightPulse: Equatable, Sendable {
         cardsAbsence: String = "No Cards touched",
         nightCard: LinearIssueLink? = nil,
         firstFailureHeadline: String? = nil,
-        failureNotices: [FailureNotice] = []
+        failureNotices: [FailureNotice] = [],
+        stackFullSkip: StackFullSkip? = nil
     ) {
         self.id = id
         self.state = state
@@ -45,6 +48,7 @@ public struct NightPulse: Equatable, Sendable {
         self.nightCard = nightCard
         self.firstFailureHeadline = firstFailureHeadline
         self.failureNotices = failureNotices
+        self.stackFullSkip = stackFullSkip
     }
 }
 

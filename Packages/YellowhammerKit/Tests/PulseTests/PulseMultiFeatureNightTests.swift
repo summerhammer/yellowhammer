@@ -6,8 +6,9 @@ import Testing
 @testable import Pulse
 
 // shift-scheduling/fire-an-act-on-schedule (periodic author firings): a Night can verify and land several
-// Features. The Pulse keeps its single Feature group and counts every Feature verified tonight; it has no
-// surface for the Unmerged Feature Stack.
+// Features. The Pulse keeps its single Feature group, strictly for the in-flight Feature, and counts every
+// Feature verified tonight; the landed ones await merge in the Unmerged Feature Stack
+// (`PulseUnmergedFeatureStackTests`).
 
 private struct MultiFeatureFixture: ~Copyable {
     let directory = FileManager.default.temporaryDirectory.appending(component: "yh-pulse-multi-\(UUID())")
@@ -51,7 +52,7 @@ private func landAndVerify(
     )
 }
 
-@Test("Two Features verified tonight are both counted, and the Feature group shows the latest one landed")
+@Test("Two Features verified tonight are both counted, and the Feature group shows neither: none is in flight")
 func twoFeaturesVerifiedTonight() throws {
     let fixture = MultiFeatureFixture()
     let journal = try fixture.open()
@@ -70,7 +71,7 @@ func twoFeaturesVerifiedTonight() throws {
     let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch.addingTimeInterval(10))
 
     #expect(pulse.night?.verdictLine == "2 Features verified — all 20 clauses met")
-    #expect(pulse.feature?.id == "feature-2")
+    #expect(pulse.feature == nil)
 }
 
 @Test("A Feature landed on an earlier Night is not shown once the next Night has no Feature in flight")

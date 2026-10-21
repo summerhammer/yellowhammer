@@ -68,7 +68,7 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
     public func contains(_ selection: PulseSelection) -> Bool {
         switch selection {
         case let .card(id): pulse.needsYou.cards.contains { $0.id == id }
-        case let .feature(id): pulse.feature?.id == id
+        case let .feature(id): pulse.feature?.id == id || pulse.unmergedFeatures.features.contains { $0.id == id }
         case let .attempt(id): pulse.now.attempts.contains { $0.id == id }
         case let .repo(repo): repos.contains(repo)
         case let .night(id): pulse.night?.id == id

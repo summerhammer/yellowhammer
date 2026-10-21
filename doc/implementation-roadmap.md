@@ -2798,6 +2798,23 @@ directly. Pre-1.0: the Journal keeps one migration, edited in place (`journal-sc
 
 Every step: lead review by Fable 5.1.
 
+**Post-release verification (#627), 2026-10-21:** installed v0.24.0 (build 763) reports
+`journal-schema-24`, passes signature/notarization checks and is the CLI symlink target. The old
+production Journals are absent, the retained Ledger passes integrity, and Orca ADE is ready.
+Isolated installed-binary plist repair passes (1 firing regenerated to 96, left unloaded), with
+production configuration, plists and CLI symlink unchanged during that isolated check. Subsequent
+Operator-supplied output confirms production schedule repair, restoration of the CLI link from a
+Debug build to the installed app, and adoption of Waiting on You and Blocked mappings for all three
+Projects. Installed doctor now reports no failures or warnings, only four informational findings.
+This verifies upgrade setup; it does not verify recreated Journal schemas or a scheduled firing.
+On 2026-10-21, the Operator approved narrowing #627 to the completed upgrade work and deferring
+the live two-Feature Night, stacked PR target, quiet skip, periodic idle and Observed Merge/pin
+cleanup to [#636](https://github.com/summerhammer/yellowhammer/issues/636) for automated verification
+on isolated scratch resources. Ordinary rehearsal cannot supply F1's pushed, archived predecessor.
+These live checks are deferred, not passed. See the
+[verification record](phase-23-upgrade-verification.md) for evidence, isolation requirements and
+the outstanding checks. #627 may close when #632 merges; #636 remains open for live evidence.
+
 ### [x] P23.1 `unmerged_features_max`, the Unmerged Feature Stack read and the `feature_base` schema
 - **Work** — Add the eighth Bound `unmerged_features_max` (default 3, `<= 0` refused) and plumb it to the
   author Act, which stores it unused. Add the Journal's `feature_base` table (the `effective_base(R)` recorded at

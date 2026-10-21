@@ -7,8 +7,11 @@ import Foundation
 public struct PulseSnapshot: Equatable, Sendable {
     public var needsYou: NeedsYou
     public var now: Now
-    /// The in-flight Feature; nil when there is none, and the group states that absence.
+    /// Strictly the in-flight Feature; nil when there is none, and the group states that absence. A landed
+    /// Feature awaiting merge is never here: it is a member of `unmergedFeatures`.
     public var feature: FeatureInFlight?
+    /// The Unmerged Feature Stack, "Awaiting merge". Its Bound is Config's fact, filled by `ProjectSnapshot.read`.
+    public var unmergedFeatures: UnmergedFeatureStack
     /// The running Night, else the last one; nil when this Project has had no Night yet.
     public var night: NightPulse?
     /// Journal failures plus `yh doctor` flags. Nil means doctor was not read and no Journal
@@ -24,9 +27,11 @@ public struct PulseSnapshot: Equatable, Sendable {
         feature: FeatureInFlight?,
         night: NightPulse?,
         health: [HealthFlag]?,
-        scheduledNight: ScheduledNight? = nil
+        scheduledNight: ScheduledNight? = nil,
+        unmergedFeatures: UnmergedFeatureStack = .empty
     ) {
         self.scheduledNight = scheduledNight
+        self.unmergedFeatures = unmergedFeatures
         self.needsYou = needsYou
         self.now = now
         self.feature = feature
@@ -195,6 +200,9 @@ public struct FeatureInFlight: Equatable, Sendable {
     public var lanes: [RepoLaneSnapshot]
     /// The Feature Issue's Linear issue; nil until the Delta Read has recorded its identifier and URL.
     public var link: LinearIssueLink?
+    /// Per repository, the display identifier of the Feature in the Unmerged Feature Stack that this Feature's
+    /// recorded base stacks on. Empty when every base is mainline.
+    public var stackedOn: [String: String]
 
     public init(
         id: String,
@@ -204,7 +212,8 @@ public struct FeatureInFlight: Equatable, Sendable {
         rollupState: RollUpState?,
         lanes: [RepoLaneSnapshot],
         link: LinearIssueLink? = nil,
-        verification: VerificationCounts? = nil
+        verification: VerificationCounts? = nil,
+        stackedOn: [String: String] = [:]
     ) {
         self.id = id
         self.issueIDForDisplay = issueIDForDisplay
@@ -214,6 +223,7 @@ public struct FeatureInFlight: Equatable, Sendable {
         self.verification = verification
         self.lanes = lanes
         self.link = link
+        self.stackedOn = stackedOn
     }
 
     public init(

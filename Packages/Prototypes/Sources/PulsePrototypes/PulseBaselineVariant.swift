@@ -91,7 +91,7 @@ struct PulseBaselineVariant: View {
                 Text(project.name).font(.largeTitle.bold())
                 group("Needs you") { needsYou(project.pulse.needsYou) }
                 group("Now") { now(project.pulse.now) }
-                group("Feature") { feature(project.pulse.feature) }
+                group("Feature") { feature(project.pulse.feature, stack: project.pulse.unmergedFeatures) }
                 group("Tonight / last Night") { night(project.pulse.night) }
                 group("Health") { health(project.pulse.health) }
             }
@@ -144,7 +144,7 @@ struct PulseBaselineVariant: View {
     }
 
     @ViewBuilder
-    private func feature(_ feature: FeatureInFlight?) -> some View {
+    private func feature(_ feature: FeatureInFlight?, stack: UnmergedFeatureStack) -> some View {
         if let feature {
             Button { open(.feature(feature.id)) } label: {
                 Text([feature.id, feature.title].compactMap { $0 }.joined(separator: "  "))
@@ -152,6 +152,9 @@ struct PulseBaselineVariant: View {
             .buttonStyle(.link)
             Text([feature.state, feature.rollupState?.rawValue].compactMap { $0 }.joined(separator: " · "))
                 .foregroundStyle(.secondary)
+            if let caption = PulseStackText.stackedOnCaption(feature) {
+                Text(caption).foregroundStyle(.secondary)
+            }
             ForEach(feature.lanes) { lane in
                 HStack {
                     Text(lane.repo)
@@ -167,7 +170,23 @@ struct PulseBaselineVariant: View {
                 }
             }
         } else {
-            Text("No Feature in flight").foregroundStyle(.secondary)
+            Text(PulseStackText.absence(stack)).foregroundStyle(.secondary)
+        }
+        if !stack.isEmpty {
+            Text("Awaiting merge · \(PulseStackText.fraction(stack))").font(.subheadline.bold())
+            ForEach(stack.features) { awaiting in
+                Button { open(.feature(awaiting.id)) } label: {
+                    Text("\(PulseStackText.name(awaiting))  \(awaiting.mergedCount) of \(awaiting.pushedCount) merged")
+                }
+                .buttonStyle(.link)
+                ForEach(awaiting.repositories) { repository in
+                    Text([
+                        repository.repo, repository.merged ? "in mainline" : "not in mainline",
+                        repository.stackedOn.map { "stacked on \($0)" }
+                    ].compactMap { $0 }.joined(separator: " · "))
+                    .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -183,6 +202,7 @@ struct PulseBaselineVariant: View {
             Text(night.state.rawValue).foregroundStyle(.secondary)
             Text(night.cardsByDisposition.map { "\($0.count) \($0.disposition.rawValue)" }.joined(separator: " · "))
                 .foregroundStyle(.secondary)
+            if let skip = night.stackFullSkip { PulseStackFullLine(skip: skip) }
         } else {
             Text("No Night yet").foregroundStyle(.secondary)
         }

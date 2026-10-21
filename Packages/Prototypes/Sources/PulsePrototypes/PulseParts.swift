@@ -39,9 +39,7 @@ enum PulseGroup: String, CaseIterable, Identifiable {
             let attempts = pulse.now.attempts.count
             return attempts > 0 ? "\(pulse.now.status.rawValue) · \(attempts) running" : PulseFormat.nowLine(pulse.now)
         case .feature:
-            return pulse.feature.map {
-                [$0.issueIDForDisplay ?? $0.id, $0.rollupState?.rawValue].compactMap { $0 }.joined(separator: " · ")
-            } ?? "No Feature in flight"
+            return PulseStackText.summary(pulse)
         case .night:
             return pulse.night?.state.rawValue ?? "No Night yet"
         case .health:

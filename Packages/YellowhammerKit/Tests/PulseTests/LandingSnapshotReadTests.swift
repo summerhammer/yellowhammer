@@ -40,7 +40,9 @@ private struct ConfigurationFixture: ~Copyable {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    func addProject(id: String, name: String, repos: [String], sharedRepoPath: String? = nil) throws {
+    func addProject(
+        id: String, name: String, repos: [String], sharedRepoPath: String? = nil, limits: String = ""
+    ) throws {
         var toml = """
         id = "\(id)"
         name = "\(name)"
@@ -60,6 +62,7 @@ private struct ConfigurationFixture: ~Copyable {
 
             """
         }
+        toml += limits
         try toml.write(
             to: directory.appending(components: "projects", "\(id).toml", directoryHint: .notDirectory),
             atomically: true,
@@ -541,6 +544,7 @@ extension PulseSnapshot {
         var copy = self
         copy.now.nextAct = nil
         copy.scheduledNight = nil
+        copy.unmergedFeatures.unmergedFeaturesMax = nil
         return copy
     }
 }
@@ -557,4 +561,27 @@ func landingCarriesSchedule() throws {
     let nextAct = try #require(pulse.now.nextAct)
     #expect(nextAct.at > epoch)
     #expect(pulse.scheduledNight?.agentsLoaded == nil)
+}
+
+@Test("A Project's Unmerged Feature Stack carries the [limits] Bound, with or without a readable Journal")
+func landingCarriesUnmergedFeaturesMax() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(
+        id: "alpha", name: "Alpha", repos: ["backend"], limits: "\n[limits]\nunmerged_features_max = 5\n"
+    )
+    try fixture.addProject(id: "beta", name: "Beta", repos: ["web"])
+    let configuration = try fixture.load()
+    try FileManager.default.createDirectory(
+        at: try fixture.journalURL("beta").deletingLastPathComponent(), withIntermediateDirectories: true
+    )
+    try Data().write(to: try fixture.journalURL("beta"))
+
+    let landing = fixture.read(configuration, asOf: epoch)
+
+    let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
+    let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
+    #expect(alpha.journalFailure == nil)
+    #expect(alpha.pulse.unmergedFeatures.unmergedFeaturesMax == 5)
+    #expect(beta.journalFailure != nil)
+    #expect(beta.pulse.unmergedFeatures.unmergedFeaturesMax == 3)
 }

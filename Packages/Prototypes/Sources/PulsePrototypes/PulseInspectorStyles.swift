@@ -85,7 +85,9 @@ struct PulseInspectorView: View {
         case let .card(id):
             return pulse.needsYou.cards.first { $0.id == id }.map(cardModel)
         case let .feature(id):
-            return pulse.feature.flatMap { $0.id == id ? featureModel($0) : nil }
+            if let inFlight = pulse.feature, inFlight.id == id { return featureModel(inFlight) }
+            return pulse.unmergedFeatures.features.first { $0.id == id }
+                .map { PulseInspectorModel.awaitingMerge($0, stack: pulse.unmergedFeatures, palette: palette) }
         case let .attempt(id):
             return context.project.runningAttempt(id: id).map(attemptModel)
         case let .repo(repo):
