@@ -169,6 +169,10 @@ public struct CardManagedBlock: Equatable, Sendable {
     public var kind: String
     public var repository: String
     public var scope: [String]
+    /// The `Card override:` lines the Operator last saved, exactly as written (roadmap P22.7); none renders
+    /// the empty form. Supported human input, so a rewrite carries it through unchanged — malformed or
+    /// duplicated included — and every compaction rung keeps it.
+    public var cardOverride: [String]
     public var state: CardState
     public var blockReason: String?
     public var lanePosition: Int
@@ -209,6 +213,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         kind: String,
         repository: String,
         scope: [String] = [],
+        cardOverride: [String] = [],
         state: CardState,
         blockReason: String? = nil,
         lanePosition: Int,
@@ -226,6 +231,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.kind = kind
         self.repository = repository
         self.scope = scope
+        self.cardOverride = cardOverride
         self.state = state
         self.blockReason = blockReason
         self.lanePosition = lanePosition
@@ -268,6 +274,10 @@ public struct CardManagedBlock: Equatable, Sendable {
         } else {
             lines.append("**Scope:** \(scope.map { "`\($0)`" }.joined(separator: ", "))")
         }
+
+        // Card override line: supported input, outside the prose brief, rendered even when empty so the
+        // Operator has the field to fill in.
+        lines.append(contentsOf: CardOverrideField.renderedLines(cardOverride))
 
         // State line
         var stateLine: String

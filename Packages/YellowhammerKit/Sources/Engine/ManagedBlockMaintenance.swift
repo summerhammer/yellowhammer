@@ -141,6 +141,7 @@ public struct ManagedBlockMaintenance: Sendable {
             kind: card.kind,
             repository: card.repository,
             scope: scope,
+            cardOverride: try journal.cardOverrideLines(cardID: card.id),
             state: card.state,
             blockReason: card.blockReason,
             lanePosition: card.authoredOrder,

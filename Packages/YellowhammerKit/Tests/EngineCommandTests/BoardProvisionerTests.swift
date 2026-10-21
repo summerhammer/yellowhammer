@@ -286,123 +286,44 @@ struct BoardProvisionerTests {
         #expect(await board.creates == 15)
     }
 
-    // MARK: - The Override label group (G-17 as amended by OQ126, P7.6)
-
-    private static func route(_ cli: String, _ model: String, _ effort: String) -> Route {
-        Route(cli: cli, model: model, effort: effort)!
-    }
-
-    private static let table = RoutingTable(entries: [
-        RoutingEntry(route: route("claude", "sonnet", "medium"), fallbacks: [route("codex", "gpt-5.4", "medium")]),
-        RoutingEntry(kind: Kind("impl")!, route: route("claude", "opus", "high"))
-    ])
+    // MARK: - No Override label group (the Card override is a description field, P22.7)
 
     private static func overrideGroup(_ subject: ProvisioningEntry.Subject) -> Bool {
         if case .labelGroup("Override", _) = subject { true } else { false }
     }
 
-    @Test("With a Routing Table, one Override group is provisioned with the table's Routes as children")
-    func overrideGroupIsProvisionedFromTheTable() async throws {
+    @Test("Provisioning creates no Override label group, and verifying does not require one")
+    func noOverrideGroupIsProvisionedOrRequired() async throws {
         let board = board()
-        let report = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
-        )
+        let report = try await provision(board)
 
-        // 20 without a table, plus the group and its three Routes.
-        #expect(await board.creates == 12)
-        #expect(outcome(of: report, Self.overrideGroup) == .created)
-        for name in ["claude/opus/high", "claude/sonnet/medium", "codex/gpt-5.4/medium"] {
-            #expect(outcome(of: report, label(name, in: "Override")) == .created)
-        }
-        #expect(!report.entries.contains { entry in
-            if case .labelGroup(let name, _) = entry.subject { return name.hasPrefix("Override ") }
-            return false
-        })
-        let labels = OverrideLabels(labels: try await board.labels(team: engineering.id))
-        #expect(labels.children.keys.sorted() == ["claude/opus/high", "claude/sonnet/medium", "codex/gpt-5.4/medium"])
+        // Four workflow states, the Card Type group and its three children: nothing for Routes.
+        #expect(await board.creates == 8)
+        #expect(!report.entries.contains { Self.overrideGroup($0.subject) })
+        #expect(!(try await board.labels(team: engineering.id)).contains { $0.name.hasPrefix("Override") })
+
+        let verified = try await BoardProvisioner.verify(using: board, projectName: "Yellowhammer")
+        #expect(!verified.isChanged)
+        #expect(!verified.hasUnfinishedSteps)
+        #expect(!verified.entries.contains { Self.overrideGroup($0.subject) })
     }
 
-    @Test("Provisioning the same table twice creates nothing the second time")
-    func overrideGroupIsIdempotent() async throws {
+    @Test("A board that still carries a legacy Override group verifies clean and the group is left as it is")
+    func legacyOverrideGroupIsLeftAlone() async throws {
         let board = board()
-        _ = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
+        _ = try await provision(board)
+        let group = try await board.createLabel(name: "Override", team: engineering.id, isGroup: true, parent: nil)
+        _ = try await board.createLabel(
+            name: "codex/o3/high", team: engineering.id, isGroup: false, parent: group.id
         )
-        let createsAfterFirstRun = await board.creates
+        let createsBefore = await board.creates
 
-        let second = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
-        )
+        let report = try await provision(board)
 
-        #expect(await board.creates == createsAfterFirstRun)
-        #expect(!second.isChanged)
-    }
-
-    @Test("A table that gains a Route gets exactly that label; a Route that leaves the table keeps its label")
-    func overrideGroupRefreshesWithoutRemoving() async throws {
-        let board = board()
-        _ = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
-        )
-        let createsAfterFirstRun = await board.creates
-
-        var grown = Self.table
-        grown.entries.append(RoutingEntry(kind: Kind("review")!, route: Self.route("codex", "o3", "high")))
-        let report = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: grown
-        )
-
-        #expect(await board.creates == createsAfterFirstRun + 1)
-        #expect(report.changes.map(\.subject) == [.label("codex/o3/high", group: "Override", team: engineering)])
-
-        // A shrunken table removes nothing: the Operator's pins are never cleared.
-        let shrunk = RoutingTable(entries: [Self.table.entries[1]])
-        let after = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: shrunk
-        )
-        #expect(!after.isChanged)
+        #expect(!report.isChanged)
+        #expect(await board.creates == createsBefore)
         let names = try await board.labels(team: engineering.id).map(\.name)
-        #expect(names.contains("codex/o3/high") && names.contains("claude/sonnet/medium"))
-    }
-
-    @Test("Two table Routes rendering to the same text are refused, naming their entries; the rest still run")
-    func collidingRoutesAreRefused() async throws {
-        let board = board()
-        var colliding = Self.table
-        colliding.entries.append(RoutingEntry(kind: Kind("review")!, route: Self.route("claude", "Opus", "high")))
-
-        let report = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: colliding
-        )
-
-        for name in ["claude/opus/high", "claude/Opus/high"] {
-            guard case .refused(let reason)? = outcome(of: report, label(name, in: "Override")) else {
-                Issue.record("expected \(name) refused")
-                continue
-            }
-            #expect(reason.contains("(kind `impl`, any Repo Role)"))
-            #expect(reason.contains("(kind `review`, any Repo Role)"))
-        }
-        #expect(outcome(of: report, label("claude/sonnet/medium", in: "Override")) == .created)
-        #expect(await board.creates == 11)
-        #expect(!report.hasUnfinishedSteps)
-    }
-
-    @Test("A Route text the board refuses as a label name is reported against its entry; setup moves on")
-    func boardRefusedLabelNameIsReported() async throws {
-        let board = board()
-        await board.script(.refuse(.refused("name too long")), for: "claude/opus/high")
-
-        let report = try await BoardProvisioner.provision(
-            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
-        )
-
-        guard case .refused(let reason)? = outcome(of: report, label("claude/opus/high", in: "Override")) else {
-            Issue.record("expected claude/opus/high refused")
-            return
-        }
-        #expect(reason.contains("name too long") && reason.contains("(kind `impl`, any Repo Role)"))
-        #expect(outcome(of: report, label("codex/gpt-5.4/medium", in: "Override")) == .created)
+        #expect(names.contains("Override") && names.contains("codex/o3/high"))
     }
 
     // MARK: - Membership first and refusals (P17.2, OQ80)
@@ -484,17 +405,5 @@ struct BoardProvisionerTests {
 
         #expect(!second.isChanged)
         #expect(!second.hasUnfinishedSteps)
-    }
-
-    @Test("Without a Routing Table the Override groups are not touched")
-    func noTableProvisionsNoOverrideGroups() async throws {
-        let board = board()
-        let report = try await provision(board)
-
-        #expect(await board.creates == 8)
-        #expect(report.entries.allSatisfy { subject in
-            if case .labelGroup(let name, _) = subject.subject { return !name.hasPrefix("Override") }
-            return true
-        })
     }
 }

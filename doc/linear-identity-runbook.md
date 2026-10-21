@@ -188,8 +188,8 @@ a same-named workflow state of a different type — including one this build can
 also a **collision**, reported and never reused. Resolve a collision by hand in Linear, then run
 provisioning again.
 
-The three Override label groups (gate G-17, P7.6) are provisioned only when setup is given a
-Routing Table; see `BoardProvisioner.provision(routingTable:)`.
+The Card override is one description field on each Work Card (roadmap P22.7), not a label: no `Override`
+label group is provisioned or required, and an existing one is left alone (P22.8 converts it).
 
 ### Running provisioning against the scratch workspace
 

@@ -32,14 +32,14 @@ extension BoardProvisioner {
     /// Why verification reports an item `.missing`: setup has not created it yet.
     static let notProvisioned = "not provisioned; run `yh doctor --fix --check linear`"
 
-    /// Verifies the Linear project's board without changing it: every item ``provision(using:projectName:createIn:routingTable:)``
+    /// Verifies the Linear project's board without changing it: every item ``provision(using:projectName:createIn:)``
     /// would create is reported `.missing` instead, and every other outcome — present, collision,
     /// not a member — is reported exactly as setup reports it. Creates nothing.
     public static func verify(
-        using board: any BoardProvisioning, projectName: String, routingTable: RoutingTable? = nil
+        using board: any BoardProvisioning, projectName: String
     ) async throws(BoardError) -> ProvisioningReport {
         try await run(
-            using: board, projectName: projectName, createIn: nil, routingTable: routingTable, createsMissing: false
+            using: board, projectName: projectName, createIn: nil, createsMissing: false
         )
     }
 }

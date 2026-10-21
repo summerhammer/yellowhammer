@@ -29,7 +29,7 @@ struct DoctorBoardProvisioningTests {
         }
         // Setup ran and reported the collision as an unfinished step.
         _ = try await BoardProvisioner.provision(
-            using: fixture.acme, projectName: "lp-alpha", createIn: nil, routingTable: RoutingTable(entries: [])
+            using: fixture.acme, projectName: "lp-alpha", createIn: nil
         )
         let createsAfterSetup = await fixture.acme.creates
 
@@ -53,10 +53,9 @@ struct DoctorBoardProvisioningTests {
         let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
 
         let failures = findings.linear("acme", subject: "provisioning").filter { $0.severity == .failure }
-        // Four workflow states and two label groups; a missing group's labels are covered by the group.
-        #expect(failures.count == 6)
+        // Four workflow states and the Card Type group; a missing group's labels are covered by the group.
+        #expect(failures.count == 5)
         #expect(failures.contains { $0.message.contains("group label `Card Type` (team ENG) is missing") })
-        #expect(failures.contains { $0.message.contains("group label `Override` (team ENG) is missing") })
         #expect(!failures.contains { $0.message.contains("Night Card") })
         #expect(failures.allSatisfy { $0.message.contains("run `yh doctor --fix --check linear`") })
         #expect(await fixture.acme.creates == 0)
@@ -102,7 +101,7 @@ struct DoctorBoardProvisioningTests {
         #expect(await fixture.acme.creates == 0)
     }
 
-    @Test("Linear-only repair leaves jobs alone and provisions the Project's merged Routes")
+    @Test("Linear-only repair leaves jobs alone and creates no Route label")
     func mergedRoutesWithoutJobs() async throws {
         let fixture = try await DoctorLinearFixture(
             extraMachine: """
@@ -125,8 +124,8 @@ struct DoctorBoardProvisioningTests {
         let findings = await doctor.run()
         #expect(!findings.contains { $0.severity == .failure })
         let labels = try await fixture.acme.labels(team: engineeringTeam.id)
-        #expect(labels.contains { $0.name == "claude/opus/high" })
-        #expect(!labels.contains { $0.name == "claude/sonnet/medium" })
+        // The Card override is a description field: no Override group or Route label is created.
+        #expect(!labels.contains { $0.name == "Override" || $0.name.contains("/") })
         #expect(jobs.calls.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: doctor.launchAgentsDirectory.path()))
     }

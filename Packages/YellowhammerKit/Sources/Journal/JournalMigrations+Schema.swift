@@ -144,6 +144,11 @@ extension JournalMigrations {
             // landing/announce-a-partial-landing). Nullable: a Card has no recorded title until the
             // Delta Read next reconciles it against the board.
             table.column("title", .text)
+            // The Card override's `Card override:` lines exactly as the Operator last saved them, newline
+            // joined (roadmap P22.7; spec: routing/resolve-a-route-for-a-card): malformed and duplicated
+            // edits included, because the field is human input a rewrite must never replace with a cached
+            // value. Nil when the description held none, or only the empty form: both mean no override.
+            table.column("card_override", .text)
             table.uniqueKey(["cycle_id", "repository", "authored_order"])
         }
         try db.create(index: "idx_card_cycle_id", on: "card", columns: ["cycle_id"])

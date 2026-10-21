@@ -65,8 +65,8 @@ func seedDispositionLabels(
 }
 
 /// Seeds the rest of the board scope an Act resolves before it does any work (OQ85, OQ136): the four
-/// provisioned `started` workflow states and the `Override` label group (presence only — its children
-/// are Routes, which no Act requires). ``seedDispositionLabels(on:team:includeNightCard:)`` seeds the
+/// provisioned `started` workflow states (the Card override is a description field, so no `Override`
+/// label group is required). ``seedDispositionLabels(on:team:includeNightCard:)`` seeds the
 /// remaining groups.
 func seedBoardScope(on board: FakeProvisioningBoard, team: BoardObjectID) async {
     await board.seed(state: BoardProvisioner.waitingOnYouState, team: team, category: .started)
@@ -74,7 +74,6 @@ func seedBoardScope(on board: FakeProvisioningBoard, team: BoardObjectID) async 
     for name in FeatureDisposition.legacySettleStateNames {
         await board.seed(state: name, team: team, category: .started)
     }
-    await board.seed(label: BoardProvisioner.overrideGroup, team: team, isGroup: true)
 }
 
 /// The boards ``makeBoards()`` hands a test: a provisioning board seeded with every disposition
@@ -181,7 +180,7 @@ struct NightCardTests {
 
         // What one board-scope resolution (the Act's preflight, OQ85) costs, measured on the same board.
         _ = try await BoardProvisioner.verify(
-            using: provisioning, projectName: "scope", routingTable: RoutingTable(entries: [])
+            using: provisioning, projectName: "scope"
         )
         let scopeReads = await provisioning.reads - readsAfterFirstAct
 

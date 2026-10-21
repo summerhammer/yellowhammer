@@ -8,7 +8,8 @@ import Testing
 
 // Every Act resolves the Project's board scope before it creates the Night Card or does any work
 // (spec rulings OQ85, OQ136; issue #353): the four provisioned `started` workflow states, the
-// `Card Type` label group with its children, and the `Override` group. An
+// `Card Type` label group with its children (the Card override is a description field, so no `Override`
+// group is required, P22.7). An
 // unresolved item halts the Act with one Journal event naming it, `.actIncomplete`, and the local
 // *halted* notification — once per Night.
 
@@ -36,7 +37,7 @@ private final class NotificationRecorder: Sendable {
 
 /// One member of the board scope, how to take it off a complete board, and how a refusal names it.
 enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
-    case waitingOnYou, blocked, keptInFlight, abandoned, cardTypeGroup, overrideGroup
+    case waitingOnYou, blocked, keptInFlight, abandoned, cardTypeGroup
 
     var testDescription: String { name }
 
@@ -47,7 +48,6 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
         case .keptInFlight: FeatureDisposition.legacySettleStateNames[0]
         case .abandoned: FeatureDisposition.legacySettleStateNames[1]
         case .cardTypeGroup: BoardProvisioner.cardTypeGroup
-        case .overrideGroup: BoardProvisioner.overrideGroup
         }
     }
 
@@ -55,7 +55,7 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
     var item: String {
         switch self {
         case .waitingOnYou, .blocked, .keptInFlight, .abandoned: "workflow state `\(name)` (team ENG)"
-        case .cardTypeGroup, .overrideGroup: "group label `\(name)` (team ENG)"
+        case .cardTypeGroup: "group label `\(name)` (team ENG)"
         }
     }
 
@@ -63,7 +63,7 @@ enum BoardScopeItem: CaseIterable, CustomTestStringConvertible, Sendable {
         switch self {
         case .waitingOnYou, .blocked, .keptInFlight, .abandoned:
             await board.remove(state: name, team: teamID)
-        case .cardTypeGroup, .overrideGroup:
+        case .cardTypeGroup:
             await board.remove(label: name, team: teamID)
         }
     }
@@ -253,7 +253,7 @@ struct BoardScopePreflightTests {
         let completeJournal = try completeFixture.open()
         let incompleteBoards = try await makeBoards()
         let completeBoards = try await makeBoards()
-        await BoardScopeItem.overrideGroup.remove(from: incompleteBoards.provisioning)
+        await BoardScopeItem.cardTypeGroup.remove(from: incompleteBoards.provisioning)
         let recorder = NotificationRecorder()
         let workRan = Mutex(false)
 

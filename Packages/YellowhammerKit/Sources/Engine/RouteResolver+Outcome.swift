@@ -120,9 +120,9 @@ public struct RouteExhaustion: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Why an Override was refused: a Readiness Check failure, reported and never dispatched (G-17, OQ126).
+/// Why a Card override was refused: a Readiness Check failure, reported and never dispatched (G-17, OQ126).
 public enum OverrideRefusal: Equatable, Sendable, CustomStringConvertible {
-    /// The label is neither a Route of the Project's Routing Table nor a three-part `cli/model/effort`.
+    /// The value is neither a Route of the Project's Routing Table nor a three-part `cli/model/effort`.
     case unresolvable(Override, reason: String)
     /// The Route's CLI is not offered as a route target: its Probe failed, or it was never probed.
     case probeFailed(Override, cli: String, reason: String)
@@ -132,11 +132,11 @@ public enum OverrideRefusal: Equatable, Sendable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .unresolvable(let override, let reason):
-            "Override `\(override)` cannot resolve: \(reason)"
+            "Card override `\(override)` cannot resolve: \(reason)"
         case .probeFailed(let override, let cli, let reason):
-            "Override `\(override)` pins `\(cli)`, which is not offered by its Probe: \(reason)"
+            "Card override `\(override)` pins `\(cli)`, which is not offered by its Probe: \(reason)"
         case .preflightFailed(let override, let route, let reason):
-            "Override `\(override)` failed its Route Pre-flight on `\(route)`: \(reason)"
+            "Card override `\(override)` failed its Route Pre-flight on `\(route)`: \(reason)"
         }
     }
 }

@@ -33,9 +33,9 @@ private struct BlockRig {
     }
 
     /// Any change to what the Journal renders, so the next rewrite is not skipped as unchanged.
-    func changeJournalOutput() throws {
+    func changeJournalOutput(reason: BlockReason = .checkFailure) throws {
         _ = try journal.transitionCard(
-            cardID: cardID, to: .blocked, blockReason: .checkFailure, runID: runID, act: .build, nightID: nil,
+            cardID: cardID, to: .blocked, blockReason: reason, runID: runID, act: .build, nightID: nil,
             now: outboxEpoch
         )
     }
@@ -304,5 +304,76 @@ struct ManagedBlockInputPreservationTests {
         }
         let description = try #require(await board.issue(issue)?.description)
         #expect(description.contains("Brief two.") && !description.contains("Brief one."))
+    }
+
+    // MARK: - The Card override line (roadmap P22.7)
+
+    @Test("The first rendering carries the empty `Card override:` line, with no trailing space")
+    func renderingCarriesTheEmptyField() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let rig = try await makeBlockRig(journal)
+
+        let lines = try await rig.description().components(separatedBy: "\n")
+
+        #expect(lines.contains("Card override:"))
+        #expect(try journal.cardOverrideLines(cardID: rig.cardID).isEmpty)
+    }
+
+    @Test("An Operator's Card override survives a rewrite, and is the Journal's value from then on")
+    func cardOverrideEditSurvivesRender() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let rig = try await makeBlockRig(journal)
+        try await rig.operatorEdits {
+            $0.replacingOccurrences(of: "\nCard override:\n", with: "\nCard override: codex/o3/high\n")
+        }
+        try rig.changeJournalOutput()
+
+        _ = try await rig.maintain()
+
+        #expect(try await rig.description().components(separatedBy: "\n").contains("Card override: codex/o3/high"))
+        #expect(try journal.cardOverrideLines(cardID: rig.cardID) == ["Card override: codex/o3/high"])
+        #expect(try journal.events(ofType: .managedBlockInputImported).count == 1)
+    }
+
+    @Test("A malformed or duplicated Card override is imported as written and rendered back verbatim")
+    func malformedCardOverrideIsRetainedVerbatim() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let rig = try await makeBlockRig(journal)
+        let edited = "Card override:  codex/o3/high\nCard override: not-a-route "
+        try await rig.operatorEdits { $0.replacingOccurrences(of: "\nCard override:\n", with: "\n\(edited)\n") }
+        try rig.changeJournalOutput()
+
+        _ = try await rig.maintain()
+
+        #expect(try await rig.description().contains("\n\(edited)\n"))
+        #expect(try journal.cardOverrideLines(cardID: rig.cardID) == edited.components(separatedBy: "\n"))
+        // A later rewrite from the Journal alone keeps it too: nothing replaces it with a cached value.
+        try rig.changeJournalOutput()
+        _ = try await rig.maintain()
+        #expect(try await rig.description().contains("\n\(edited)\n"))
+    }
+
+    @Test("Emptying the Card override line clears it, and the empty form is written back")
+    func emptyingTheCardOverrideClearsIt() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let rig = try await makeBlockRig(journal)
+        try await rig.operatorEdits {
+            $0.replacingOccurrences(of: "\nCard override:\n", with: "\nCard override: codex/o3/high\n")
+        }
+        try rig.changeJournalOutput()
+        _ = try await rig.maintain()
+        try await rig.operatorEdits {
+            $0.replacingOccurrences(of: "\nCard override: codex/o3/high\n", with: "\nCard override:\n")
+        }
+        try rig.changeJournalOutput(reason: .routeFailure)
+
+        _ = try await rig.maintain()
+
+        #expect(try journal.cardOverrideLines(cardID: rig.cardID).isEmpty)
+        #expect(try await rig.description().components(separatedBy: "\n").contains("Card override:"))
     }
 }

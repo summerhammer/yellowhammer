@@ -117,7 +117,7 @@ public struct RouteResolver: Sendable {
 
     // MARK: - Override
 
-    /// Under an Override the label names the whole Route (OQ126): matched whole, case-insensitively,
+    /// Under a Card override the field's value names the whole Route (OQ126): matched whole, case-insensitively,
     /// against the rendered Routes of the table — so a table Route whose model id contains `/` still
     /// resolves, spelled as the table spells it — and only then split as the three-part shorthand. No
     /// axis is ever taken from the entry. The Route is then checked against Probe failure only:
@@ -128,8 +128,8 @@ public struct RouteResolver: Sendable {
         entry: RoutingEntry?,
         eligibility: (String) throws -> RouteTargetEligibility
     ) throws -> RouteResolution {
-        let label = override.label.lowercased()
-        guard let route = table.allRoutes.first(where: { $0.description.lowercased() == label })
+        let value = override.label.lowercased()
+        guard let route = table.allRoutes.first(where: { $0.description.lowercased() == value })
             ?? Route(label: override.label)
         else {
             let reason = "it is neither a Route of the Project's Routing Table nor a three-part `cli/model/effort`"
@@ -155,5 +155,13 @@ public struct RouteResolver: Sendable {
     /// Kind specificity first, then whether the entry names the Repo Role.
     private static func rank(_ entry: RoutingEntry) -> (Int, Int) {
         (entry.kind.specificity, entry.repoRole == .any ? 0 : 1)
+    }
+}
+
+extension RoutingTable {
+    /// Every Route the table names, primaries and fallbacks, in table order and each once.
+    var allRoutes: [Route] {
+        var seen: Set<Route> = []
+        return entries.flatMap { [$0.route] + $0.fallbacks }.filter { seen.insert($0).inserted }
     }
 }

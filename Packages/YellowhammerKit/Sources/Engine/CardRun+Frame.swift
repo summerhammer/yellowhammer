@@ -101,19 +101,16 @@ struct CardRunFrame: Sendable {
         }
     }
 
-    /// The Override the Operator pinned on this Card's board object, read from the Delta Read's copy of it;
-    /// none when the Delta Read did not see the Card change or this invocation has no Board.
-    func override() async throws -> Override? {
-        guard let object = changedObject, let board = context.act.board, let projection else {
-            return nil
+    /// The Card override the Operator wrote in the Card's description (roadmap P22.7): the value the Journal
+    /// holds, imported from the description by the Readiness Check just before this run, so it is read with
+    /// no board call. Nil when the field is absent or empty. A malformed or duplicated one never reaches
+    /// here, because the Readiness Check refuses the Card first; it throws rather than fall back silently.
+    func override() throws -> Override? {
+        switch CardOverrideField.reading(of: try context.act.journal.cardOverrideLines(cardID: card.id)) {
+        case .unset: return nil
+        case .value(let value): return Override(label: value)
+        case .malformed(let reason): throw CardRunError.cardOverrideMalformed(reason: reason)
         }
-        let labels = try await board.provisioning.labels(team: projection.scope.team)
-        return OverrideLabels(labels: labels).override(on: object)
-    }
-
-    /// The Card's board object, when this Card is among the Delta Read's changes.
-    var changedObject: BoardObject? {
-        context.deltaRead?.cardChanges.first { $0.card.id == card.id }?.object
     }
 }
 

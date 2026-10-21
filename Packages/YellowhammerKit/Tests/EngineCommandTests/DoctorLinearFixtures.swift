@@ -61,11 +61,10 @@ struct DoctorLinearFixture: ~Copyable {
                 name: "yellowhammer", displayName: "Yellowhammer"
             )
         ))
-        // Healthy means provisioned: setup has run (with a Routing Table, so the `Override` group exists
-        // too), so Check 4's provisioning verification passes.
+        // Healthy means provisioned: setup has run, so Check 4's provisioning verification passes.
         if provisioned {
             _ = try? await BoardProvisioner.provision(
-                using: board, projectName: project, createIn: nil, routingTable: RoutingTable(entries: [])
+                using: board, projectName: project, createIn: nil
             )
         }
         return board

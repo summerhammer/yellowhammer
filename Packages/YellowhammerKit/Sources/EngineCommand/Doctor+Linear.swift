@@ -124,7 +124,6 @@ extension Doctor {
             guard membership.allSatisfy({ $0.severity == .pass }) else { continue }
             findings += await boardProvisioningFindings(
                 project: project, installation: installation,
-                routingTable: configuration.routingTable(for: project.id) ?? RoutingTable(entries: []),
                 scope: DoctorInstallationScope(
                     name: installation.name, workspace: installation.workspace.rawValue,
                     workspaceName: installationScope.workspaceName,

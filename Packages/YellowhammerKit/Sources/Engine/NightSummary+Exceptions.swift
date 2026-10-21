@@ -200,7 +200,7 @@ extension NightSummary {
         return lines
     }
 
-    /// One line per Card and reason an Override was refused for this Night (OQ126).
+    /// One line per Card and reason a Card override was refused for this Night (OQ126).
     static func overrideRefusalLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         var lines: [String] = []
         for record in try nightEvents(night: night, journal: journal) {

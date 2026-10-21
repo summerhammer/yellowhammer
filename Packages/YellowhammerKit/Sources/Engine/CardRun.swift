@@ -192,7 +192,7 @@ public struct CardRun: CardRunner {
             resolver: resolver, journal: journal, projection: frame.projection, runID: context.act.runID,
             act: context.act.act, nightID: context.act.night.id, preflight: routePreflight
         )
-        let override = try await frame.override()
+        let override = try frame.override()
 
         var movedToInProgress = false
         while true {
@@ -316,6 +316,9 @@ public enum CardRunError: Error, Equatable, Sendable, CustomStringConvertible {
     case worktreeNotQuiescentAfterRun(path: String, remaining: Int)
     /// The worker cannot be dispatched safely without its Worktree's git metadata directories.
     case gitDirectoryDiscoveryFailed(path: String, detail: String)
+    /// The Card's `Card override:` line is malformed or duplicated. The Readiness Check refuses such a Card
+    /// before it is run, so this is the guard against a silent fallback to normal routing, never the report.
+    case cardOverrideMalformed(reason: String)
 
     public var description: String {
         switch self {
@@ -329,6 +332,8 @@ public enum CardRunError: Error, Equatable, Sendable, CustomStringConvertible {
             "Worktree '\(path)' still holds \(remaining) attributed process(es) after the run"
         case .gitDirectoryDiscoveryFailed(let path, let detail):
             "could not discover git metadata directories for Worktree '\(path)': \(detail)"
+        case .cardOverrideMalformed(let reason):
+            "the Card override cannot be read: \(reason)"
         }
     }
 }
