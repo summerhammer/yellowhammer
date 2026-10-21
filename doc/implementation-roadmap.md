@@ -2835,7 +2835,7 @@ Every step: lead review by Fable 5.1.
   origin, a HEAD mismatch removing the Worktree with the Journal untouched, an unstacked Feature unchanged and
   recovery-pin precedence; a readiness fixture resolves a file at the stacked tip.
 
-### [ ] P23.4 Land Act: net change against the recorded base, stacked PR base and stack notice
+### [x] P23.4 Land Act: net change against the recorded base, stacked PR base and stack notice
 - **Work** — Detect completed work against the recorded base, not mainline. Compute the pull request `base`
   at landing from U as it then stands, never from the recorded base. Put the stack notice after the Roll-up
   opening (and after the As-of stamp of a Partial Landing), record the stack base on the `pull_request` record,
