@@ -31,6 +31,11 @@ extension PullRequestBody {
             carriedCount: incomplete.count, input: input
         ))
         lines.append(stampLine(input))
+        // Agent ruling 2026-10-21 item 12: Lines 1-2 and the stamp stay word for word on a stacked pull
+        // request; the stack notice follows the stamp directly (sponsor ruling 2026-10-21, Q3).
+        if let notice = input.stackNotice {
+            lines.append(notice.rendered)
+        }
         lines.append("")
         lines.append(incompleteCardsSection(incomplete))
         lines.append("")
@@ -46,7 +51,7 @@ extension PullRequestBody {
         lines.append(
             "Merging satisfies the landing gate for the repositories it reached and releases the next Feature."
         )
-        lines.append(mergeCommitLine)
+        lines.append(MergeCommitRecommendation.pullRequestBody)
         lines.append("")
         lines.append(cardListSection(title: "Cards in this repository", cards: input.laneCards))
         lines.append("")

@@ -226,6 +226,8 @@ extension JournalEvent {
             .noPushedBranchOutcome
         case .landedPinFailed:
             .landedPinFailed
+        case .pullRequestStacked:
+            .pullRequestStacked
         case .featureVerified:
             .featureVerified
         case .featureReturned:

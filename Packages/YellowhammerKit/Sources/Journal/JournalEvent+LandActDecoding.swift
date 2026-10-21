@@ -32,6 +32,13 @@ extension JournalEvent {
                 branch: try reader.require("branch"), commit: try reader.require("commit"),
                 operation: try reader.landedPinOperation("operation"), reason: try reader.require("reason")
             )
+        case .pullRequestStacked:
+            .pullRequestStacked(
+                featureIssueID: try reader.require("feature_issue_id"), repository: try reader.require("repository"),
+                predecessorFeatureIssueID: try reader.require("predecessor_feature_issue_id"),
+                predecessorBranch: try reader.require("predecessor_branch"),
+                predecessorPullRequestURL: reader.payload?["predecessor_pull_request_url"]
+            )
         case .featureClosedByMerge:
             try decodeFeatureClosedByMerge(reader)
         case .verifiedFeatureMergeObserved:
@@ -48,7 +55,23 @@ extension JournalEvent {
     var landActPayload: [String: String]? {
         featureVerifiedPayload ?? featureReturnedPayload ?? cycleArchivedPayload ?? featureClosedByMergePayload
             ?? verifiedFeatureMergeObservedPayload ?? completedFeatureMergeObservedPayload
-            ?? noPushedBranchOutcomePayload ?? landedPinFailedPayload
+            ?? noPushedBranchOutcomePayload ?? landedPinFailedPayload ?? pullRequestStackedPayload
+    }
+
+    /// The `pullRequestStacked` event's payload; `predecessor_pull_request_url` is absent when nil.
+    var pullRequestStackedPayload: [String: String]? {
+        guard case .pullRequestStacked(
+            let featureIssueID, let repository, let predecessorFeatureIssueID, let predecessorBranch,
+            let predecessorPullRequestURL
+        ) = self else {
+            return nil
+        }
+        var payload = [
+            "feature_issue_id": featureIssueID, "repository": repository,
+            "predecessor_feature_issue_id": predecessorFeatureIssueID, "predecessor_branch": predecessorBranch
+        ]
+        payload["predecessor_pull_request_url"] = predecessorPullRequestURL
+        return payload
     }
 
     /// The `landedPinFailed` event's payload.

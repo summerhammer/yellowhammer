@@ -20,7 +20,9 @@ public struct PullRequestDraft: Equatable, Sendable {
     public let repository: String
     /// The branch to open the pull request from.
     public let head: String
-    /// The branch to open the pull request against — the repository's default branch.
+    /// The branch to open the pull request against: the repository's default branch, or, for a stacked
+    /// pull request, the predecessor Feature's Feature Branch (spec: landing/open-one-pull-request-per-repository
+    /// `#stack-notice`). Always a branch name as GitHub expects it, never a ref.
     public let base: String
     public let title: String
     public let body: String
