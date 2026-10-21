@@ -2747,7 +2747,7 @@ Every step: **Agent** is `Sonnet 5.5 medium`, with lead review by Opus 5.5.
 - **Done when** — A halt after some children were created resumes by reusing the valid ones and creating
   only the missing; an invalid checkpointed child is reported, not silently reused.
 
-### [ ] P22.7 Card override as a description field
+### [x] P22.7 Card override as a description field
 - **Work** — Move the Card Override from the `Override` label group to a field in the Card's description,
   read through the field-ownership contract.
 - **Spec** — `routing/resolve-a-route-for-a-card`.
