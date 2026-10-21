@@ -23,21 +23,20 @@ extension Doctor {
         }
 
         let board = bindProvisioning(installation, project.linearProject)
-        let report: ProvisioningReport
         let store = footprintStore(for: project, installation: installation)
-        let footprint = BoardFootprintInputs(mapping: project.boardMapping, store: store)
+        let report: ProvisioningReport
+        var written: [DoctorFinding] = []
         do {
-            if fix {
-                report = try await BoardProvisioner.provision(
-                    using: board, projectName: project.name, createIn: nil, footprint: footprint
-                )
-                // `--fix` records what it resolved; a plain run only reports (read-only).
-                try? store.recordFootprint(report.footprint)
-            } else {
-                report = try await BoardProvisioner.verify(
-                    using: board, projectName: project.name, footprint: footprint
-                )
+            var current = try await provisioningReport(board, project, store)
+            if fix, let adoption = adoptSingleCandidates(in: current, project: project) {
+                written = adoption.messages.map { provisioning(adoption.succeeded ? .info : .warning, $0) }
+                if adoption.succeeded {
+                    var adopted = project
+                    adopted.boardMapping = adoption.mapping
+                    current = try await provisioningReport(board, adopted, store)
+                }
             }
+            report = current
         } catch {
             // Never silent: a board doctor cannot read is not a board that passes.
             return [provisioning(
@@ -57,14 +56,14 @@ extension Doctor {
         } : [])
         guard !failures.isEmpty else {
             let teams = report.linearProject?.teams.map(\.key).joined(separator: ", ") ?? ""
-            guard !teams.isEmpty else { return [] }
+            guard !teams.isEmpty else { return written }
             let note = BoardFootprintBinding.retiredNote(project.boardMapping).map { " (\($0))" } ?? ""
-            return [provisioning(
+            return written + [provisioning(
                 .pass, "the two custom workflow states, the native category selections and the three Card Type "
                     + "labels resolve in team \(teams)" + note
             )]
         }
-        return failures.map { provisioning(.failure, $0) }
+        return written + failures.map { provisioning(.failure, $0) }
     }
 
     /// `--fix` opens (creating) the Project's Journal so what it resolves is recorded; a plain run only reads.
@@ -77,5 +76,20 @@ extension Doctor {
         return BoardFootprintBinding.writable(
             configurationDirectory: configurationDirectory, project: project, workspace: installation.workspace
         ).store
+    }
+
+    /// One provisioning (`--fix`) or verification run, recording what it resolved when it provisions.
+    private func provisioningReport(
+        _ board: any BoardProvisioning, _ project: ProjectConfiguration, _ store: any BoardFootprintStore
+    ) async throws(BoardError) -> ProvisioningReport {
+        let footprint = BoardFootprintInputs(mapping: project.boardMapping, store: store)
+        guard fix else {
+            return try await BoardProvisioner.verify(using: board, projectName: project.name, footprint: footprint)
+        }
+        let report = try await BoardProvisioner.provision(
+            using: board, projectName: project.name, createIn: nil, footprint: footprint
+        )
+        try? store.recordFootprint(report.footprint)
+        return report
     }
 }

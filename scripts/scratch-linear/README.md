@@ -44,7 +44,8 @@ points at are P15.2's concern, not this tool's.
      the team's native one, selected by category (Todo, In Progress, Done and Cancelled must each exist).
      `Kept in Flight` and `Abandoned` are no longer provisioned or verified, and an existing pair is left alone.
      A same-named state with no recorded id is a collision, never adopted by name: `yh doctor` prints the
-     `[board.linear.mapping]` lines that would adopt it.
+     `[board.linear.mapping]` lines that would adopt it, and `yh doctor --fix` writes them when exactly one
+     same-name `started` state exists.
    - The `Card Type` group provisions `Feature Card`, `Work Card`, and `Night Card`, none of
      which collides with Linear's default `Feature` workspace label (OQ125).
 

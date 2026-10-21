@@ -197,7 +197,14 @@ custom states and of each `Card Type` label with its source: `provisioned` (setu
 Operator named it) or `bootstrapped`. Later Acts reuse the recorded id and re-verify that it exists with the
 right category. A same-name `started` state with no recorded id is accepted as Yellowhammer's only on this
 Project's own Journal provenance (Yellowhammer once delivered a write that set it on an issue), and recorded
-`bootstrapped`; otherwise it is a **collision**, and `yh doctor` prints the exact lines to adopt it:
+`bootstrapped`; otherwise it is a **collision**, and `yh doctor` prints the exact lines to adopt it. After an
+upgrade (a new Journal holds no provenance) this is the one-gesture path: run **`yh doctor --fix`** (the app's
+Health **Repair** button runs `doctor --fix --check linear`). For each of the two custom states with exactly one
+same-name `started` state in the team, it writes that id into the Project file's `[board.linear.mapping]` (a
+text edit that keeps every other byte, validated by the loader and written atomically), records it as `mapped`
+in the Journal, and prints the file, keys, ids and state names. Zero or several candidates, a wrong category, or
+a value the file already maps writes nothing for that meaning and keeps the diagnostic. It never creates a
+second same-name state. Plain `yh doctor` stays read-only. The lines it writes look like:
 
 ```toml
 [board.linear.mapping]

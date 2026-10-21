@@ -160,7 +160,7 @@ extension BoardProvisioner {
         }).joined(separator: "\n")
         return ProvisioningEntry(
             subject: subject, outcome: .collision("team"), collidesWith: described.joined(separator: " and "),
-            mappingHint: hint
+            mappingHint: hint, candidates: adoptable.map(\.id)
         )
     }
 
