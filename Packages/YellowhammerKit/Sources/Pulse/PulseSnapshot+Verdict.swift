@@ -64,8 +64,13 @@ extension PulseSnapshot {
             let unresolved = returned.unresolved > 0 ? ", \(returned.unresolved) unresolved" : ""
             return "Feature \(name) returned — \(returned.unmet) of \(total) clauses unmet\(unresolved)\(notChecked)"
         }
-        for (cycleID, counts) in verified.sorted(by: { $0.key < $1.key }).reversed()
-        where counts.unmet == 0 && counts.unresolved == 0 && counts.notChecked == 0 {
+        let clean = verified.sorted(by: { $0.key < $1.key })
+            .filter { $0.value.unmet == 0 && $0.value.unresolved == 0 && $0.value.notChecked == 0 }
+        // Every Feature verified this Night counts, not only the last: several can land in one Night.
+        if clean.count > 1 {
+            return "\(clean.count) Features verified — all \(clean.reduce(0) { $0 + $1.value.met }) clauses met"
+        }
+        if let (cycleID, counts) = clean.last {
             let name = try journal.feature(cycleID: cycleID)?.displayIdentifier
             return "Feature \(name.map { "\($0) " } ?? "")verified — all \(counts.met) clauses met"
         }
