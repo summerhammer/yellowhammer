@@ -143,7 +143,7 @@ extension BoardProvisioner {
     }
 
     /// The existing label holding a provisioned name, as the Operator would find it in Linear: with its
-    /// parent group, so a label left by an earlier build (`Object Type › Night Card`) is named by both.
+    /// parent group, so a same-name label under another group is named by both.
     static func describe(_ label: BoardLabel, among existingLabels: [BoardLabel]) -> String {
         let kind = label.team == nil ? "workspace label" : "label"
         if label.isGroup {

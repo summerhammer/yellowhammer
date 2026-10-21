@@ -5,8 +5,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case missing(path: String)
     /// The Journal carries migrations this build does not know and that may come from a newer build.
     case schemaNewerThanKnown(path: String, unknown: [String])
-    /// Every unknown migration is provably older: the retired pre-squash `v<N>-<slug>` chain, or a
-    /// lower `journal-schema-<M>`. The Journal must be deleted; the next Act creates a new one.
+    /// Every unknown migration is provably older: a lower `journal-schema-<M>`.
+    /// The Journal must be deleted; the next Act creates a new one.
     case schemaOlderThanKnown(path: String, unknown: [String])
     case schemaBehind(path: String, pending: [String])
     /// The run no longer holds the Project: its Act-scoped lease expired and was taken, or was released.

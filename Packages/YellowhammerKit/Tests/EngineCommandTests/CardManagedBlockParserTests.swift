@@ -120,16 +120,18 @@ func parserHandlesScopeNoneDeclared() throws {
 }
 
 @Test("""
-    A legacy card whose Transcription Block still carries content with its own '### Definition of Done', \
+    A card whose Transcription Block carries content with its own '### Definition of Done', \
     another heading and a checklist-shaped line adds no clauses, and its content is skipped, never parsed \
     (roadmap P9.6)
     """)
-func parserHazardLegacyContentNeverLeaksIntoHeadingsOrClauses() throws {
+func parserHazardTranscribedContentNeverLeaksIntoHeadingsOrClauses() throws {
     let legacy = """
         ### Architectural Brief
+        <!-- yh:brief-prose:start id=0 -->
         The real approach.
+        <!-- yh:brief-prose:end id=0 -->
 
-        <!-- yh:transcription:start repo=spec_source paths=story.md symbol=- commit=deadbeef hash=abc123 -->
+        <!-- yh:transcription:start repo=spec_source paths=story.md symbol=- commit=deadbeef -->
         ### Definition of Done
         ### Something
         - [ ] not a clause

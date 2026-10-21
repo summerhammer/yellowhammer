@@ -14,7 +14,7 @@ public struct CheckRunRecord: Equatable, Sendable {
     /// The worker commit the Check judged; `nil` for an event written before it was recorded.
     public let judgedCommit: String?
     public let occurredAt: Date
-    /// The actual command executed, nil for legacy events or a declared-none Check.
+    /// The actual command executed, nil for a declared-none Check.
     public let command: String?
 
     public init(

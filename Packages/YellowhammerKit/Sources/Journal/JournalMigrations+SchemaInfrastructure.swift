@@ -109,7 +109,7 @@ extension JournalMigrations {
             // <=> `content IS NULL`.
             table.column("content", .text)
             // The Operator's edited `Contract:` line exactly as read from the board, for an unread row;
-            // NULL once the row is read, or when the edited reference came from a legacy stamp with no line.
+            // NULL once the row is read, or when the edited reference came from a stamp with no visible line.
             table.column("reference_text", .text)
             // The line ranges per path, one token per path aligned with `paths` and joined by `\n`
             // (`LineRange.token(for:)`); `''` when no path has any, so every path was transcribed whole.

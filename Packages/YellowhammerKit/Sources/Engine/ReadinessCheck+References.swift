@@ -55,7 +55,7 @@ extension ReadinessCheck {
         return reads
     }
 
-    /// The Operator's own line, or the fields rendered as one when the edit came from a legacy stamp.
+    /// The Operator's own line, or the fields rendered as one when the edit came from a stamp with no visible line.
     private static func referenceText(of record: TranscriptionBlockRecord) -> String {
         if let text = record.referenceText { return text }
         var block = record.block

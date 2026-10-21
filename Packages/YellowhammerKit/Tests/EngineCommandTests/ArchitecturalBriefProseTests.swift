@@ -52,21 +52,9 @@ func briefProseOpaqueRoundTrip() throws {
     #expect(replacement.preservedProse == parts.preservedProse)
 }
 
-@Test("Legacy nested Brief headings survive the next delimited rewrite")
-func legacyBriefMigration() {
-    let prose = "An approach.\n### Implementation\nKeep all of this.\n- [ ] An example checklist."
-    let legacy = "### Architectural Brief\n\(prose)\n\n### Definition of Done\n_No clauses authored._"
-    let parsed = CardManagedBlockParser.parse(block: legacy)
-    #expect(parsed.briefProse == prose)
-    #expect(parsed.clauses.isEmpty)
-    let rendered = proseBlock(parsed.briefProse ?? "").render()
-    #expect(rendered.contains("<!-- yh:brief-prose:start id=0 -->"))
-    #expect(CardManagedBlockParser.parse(block: rendered).briefProse == prose)
-}
-
-@Test("An unrelated Brief heading and marker outside a legacy Managed Block stay outside")
-func legacyBriefOutsideMarkers() throws {
-    let block = "### Architectural Brief\nLegacy prose.\n### Definition of Done\n_No clauses authored._"
+@Test("An unrelated Brief heading and marker outside the Managed Block stay outside")
+func briefOutsideMarkers() throws {
+    let block = proseBlock("Prose.").render()
     let description = "### Architectural Brief\nOutside before\n"
         + ManagedBlockFence.initialDescription(rendered: block)
         + "\n### Architectural Brief\n<!-- yh:brief-prose:start id=broken -->"

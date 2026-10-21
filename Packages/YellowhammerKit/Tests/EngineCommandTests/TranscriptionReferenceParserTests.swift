@@ -145,11 +145,11 @@ struct ReferenceLineTests {
         #expect(parsed.commit == "new5678")
     }
 
-    @Test("A legacy stamp-only block is read from its stamp; `-` and Operator-supplied commits are nil")
-    func legacyStampOnly() throws {
-        for commit in ["-", "Operator-supplied", "Operator-supplied as of 2026-09-17"] {
+    @Test("A stamp-only block is read from its stamp; a `-` commit is nil")
+    func stampOnly() throws {
+        for commit in ["-"] {
             let block = "<!-- yh:transcription:start repo=api paths=a.md ranges=3-5 symbol=S commit=\(commit) -->\n"
-                + "legacy content\n<!-- yh:transcription:end -->"
+                + "transcribed content\n<!-- yh:transcription:end -->"
             let parsed = try #require(CardManagedBlockParser.parse(block: block).transcriptions.first)
             #expect(parsed == ParsedTranscription(
                 repository: "api", paths: ["a.md"], ranges: ["a.md": [LineRange(start: 3, end: 5)]], symbol: "S",
