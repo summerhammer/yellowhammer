@@ -17,11 +17,12 @@ extension NightCardMaintenance {
         public let consecutiveRefusalsMax: Int
         public let failedAdoptionsMax: Int
         public let consecutiveAuthoringFaultsMax: Int
+        public let unmergedFeaturesMax: Int
 
         public init(
             reviewRoundsMax: Int = 2, attemptsPerWorkCard: Int = 3, unansweredNightsMax: Int = 3,
             reselectionsMax: Int = 2, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2,
-            consecutiveAuthoringFaultsMax: Int = 3
+            consecutiveAuthoringFaultsMax: Int = 3, unmergedFeaturesMax: Int = 3
         ) {
             self.reviewRoundsMax = reviewRoundsMax
             self.attemptsPerWorkCard = attemptsPerWorkCard
@@ -30,6 +31,7 @@ extension NightCardMaintenance {
             self.consecutiveRefusalsMax = consecutiveRefusalsMax
             self.failedAdoptionsMax = failedAdoptionsMax
             self.consecutiveAuthoringFaultsMax = consecutiveAuthoringFaultsMax
+            self.unmergedFeaturesMax = unmergedFeaturesMax
         }
     }
 

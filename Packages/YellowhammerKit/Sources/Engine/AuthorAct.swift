@@ -120,15 +120,20 @@ public struct AuthorAct: Sendable {
     /// The Refusal clock's bound (bounds/bound-unanswered-nights): how many Nights a Refusal may go
     /// unanswered before it expires. Defaults to the glossary's own default of 3.
     public let unansweredNightsMax: Int
+    /// `unmerged_features_max` (bounds overview): how many implemented Features may await a merge before
+    /// the author Act authors nothing. Stored here; selection consults it from P23.5.
+    public let unmergedFeaturesMax: Int
 
     public init(
         predecessorGate: (any PredecessorGate)? = nil, authoring: (any FeatureAuthoring)? = nil,
-        settle: (any FeatureSettle)? = nil, unansweredNightsMax: Int = 3
+        settle: (any FeatureSettle)? = nil, unansweredNightsMax: Int = 3,
+        unmergedFeaturesMax: Int = 3
     ) {
         self.predecessorGate = predecessorGate
         self.authoring = authoring
         self.settle = settle
         self.unansweredNightsMax = unansweredNightsMax
+        self.unmergedFeaturesMax = unmergedFeaturesMax
     }
 
     public var work: EngineInvocation.ActWork {

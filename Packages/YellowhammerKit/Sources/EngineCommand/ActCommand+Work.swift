@@ -53,7 +53,8 @@ extension ActCommand {
                     resultFixtures: resultFixtures
                 ),
                 settle: FeatureSettleGesture(),
-                unansweredNightsMax: project.bounds.unansweredNightsMax
+                unansweredNightsMax: project.bounds.unansweredNightsMax,
+                unmergedFeaturesMax: project.bounds.unmergedFeaturesMax
             ).work
         case .build:
             let cardRunner = try CardRunBinding.cardRunner(

@@ -34,7 +34,8 @@ struct Recalibrate {
             reselectionsMax: project.bounds.reselectionsMax,
             consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
             failedAdoptionsMax: project.bounds.failedAdoptionsMax,
-            consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax
+            consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax,
+            unmergedFeaturesMax: project.bounds.unmergedFeaturesMax
         )
 
         let night = try journal.flatMap { try Self.thisNight(journal: $0) }
@@ -87,6 +88,7 @@ struct Recalibrate {
         case "reselections_max": return bounds.reselectionsMax
         case "consecutive_refusals_max": return bounds.consecutiveRefusalsMax
         case "consecutive_authoring_faults_max": return bounds.consecutiveAuthoringFaultsMax
+        case "unmerged_features_max": return bounds.unmergedFeaturesMax
         default: return bounds.failedAdoptionsMax
         }
     }
@@ -98,7 +100,7 @@ struct Recalibrate {
         let wording: String
     }
 
-    /// Every Bound's consequence, in the same seven-Bound order ``BoundProximity`` reports.
+    /// Every Bound's consequence, in the same eight-Bound order ``BoundProximity`` reports.
     private static let consequences: [Consequence] = [
         Consequence(name: "review_rounds_max", shape: "stops", wording: "stops work on a Card"),
         Consequence(name: "attempts_per_work_card", shape: "stops", wording: "stops work on a Card"),
@@ -110,6 +112,9 @@ struct Recalibrate {
         Consequence(name: "failed_adoptions_max", shape: "promotes", wording: "promotes to a standing item"),
         Consequence(
             name: "consecutive_authoring_faults_max", shape: "stops", wording: "halts a Feature's authoring"
+        ),
+        Consequence(
+            name: "unmerged_features_max", shape: "stops", wording: "stops the Night's authoring"
         )
     ]
 

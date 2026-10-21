@@ -1,6 +1,6 @@
 import Foundation
 
-/// How the Add Project wizard explains each of the seven per-Project Bounds. Each fires when its count
+/// How the Add Project wizard explains each of the eight per-Project Bounds. Each fires when its count
 /// exceeds its value, so the copy says "up to".
 extension Bounds {
     /// What happens when a Bound fires: the glossary's two consequence shapes, with "stops work" split
@@ -46,7 +46,7 @@ extension Bounds {
         public var defaultValue: Int { Bounds()[keyPath: keyPath] }
     }
 
-    /// The seven Bounds, in the order the wizard lists them.
+    /// The eight Bounds, in the order the wizard lists them.
     public static let fields = [
         Field(
             key: "review_rounds_max", title: "Review Rounds per Attempt", unit: "round", units: "rounds",
@@ -97,6 +97,13 @@ extension Bounds {
                 + "selection halts authoring and asks you to force a new run. Accepted authoring resets it.",
             sentence: ("Allow up to", "in a row for one Feature, then halt its next authoring run."),
             consequence: .stopsAuthoring, keyPath: \Bounds.consecutiveAuthoringFaultsMax
+        ),
+        Field(
+            key: "unmerged_features_max", title: "Unmerged Features", unit: "Feature", units: "Features",
+            explanation: "How many implemented Features can await your merge. Once this many do, the author "
+                + "Act authors nothing until a merge is observed.",
+            sentence: ("Let up to", "await merge, then author nothing until one is merged."),
+            consequence: .stopsAuthoring, keyPath: \Bounds.unmergedFeaturesMax
         )
     ]
 

@@ -12,12 +12,13 @@ extension BoundsDraft {
         case "consecutive_refusals_max": \.consecutiveRefusalsMax
         case "failed_adoptions_max": \.failedAdoptionsMax
         case "consecutive_authoring_faults_max": \.consecutiveAuthoringFaultsMax
+        case "unmerged_features_max": \.unmergedFeaturesMax
         default: nil
         }
     }
 }
 
-/// A Project's seven Bounds as the Add Project sheet draws them: grouped by consequence, each a sentence
+/// A Project's eight Bounds as the Add Project sheet draws them: grouped by consequence, each a sentence
 /// around its value with a stepper, its `[limits]` key, and whether it is the default. The value stays a
 /// typed field beside the stepper, so a value the loader refuses still reaches the loader and is refused in
 /// its words.

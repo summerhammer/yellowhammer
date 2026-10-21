@@ -94,7 +94,7 @@ public struct RepoDraft: Equatable, Sendable {
     }
 }
 
-/// A Project's seven Bounds, as typed strings, so a garbage value (`"0"`, `"abc"`) reaches the loader
+/// A Project's eight Bounds, as typed strings, so a garbage value (`"0"`, `"abc"`) reaches the loader
 /// instead of being coerced or refused a second time here.
 public struct BoundsDraft: Equatable, Sendable {
     public var reviewRoundsMax: String
@@ -104,6 +104,7 @@ public struct BoundsDraft: Equatable, Sendable {
     public var consecutiveRefusalsMax: String
     public var failedAdoptionsMax: String
     public var consecutiveAuthoringFaultsMax: String
+    public var unmergedFeaturesMax: String
 
     public init(
         reviewRoundsMax: String,
@@ -112,7 +113,8 @@ public struct BoundsDraft: Equatable, Sendable {
         reselectionsMax: String,
         consecutiveRefusalsMax: String,
         failedAdoptionsMax: String,
-        consecutiveAuthoringFaultsMax: String = String(Bounds().consecutiveAuthoringFaultsMax)
+        consecutiveAuthoringFaultsMax: String = String(Bounds().consecutiveAuthoringFaultsMax),
+        unmergedFeaturesMax: String = String(Bounds().unmergedFeaturesMax)
     ) {
         self.reviewRoundsMax = reviewRoundsMax
         self.attemptsPerWorkCard = attemptsPerWorkCard
@@ -121,6 +123,7 @@ public struct BoundsDraft: Equatable, Sendable {
         self.consecutiveRefusalsMax = consecutiveRefusalsMax
         self.failedAdoptionsMax = failedAdoptionsMax
         self.consecutiveAuthoringFaultsMax = consecutiveAuthoringFaultsMax
+        self.unmergedFeaturesMax = unmergedFeaturesMax
     }
 
     public init(_ bounds: Bounds) {
@@ -131,7 +134,8 @@ public struct BoundsDraft: Equatable, Sendable {
             reselectionsMax: String(bounds.reselectionsMax),
             consecutiveRefusalsMax: String(bounds.consecutiveRefusalsMax),
             failedAdoptionsMax: String(bounds.failedAdoptionsMax),
-            consecutiveAuthoringFaultsMax: String(bounds.consecutiveAuthoringFaultsMax)
+            consecutiveAuthoringFaultsMax: String(bounds.consecutiveAuthoringFaultsMax),
+            unmergedFeaturesMax: String(bounds.unmergedFeaturesMax)
         )
     }
 }
