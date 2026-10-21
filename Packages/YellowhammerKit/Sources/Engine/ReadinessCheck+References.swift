@@ -31,7 +31,7 @@ extension ReadinessCheck {
                 ))
                 continue
             }
-            switch await references.read(record, in: repositories, mainlines: context.act.mainlines) {
+            switch await references.read(record, in: repositories, mainlines: context.recordedBaseMainlines) {
             case .success(let block):
                 guard let commit = block.mainlineCommit else {
                     reads.failures.append(.referenceUnreadable(

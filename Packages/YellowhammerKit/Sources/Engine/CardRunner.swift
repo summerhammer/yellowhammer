@@ -20,18 +20,27 @@ public struct BuildActContext: Sendable {
     public let cycleID: Int64
     public let reconciliation: WorktreeReconciliation
     public let deltaRead: DeltaReadReport?
+    /// What dispatch-time readers resolve a Card's Transcription Blocks and Definition-of-Done citations against
+    /// (roadmap P23.3): `effective_base(R)` as the Feature's `feature_base` record has it
+    /// (``AuthoringBases/fromRecord(journal:featureID:context:)``), because the Brief and the Readiness Check were
+    /// authored on that base. Only ``ReadinessCheck`` reads it; `act.mainlines` stays the real mainline for
+    /// everything else in the build Act (Worktree reconciliation, banked-reply stamps, fetch-failure reporting).
+    /// Defaults to `act.mainlines`, which is also what a repository with no record resolves to.
+    public let recordedBaseMainlines: ResolvedMainlines
 
     public init(
         act: ActContext,
         feature: FeatureRecord,
         cycleID: Int64,
         reconciliation: WorktreeReconciliation,
-        deltaRead: DeltaReadReport?
+        deltaRead: DeltaReadReport?,
+        recordedBaseMainlines: ResolvedMainlines? = nil
     ) {
         self.act = act
         self.feature = feature
         self.cycleID = cycleID
         self.reconciliation = reconciliation
         self.deltaRead = deltaRead
+        self.recordedBaseMainlines = recordedBaseMainlines ?? act.mainlines
     }
 }

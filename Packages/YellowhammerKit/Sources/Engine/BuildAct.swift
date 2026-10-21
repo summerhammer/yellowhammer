@@ -194,8 +194,8 @@ public struct BuildAct: Sendable {
             act: context.act, runID: context.runID, nightID: context.night.id
         )
 
-        let buildContext = BuildActContext(
-            act: context, feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: deltaRead
+        let buildContext = try BuildActContext.dispatching(
+            feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: deltaRead, act: context
         )
 
         // The pre-pass: a collision throws out of here before any lane starts.

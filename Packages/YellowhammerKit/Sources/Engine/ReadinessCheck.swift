@@ -228,7 +228,7 @@ public struct ReadinessCheck: Sendable {
             if let repositories = context.act.repositories {
                 let blocks = try journal.transcriptionBlocks(cardID: card.id).filter(\.isRead)
                 let report = await provenance.evaluate(
-                    blocks.map(\.block), projectRepositories: repositories, mainlines: context.act.mainlines
+                    blocks.map(\.block), projectRepositories: repositories, mainlines: context.recordedBaseMainlines
                 )
                 if report.hasDivergence {
                     try recordOverlaps(matches, card: card, context: context)
@@ -339,7 +339,9 @@ public struct ReadinessCheck: Sendable {
         var check = CitationCheck(failures: [], specCommit: nil)
         for clause in clauses {
             let citation = SpecCitation(clause.locationID)
-            let resolution = await citations.resolve(citation, in: repositories, mainlines: context.act.mainlines)
+            let resolution = await citations.resolve(
+                citation, in: repositories, mainlines: context.recordedBaseMainlines
+            )
             if resolution.resolves {
                 if check.specCommit == nil { check.specCommit = resolution.commit }
             } else {
@@ -372,7 +374,7 @@ public struct ReadinessCheck: Sendable {
         // Only READ records are tested: an unread one is already a failure, and has no commit to diff from.
         let report = await provenance.evaluate(
             blocks.filter(\.isRead).map(\.block), projectRepositories: repositories,
-            mainlines: context.act.mainlines
+            mainlines: context.recordedBaseMainlines
         )
         var failures: [ReadinessFailure] = []
         for result in report.results {

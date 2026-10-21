@@ -34,6 +34,12 @@ public enum WorktreeAllocationError: Error, Equatable, Sendable {
     /// Journal's recovery record are untouched, so the commits are still held. Deliberately not
     /// ``nameCollision(repository:requested:reported:recorded:)``: that one's remedy is a prefix change.
     case recoveryMismatch(repository: String, branch: String, expected: String, found: String?)
+    /// A Worktree cut from the base recorded at selection (roadmap P23.3) did not come back at the recorded
+    /// commit: `ref` is what `--base-branch` was given (or, with `found` nil and no Worktree made, the pin that
+    /// could not be written), `expected` is the recorded `baseCommit` and `found` is the new Worktree's HEAD,
+    /// nil when it did not resolve. The Worktree it made was removed and the Journal is untouched; no Attempt is
+    /// spent.
+    case recordedBaseMismatch(repository: String, ref: String, expected: String, found: String?)
     /// The Worktree held for `repository` cannot be released: its Feature Branch has not been pushed.
     case notPushed(repository: String)
     /// No Worktree is held for `repository`.
@@ -57,6 +63,10 @@ extension WorktreeAllocationError: CustomStringConvertible {
             "Re-allocating the Worktree for \(repository) from its recovery pin gave branch '\(branch)' at " +
                 "\(found ?? "an unresolvable HEAD"), not the recorded recovery commit \(expected); " +
                 "the Worktree was removed and the pin kept"
+        case .recordedBaseMismatch(let repository, let ref, let expected, let found):
+            "Allocating the Worktree for \(repository) from its recorded base \(ref) gave " +
+                "\(found ?? "an unresolvable HEAD"), not the recorded base commit \(expected); " +
+                "the Worktree was removed"
         case .notPushed(let repository):
             "The Worktree held for \(repository) cannot be released: its Feature Branch has not been pushed"
         case .notHeld(let repository):
@@ -150,16 +160,16 @@ public struct WorktreeAllocator: Sendable {
         let pinned = recorded.flatMap { branch in recovery.map { (branch: branch, commit: $0) } }
         let repositoryPath = Self.expandedPath(repo.path)
         _ = await git.run(["worktree", "prune"], workingDirectory: repositoryPath)
+        // A recovery pin wins; else the base recorded at selection; else Orca ADE's default (no record).
+        let recordedBase = pinned == nil ? try await recordedBaseCut(
+            featureID: featureID, repo: repo, repositoryPath: repositoryPath, worktreeName: worktreeName
+        ) : nil
 
-        let worktree: WorkspaceWorktree
-        do {
-            worktree = try await workspace.createWorktree(
-                repositoryPath: repositoryPath, name: worktreeName.rawValue,
-                baseBranch: pinned.map { FeatureBranchRecoveryPin.ref(for: $0.branch) }
-            )
-        } catch {
-            throw WorktreeAllocationError.workspace(repository: repo.name, error)
-        }
+        let worktree = try await createWorktree(
+            repo: repo, repositoryPath: repositoryPath, worktreeName: worktreeName,
+            baseBranch: pinned.map { FeatureBranchRecoveryPin.ref(for: $0.branch) } ?? recordedBase?.ref,
+            recordedBase: recordedBase
+        )
 
         guard Self.accepts(reported: worktree.branch, worktreeName: worktreeName, recorded: recorded) else {
             _ = try? await workspace.removeWorktree(id: worktree.id, force: true)
@@ -170,6 +180,9 @@ public struct WorktreeAllocator: Sendable {
         }
 
         let lastKnownGoodCommit = await Self.resolveHead(git: git, path: worktree.path)
+        try await verifyRecordedBase(
+            recordedBase, found: lastKnownGoodCommit, worktree: worktree, repository: repo.name
+        )
         if let pinned {
             try await verifyRecovery(
                 pinned.commit, found: lastKnownGoodCommit, worktree: worktree, repository: repo.name
@@ -179,14 +192,9 @@ public struct WorktreeAllocator: Sendable {
         let record: WorktreeRecord
         do {
             record = try journal.recordWorktree(
-                featureID: featureID,
-                repository: repo.name,
-                worktreeID: worktree.id.rawValue,
-                path: worktree.path,
-                runID: runID,
-                lastKnownGoodCommit: lastKnownGoodCommit,
-                featureBranch: FeatureBranch(name: worktree.branch),
-                clearingRecoveryCommit: pinned?.commit
+                featureID: featureID, repository: repo.name, worktreeID: worktree.id.rawValue, path: worktree.path,
+                runID: runID, lastKnownGoodCommit: lastKnownGoodCommit,
+                featureBranch: FeatureBranch(name: worktree.branch), clearingRecoveryCommit: pinned?.commit
             )
         } catch JournalError.featureBranchConflict(_, _, let conflicting, let reported) {
             _ = try? await workspace.removeWorktree(id: worktree.id, force: true)
