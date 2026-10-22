@@ -131,4 +131,38 @@ struct AuthoringInvariantViolationTests {
         let broken = try journal.events(ofType: .authoringInvariantBroken)
         #expect(broken.count == 1)
     }
+
+    @Test("A codex architect's real result.json carrying authoring_invariant_violation is an authoring defect (#644)")
+    func codexArchitectResultFileViolationIsRecorded() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try await makeCardRunWorld(journal: journal, withBoard: false)
+        // Unlike the seams above, the report comes out of `ResultFile.decode`, as it does on a real Night.
+        struct DecodedFileDispatch: AgentDispatch {
+            func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
+                let json = #"""
+                    {"schema":"yellowhammer.result.architect","version":1,"outcome":"failed",
+                     "authoring_invariant_violation":"the usable API lacks idempotent creation",
+                     "reason":"cannot plan","affected_paths":["openapi.yaml"]}
+                    """#
+                let result = try ResultFile.decode(Data(json.utf8), expecting: .architect)
+                return AgentDispatchReport(outcome: .completed(result), session: nil)
+            }
+        }
+        let run = CardRun(
+            resolver: cardRunResolver(), dispatch: DecodedFileDispatch(),
+            check: RecordingCheck(log: CallLog()), checks: ["backend": .none], reviewRoundsMax: 2,
+            attemptsPerWorkCard: 3, passTimeoutMinutes: 60, resetting: RecordingAttemptResetting()
+        )
+
+        try await run.run("BACK-1", in: world)
+
+        let card = try world.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.authoringDefect.rawValue)
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.map(\.consumedHow) == ["consumed; route not excluded (authoring defect)"])
+        #expect(try journal.excludedRoutes(cardID: card.id).isEmpty)
+        #expect(try journal.events(ofType: .authoringInvariantBroken).count == 1)
+    }
 }
