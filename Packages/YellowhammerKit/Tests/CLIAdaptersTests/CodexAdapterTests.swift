@@ -9,7 +9,7 @@ struct CodexAdapterTests {
 
     // MARK: - argv shape
 
-    @Test("First dispatch, worker: workspace-write sandbox, schema and -o point at runDirectory")
+    @Test("First dispatch, worker: full access, schema and -o point at runDirectory")
     func firstDispatchWorkerArgv() throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
@@ -20,7 +20,7 @@ struct CodexAdapterTests {
 
         #expect(args[0] == "exec")
         #expect(args.contains("--json"))
-        #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: args) == "workspace-write")
+        #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: args) == "danger-full-access")
         #expect(ClaudeCodeAdapterTests.value(after: "-m", in: args) == "gpt-5.5")
         let effortConfig = try #require(Self.configValues(in: args)["model_reasoning_effort"])
         #expect(effortConfig == "\"low\"")
@@ -38,7 +38,7 @@ struct CodexAdapterTests {
         #expect(args.count == dashIndex + 2)
     }
 
-    @Test("Round, worker: exec resume, sandbox and writable roots re-stated with -c, no --sandbox/-C")
+    @Test("Round, worker: exec resume with full access and no writable-roots override")
     func roundWorkerArgv() throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
@@ -57,8 +57,8 @@ struct CodexAdapterTests {
         #expect(!args.contains("-C"))
         #expect(!args.contains("--add-dir"))
         let config = Self.configValues(in: args)
-        #expect(config["sandbox_mode"] == "\"workspace-write\"")
-        #expect(config["sandbox_workspace_write.writable_roots"] == "[\"/some/gitdir\"]")
+        #expect(config["sandbox_mode"] == "\"danger-full-access\"")
+        #expect(config["sandbox_workspace_write.writable_roots"] == nil)
         #expect(config["model_reasoning_effort"] == "\"low\"")
         let dashIndex = try #require(args.firstIndex(of: "--"))
         #expect(args[dashIndex + 1] == "thread-123")
@@ -66,29 +66,41 @@ struct CodexAdapterTests {
         #expect(args.count == dashIndex + 3)
     }
 
-    @Test("First dispatch, reviewer: read-only sandbox")
-    func firstDispatchReviewerArgv() throws {
+    @Test(
+        "First dispatch, read-only pass: read-only sandbox",
+        arguments: [RunPass.architect, .reviewer, .selection, .breakdown, .verifier]
+    )
+    func firstDispatchReadOnlyArgv(pass: RunPass) throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
-        let dispatch = fixture.dispatch(cli: "codex", pass: .reviewer)
+        let dispatch = fixture.dispatch(cli: "codex", pass: pass)
 
         let launch = try adapter.launch(for: dispatch)
 
         #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: launch.arguments) == "read-only")
+        let config = Self.configValues(in: launch.arguments)
+        #expect(config["sandbox_mode"] == nil)
+        #expect(config["default_permissions"] == nil)
+        #expect(!config.keys.contains { $0.hasPrefix("permissions.") })
         let schemaPath = try #require(ClaudeCodeAdapterTests.value(after: "--output-schema", in: launch.arguments))
         let schemaContents = try String(contentsOfFile: schemaPath, encoding: .utf8)
-        #expect(schemaContents == CLIOutputSchema.strict(for: .reviewer))
+        #expect(schemaContents == CLIOutputSchema.strict(for: pass))
     }
 
-    @Test("Round, reviewer: read-only sandbox, no writable-roots override without extra dirs")
-    func roundReviewerArgvNoWritableRoots() throws {
+    @Test(
+        "Round, read-only pass: read-only sandbox without writable-roots override",
+        arguments: [RunPass.architect, .reviewer, .selection, .breakdown, .verifier]
+    )
+    func roundReadOnlyArgvNoWritableRoots(pass: RunPass) throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
-        let dispatch = fixture.dispatch(cli: "codex", pass: .reviewer, resume: CLISession(rawValue: "thread-9"))
+        let dispatch = fixture.dispatch(cli: "codex", pass: pass, resume: CLISession(rawValue: "thread-9"))
 
         let launch = try adapter.launch(for: dispatch)
         let config = Self.configValues(in: launch.arguments)
 
+        #expect(!launch.arguments.contains("--sandbox"))
+        #expect(config["default_permissions"] == nil)
         #expect(config["sandbox_mode"] == "\"read-only\"")
         #expect(config["sandbox_workspace_write.writable_roots"] == nil)
     }
@@ -122,12 +134,15 @@ struct CodexAdapterTests {
         #expect(args.count == dashIndex + 2)
     }
 
-    @Test("Round, read-only pass with protected directories: the deny profile replaces -c sandbox_mode")
-    func roundReadOnlyDispatchDeniesProtectedDirectories() throws {
+    @Test(
+        "Round, read-only pass with protected directories: the deny profile replaces -c sandbox_mode",
+        arguments: [RunPass.architect, .reviewer, .selection, .breakdown, .verifier]
+    )
+    func roundReadOnlyDispatchDeniesProtectedDirectories(pass: RunPass) throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
         let dispatch = fixture.dispatch(
-            cli: "codex", pass: .architect, resume: CLISession(rawValue: "thread-7"),
+            cli: "codex", pass: pass, resume: CLISession(rawValue: "thread-7"),
             protectedDirectories: Self.protectedDirectories
         )
 
@@ -146,23 +161,31 @@ struct CodexAdapterTests {
         #expect(args[dashIndex + 2] == dispatch.instruction)
     }
 
-    @Test("The worker is never given the deny profile, fresh or resumed")
-    func workerIgnoresProtectedDirectories() throws {
+    @Test("Workers ignore extra writable and protected directories", arguments: [false, true])
+    func workerUsesFullAccess(resumed: Bool) throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
-        let fresh = fixture.dispatch(cli: "codex", pass: .worker, protectedDirectories: Self.protectedDirectories)
-        let resumed = fixture.dispatch(
-            cli: "codex", pass: .worker, resume: CLISession(rawValue: "thread-8"),
+        let dispatch = fixture.dispatch(
+            cli: "codex", pass: .worker,
+            resume: resumed ? CLISession(rawValue: "thread-8") : nil,
+            additionalWritableDirectories: ["/some/gitdir", "/another/repo"],
             protectedDirectories: Self.protectedDirectories
         )
 
-        let freshArgs = try adapter.launch(for: fresh).arguments
-        #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: freshArgs) == "workspace-write")
-        #expect(Self.configValues(in: freshArgs)["default_permissions"] == nil)
+        let args = try adapter.launch(for: dispatch).arguments
+        let config = Self.configValues(in: args)
 
-        let resumedConfig = Self.configValues(in: try adapter.launch(for: resumed).arguments)
-        #expect(resumedConfig["sandbox_mode"] == "\"workspace-write\"")
-        #expect(resumedConfig["default_permissions"] == nil)
+        if resumed {
+            #expect(!args.contains("--sandbox"))
+            #expect(config["sandbox_mode"] == "\"danger-full-access\"")
+        } else {
+            #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: args) == "danger-full-access")
+            #expect(config["sandbox_mode"] == nil)
+        }
+        #expect(!args.contains("--add-dir"))
+        #expect(config["sandbox_workspace_write.writable_roots"] == nil)
+        #expect(config["default_permissions"] == nil)
+        #expect(!config.keys.contains { $0.hasPrefix("permissions.") })
     }
 
     @Test("A protected directory with a quote is escaped as a TOML string key")
@@ -176,20 +199,21 @@ struct CodexAdapterTests {
         #expect(config["permissions.yellowhammer.filesystem"] == "{\"/a \\\"b\\\"/c\"=\"deny\"}")
     }
 
-    @Test("The adapter version moved to 3 with the deny profile")
-    func adapterVersionIsThree() {
-        #expect(adapter.adapterVersion == "3")
+    @Test("The adapter version moved to 4 with unsandboxed workers")
+    func adapterVersionIsFour() {
+        #expect(adapter.adapterVersion == "4")
     }
 
-    @Test("Additional writable directories become repeated --add-dir flags on a first dispatch")
-    func addDirFlagsOnFirstDispatch() throws {
+    @Test("Additional writable directories are redundant for a full-access worker")
+    func workerOmitsAddDirFlagsOnFirstDispatch() throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
         let dispatch = fixture.dispatch(cli: "codex", additionalWritableDirectories: ["/a", "/b"])
 
         let launch = try adapter.launch(for: dispatch)
 
-        #expect(ClaudeCodeAdapterTests.indices(of: "--add-dir", in: launch.arguments).count == 2)
+        #expect(!launch.arguments.contains("--add-dir"))
+        #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: launch.arguments) == "danger-full-access")
     }
 
     @Test("Additional readable directories do not become --add-dir flags in Codex")

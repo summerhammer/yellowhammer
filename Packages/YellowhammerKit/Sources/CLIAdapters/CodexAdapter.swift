@@ -8,12 +8,12 @@ import Foundation
 /// `result.json` itself; ``collect(end:dispatch:)`` only strips its strict-mode `null` members), and
 /// resumes a session with
 /// `codex exec resume <thread_id>`. `codex exec resume` has neither `--sandbox` nor `-C`/`--add-dir`
-/// — the sandbox and any extra writable roots are re-stated with `-c sandbox_mode=…` and
-/// `-c sandbox_workspace_write.writable_roots=[…]`; cwd is already the Worktree, set by `posix_spawn`.
+/// — the sandbox is re-stated with `-c sandbox_mode=…`; cwd is already the Worktree, set by
+/// `posix_spawn`. Workers run with `danger-full-access` under the unsandboxed-worker ruling (#553).
 ///
-/// **Containment (issues #546 and #557), measured live with codex-cli 0.163.0.** The `read-only` and
-/// `workspace-write` Seatbelt sandboxes already block Keychain reads and network access, so a pass
-/// cannot pull a credential out of the login Keychain or call a vendor API. They do not stop reads of
+/// **Containment (issues #546 and #557), measured live with codex-cli 0.163.0.** The
+/// `read-only` Seatbelt sandbox blocks Keychain reads and network access, so a read-only pass
+/// cannot pull a credential out of the login Keychain or call a vendor API. It does not stop reads of
 /// Yellowhammer's configuration directory. A read-only pass with `CLIDispatch.protectedDirectories`
 /// therefore runs under a named permissions profile instead of `--sandbox read-only`:
 /// `default_permissions="yellowhammer"`, a profile that `extends = ":read-only"` and marks each
@@ -24,14 +24,13 @@ import Foundation
 /// resume the profile replaces `-c sandbox_mode`. With no protected directories the plain
 /// `read-only` sandbox is kept.
 ///
-/// The worker keeps `--sandbox workspace-write` and is not denied anything: its writable roots
-/// (`--add-dir`, the linked Worktree's git common dir it commits through) were not measured under a
-/// profile, and only the read-only shape is measured by the Probe's state-containment finding. A
-/// worker can still read the configuration directory; only the prompt's boundary statement asks it
-/// not to.
+/// Workers have no enforced filesystem, network or Keychain containment. Additional writable roots
+/// are redundant with `danger-full-access` and are omitted. Only the prompt's boundary statement
+/// asks a worker to avoid Yellowhammer's state, the Keychain and vendor APIs; the Probe measures
+/// read-only passes, not this worker shape.
 public struct CodexAdapter: CLIAdapter {
     public let cli = "codex"
-    public let adapterVersion = "3"
+    public let adapterVersion = "4"
     /// `codex exec --help`'s `-c model_reasoning_effort` values.
     public let supportedEfforts = ["minimal", "low", "medium", "high", "xhigh"]
 
@@ -66,8 +65,10 @@ public struct CodexAdapter: CLIAdapter {
                 "--output-schema", schemaFile.path,
                 "-o", resultFile.path
             ]
-            for directory in dispatch.additionalWritableDirectories {
-                arguments += ["--add-dir", directory]
+            if dispatch.pass != .worker {
+                for directory in dispatch.additionalWritableDirectories {
+                    arguments += ["--add-dir", directory]
+                }
             }
             arguments += ["--", dispatch.instruction]
         }
@@ -133,17 +134,16 @@ public struct CodexAdapter: CLIAdapter {
         return nil
     }
 
-    /// Per pass (spec `routing/add-an-agent-cli`): the worker edits and commits, so it needs
-    /// `workspace-write`; the architect and reviewer never touch files, so they run `read-only`.
+    /// Workers run unsandboxed (#553); every other pass runs read-only.
     private static func sandboxMode(for pass: RunPass) -> String {
         switch pass {
-        case .worker: "workspace-write"
+        case .worker: "danger-full-access"
         case .architect, .reviewer, .selection, .breakdown, .verifier: "read-only"
         }
     }
 
     /// How the pass is sandboxed. A fresh dispatch names the sandbox with `--sandbox`; `codex exec resume`
-    /// has no such flag, so a Round re-states it, and any extra writable roots, with `-c`. A read-only
+    /// has no such flag, so a Round re-states it with `-c`. A read-only
     /// pass with protected directories uses the deny profile instead, fresh or resumed.
     private static func sandboxArguments(for dispatch: CLIDispatch) -> [String] {
         let sandbox = sandboxMode(for: dispatch.pass)
@@ -152,12 +152,7 @@ public struct CodexAdapter: CLIAdapter {
             return profile
         }
         guard dispatch.resume != nil else { return ["--sandbox", sandbox] }
-        var arguments = ["-c", "sandbox_mode=\(tomlString(sandbox))"]
-        if sandbox == "workspace-write", !dispatch.additionalWritableDirectories.isEmpty {
-            let writableRoots = tomlStringArray(dispatch.additionalWritableDirectories)
-            arguments += ["-c", "sandbox_workspace_write.writable_roots=\(writableRoots)"]
-        }
-        return arguments
+        return ["-c", "sandbox_mode=\(tomlString(sandbox))"]
     }
 
     /// The name of the permissions profile a contained read-only pass runs under. Distinct enough not
@@ -181,10 +176,6 @@ public struct CodexAdapter: CLIAdapter {
 
     private static func tomlString(_ value: String) -> String {
         "\"\(escapeTOML(value))\""
-    }
-
-    private static func tomlStringArray(_ values: [String]) -> String {
-        "[\(values.map(tomlString).joined(separator: ","))]"
     }
 
     private static func escapeTOML(_ value: String) -> String {
