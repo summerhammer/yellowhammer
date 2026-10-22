@@ -300,3 +300,34 @@ struct UnmergedStackSkipCollapseTests {
         #expect(lines.count == 2)
     }
 }
+
+extension UnmergedStackGateTests {
+    @Test("Native cancellation keeps the local-git stack gate and effective base until an Observed Merge")
+    func canceledFeatureRetainsGateUntilMerge() async throws {
+        let backend = try await backendWithBranches("stack-canceled", branches: ["yh-f1"])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try await insertLandedFeature(journal, backend, issueID: "F1", branch: "yh-f1")
+        let (context, _) = try makeGateContext(journal, repositories: backendRepositories(backend))
+        let native = object("F1", state: stateCanceledByCategory, updatedAt: 20)
+        let data = try JSONEncoder().encode(native)
+        let payload = try #require(String(bytes: data, encoding: .utf8))
+        try journal.recordBoardRead(BoardReadRecord(
+            issuesSynced: nil, commentsSynced: nil,
+            issues: [BoardIssueObservation(issueID: "F1", updatedAt: native.updatedAt, payload: payload)],
+            comments: [], leavesBuildPending: false, clearsBuildPending: false, forgetsBefore: .distantFuture
+        ), runID: context.runID)
+        let gate = PredecessorAncestryGate()
+        let blocked = try await gate.check(context, unmergedFeaturesMax: 1)
+        #expect(namedUnmerged(blocked) == [NamedUnmerged("F1", ["backend"])])
+        #expect(try journal.effectiveBase(repository: "backend")?.featureID == featureID)
+        #expect(try journal.landings(featureID: featureID).isEmpty)
+
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge canceled Feature", "yh-f1"])
+        let opened = try await gate.check(context, unmergedFeaturesMax: 1)
+        #expect(opened == .open)
+        #expect(try journal.unmergedFeatureStack().isEmpty)
+        #expect(try journal.landings(featureID: featureID).count == 1)
+        #expect(try journal.featureBoardObservation(issueID: "F1")?.workflowState == stateCanceledByCategory)
+    }
+}

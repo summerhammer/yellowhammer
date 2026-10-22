@@ -192,3 +192,34 @@ struct OutboxDescriptionBudgetTests {
         #expect(parrots.utf16.count + 50 > 80)
     }
 }
+
+extension OutboxDescriptionBudgetTests {
+    @Test("The full cancellation annotation respects the composed UTF-16 boundary and human prose",
+           arguments: [false, true])
+    func cancellationAtDescriptionBoundary(oneUnitOver: Bool) async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeWritingBoard()
+        let prose = "Human prose 🪶\n"
+        let original = prose + description("old")
+        let rendered = "**waiting · 0 of 1 merged** " + FeatureCancellationAnnotation.note
+        let composed = prose + description(rendered)
+        let configured = composed.utf16.count - (oneUnitOver ? 1 : 0)
+        let issue = await board.seed(issue: "feature-1", description: original)
+        let outbox = try outbox(journal, board: board, descriptionBudget: budget(configured))
+        let delivery = try await outbox.post(OutboxWrite(
+            key: "canceled-rollup", write: .rewriteManagedBlock(issue: issue, rendered: rendered)
+        ))
+        if oneUnitOver {
+            guard case .aborted = delivery.outcome else {
+                Issue.record("expected budget refusal")
+                return
+            }
+            #expect(await board.issue(issue)?.description == original)
+            #expect(try journal.events(ofType: .managedBlockOverBudget).count == 1)
+        } else {
+            #expect(delivery.outcome == .applied(nil))
+            #expect(await board.issue(issue)?.description == composed)
+        }
+    }
+}

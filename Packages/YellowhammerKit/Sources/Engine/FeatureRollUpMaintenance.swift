@@ -58,7 +58,10 @@ public struct FeatureRollUpMaintenance: Sendable {
             conflictingRepositories: Array(conflicts.keys),
             noPullRequestRepositories: try journal.noPushedBranchRepositories(featureID: feature.id),
             pushedRepositories: try repositoriesWithRecordedPush(featureID: feature.id, journal: journal),
-            issueStanding: .authoring
+            issueStanding: .authoring,
+            cancellationSuffix: try FeatureCancellationAnnotation.suffix(
+                featureID: feature.id, issueID: feature.issueID, journal: journal
+            )
         )
     }
 
@@ -82,10 +85,11 @@ public struct FeatureRollUpMaintenance: Sendable {
 
     /// Maintains every Feature Issue candidate this Night touches, deduplicated by issue id: the
     /// in-flight Feature, every Feature this Night's merge pass observed (each Feature of the Unmerged Feature
-    /// Stack, whose merged fraction moves too), every Feature this Night's closure events name, and every Refusal/Authoring
-    /// Halt Feature Issue not already covered by a real `FeatureRecord`. One candidate's failure never
-    /// stops the rest; the first error is rethrown once every candidate has been tried, so the caller
-    /// decides whether the Act should notice.
+    /// Stack, whose merged fraction moves too), every Feature this Night's closure events name, every
+    /// Refusal/Authoring Halt Feature Issue not already covered by a real `FeatureRecord`, and every Feature
+    /// currently in the Unmerged Feature Stack (its cancellation note follows the Board's latest state, which
+    /// moves between merges). One candidate's failure never stops the rest; the first error is rethrown once
+    /// every candidate has been tried, so the caller decides whether the Act should notice.
     public func maintainAll(night: NightRecord) async throws {
         var processed: Set<String> = []
         var errors: [Error] = []
@@ -94,6 +98,7 @@ public struct FeatureRollUpMaintenance: Sendable {
         try await maintainObservedThisNight(night, processed: &processed, errors: &errors)
         try await maintainClosedThisNight(night, processed: &processed, errors: &errors)
         try await maintainZeroCardStandings(processed: &processed, errors: &errors)
+        try await maintainUnmergedStack(processed: &processed, errors: &errors)
 
         if let firstError = errors.first { throw firstError }
     }
@@ -122,6 +127,18 @@ public struct FeatureRollUpMaintenance: Sendable {
             guard let feature = try journal.feature(issueID: issueID) else { continue }
             processed.insert(issueID)
             if let error = await attempt({ _ = try await self.maintain(feature: feature, cycleID: cycleID) }) {
+                errors.append(error)
+            }
+        }
+    }
+
+    /// Every Feature in the Unmerged Feature Stack U: the cancellation note can only appear for a member, and a
+    /// Feature leaving U by its final merge is re-rendered by ``maintainObservedThisNight``.
+    private func maintainUnmergedStack(processed: inout Set<String>, errors: inout [Error]) async throws {
+        for member in try journal.unmergedFeatureStack() where !processed.contains(member.feature.issueID) {
+            guard let cycleID = try journal.cycleID(featureID: member.feature.id) else { continue }
+            processed.insert(member.feature.issueID)
+            if let error = await attempt({ _ = try await self.maintain(feature: member.feature, cycleID: cycleID) }) {
                 errors.append(error)
             }
         }

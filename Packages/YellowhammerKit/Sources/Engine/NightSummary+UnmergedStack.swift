@@ -6,10 +6,6 @@ import Journal
 // morning-report/write-the-night-summary, the standing line and `#stacked-conflicts`): each verified,
 // landed Feature awaiting merge, oldest first, with how many Nights it has awaited merge, `k of N`, its
 // conflicts, its place in the stack and its notes. Derived from the Journal at read time; reported only.
-//
-// The `[canceled on the Board: …]` note (board-projection/maintain-the-managed-block `#canceled-in-u-note`)
-// is not rendered: the Journal records no observation of an archived Feature Card's native state, and the
-// Night Summary reads no board. Rendering it needs that observation recorded first.
 
 extension NightSummary {
     /// One entry per Feature in U, in `journal.unmergedFeatureStack()`'s order (Feature id ascending).
@@ -45,6 +41,9 @@ extension NightSummary {
             }
             let noPullRequest = try journal.noPushedBranchRepositories(featureID: member.feature.id)
             if !noPullRequest.isEmpty { line += " " + FeatureRollUp.noPullRequestNotes(noPullRequest) }
+            line += try FeatureCancellationAnnotation.suffix(
+                featureID: member.feature.id, issueID: issueID, journal: journal
+            )
             lines.append(line)
             conflictsBelow.append((identifier, conflicts))
         }

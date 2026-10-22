@@ -108,6 +108,7 @@ public struct FeatureRollUp: Sendable {
     /// ` [no pull request: <repo>]…`, sorted by repository name; empty when there are none. Rendered
     /// beside the sentence after ``conflictsSuffix``, never inside it (roadmap P19.7; risks OQ108).
     public let noPullRequestSuffix: String
+    public let cancellationSuffix: String
 
     public init(
         members: [RollUpMember],
@@ -119,7 +120,8 @@ public struct FeatureRollUp: Sendable {
         conflictingRepositories: [String] = [],
         noPullRequestRepositories: [String] = [],
         pushedRepositories: Set<String> = [],
-        issueStanding: FeatureIssueStanding
+        issueStanding: FeatureIssueStanding,
+        cancellationSuffix: String = ""
     ) {
         self.members = members
         self.lanesPushed = lanesPushed
@@ -131,6 +133,7 @@ public struct FeatureRollUp: Sendable {
         self.noPullRequestRepositories = noPullRequestRepositories
         self.pushedRepositories = pushedRepositories
         self.issueStanding = issueStanding
+        self.cancellationSuffix = cancellationSuffix
 
         let (state, sentence) = Self.compute(
             members: members, lanesPushed: lanesPushed,
