@@ -322,3 +322,54 @@ func breakdownDraftedThreeReposDecodes() throws {
     let mobileCard = try #require(breakdown.cards.first { $0.repository == "fixture-mobile" })
     #expect(mobileCard.contracts.isEmpty)
 }
+
+private func failedFile(_ pass: String, _ extra: String) -> Data {
+    Data(#"{"schema":"yellowhammer.result.\#(pass)","version":1,\#(extra)}"#.utf8)
+}
+
+private func decodeFailedFile(_ pass: RunPass, _ extra: String) throws -> DispatchResult {
+    let name = pass == .architect ? "architect" : "worker"
+    let json = #"{"schema":"yellowhammer.result.\#(name)","version":1,\#(extra)}"#
+    return try ResultFile.decode(Data(json.utf8), expecting: pass)
+}
+
+@Test("A failed architect and worker file carry authoring_invariant_violation through ResultFile (#644)")
+func failedResultsDecodeAuthoringInvariantViolation() throws {
+    let failed = #""outcome":"failed","reason":"r","authoring_invariant_violation":"v""#
+    let architect = try decodeFailedFile(.architect, failed)
+    guard case .architect(let architectResult) = architect else {
+        Issue.record("expected architect")
+        return
+    }
+    #expect(architectResult.authoringInvariantViolation == "v")
+
+    let worker = try decodeFailedFile(.worker, failed)
+    guard case .worker(let workerResult) = worker else {
+        Issue.record("expected worker")
+        return
+    }
+    #expect(workerResult.authoringInvariantViolation == "v")
+}
+
+@Test("authoring_invariant_violation is ignored off a failed outcome and refused when empty")
+func authoringInvariantViolationEdges() throws {
+    let planned = #""outcome":"planned","plan":"p","authoring_invariant_violation":"v""#
+    let architect = try decodeFailedFile(.architect, planned)
+    guard case .architect(let architectResult) = architect else {
+        Issue.record("expected architect")
+        return
+    }
+    #expect(architectResult.authoringInvariantViolation == nil)
+
+    let blank = #""outcome":"failed","reason":"r","authoring_invariant_violation":" ""#
+    do {
+        _ = try decodeFailedFile(.worker, blank)
+        Issue.record("expected a blank authoring_invariant_violation to be refused")
+    } catch {
+        guard case .invalid(let field, _) = error as? ResultFileError else {
+            Issue.record("unexpected error \(error)")
+            return
+        }
+        #expect(field == "authoring_invariant_violation")
+    }
+}

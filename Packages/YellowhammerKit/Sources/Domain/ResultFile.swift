@@ -79,7 +79,10 @@ public enum ResultFile {
             return ArchitectResult(outcome: .planned(plan: plan, affectedPaths: affectedPaths))
         case "failed":
             let reason = try nonEmptyString(object, "reason")
-            return ArchitectResult(outcome: .failed(reason: reason))
+            return ArchitectResult(
+                outcome: .failed(reason: reason),
+                authoringInvariantViolation: try authoringInvariantViolation(object)
+            )
         default:
             throw .invalid(field: "outcome", reason: "unknown outcome `\(outcomeRaw)`")
         }
@@ -102,7 +105,10 @@ public enum ResultFile {
             return WorkerResult(outcome: .question(question))
         case "failed":
             let reason = try nonEmptyString(object, "reason")
-            return WorkerResult(outcome: .failed(reason: reason))
+            return WorkerResult(
+                outcome: .failed(reason: reason),
+                authoringInvariantViolation: try authoringInvariantViolation(object)
+            )
         default:
             throw .invalid(field: "outcome", reason: "unknown outcome `\(outcomeRaw)`")
         }
@@ -136,6 +142,13 @@ public enum ResultFile {
     }
 
     // MARK: - Field helpers
+
+    /// The optional `authoring_invariant_violation`, read only on a `failed` outcome (the schema's `oneOf`
+    /// does not forbid it elsewhere; the other outcomes ignore it). An absent or `null` field is `nil`.
+    private static func authoringInvariantViolation(_ object: [String: Any]) throws(ResultFileError) -> String? {
+        guard let raw = object["authoring_invariant_violation"], !(raw is NSNull) else { return nil }
+        return try nonEmptyString(object, "authoring_invariant_violation")
+    }
 
     private static func isEmptyOrWhitespace(_ data: Data) -> Bool {
         guard !data.isEmpty else { return true }
