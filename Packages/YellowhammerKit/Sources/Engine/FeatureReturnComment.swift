@@ -168,25 +168,36 @@ public struct FeatureReturnComment: Equatable, Sendable {
     private var notChecked: [ClauseVerificationRecord] { groupedClauses.filter { $0.verdict == .notChecked } }
     private var met: [ClauseVerificationRecord] { groupedClauses.filter { $0.verdict == .met } }
 
-    private func line(for clause: ClauseVerificationRecord) -> String {
+    /// One clause as a heading bullet (level, issue, cid) with a labelled sub-bullet per field, so the
+    /// requirement, its citation, the verdict and the reasoning are separable at a glance. A multi-line
+    /// field keeps its line breaks, each continuation line indented under its label.
+    private func lines(for clause: ClauseVerificationRecord) -> [String] {
         let level = clause.level == "feature" ? "Feature" : "Work Card"
         let issueDisplay = issues[clause.issueID]?.rendered(fallback: clause.issueID) ?? clause.issueID
         let text = clause.invalidatedCause.map { "\(clause.text) (invalidated: \($0))" } ?? clause.text
-        let fields = [
-            "\(level) \(issueDisplay) \(clause.cid)",
-            text,
-            "Spec Citation (\(clause.locationID))",
-            "[\(clause.citationProvenance)]",
-            clause.verdict.rawValue,
-            clause.whatWasChecked,
-            clause.interpretation
+        let fields: [(label: String, value: String)] = [
+            ("Clause", text),
+            ("Spec citation", "`\(clause.locationID)` · \(clause.citationProvenance)"),
+            ("Verdict", clause.verdict.rawValue),
+            ("Checked", clause.whatWasChecked),
+            ("Interpretation", clause.interpretation)
         ]
-        return fields.map(Self.singleLine).joined(separator: " · ")
+        var result = ["- **\(level)** \(issueDisplay) · `\(clause.cid)`"]
+        for field in fields {
+            let valueLines = Self.nonBlankLines(field.value)
+            result.append("  - **\(field.label):** " + (valueLines.first ?? ""))
+            result += valueLines.dropFirst().map { "    " + $0 }
+        }
+        return result
     }
 
-    private static func singleLine(_ text: String) -> String {
+    private static func nonBlankLines(_ text: String) -> [String] {
         text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }.joined(separator: " ")
+            .filter { !$0.isEmpty }
+    }
+
+    private func section(_ heading: String, _ clauses: [ClauseVerificationRecord]) -> [String] {
+        [""] + [heading] + clauses.flatMap { lines(for: $0) }
     }
 
     /// The comment body: an opening statement of the disposition, then unmet, unresolved, not checked and met clauses
@@ -199,33 +210,27 @@ public struct FeatureReturnComment: Equatable, Sendable {
         ]
 
         if !unmet.isEmpty {
-            lines.append("")
-            lines.append("## Unmet clauses")
-            lines += unmet.map { "- " + line(for: $0) }
+            lines += section("## Unmet clauses (\(unmet.count))", unmet)
         }
 
         if !unresolved.isEmpty {
-            lines.append("")
-            lines.append(
-                "## Unresolved clauses (citations for the Specification Author to repair, not unfinished work)"
+            lines += section(
+                "## Unresolved clauses (citations for the Specification Author to repair, not unfinished work)",
+                unresolved
             )
-            lines += unresolved.map { "- " + line(for: $0) }
         }
 
         if !notChecked.isEmpty {
-            lines.append("")
             let reason = NoCheckAttribution.headingNote(repositories: noCheckRepositories)
-            lines.append(
+            lines += section(
                 "## Not checked clauses (checks that never ran, not unfinished work"
-                    + (reason.map { "; \($0)" } ?? "") + ")"
+                    + (reason.map { "; \($0)" } ?? "") + ")",
+                notChecked
             )
-            lines += notChecked.map { "- " + line(for: $0) }
         }
 
         if !met.isEmpty {
-            lines.append("")
-            lines.append("## Met clauses")
-            lines += met.map { "- " + line(for: $0) }
+            lines += section("## Met clauses (\(met.count))", met)
         }
 
         lines.append("")
