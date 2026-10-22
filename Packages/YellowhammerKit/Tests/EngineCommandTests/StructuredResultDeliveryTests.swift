@@ -136,11 +136,16 @@ struct StructuredResultDeliveryTests {
         #expect(args.contains("--settings\n\(settingsPath)\n"))
         let permissionMode = pass == .worker ? "acceptEdits" : "dontAsk"
         #expect(args.contains("--permission-mode\n\(permissionMode)\n"))
+        #expect(args.contains("--output-format\nstream-json\n"))
+        #expect(args.contains("--verbose\n"))
         #expect(args.contains(pass.schemaIdentifier))
         if pass == .worker {
             #expect(args.contains("Edit Write"))
+            #expect(args.contains("--disallowedTools\nScheduleWakeup CronCreate Monitor Workflow RemoteTrigger\n"))
         } else {
-            #expect(args.contains("--disallowedTools\nEdit Write NotebookEdit\n"))
+            #expect(args.contains(
+                "--disallowedTools\nEdit Write NotebookEdit ScheduleWakeup CronCreate Monitor Workflow RemoteTrigger\n"
+            ))
         }
     }
 
@@ -269,7 +274,9 @@ struct StructuredResultDeliveryTests {
             """
         default:
             """
-            printf '{"session_id":"stub-session","is_error":false,"structured_output":%s}' "$RESPONSE"
+            printf '{"type":"system","subtype":"init","session_id":"stub-session"}\\n'
+            printf '{"type":"result","subtype":"success","session_id":"stub-session",\
+            "is_error":false,"structured_output":%s}\\n' "$RESPONSE"
             """
         }
         try "#!/bin/sh\n\(capture)\n\(output)\n".write(to: script, atomically: true, encoding: .utf8)

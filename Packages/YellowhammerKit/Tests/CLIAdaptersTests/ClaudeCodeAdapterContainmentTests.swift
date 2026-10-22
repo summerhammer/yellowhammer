@@ -32,7 +32,7 @@ struct ClaudeCodeAdapterContainmentTests {
 
     @Test("The adapter version records the --settings argv", arguments: [false, true])
     func adapterVersion(_ resumed: Bool) {
-        #expect(adapter.adapterVersion == "3")
+        #expect(adapter.adapterVersion == "4")
     }
 
     @Test("Every pass, fresh and resumed, passes --settings naming the file in the run directory",

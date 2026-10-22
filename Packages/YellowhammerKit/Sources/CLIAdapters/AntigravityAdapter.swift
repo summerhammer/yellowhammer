@@ -34,7 +34,9 @@ import Foundation
 /// the exit-0 and schema-valid result-file contract after collection.
 public struct AntigravityAdapter: CLIAdapter {
     public let cli = "agy"
-    public let adapterVersion = "1"
+    /// "2": the stdout capture is set aside before each launch, so a Round never reads a previous Round's
+    /// output (issue #643).
+    public let adapterVersion = "2"
     /// `agy --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
 
@@ -43,6 +45,8 @@ public struct AntigravityAdapter: CLIAdapter {
     public func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch {
         try validateRoute(dispatch)
         let resultFile = try prepareRunDirectory(dispatch)
+        let stdoutFile = dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+        setAsideCapture(stdoutFile)
 
         var arguments = [
             "-p", dispatch.instruction,
@@ -71,7 +75,7 @@ public struct AntigravityAdapter: CLIAdapter {
             pass: dispatch.pass,
             timeout: dispatch.timeout,
             outputLog: dispatch.runDirectory.appendingPathComponent("stderr.log"),
-            standardOutput: dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+            standardOutput: stdoutFile
         )
     }
 

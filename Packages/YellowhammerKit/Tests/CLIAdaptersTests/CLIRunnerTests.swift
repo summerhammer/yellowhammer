@@ -21,12 +21,7 @@ struct CLIRunnerTests {
         defer { fixture.cleanUp() }
         let script = try Self.makeStubScript(
             in: fixture.tempDir,
-            body: """
-                printf '{"session_id":"stub-session","is_error":false,"structured_output":\(
-                    Self.validWorkerStructuredOutput
-                )}'
-                exit 0
-                """
+            body: Self.claudeStreamBody(isError: false, structuredOutput: Self.validWorkerStructuredOutput)
         )
         let dispatch = fixture.dispatch(cli: "claude", executable: script.path)
 
@@ -47,12 +42,7 @@ struct CLIRunnerTests {
         defer { fixture.cleanUp() }
         let script = try Self.makeStubScript(
             in: fixture.tempDir,
-            body: """
-                printf '{"session_id":"stub-session","is_error":true,"structured_output":\(
-                    Self.validWorkerStructuredOutput
-                )}'
-                exit 0
-                """
+            body: Self.claudeStreamBody(isError: true, structuredOutput: Self.validWorkerStructuredOutput)
         )
         let dispatch = fixture.dispatch(cli: "claude", executable: script.path)
 
@@ -100,6 +90,17 @@ struct CLIRunnerTests {
     }
 
     // MARK: - Helpers
+
+    /// The body of a stub claude printing `stream-json` as `--output-format stream-json --verbose` does: a
+    /// system init line, then one `result` event carrying the structured output.
+    private static func claudeStreamBody(isError: Bool, structuredOutput: String) -> String {
+        """
+        printf '{"type":"system","subtype":"init","session_id":"stub-session"}\\n'
+        printf '{"type":"result","subtype":"success","session_id":"stub-session",\
+        "is_error":\(isError),"result_index":0,"structured_output":\(structuredOutput)}\\n'
+        exit 0
+        """
+    }
 
     private static func makeStubScript(in tempDir: URL, body: String) throws -> URL {
         let scriptPath = tempDir.appendingPathComponent("cli-\(UUID().uuidString).sh")

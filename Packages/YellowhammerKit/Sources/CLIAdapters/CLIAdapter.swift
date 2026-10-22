@@ -147,4 +147,25 @@ extension CLIAdapter {
         try? fileManager.removeItem(at: resultFile)
         return resultFile
     }
+
+    /// Moves an existing raw stdout capture aside to the first free `<base>.<n>.<ext>` (`stdout.json` →
+    /// `stdout.1.json`, then `stdout.2.json`, …), so the new invocation starts with an empty capture. The
+    /// capture is opened `O_APPEND` and a Round reuses its Attempt's run directory, so a previous Round's
+    /// output must never be read as this run's. The old capture is kept, not deleted, as evidence. A
+    /// missing file is a no-op; failures are ignored, like the stale result-file removal.
+    func setAsideCapture(_ capture: URL) {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: capture.path(percentEncoded: false)) else { return }
+        let directory = capture.deletingLastPathComponent()
+        let base = capture.deletingPathExtension().lastPathComponent
+        let ext = capture.pathExtension
+        var index = 1
+        var destination: URL
+        repeat {
+            let name = ext.isEmpty ? "\(base).\(index)" : "\(base).\(index).\(ext)"
+            destination = directory.appendingPathComponent(name)
+            index += 1
+        } while fileManager.fileExists(atPath: destination.path(percentEncoded: false))
+        try? fileManager.moveItem(at: capture, to: destination)
+    }
 }

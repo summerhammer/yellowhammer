@@ -4,14 +4,20 @@ import Foundation
 /// The `claude` CLI Adapter (spec `routing/add-an-agent-cli`; probe evidence:
 /// `attachments/investigations/2026-09-13-feasibility-probes/cli-probe.md`).
 ///
-/// Forces structured output with `--json-schema`, reads it back from the top-level
-/// `structured_output` field of `--output-format json`'s stdout, and resumes a session with
+/// Forces structured output with `--json-schema`, reads it back from the `structured_output` field of the
+/// `result` events in `--output-format stream-json`'s stdout, and resumes a session with
 /// `--resume <session_id>` (a fresh run instead picks its own id with `--session-id <uuid>`, so the
 /// id survives even a run whose stdout ``collect(end:dispatch:)`` cannot parse).
+///
+/// `json` mode prints only the final result of an invocation, so a pass that queued a follow-up turn lost
+/// its StructuredOutput (issue #643); `stream-json` keeps every turn's result, and the reader takes the last
+/// good one.
 public struct ClaudeCodeAdapter: CLIAdapter {
     public let cli = "claude"
-    /// "3": the argv gained `--settings <run directory>/claude-settings.json` (issue #546).
-    public let adapterVersion = "3"
+    /// "3": the argv gained `--settings <run directory>/claude-settings.json` (issue #546). "4": stdout is
+    /// `stream-json`, background tasks are disabled and follow-up tools are denied so a pass ends at its
+    /// StructuredOutput (issue #643).
+    public let adapterVersion = "4"
     /// `claude --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
 
@@ -20,11 +26,13 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     public func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch {
         try validateRoute(dispatch)
         let resultFile = try prepareRunDirectory(dispatch)
+        let stdoutFile = dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+        setAsideCapture(stdoutFile)
         let sessionIDFile = dispatch.runDirectory.appendingPathComponent(Self.sessionIDFileName)
 
         var arguments = [
             "-p", dispatch.instruction,
-            "--output-format", "json",
+            "--output-format", "stream-json", "--verbose",
             "--json-schema", CLIOutputSchema.strict(for: dispatch.pass),
             "--model", dispatch.route.model,
             "--effort", dispatch.route.effort
@@ -40,22 +48,14 @@ public struct ClaudeCodeAdapter: CLIAdapter {
             arguments += ["--session-id", freshSessionID]
         }
 
-        let settingsFile = dispatch.runDirectory.appendingPathComponent(Self.settingsFileName)
-        do {
-            let settings = try Self.settingsJSON(
-                for: dispatch.pass, protectedDirectories: dispatch.protectedDirectories
-            )
-            try settings.write(to: settingsFile, options: .atomic)
-        } catch {
-            throw .runDirectoryUnwritable("\(error)")
-        }
-        arguments += ["--settings", settingsFile.path(percentEncoded: false)]
+        arguments += ["--settings", try Self.writeSettings(for: dispatch)]
 
         let permissions = Self.permissions(for: dispatch.pass)
-        arguments += ["--permission-mode", permissions.mode, "--allowedTools", permissions.allowed]
-        if let disallowed = permissions.disallowed {
-            arguments += ["--disallowedTools", disallowed]
-        }
+        arguments += [
+            "--permission-mode", permissions.mode,
+            "--allowedTools", permissions.allowed,
+            "--disallowedTools", permissions.disallowed
+        ]
         for directory in dispatch.additionalReadableDirectories {
             arguments += ["--add-dir", directory]
         }
@@ -63,16 +63,20 @@ public struct ClaudeCodeAdapter: CLIAdapter {
             arguments += ["--add-dir", directory]
         }
 
+        // Merged, not replaced: `posix_spawn` receives this environment verbatim.
+        var environment = dispatch.environment
+        environment["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] = "1"
+
         return AgentCLILaunch(
             executable: dispatch.executable,
             arguments: arguments,
-            environment: dispatch.environment,
+            environment: environment,
             worktreePath: dispatch.worktreePath,
             resultFile: resultFile,
             pass: dispatch.pass,
             timeout: dispatch.timeout,
             outputLog: dispatch.runDirectory.appendingPathComponent("stderr.log"),
-            standardOutput: dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+            standardOutput: stdoutFile
         )
     }
 
@@ -83,14 +87,18 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         let fallback = dispatch.resume ?? launchedSessionID
 
         let stdoutFile = dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
-        guard let data = try? Data(contentsOf: stdoutFile), let object = Self.lastParseableObject(in: data) else {
-            return fallback
-        }
+        guard let data = try? Data(contentsOf: stdoutFile) else { return fallback }
+        let results = Self.resultEvents(in: data)
+        guard let last = results.last else { return fallback }
 
-        let session = (object["session_id"] as? String).map(CLISession.init(rawValue:)) ?? fallback
+        let session = (last["session_id"] as? String).map(CLISession.init(rawValue:)) ?? fallback
 
-        let isError = object["is_error"] as? Bool ?? false
-        if !isError, let structuredOutput = object["structured_output"] as? [String: Any] {
+        // The last good structured result wins: a text-only result after it is a follow-up turn, not a
+        // second answer. Only this invocation's capture is read; a previous Round's is set aside at launch.
+        let good = results.last(where: { result in
+            !(result["is_error"] as? Bool ?? false) && result["structured_output"] is [String: Any]
+        })
+        if let structuredOutput = good?["structured_output"] as? [String: Any] {
             let resultFile = dispatch.runDirectory.appendingPathComponent("result.json")
             // The forced schema declares optional fields nullable; the Domain schema wants them absent.
             let members = structuredOutput.filter { !($0.value is NSNull) }
@@ -105,21 +113,27 @@ public struct ClaudeCodeAdapter: CLIAdapter {
 
     public func usageLimit(for dispatch: CLIDispatch) -> RunOutcome? {
         let stdout = dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
-        guard let data = try? Data(contentsOf: stdout), let object = Self.lastParseableObject(in: data),
-              object["type"] as? String == "result", object["is_error"] as? Bool == true,
-              object["api_error"] as? String == "usage_limit_reached" else { return nil }
-        return .usageLimited(resetHint: object["result"] as? String)
+        guard let data = try? Data(contentsOf: stdout), let last = Self.resultEvents(in: data).last,
+              last["is_error"] as? Bool == true,
+              last["api_error"] as? String == "usage_limit_reached" else { return nil }
+        return .usageLimited(resetHint: last["result"] as? String)
     }
 
     private struct Permissions {
         let mode: String
         let allowed: String
-        let disallowed: String?
+        let disallowed: String
     }
+
+    /// The tools that queue a follow-up turn or start background work. A pass must end when it emits its
+    /// StructuredOutput: a `ScheduleWakeup` or a background task makes claude take more turns after it, and
+    /// the final text-only result then replaced the structured one in `json` mode (issue #643). Denied for
+    /// every pass, the worker included.
+    private static let followUpTools = ["ScheduleWakeup", "CronCreate", "Monitor", "Workflow", "RemoteTrigger"]
 
     /// Per pass (spec `routing/add-an-agent-cli`): the worker edits and commits unattended under
     /// `acceptEdits`; the architect and reviewer never touch files, so they run under `dontAsk` with
-    /// `Edit`/`Write`/`NotebookEdit` explicitly denied.
+    /// `Edit`/`Write`/`NotebookEdit` explicitly denied. Every pass denies ``followUpTools``.
     ///
     /// Containment (issue #546) is the `--settings` file ``settingsJSON(for:protectedDirectories:)``
     /// writes: the read-only passes run in a sandbox that denies Yellowhammer's configuration directory
@@ -128,12 +142,16 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     private static func permissions(for pass: RunPass) -> Permissions {
         switch pass {
         case .worker:
-            Permissions(mode: "acceptEdits", allowed: "Bash Edit Write Read Glob Grep", disallowed: nil)
+            Permissions(
+                mode: "acceptEdits",
+                allowed: "Bash Edit Write Read Glob Grep",
+                disallowed: followUpTools.joined(separator: " ")
+            )
         case .architect, .reviewer, .selection, .breakdown, .verifier:
             Permissions(
                 mode: "dontAsk",
                 allowed: "Bash Read Glob Grep",
-                disallowed: "Edit Write NotebookEdit"
+                disallowed: (["Edit", "Write", "NotebookEdit"] + followUpTools).joined(separator: " ")
             )
         }
     }
@@ -201,23 +219,32 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     private static let stdoutFileName = "stdout.json"
     private static let sessionIDFileName = ".session-id"
 
-    /// `--output-format json` prints one JSON object, but this tolerates surrounding whitespace and,
-    /// if the stream somehow holds multiple JSON documents, keeps the last one that parses.
-    private static func lastParseableObject(in data: Data) -> [String: Any]? {
-        guard let decoded = String(bytes: data, encoding: .utf8) else { return nil }
-        let text = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        if let whole = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] {
-            return whole
+    /// Writes this pass's `--settings` file into the run directory and returns its path.
+    private static func writeSettings(for dispatch: CLIDispatch) throws(CLIAdapterError) -> String {
+        let settingsFile = dispatch.runDirectory.appendingPathComponent(settingsFileName)
+        do {
+            let settings = try settingsJSON(for: dispatch.pass, protectedDirectories: dispatch.protectedDirectories)
+            try settings.write(to: settingsFile, options: .atomic)
+        } catch {
+            throw .runDirectoryUnwritable("\(error)")
         }
-        var last: [String: Any]?
-        for line in text.split(separator: "\n") {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else { continue }
-            if let object = try? JSONSerialization.jsonObject(with: Data(trimmed.utf8)) as? [String: Any] {
-                last = object
-            }
+        return settingsFile.path(percentEncoded: false)
+    }
+
+    /// The `"type":"result"` events of a `stream-json` capture, in order: one per turn of the invocation.
+    /// The capture is JSON Lines and can be megabytes of tool output, so each line is first checked for
+    /// the literal `"result"` (every result event has it) and only the survivors are parsed. The capture is
+    /// split on newline bytes before any decoding: a killed process can leave a torn multi-byte UTF-8
+    /// sequence on its last line, and decoding the whole capture would then hide every earlier event. A
+    /// line that does not decode or parse is skipped and never hides the lines around it.
+    static func resultEvents(in data: Data) -> [[String: Any]] {
+        var results: [[String: Any]] = []
+        for bytes in data.split(separator: 0x0A) {
+            guard let line = String(data: Data(bytes), encoding: .utf8), line.contains("\"result\"") else { continue }
+            guard let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                  object["type"] as? String == "result" else { continue }
+            results.append(object)
         }
-        return last
+        return results
     }
 }
