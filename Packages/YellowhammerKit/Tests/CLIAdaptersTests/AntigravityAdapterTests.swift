@@ -13,7 +13,7 @@ struct AntigravityAdapterTests {
     func firstDispatchWorkerArgv() throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
-        let dispatch = fixture.dispatch(cli: "agy", model: "gemini-3.8-flash-low", effort: "high", pass: .worker)
+        let dispatch = fixture.dispatch(cli: "agy", model: "gemini-3.8-flash-low", effort: "low", pass: .worker)
 
         let launch = try adapter.launch(for: dispatch)
         let args = launch.arguments
@@ -23,7 +23,7 @@ struct AntigravityAdapterTests {
         #expect(Self.value(after: "--output-format", in: args) == "json")
         #expect(Self.value(after: "--json-schema", in: args) == CLIOutputSchema.gemini(for: .worker))
         #expect(Self.value(after: "--model", in: args) == "gemini-3.8-flash-low")
-        #expect(Self.value(after: "--effort", in: args) == "high")
+        #expect(Self.value(after: "--effort", in: args) == "low")
         #expect(!args.contains("--conversation"))
         #expect(args.contains("--dangerously-skip-permissions"))
         #expect(!args.contains("--sandbox"))
@@ -93,6 +93,38 @@ struct AntigravityAdapterTests {
         )) {
             try adapter.launch(for: fixture.dispatch(cli: "agy", effort: "minimal"))
         }
+    }
+
+    @Test("A model suffix that conflicts with the Route's effort is refused (issue #649)")
+    func conflictingModelEffortRefused() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+
+        #expect(throws: CLIAdapterError.conflictingModelEffort(
+            cli: "agy", model: "gemini-4-argon-medium", effort: "high"
+        )) {
+            try adapter.launch(for: fixture.dispatch(cli: "agy", model: "gemini-4-argon-medium", effort: "high"))
+        }
+    }
+
+    @Test(
+        "A matching or absent model suffix is accepted",
+        arguments: [
+            ("gemini-4-argon-high", "high"),
+            ("gemini-4-argon-medium", "medium"),
+            ("claude-opus-5-5-low", "low"),
+            ("gemini-4-argon", "high"),
+            ("gpt-oss-120b", "xhigh")
+        ]
+    )
+    func matchingOrAbsentSuffixAccepted(model: String, effort: String) throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+
+        let args = try adapter.launch(for: fixture.dispatch(cli: "agy", model: model, effort: effort)).arguments
+
+        #expect(Self.value(after: "--model", in: args) == model)
+        #expect(Self.value(after: "--effort", in: args) == effort)
     }
 
     @Test("A stale result.json in runDirectory is removed before launch")

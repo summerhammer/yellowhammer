@@ -196,6 +196,13 @@ struct ConfigurationDecoding {
         }
     }
 
+    /// Refuses a route whose model id encodes an effort tier other than the route's effort
+    /// (``RegisteredCLIAdapters/conflictingEffortSuffix(in:)``): it would fail at launch, not at load.
+    private func rejectConflictingEffort(_ route: Route, line: Int, path: String) throws(ConfigurationError) {
+        guard RegisteredCLIAdapters.conflictingEffortSuffix(in: route) != nil else { return }
+        throw error(line: line, key: path, .conflictingModelEffort(model: route.model, effort: route.effort))
+    }
+
     /// A `cli/model` or `cli/model/effort` string, or a table with `cli`, `model` and optional `effort`.
     func route(_ value: TOMLValue, path: String, defaultEffort: String) throws(ConfigurationError) -> Route {
         switch value.content {
@@ -206,6 +213,7 @@ struct ConfigurationDecoding {
             else {
                 throw error(line: value.line, key: path, .invalidRoute(string))
             }
+            try rejectConflictingEffort(route, line: value.line, path: path)
             return route
         case .table(let table):
             try rejectUnknownKeys(in: table, path: path, allowed: ["cli", "model", "effort"])
@@ -215,6 +223,7 @@ struct ConfigurationDecoding {
             guard let route = Route(cli: cli, model: model, effort: effort) else {
                 throw error(line: table.line, key: path, .emptyString)
             }
+            try rejectConflictingEffort(route, line: table.line, path: path)
             return route
         default:
             throw error(line: value.line, key: path, .typeMismatch(expected: "string or table", found: value.typeName))

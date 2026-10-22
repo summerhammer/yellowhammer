@@ -1,0 +1,9 @@
+# No Linear Board Connections are declared;
+# the registry may be empty.
+[code_hosting.github.connections]
+github = { type = "keychain", credential = "keychain:github" }
+
+[cli.agy]
+
+[[routing]]
+route = "agy/gemini-4-argon-medium/high"

@@ -81,6 +81,9 @@ public enum CLIAdapterError: Error, Equatable, Sendable, CustomStringConvertible
     case routeForOtherCLI(expected: String, got: String)
     /// The Route's effort is not one this CLI accepts.
     case unsupportedEffort(cli: String, effort: String, supported: [String])
+    /// The Route's model id encodes an effort tier that disagrees with the Route's effort, which the CLI
+    /// refuses at argument parsing (``RegisteredCLIAdapters/conflictingEffortSuffix(in:)``).
+    case conflictingModelEffort(cli: String, model: String, effort: String)
     /// `runDirectory` could not be created or written to.
     case runDirectoryUnwritable(String)
 
@@ -90,6 +93,9 @@ public enum CLIAdapterError: Error, Equatable, Sendable, CustomStringConvertible
             "route names CLI `\(got)`, but this is the `\(expected)` adapter"
         case .unsupportedEffort(let cli, let effort, let supported):
             "\(cli) does not support effort `\(effort)` (supported: \(supported.joined(separator: ", ")))"
+        case .conflictingModelEffort(let cli, let model, let effort):
+            "\(cli) model `\(model)` already names an effort tier, which conflicts with effort `\(effort)`; "
+                + "use a model whose suffix matches, or an unsuffixed model"
         case .runDirectoryUnwritable(let reason):
             "run directory unwritable: \(reason)"
         }
@@ -131,6 +137,9 @@ extension CLIAdapter {
         }
         guard supportedEfforts.contains(dispatch.route.effort) else {
             throw .unsupportedEffort(cli: cli, effort: dispatch.route.effort, supported: supportedEfforts)
+        }
+        guard RegisteredCLIAdapters.conflictingEffortSuffix(in: dispatch.route) == nil else {
+            throw .conflictingModelEffort(cli: cli, model: dispatch.route.model, effort: dispatch.route.effort)
         }
     }
 

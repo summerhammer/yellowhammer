@@ -148,6 +148,15 @@ private let routingFixtures: [MalformedFixture] = [
         "authoring-with-repo-role", line: 8, key: "routing[0].repo_role",
         .reservedKindNamesRepoRole(kind: "authoring")
     ),
+    // agy refuses a model whose effort suffix disagrees with the route's effort (issue #649).
+    MalformedFixture(
+        "route-agy-conflicting-effort", line: 9, key: "routing[0].route",
+        .conflictingModelEffort(model: "gemini-4-argon-medium", effort: "high")
+    ),
+    MalformedFixture(
+        "fallback-agy-conflicting-effort", line: 10, key: "routing[0].fallbacks[1]",
+        .conflictingModelEffort(model: "gemini-4-argon-medium", effort: "high")
+    ),
     MalformedFixture("routing-without-cli-table", line: 7, key: "routing[0].route", .undeclaredCLIAdapter("claude"))
 ]
 
