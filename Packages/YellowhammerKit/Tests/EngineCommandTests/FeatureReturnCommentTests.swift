@@ -37,13 +37,13 @@ struct FeatureReturnCommentTests {
         #expect(body.contains("not Done"))
         #expect(body.contains("Cycle is not archived"))
         #expect(body.contains("## Unmet clauses"))
-        #expect(body.contains("BACK-1 c1"))
+        #expect(body.contains("BACK-1 · `c1`"))
         #expect(body.contains("## Unresolved clauses"))
         #expect(body.contains("Specification Author"))
-        #expect(body.contains("BACK-1 c2"))
+        #expect(body.contains("BACK-1 · `c2`"))
         #expect(body.contains("not unfinished work"))
         #expect(body.contains("## Met clauses"))
-        #expect(body.contains("BACK-1 c3"))
+        #expect(body.contains("BACK-1 · `c3`"))
         #expect(body.contains("auditable, not sound"))
         #expect(!body.lowercased().contains("passed"))
         #expect(!body.contains("2 unmet"))
@@ -147,8 +147,8 @@ struct FeatureReturnCommentTests {
         #expect(c1Count == 1)
         #expect(c2Count == 1)
 
-        #expect(body.contains("Feature [YLH-325](https://linear.app/team/issue/YLH-325) c1"))
-        #expect(body.contains("Feature [YLH-325](https://linear.app/team/issue/YLH-325) c2"))
+        #expect(body.contains("- **Feature** [YLH-325](https://linear.app/team/issue/YLH-325) · `c1`"))
+        #expect(body.contains("- **Feature** [YLH-325](https://linear.app/team/issue/YLH-325) · `c2`"))
     }
 
     @Test("Falls back to Card title when identifier is unknown")
@@ -177,7 +177,47 @@ struct FeatureReturnCommentTests {
 
         let uuidRegex = try Regex(#"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#)
         #expect(!body.contains(uuidRegex))
-        #expect(body.contains("Work Card [Parse YAML](https://linear.app/team/issue/YAML-1) c1"))
+        #expect(body.contains("- **Work Card** [Parse YAML](https://linear.app/team/issue/YAML-1) · `c1`"))
+    }
+
+    @Test("Each clause renders its fields on separate labelled lines; section headings carry counts")
+    func rendersLabelledFieldsWithCounts() {
+        let comment = FeatureReturnComment(
+            clauses: [
+                clause("c1", verdict: .unmet),
+                clause("c2", verdict: .met),
+                clause("c3", verdict: .met)
+            ],
+            pullRequests: [:]
+        )
+        let lines = comment.body().components(separatedBy: "\n")
+
+        #expect(lines.contains("## Unmet clauses (1)"))
+        #expect(lines.contains("## Met clauses (2)"))
+        #expect(lines.firstIndex(of: "## Unmet clauses (1)")! < lines.firstIndex(of: "## Met clauses (2)")!)
+
+        let start = lines.firstIndex(of: "- **Work Card** BACK-1 · `c1`")!
+        let labels = ["Clause", "Spec citation", "Verdict", "Checked", "Interpretation"]
+        for (offset, label) in labels.enumerated() {
+            #expect(lines[start + 1 + offset].hasPrefix("  - **\(label):** "))
+        }
+        #expect(lines[start + 2] == "  - **Spec citation:** `epic/story` · machine-found")
+        #expect(lines[start + 3] == "  - **Verdict:** unmet")
+    }
+
+    @Test("A multi-line field keeps its line breaks, indented under its label")
+    func multiLineFieldsKeepLineBreaks() {
+        let multiLine = ClauseVerificationRecord(
+            issueID: "BACK-1", cid: "c1", level: "card", text: "Clause.", locationID: "epic/story",
+            citationProvenance: "machine-found", verdict: .unmet,
+            whatWasChecked: "first line\n\n  second line\n", interpretation: "one", judgedBy: .engine
+        )
+        let lines = FeatureReturnComment(clauses: [multiLine], pullRequests: [:]).body()
+            .components(separatedBy: "\n")
+
+        let checked = lines.firstIndex(of: "  - **Checked:** first line")!
+        #expect(lines[checked + 1] == "    second line")
+        #expect(lines[checked + 2] == "  - **Interpretation:** one")
     }
 
     @Test("Not checked clauses render in their own section with proper heading")
@@ -190,7 +230,7 @@ struct FeatureReturnCommentTests {
         )
         let body = comment.body()
         #expect(body.contains("## Not checked clauses (checks that never ran, not unfinished work)"))
-        #expect(body.contains("BACK-1 c1"))
+        #expect(body.contains("BACK-1 · `c1`"))
         #expect(body.contains("not checked"))
         #expect(!body.contains("## Unmet clauses"))
         #expect(!body.contains("## Unresolved clauses"))

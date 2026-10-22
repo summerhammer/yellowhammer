@@ -117,7 +117,7 @@ struct FeatureReturnTests {
         #expect(issue.assignee == nil)
 
         let comment = try #require(await world.boards.writing.comments.first).body
-        #expect(comment.contains("BACK-1 c1"))
+        #expect(comment.contains("BACK-1 · `c1`"))
         #expect(comment.contains("not Done"))
 
         // The Cycle stays open: not archived, still the in-flight Feature's Cycle.
