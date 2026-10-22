@@ -6,7 +6,8 @@ import Testing
 // P7.1: result schema and instruction contract
 
 private func makeInstruction(
-    payloads: InstructionPayloads, check: Check = .command("swift test"), pass: RunPass = .worker
+    payloads: InstructionPayloads, check: Check = .command("swift test"), pass: RunPass = .worker,
+    laneStack: LaneStackContext? = nil
 ) -> Instruction {
     let night = NightStart(rawValue: "2026-09-17")!
     let repo = Repo(name: "yellowhammer", path: "/repos/yellowhammer", role: .backend)
@@ -51,7 +52,8 @@ private func makeInstruction(
             check: check
         ),
         route: route,
-        payloads: payloads
+        payloads: payloads,
+        laneStack: laneStack
     )
 }
 
@@ -241,9 +243,65 @@ func authoringInvariantSentenceOnlyForArchitectAndWorker(_ pass: RunPass) {
             "Raising a version pin or updating a lockfile to an available version that contains "
                 + "what this Card needs remains this Card's own work"
         ))
+        #expect(rendered.contains(
+            "Work already committed on the Feature branch at Base commit by an earlier completed Card in "
+                + "the same repository lane is part of this Card's starting tree, not missing work."
+        ))
     case .reviewer, .selection, .breakdown, .verifier:
         #expect(!rendered.contains(sentence))
+        #expect(!rendered.contains("part of this Card's starting tree"))
     }
+}
+
+@Test("Repo lane section is omitted when nil and renders after Repository for architect and worker passes")
+func repoLaneSectionRendersForArchitectAndWorker() throws {
+    #expect(!makeInstruction(payloads: .none).render().contains("## Repo lane"))
+
+    let base = String(repeating: "1", count: 40)
+    let stack = LaneStackContext(
+        baseCommit: base,
+        completedEarlierCards: [
+            LaneCompletedCard(key: "ENG-0", title: "Seed schema"),
+            LaneCompletedCard(key: "ENG-0B", title: "Add parser")
+        ]
+    )
+    for pass in [RunPass.architect, .worker] {
+        let rendered = makeInstruction(payloads: fullPayloads(), pass: pass, laneStack: stack).render()
+        let repoRange = try #require(rendered.range(of: "## Repository"))
+        let laneRange = try #require(rendered.range(of: "## Repo lane"))
+        let wipRange = try #require(rendered.range(of: "## Work in progress"))
+        #expect(repoRange.upperBound < laneRange.lowerBound)
+        #expect(laneRange.upperBound < wipRange.lowerBound)
+        #expect(rendered.contains("Base commit: \(base)"))
+        #expect(!rendered.contains("Worker commit:"))
+        #expect(rendered.contains(
+            "Completed earlier in this repository's lane:\n\n- ENG-0: Seed schema\n- ENG-0B: Add parser"
+        ))
+        #expect(rendered.contains(
+            "Their work is already committed on the Feature branch at `\(base)`. Build on top of `\(base)` and "
+                + "commit new changes without resetting or amending earlier Cards' commits."
+        ))
+    }
+}
+
+@Test("Repo lane section renders baseCommit..judgedCommit review range for reviewer pass")
+func repoLaneSectionRendersReviewRangeForReviewer() {
+    let base = String(repeating: "1", count: 40)
+    let judged = String(repeating: "2", count: 40)
+    let stack = LaneStackContext(
+        baseCommit: base,
+        judgedCommit: judged,
+        completedEarlierCards: [LaneCompletedCard(key: "ENG-0", title: "Seed schema")]
+    )
+    let rendered = makeInstruction(payloads: .none, pass: .reviewer, laneStack: stack).render()
+    #expect(rendered.contains("## Repo lane\n\nBase commit: \(base)\nWorker commit: \(judged)"))
+    #expect(rendered.contains(
+        "Judge the changes in `\(base)..\(judged)` against this Card's Definition of Done. Commits at or before "
+            + "`\(base)` on the Feature branch belong to the recorded base or earlier completed Cards in this "
+            + "repository's lane."
+    ))
+    #expect(rendered.contains("Completed earlier in this repository's lane:\n\n- ENG-0: Seed schema"))
+    #expect(!rendered.contains("Build on top of"))
 }
 
 @Test(

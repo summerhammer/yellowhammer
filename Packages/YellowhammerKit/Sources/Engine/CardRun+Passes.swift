@@ -69,7 +69,7 @@ extension CardRun {
                 worked = (commit: commit, session: session)
             }
 
-            let reviewer = try await runPass(.reviewer, frame: frame)
+            let reviewer = try await runPass(.reviewer, frame: frame, judgedCommit: worked.commit)
             guard case .reviewer(let judged) = reviewer.result else {
                 throw CardRunError.unexpectedResult(expected: .reviewer, found: reviewer.result.pass)
             }
@@ -164,7 +164,8 @@ extension CardRun {
     /// One pass: composes its instruction, dispatches it in the lane's Worktree and records the step. A
     /// failed run, or a route the machine cannot run at all, ends the Attempt (thrown as a `PassStop`).
     private func runPass(
-        _ pass: RunPass, frame: CardRunFrame, payloads: InstructionPayloads = .none, resumeSession: String? = nil
+        _ pass: RunPass, frame: CardRunFrame, payloads: InstructionPayloads = .none, resumeSession: String? = nil,
+        judgedCommit: String? = nil
     ) async throws -> (result: DispatchResult, session: String?) {
         guard let attempt = frame.attempt, let route = frame.route else {
             preconditionFailure("a pass is dispatched only after the Route is resolved and the Attempt recorded")
@@ -182,7 +183,11 @@ extension CardRun {
         let request = AgentDispatchRequest(
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,
             pass: pass,
-            instruction: .card(instruction(for: pass, route: route, frame: frame, payloads: effectivePayloads)),
+            instruction: .card(
+                instruction(
+                    for: pass, route: route, frame: frame, payloads: effectivePayloads, judgedCommit: judgedCommit
+                )
+            ),
             worktreePath: frame.worktree.path, resumeSession: resumeSession,
             additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path)
         )
@@ -220,7 +225,8 @@ extension CardRun {
     /// The instruction for one pass, from the Card, its Brief and Definition of Done, its repository and
     /// the Route. The result file path is the Dispatch seam's to stamp: it owns the run directory.
     private func instruction(
-        for pass: RunPass, route: Route, frame: CardRunFrame, payloads: InstructionPayloads
+        for pass: RunPass, route: Route, frame: CardRunFrame, payloads: InstructionPayloads,
+        judgedCommit: String? = nil
     ) -> Instruction {
         // `Engine` has its own DoDClause (the Managed Block's); the Instruction takes Domain's.
         let clauses = frame.readiness.clauses.map { clause in
@@ -240,7 +246,28 @@ extension CardRun {
             ),
             route: route, payloads: payloads, commitMessage: commitMessageRequest(for: pass, frame: frame),
             specCommit: pass == .worker ? frame.readiness.specCommit : nil,
-            passTimeoutMinutes: pass == .architect || pass == .worker ? passTimeoutMinutes : nil
+            passTimeoutMinutes: pass == .architect || pass == .worker ? passTimeoutMinutes : nil,
+            laneStack: laneStackContext(for: pass, frame: frame, judgedCommit: judgedCommit)
+        )
+    }
+
+    private func laneStackContext(for pass: RunPass, frame: CardRunFrame, judgedCommit: String?) -> LaneStackContext? {
+        let worktree = (try? frame.journal.heldWorktree(
+            featureID: frame.context.feature.id, repository: frame.card.repository
+        )) ?? frame.worktree
+        guard let baseCommit = worktree.lastKnownGoodCommit else { return nil }
+        let completedEarlier = frame.lane.cards
+            .filter { $0.authoredOrder < frame.card.authoredOrder }
+            .compactMap { card -> LaneCompletedCard? in
+                let current = (try? frame.journal.card(id: card.id)) ?? card
+                guard current.state == .done else { return nil }
+                let key = current.issueIDForDisplay ?? current.issueKey ?? current.issueID
+                return LaneCompletedCard(key: key, title: current.displayTitle)
+            }
+        return LaneStackContext(
+            baseCommit: baseCommit,
+            judgedCommit: pass == .reviewer ? judgedCommit : nil,
+            completedEarlierCards: completedEarlier
         )
     }
 

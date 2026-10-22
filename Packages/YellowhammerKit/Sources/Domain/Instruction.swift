@@ -154,6 +154,37 @@ public struct CommitMessageRequest: Equatable, Sendable {
     }
 }
 
+/// An earlier Work Card in the same Repo Lane that has already completed on this Feature Branch.
+public struct LaneCompletedCard: Equatable, Sendable {
+    public let key: String
+    public let title: String
+
+    public init(key: String, title: String) {
+        self.key = key
+        self.title = title
+    }
+}
+
+/// In-lane commit stacking context for a Card run in a Repo Lane (`effective_base(R) <- WC1 <- WC2`).
+public struct LaneStackContext: Equatable, Sendable {
+    /// The Worktree's `last_known_good_commit` at the start of this Card's Attempt.
+    public let baseCommit: String
+    /// The worker commit being judged by the reviewer pass; nil for non-reviewer passes.
+    public let judgedCommit: String?
+    /// Earlier Cards in the same Repo Lane (by `authoredOrder`) that are already `Done`.
+    public let completedEarlierCards: [LaneCompletedCard]
+
+    public init(
+        baseCommit: String,
+        judgedCommit: String? = nil,
+        completedEarlierCards: [LaneCompletedCard] = []
+    ) {
+        self.baseCommit = baseCommit
+        self.judgedCommit = judgedCommit
+        self.completedEarlierCards = completedEarlierCards
+    }
+}
+
 /// The instruction Yellowhammer composes and hands to the CLI for one pass of one dispatch. Yellowhammer
 /// owns the instruction and the result contract; the CLI owns execution — this is data plus a
 /// deterministic text rendering, nothing about tools, context management or subagents.
@@ -173,6 +204,8 @@ public struct Instruction: Equatable, Sendable {
     /// The Project's pass timeout in minutes (`[limits] pass_timeout_minutes`), told to the architect and
     /// worker passes only; nil omits the `## Time limit` section (#507).
     public let passTimeoutMinutes: Int?
+    /// In-lane commit stacking context for this Card's Repo Lane; nil omits the `## Repo lane` section.
+    public let laneStack: LaneStackContext?
 
     public init(
         pass: RunPass,
@@ -184,7 +217,8 @@ public struct Instruction: Equatable, Sendable {
         payloads: InstructionPayloads,
         commitMessage: CommitMessageRequest? = nil,
         specCommit: String? = nil,
-        passTimeoutMinutes: Int? = nil
+        passTimeoutMinutes: Int? = nil,
+        laneStack: LaneStackContext? = nil
     ) {
         self.pass = pass
         self.card = card
@@ -196,5 +230,6 @@ public struct Instruction: Equatable, Sendable {
         self.commitMessage = commitMessage
         self.specCommit = specCommit
         self.passTimeoutMinutes = passTimeoutMinutes
+        self.laneStack = laneStack
     }
 }
