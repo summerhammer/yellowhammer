@@ -260,7 +260,32 @@ struct AntigravityAdapterTests {
         #expect(adapter.collect(end: .exited(status: 0), dispatch: dispatch) == CLISession(rawValue: "second"))
     }
 
+    @Test("A silent Round never materializes the previous Round's structured_output (issue #643)")
+    func silentRoundNeverReadsPreviousRoundOutput() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let resume = CLISession(rawValue: "conv-1")
+        let dispatch = fixture.dispatch(cli: "agy", resume: resume)
+        // Round 1's capture is already in the run directory before Round 2 launches.
+        try FileManager.default.createDirectory(at: fixture.runDirectory, withIntermediateDirectories: true)
+        let seed = #"{"conversation_id":"conv-1","status":"SUCCESS","structured_output":\#(Self.workerObject)}"#
+        try Self.writeStdout(seed, in: dispatch)
+
+        _ = try adapter.launch(for: dispatch)
+        // Round 2 exits 0 and prints nothing: nothing is appended to the capture.
+        #expect(adapter.collect(end: .exited(status: 0), dispatch: dispatch) == resume)
+
+        #expect(!Self.resultExists(in: dispatch))
+        let kept = try Data(contentsOf: fixture.runDirectory.appendingPathComponent("stdout.1.json"))
+        #expect(kept == Data(seed.utf8))
+    }
+
     // MARK: - Helpers
+
+    private static let workerObject = """
+        {"schema":"yellowhammer.result.worker","version":1,"outcome":"completed",\
+        "commit":"0123456789abcdef0123456789abcdef01234567","summary":"ok"}
+        """
 
     /// Matches agy's observed final stdout envelope, including sticky error metadata after recovery.
     private static func architectStdout(status: String) throws -> String {
