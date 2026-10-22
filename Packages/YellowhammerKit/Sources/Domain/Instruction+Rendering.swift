@@ -12,6 +12,7 @@ extension Instruction {
             definitionOfDoneSection,
             repositorySection
         ]
+        if let laneStackSection { sections.append(laneStackSection) }
         if let specificationSection { sections.append(specificationSection) }
         if let commitMessagesSection { sections.append(commitMessagesSection) }
         if let wipSection { sections.append(wipSection) }
@@ -98,6 +99,37 @@ extension Instruction {
             Feature branch: \(repository.featureBranch)
             Check: \(checkLine)
             """
+    }
+
+    private var laneStackSection: String? {
+        guard let laneStack else { return nil }
+        var lines = ["## Repo lane", "", "Base commit: \(laneStack.baseCommit)"]
+        if pass == .reviewer, let judgedCommit = laneStack.judgedCommit {
+            lines.append("Worker commit: \(judgedCommit)")
+            lines.append("")
+            lines.append(
+                "Judge the changes in `\(laneStack.baseCommit)..\(judgedCommit)` against this Card's Definition of "
+                    + "Done. Commits at or before `\(laneStack.baseCommit)` on the Feature branch belong to the "
+                    + "recorded base or earlier completed Cards in this repository's lane."
+            )
+        }
+        if !laneStack.completedEarlierCards.isEmpty {
+            lines.append("")
+            lines.append("Completed earlier in this repository's lane:")
+            lines.append("")
+            for card in laneStack.completedEarlierCards {
+                lines.append("- \(card.key): \(card.title)")
+            }
+            if pass == .architect || pass == .worker {
+                lines.append("")
+                lines.append(
+                    "Their work is already committed on the Feature branch at `\(laneStack.baseCommit)`. Build on "
+                        + "top of `\(laneStack.baseCommit)` and commit new changes without resetting or amending "
+                        + "earlier Cards' commits."
+                )
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// Worker pass only (OQ165, graph-execution/run-a-card#spec-commit): the specification commit the Card's
@@ -288,7 +320,9 @@ extension Instruction {
                 + "mainline or release is an authoring-invariant violation: report `failed` with "
                 + "`authoring_invariant_violation` naming the repository and missing work, and never complete "
                 + "against unmerged or unreleased work. Raising a version pin or updating a lockfile to an "
-                + "available version that contains what this Card needs remains this Card's own work."
+                + "available version that contains what this Card needs remains this Card's own work. "
+                + "Work already committed on the Feature branch at Base commit by an earlier completed Card in "
+                + "the same repository lane is part of this Card's starting tree, not missing work."
         case .reviewer, .selection, .breakdown, .verifier:
             return nil
         }
