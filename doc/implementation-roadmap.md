@@ -2897,7 +2897,7 @@ the outstanding checks. #627 may close when #632 merges; #636 remains open for l
 - **Agent** — Sonnet 5.5 medium.
 - **Done when** — Multi-Card single-repository breakdowns with self-repository contracts pass `ContractOverlapCheck`, `AuthoringTransaction.run`, and `AuthoringTransaction.repair` without halting, while cross-repository overlaps still halt.
 
-### [ ] P24.2 Guide breakdown authoring for sequential same-repository Work Cards
+### [x] P24.2 Guide breakdown authoring for sequential same-repository Work Cards
 - **Work** — Update `AuthoringInstruction` for the `.breakdown` pass to encourage decomposing complex repository work into an ordered sequence of Work Cards in `cards` (`effective_base(R) <- WC1 <- WC2` in a shared Worktree and Feature Branch, each leaving the repository Check green), distinguish same-repository sequential lanes from cross-repository independence, and clarify that `contracts` transcribe existing files tracked at `Mainline` rather than files created by earlier same-repository Cards.
 - **Spec** — `feature-authoring/author-the-cycle-and-card-dag`.
 - **Agent** — Sonnet 5.5 medium.
