@@ -2889,6 +2889,28 @@ the outstanding checks. #627 may close when #632 merges; #636 remains open for l
 
 ---
 
+## Phase 24 — Multi-Card Repo Lanes
+
+### [x] P24.1 Scope `ContractOverlapCheck` to cross-repository contracts (#611)
+- **Work** — Restrict `ContractOverlapCheck.overlaps` to cross-repository pairs (`reader.repository != writer.repository`) so multiple Work Cards targeting the same repository in a `RepoLane` (`effective_base(R) <- WC1 <- WC2`) never trigger false-positive or mutual `breakdown-consumes-own-feature-work` halts, and previously halted multi-Card single-repository Features resume cleanly on repair.
+- **Spec** — `feature-authoring/author-an-architectural-brief`.
+- **Agent** — Sonnet 5.5 medium.
+- **Done when** — Multi-Card single-repository breakdowns with self-repository contracts pass `ContractOverlapCheck`, `AuthoringTransaction.run`, and `AuthoringTransaction.repair` without halting, while cross-repository overlaps still halt.
+
+### [ ] P24.2 Guide breakdown authoring for sequential same-repository Work Cards
+- **Work** — Update `AuthoringInstruction` for the `.breakdown` pass to encourage decomposing complex repository work into an ordered sequence of Work Cards in `cards` (`effective_base(R) <- WC1 <- WC2` in a shared Worktree and Feature Branch, each leaving the repository Check green), distinguish same-repository sequential lanes from cross-repository independence, and clarify that `contracts` transcribe existing files tracked at `Mainline` rather than files created by earlier same-repository Cards.
+- **Spec** — `feature-authoring/author-the-cycle-and-card-dag`.
+- **Agent** — Sonnet 5.5 medium.
+- **Done when** — Breakdown instruction rendering tests verify the sequential same-repository lane rules and contract-path guidance while selection pass rendering remains unchanged.
+
+### [ ] P24.3 Thread in-lane commit stacking context into `Instruction` and `CardRun`
+- **Work** — Add optional in-lane stacking context (`LaneStackContext`: `baseCommit`, `judgedCommit`, and earlier completed Cards in the same `RepoLane`) to `Instruction` and populate it in `CardRun` so `.architect`, `.worker`, and `.reviewer` know the Card's starting commit (`last_known_good_commit`), earlier completed Cards in the lane, and the exact review range (`baseCommit..judgedCommit`).
+- **Spec** — `graph-execution/run-a-card`.
+- **Agent** — Sonnet 5.5 medium.
+- **Done when** — Multi-Card `RepoLane` tests verify `WC1 <- WC2` sequential `lastKnownGoodCommit` advancement, instruction rendering of `baseCommit`, `judgedCommit`, and earlier completed Cards, trailer checking over `C1..C2`, and Worktree reset to `C1` when `WC2` fails an Attempt.
+
+---
+
 ## Traceability: story → steps
 
 | Story ID | Steps |
@@ -2912,11 +2934,11 @@ the outstanding checks. #627 may close when #632 merges; #636 remains open for l
 | `routing/exclude-tried-routes-on-retry` | P7.7 |
 | `routing/add-an-agent-cli` | P2.3, P7.2, P7.3, P7.4, P7.5, P18.15 |
 | `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6, P19.1, P19.6, P22.5, P22.6, P23.1, P23.2, P23.5 |
-| `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P9.10, P11.5 |
+| `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P9.10, P11.5, P24.2 |
 | `feature-authoring/author-citable-definitions-of-done` | P9.5, P9.7, P9.8, P8.2 |
-| `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2, P19.4, P23.2 |
+| `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2, P19.4, P23.2, P24.1 |
 | `graph-execution/allocate-a-worktree-per-graph-and-repo` | P6.7, P23.3 |
-| `graph-execution/run-a-card` | P7.1, P7.2, P8.4, P8.6, P8.7, P8.9, P19.4, P19.5 |
+| `graph-execution/run-a-card` | P7.1, P7.2, P8.4, P8.6, P8.7, P8.9, P19.4, P19.5, P24.3 |
 | `graph-execution/gate-a-card-on-the-repository-check` | P2.3, P8.5 |
 | `graph-execution/handle-a-block-mid-graph` | P8.9, P10.4 |
 | `bounds/bound-review-rounds-and-attempts` | P8.6, P8.7 |
