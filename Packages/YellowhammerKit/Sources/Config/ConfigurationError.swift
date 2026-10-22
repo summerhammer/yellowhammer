@@ -14,6 +14,9 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case emptyString
         case invalidKind(String)
         case invalidRoute(String)
+        /// An `agy` route whose model id ends in an effort tier (`-low`, `-medium`, `-high`, …) that is not
+        /// the route's effort; agy refuses the pair at launch (issue #649).
+        case conflictingModelEffort(model: String, effort: String)
         case duplicateRoutingEntry(firstLine: Int)
         /// A Routing Entry for the Kind reserved for the author Act names a Repo Role: the author Act
         /// resolves with no Repo Role, so such an entry could never match.
@@ -121,6 +124,9 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "expected \"*\" or a dotted Kind such as \"impl.boilerplate\", got \"\(value)\""
         case .invalidRoute(let value):
             return "expected \"cli/model\" or \"cli/model/effort\", got \"\(value)\""
+        case .conflictingModelEffort(let model, let effort):
+            return "model \"\(model)\" already names an effort tier, which conflicts with effort \"\(effort)\"; "
+                + "use a model whose suffix matches, or an unsuffixed model"
         case .duplicateRoutingEntry(let firstLine):
             return "a Routing Entry for the same Kind and Repo Role is already defined on line \(firstLine)"
         case .reservedKindNamesRepoRole(let kind):
