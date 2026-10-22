@@ -2903,7 +2903,7 @@ the outstanding checks. #627 may close when #632 merges; #636 remains open for l
 - **Agent** — Sonnet 5.5 medium.
 - **Done when** — Breakdown instruction rendering tests verify the sequential same-repository lane rules and contract-path guidance while selection pass rendering remains unchanged.
 
-### [ ] P24.3 Thread in-lane commit stacking context into `Instruction` and `CardRun`
+### [x] P24.3 Thread in-lane commit stacking context into `Instruction` and `CardRun`
 - **Work** — Add optional in-lane stacking context (`LaneStackContext`: `baseCommit`, `judgedCommit`, and earlier completed Cards in the same `RepoLane`) to `Instruction` and populate it in `CardRun` so `.architect`, `.worker`, and `.reviewer` know the Card's starting commit (`last_known_good_commit`), earlier completed Cards in the lane, and the exact review range (`baseCommit..judgedCommit`).
 - **Spec** — `graph-execution/run-a-card`.
 - **Agent** — Sonnet 5.5 medium.
