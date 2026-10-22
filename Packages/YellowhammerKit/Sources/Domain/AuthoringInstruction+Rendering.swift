@@ -55,7 +55,8 @@ extension AuthoringInstruction {
     }
 
     /// Both passes: the invariant every Work Card meets. The selection pass adds the sequence rule across a
-    /// declared Repo Dependency; the breakdown pass adds how a consumer Work Card reads its producers.
+    /// declared Repo Dependency; the breakdown pass adds same-repository sequential lane guidance and how a
+    /// consumer Work Card reads its producers.
     private var authoringInvariantSection: String {
         var paragraphs = [
             "## Authoring invariant",
@@ -65,8 +66,21 @@ extension AuthoringInstruction {
         ]
         if pass == .breakdown {
             paragraphs.append(
+                "Within a single repository, breaking a complex Feature into an ordered sequence of Work Cards "
+                    + "in `cards` is supported and encouraged: Work Cards targeting the same repository run "
+                    + "sequentially in `cards` order inside one shared Worktree and Feature Branch "
+                    + "(`effective_base(R) <- WC1 <- WC2`), where each Card builds on the preceding Card's "
+                    + "committed tree and must leave the repository's Check passing. Across different "
+                    + "repositories, Work Cards in a Feature run in independent lanes and never consume "
+                    + "uncommitted work from another repository's Card in the same Feature."
+            )
+            paragraphs.append(
                 "Every repository a Work Card reads from goes in its `contracts`. Bumping a version pin or "
-                    + "updating a lockfile in a consumer repository is that consumer Work Card's own work."
+                    + "updating a lockfile in a consumer repository is that consumer Work Card's own work. "
+                    + "Because `contracts` transcribe existing files tracked at `Mainline`, a later Work Card "
+                    + "in the same repository sees files created or modified by earlier same-repository Cards "
+                    + "directly in the shared Worktree at build time — `contracts` never name files that an "
+                    + "earlier Work Card in the same repository creates from scratch."
             )
         } else {
             paragraphs.append(
