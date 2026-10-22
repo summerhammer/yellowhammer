@@ -44,16 +44,4 @@ extension JournalStore {
                 """, arguments: [observation.issueID, Self.syncTimestamp(observation.updatedAt), observation.payload])
         }
     }
-
-    /// Tracked Feature identities with durable observations, including closed Cycles. Maintenance uses
-    /// these to recompute status-only changes and removal of an annotation after leaving U.
-    public func observedFeaturesWithCycles() throws -> [(FeatureRecord, Int64)] {
-        try read { db in
-            try Row.fetchAll(db, sql: """
-                SELECT feature.*, cycle.id AS cycle_id FROM feature
-                JOIN feature_board_status ON feature_board_status.issue_id = feature.issue_id
-                JOIN cycle ON cycle.feature_id = feature.id ORDER BY feature.id
-                """).map { (try Self.featureRecord(from: $0), $0["cycle_id"]) }
-        }
-    }
 }

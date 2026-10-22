@@ -197,7 +197,6 @@ extension JournalStore {
                     updated_at = excluded.updated_at,
                     payload = excluded.payload,
                     build_pending = excluded.build_pending
-                WHERE excluded.updated_at > board_issue_seen.updated_at
                 """,
                 arguments: [
                     observation.issueID, Self.syncTimestamp(observation.updatedAt), observation.payload,

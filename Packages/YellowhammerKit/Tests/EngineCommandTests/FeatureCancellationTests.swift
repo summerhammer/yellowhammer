@@ -127,6 +127,23 @@ struct FeatureCancellationTests {
         #expect(try fixture.open().featureBoardObservation(issueID: "FEAT-1")?.workflowState.isShelved == true)
     }
 
+    @Test("A canceled Feature outside U renders no note")
+    func canceledOutsideStackRendersNoNote() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try makeRollUpWorld(journal)
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-1", branch: "yh-f1", repositories: ["backend"], landed: true, released: true
+        )
+        try observeFeature(journal, runID: world.runID, state: stateCanceledByCategory, revision: 20)
+        #expect(try journal.unmergedFeatureStack().isEmpty)
+        let feature = try #require(try journal.feature(issueID: "FEAT-1"))
+        let cycleID = try gateCycleID(journal, featureID: featureID)
+        #expect(try FeatureRollUpMaintenance.rollUp(feature: feature, cycleID: cycleID, journal: journal)
+            .cancellationSuffix.isEmpty)
+        #expect(try NightSummary.unmergedStackLines(night: world.night, journal: journal).isEmpty)
+    }
+
     @Test("Queued and new Feature state projections preserve canceled after partial and final merges")
     func stateWritesPreserveCancellation() async throws {
         let fixture = try OutboxJournalFixture()
