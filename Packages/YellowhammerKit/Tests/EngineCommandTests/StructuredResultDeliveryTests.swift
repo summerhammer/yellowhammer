@@ -127,7 +127,7 @@ struct StructuredResultDeliveryTests {
         #expect(args.contains("-o\n\(resultPath)\n"))
         #expect(args.contains("--output-schema\n\(schemaPath)\n"))
         #expect(result.schema?.contains(pass.schemaIdentifier) == true)
-        let sandbox = pass == .worker ? "workspace-write" : "read-only"
+        let sandbox = pass == .worker ? "danger-full-access" : "read-only"
         #expect(args.contains("--sandbox\n\(sandbox)\n") || args.contains("sandbox_mode=\"\(sandbox)\""))
     }
 
