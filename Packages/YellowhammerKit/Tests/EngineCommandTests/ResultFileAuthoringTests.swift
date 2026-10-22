@@ -315,6 +315,10 @@ struct AuthoringFixtureTests {
         #expect(rendered.contains("a generated Xcode workspace and its `Package.resolved`, `DerivedData`"))
         #expect(rendered.contains("`git -C <Path> cat-file -e <Mainline>:<path>`"))
         #expect(rendered.contains("a path absent at that commit halts the whole Feature"))
+        #expect(rendered.contains("effective_base(R) <- WC1 <- WC2"))
+        #expect(rendered.contains(
+            "`contracts` never name files that an earlier Work Card in the same repository creates from scratch."
+        ))
         let selection = AuthoringInstruction(
             pass: .selection, route: Route(cli: "claude", model: "opus", effort: "high")!,
             specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
@@ -323,6 +327,7 @@ struct AuthoringFixtureTests {
         )
         #expect(!selection.render().contains("autonomous worker agent CLI"))
         #expect(!selection.render().contains("it must be a file git tracks at that commit"))
+        #expect(!selection.render().contains("effective_base(R) <- WC1 <- WC2"))
     }
 
     @Test("The breakdown is told the description budget, apart from how a contract path is read; selection is not")

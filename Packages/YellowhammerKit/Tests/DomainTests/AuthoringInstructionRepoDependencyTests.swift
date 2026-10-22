@@ -30,6 +30,8 @@ struct AuthoringInstructionRepoDependencyTests {
         #expect(rendered.contains("A Feature never touches both ends of a declared Repo Dependency."))
         #expect(rendered.contains("select the upstream layer (the producer Repo) as its own Feature first"))
         #expect(rendered.contains("name the rest in `followed_by`"))
+        #expect(!rendered.contains("effective_base(R) <- WC1 <- WC2"))
+        #expect(!rendered.contains("shared Worktree and Feature Branch"))
         #expect(rendered.contains("## Repo Dependencies\n\n- backend consumes contracts via tag"))
         #expect(!rendered.contains("None declared."))
         #expect(!rendered.contains("## Held by the release gate tonight"))
@@ -67,10 +69,23 @@ struct AuthoringInstructionRepoDependencyTests {
         )
         #expect(rendered.contains("## Authoring invariant"))
         #expect(rendered.contains(invariant))
+        #expect(rendered.contains(
+            "Work Cards targeting the same repository run sequentially in `cards` order inside one shared "
+                + "Worktree and Feature Branch (`effective_base(R) <- WC1 <- WC2`)"
+        ))
+        #expect(rendered.contains("each Card builds on the preceding Card's committed tree"))
+        #expect(rendered.contains("must leave the repository's Check passing"))
+        #expect(rendered.contains(
+            "Across different repositories, Work Cards in a Feature run in independent lanes and never "
+                + "consume uncommitted work from another repository's Card in the same Feature."
+        ))
         #expect(rendered.contains("Every repository a Work Card reads from goes in its `contracts`."))
         #expect(rendered.contains(
             "Bumping a version pin or updating a lockfile in a consumer repository is that consumer "
                 + "Work Card's own work."
+        ))
+        #expect(rendered.contains(
+            "`contracts` never name files that an earlier Work Card in the same repository creates from scratch."
         ))
         #expect(!rendered.contains("## Repo Dependencies"))
         #expect(!rendered.contains("## Held by the release gate tonight"))
