@@ -32,15 +32,15 @@ struct UsageLimitPolicyTests {
     func persistenceAndExpiry() throws {
         let fixture = try OutboxJournalFixture()
         let now = Date()
-        let hint = "You've hit your session limit · resets 2:20pm (Europe/Kiev)"
+        let hint = "try again at 2:55 PM"
         do {
             let journal = try fixture.open()
             try journal.recordUsageLimit(route: claude, resetHint: hint, runID: RunID(),
                                          act: .build, nightID: nil, now: now)
         }
         let reopened = try fixture.open()
-        #expect(try reopened.backingOffCLIs(asOf: now.addingTimeInterval(1799)) == ["claude"])
-        #expect(try reopened.backingOffCLIs(asOf: now.addingTimeInterval(1800)).isEmpty)
+        #expect(try reopened.backingOffCLIs(asOf: now.addingTimeInterval(1739)) == ["claude"])
+        #expect(try reopened.backingOffCLIs(asOf: now.addingTimeInterval(1740)).isEmpty)
         let event = try #require(reopened.events(ofType: .routeUsageLimited).first)
         guard case .routeUsageLimited(let route, let cli, _, let storedHint) = event.event else {
             Issue.record("expected a usage refusal event")
@@ -49,6 +49,47 @@ struct UsageLimitPolicyTests {
         #expect(route == claude.description)
         #expect(cli == "claude")
         #expect(storedHint == hint)
+    }
+
+    @Test("A zoned reset hint sets the backoff to the reset instant; a firing just before it is not skipped")
+    func zonedHint() throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let refusedAt = try #require(ISO8601DateFormatter().date(from: "2026-10-21T21:52:28Z"))
+        let resetAt = try #require(ISO8601DateFormatter().date(from: "2026-10-21T22:50:00Z"))
+        try journal.recordUsageLimit(
+            route: claude, resetHint: "You've hit your session limit · resets 1:50am (Europe/Kiev)",
+            runID: RunID(), act: .build, nightID: nil, now: refusedAt)
+        let event = try #require(journal.events(ofType: .routeUsageLimited).first)
+        guard case .routeUsageLimited(_, _, let until, _) = event.event else {
+            Issue.record("expected a usage refusal event")
+            return
+        }
+        #expect(until == resetAt)
+        #expect(try journal.backingOffCLIs(asOf: resetAt.addingTimeInterval(-61)) == ["claude"])
+        #expect(try journal.backingOffCLIs(asOf: resetAt.addingTimeInterval(-11)).isEmpty)
+    }
+
+    @Test("Hints without a zone, unparseable hints and out-of-bounds resets fall back to bounded delays")
+    func hintBounds() throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-10-21T21:52:28Z"))
+        let thirty = now.addingTimeInterval(30 * 60)
+        #expect(UsageLimitReset.until(resetHint: nil, now: now) == thirty)
+        #expect(UsageLimitReset.until(resetHint: "try again at 2:55 PM", now: now) == thirty)
+        #expect(UsageLimitReset.until(resetHint: "resets 1:50am (Not/AZone)", now: now) == thirty)
+        #expect(UsageLimitReset.until(resetHint: "resets 13:50am (Europe/Kiev)", now: now) == thirty)
+        // 12am Kiev is 21:00Z; the next one is 21:00Z tomorrow, beyond the ceiling.
+        #expect(UsageLimitReset.until(resetHint: "resets 12am (Europe/Kiev)", now: now)
+            == now.addingTimeInterval(UsageLimitReset.maximumDelay))
+        // A reset one minute away is held to the minimum.
+        let nearly = try #require(ISO8601DateFormatter().date(from: "2026-10-21T22:49:00Z"))
+        #expect(UsageLimitReset.until(resetHint: "resets 1:50am (Europe/Kiev)", now: nearly)
+            == nearly.addingTimeInterval(UsageLimitReset.minimumDelay))
+        // pm and minute-less forms, and the next occurrence rolling over to tomorrow.
+        #expect(UsageLimitReset.resetsAt(from: "resets 12pm (UTC)", now: now)
+            == ISO8601DateFormatter().date(from: "2026-10-22T12:00:00Z"))
+        #expect(UsageLimitReset.resetsAt(from: "resets 1:50am (Europe/Kiev)", now: now.addingTimeInterval(3600))
+            == ISO8601DateFormatter().date(from: "2026-10-22T22:50:00Z"))
     }
 
     @Test("Backoff skips every model on a CLI, falls back across CLIs, and recovers after expiry")
