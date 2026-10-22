@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.26.0](https://github.com/summerhammer/yellowhammer/compare/v0.25.0...v0.26.0) (2026-10-22)
+
+
+### Features
+
+* **board-projection:** preserve and explain cancellation of unmerged Features ([#666](https://github.com/summerhammer/yellowhammer/issues/666)) ([ae87ada](https://github.com/summerhammer/yellowhammer/commit/ae87ada20e61b9e149c4d6c4e041d238a3e67104))
+* **domain:** guide breakdown authoring for sequential same-repository Work Cards ([4928e04](https://github.com/summerhammer/yellowhammer/commit/4928e04a8a1fb5e9d5e39dc532cac4a4878d6365))
+* **engine:** render Feature return clauses as labelled nested bullets ([68d10d0](https://github.com/summerhammer/yellowhammer/commit/68d10d0712871f0755afea130fdf1bd9588b7580)), closes [#647](https://github.com/summerhammer/yellowhammer/issues/647)
+* **engine:** thread in-lane base commit and completed-card stack context into CardRun ([ed7a26e](https://github.com/summerhammer/yellowhammer/commit/ed7a26eea2abfd9baf465f4d33febebf489ad889))
+
+
+### Bug Fixes
+
+* **cli-adapters:** read every claude result turn and never a previous Round's stdout ([ccf62e3](https://github.com/summerhammer/yellowhammer/commit/ccf62e357af6d95acc1c23ab7b023bffcab92d72)), closes [#643](https://github.com/summerhammer/yellowhammer/issues/643)
+* **cli-adapters:** refuse an agy model whose effort suffix conflicts with the Route's effort ([018af95](https://github.com/summerhammer/yellowhammer/commit/018af9563a1e8345968e9c30e0aa6dea2e95b2f5)), closes [#649](https://github.com/summerhammer/yellowhammer/issues/649)
+* **cli-adapters:** run Codex workers without a sandbox ([ddfcc5b](https://github.com/summerhammer/yellowhammer/commit/ddfcc5b8bdbb1485ad6a6e019a983efe39a6affc))
+* **engine:** decode authoring_invariant_violation from architect and worker result files ([4d5f046](https://github.com/summerhammer/yellowhammer/commit/4d5f04601ee8bddbbee4c2c0de360d7f82434cd4)), closes [#644](https://github.com/summerhammer/yellowhammer/issues/644)
+* **engine:** honour the zoned usage-limit reset hint and add a cadence grace ([0502d76](https://github.com/summerhammer/yellowhammer/commit/0502d76bf00570d3c818b54c8105a9d6153493f7)), closes [#645](https://github.com/summerhammer/yellowhammer/issues/645)
+* **engine:** scope ContractOverlapCheck to cross-repository contracts ([b3bc479](https://github.com/summerhammer/yellowhammer/commit/b3bc479fc28ab661350e446dc7c5b8ef0a7fa757)), closes [#611](https://github.com/summerhammer/yellowhammer/issues/611)
+
 ## [0.25.0](https://github.com/summerhammer/yellowhammer/compare/v0.24.0...v0.25.0) (2026-10-21)
 
 
