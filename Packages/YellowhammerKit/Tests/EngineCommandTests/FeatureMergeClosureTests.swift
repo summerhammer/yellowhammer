@@ -151,6 +151,83 @@ struct FeatureMergeClosureTests {
         #expect(line?.contains("closed by merge") == true)
     }
 
+    @Test("k = N also auto-Blocks a held same-repository sequence's Todo Cards `feature completed`")
+    // The scenario is the length: a same-repository sequence, an unheld Card, then every assertion.
+    // swiftlint:disable:next function_body_length
+    func heldSameRepositorySequenceAutoBlocksAtMergeClose() async throws {
+        let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
+        let repositories = mergeWorldRepositories(world)
+
+        // A same-repository sequence of its own lane: DOCS-1 (already Blocked) holds DOCS-2 and
+        // DOCS-3, both still Todo.
+        try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "DOCS-1", repository: "docs", state: .blocked,
+            blockReason: .reviewerRejection
+        )
+        let heldFirstID = try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "DOCS-2", repository: "docs", state: .todo
+        )
+        let heldSecondID = try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "DOCS-3", repository: "docs", state: .todo
+        )
+        // A Todo Card whose only sequence predecessor is already Done: never held, never touched.
+        try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "ASSETS-1", repository: "assets", state: .done
+        )
+        let freeCardID = try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "ASSETS-2", repository: "assets", state: .todo
+        )
+        for issueID in ["DOCS-1", "DOCS-2", "DOCS-3", "ASSETS-1", "ASSETS-2"] {
+            await world.boards.writing.seed(issue: issueID, description: nil)
+            _ = try await world.boards.writing.updateIssue(
+                BoardObjectID(rawValue: issueID), BoardIssueChange(parent: .set(BoardObjectID(rawValue: "FEAT-1")))
+            )
+        }
+        let context = try world.makeContext(repositories: repositories)
+
+        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+            .check(context, unmergedFeaturesMax: 1)
+        #expect(outcome == .open)
+
+        // Both held Cards are Blocked `feature completed`, their counters and round history untouched,
+        // and detached from the Feature Issue.
+        for cardID in [heldFirstID, heldSecondID] {
+            let card = try world.journal.card(id: cardID)
+            #expect(card.state == .blocked)
+            #expect(card.blockReason == BlockReason.featureCompleted.rawValue)
+            #expect(card.budgetEpoch == 0)
+            #expect(try world.journal.attemptSummary(cardID: cardID).roundCount == 0)
+        }
+        for issueID in ["DOCS-2", "DOCS-3"] {
+            let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: issueID)))
+            #expect(issue.parent == nil)
+        }
+
+        // The unheld Todo Card is left exactly as it stood.
+        let free = try world.journal.card(id: freeCardID)
+        #expect(free.state == .todo)
+        let freeIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "ASSETS-2")))
+        #expect(freeIssue.parent == BoardObjectID(rawValue: "FEAT-1"))
+
+        let closedEvents = try world.journal.events(ofType: .featureClosedByMerge)
+        #expect(closedEvents.count == 1)
+        guard case .featureClosedByMerge(_, _, _, let carried, _, _) = closedEvents[0].event else {
+            Issue.record("expected featureClosedByMerge")
+            return
+        }
+        #expect(carried == ["BACK-2", "DOCS-1", "DOCS-2", "DOCS-3", "MOB-1"])
+
+        // A second gate pass, with the held Cards already Blocked, writes nothing new.
+        try world.journal.releaseActLease(runID: context.runID)
+        let context2 = try world.makeContext(repositories: repositories)
+        let updatesBefore = await world.boards.writing.updateCalls
+        let outcome2 = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+            .check(context2, unmergedFeaturesMax: 1)
+        #expect(outcome2 == .open)
+        #expect(await world.boards.writing.updateCalls == updatesBefore)
+        #expect(try world.journal.events(ofType: .featureClosedByMerge).count == 1)
+    }
+
     @Test("Content evidence counts like ancestry: a squash and a merge commit together close by merge")
     func contentEvidenceClosesByMerge() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend"], squashedRepositories: ["mobile"])
