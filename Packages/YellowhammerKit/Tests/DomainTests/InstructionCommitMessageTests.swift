@@ -124,13 +124,15 @@ func workerWithoutSpecificationCommitStillNeverSearches() {
     #expect(text.contains(neverSearch))
 }
 
-@Test("architect and reviewer instructions render neither the commit nor the never-search sentence")
+@Test("architect and reviewer instructions render no commit or Specification section, but the boundary's rule")
 func otherPassesRenderNoSpecificationSection() {
     for pass in [RunPass.architect, .reviewer] {
         let text = makeInstruction(pass: pass, commitMessage: nil, specCommit: specSha).render()
         #expect(!text.contains(specSha))
         #expect(!text.contains("## Specification"))
-        #expect(!text.contains("Never search the filesystem"))
+        // Issue #668: the never-search rule reaches every pass through the shared boundary statement.
+        #expect(text.contains("Never search the filesystem outside the Worktree and the repositories"))
+        #expect(!text.contains("report the `question` outcome and ask for it rather than searching."))
         #expect(Instruction.stayInsideSentence(for: pass) == nil)
     }
     #expect(Instruction.stayInsideSentence(for: .worker) != nil)
