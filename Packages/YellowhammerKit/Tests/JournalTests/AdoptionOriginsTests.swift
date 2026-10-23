@@ -30,11 +30,12 @@ private struct AdoptionOriginsFixture: ~Copyable {
 
 private func appendCardAdopted(
     _ journal: JournalStore, cardID: Int64, issueID: String, from previousFeatureIssueID: String,
-    into newFeatureIssueID: String
+    into newFeatureIssueID: String, previousAuthoredOrder: Int? = nil
 ) throws {
     try journal.append(.cardAdopted(
         cardID: cardID, issueID: issueID, previousFeatureIssueID: previousFeatureIssueID,
-        newFeatureIssueID: newFeatureIssueID, priorBlockReason: nil, coldStartNote: "cold"
+        newFeatureIssueID: newFeatureIssueID, priorBlockReason: nil, coldStartNote: "cold",
+        previousAuthoredOrder: previousAuthoredOrder
     ))
 }
 

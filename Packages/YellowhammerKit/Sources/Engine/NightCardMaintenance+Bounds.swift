@@ -50,7 +50,7 @@ extension NightCardMaintenance {
             case .refusalOpened(let feature, let count, _, _), .refusalRepeated(let feature, let count, _, _):
                 if refusalCounts[feature] == nil { refusalOrder.append(feature) }
                 refusalCounts[feature] = max(refusalCounts[feature] ?? 0, count)
-            case .adoptionRefused(let cardID, _, _, _, _):
+            case .adoptionRefused(let cardID, _, _, _, _, _):
                 if !adoptionRefusedCardIDs.contains(cardID) { adoptionRefusedCardIDs.append(cardID) }
             default:
                 break

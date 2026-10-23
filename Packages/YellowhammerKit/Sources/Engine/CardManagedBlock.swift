@@ -105,19 +105,35 @@ public struct AttemptAccount: Equatable, Sendable {
 public struct AdoptionRefusalNotice: Equatable, Sendable {
     public var featureName: String
     public var staleBlocks: [AdoptionStaleBlock]
+    /// The earlier same-repository sequence members absent from this Adoption (spec ruling OQ182, item
+    /// 6); empty for a stale-provenance refusal. Never non-empty at the same time as `staleBlocks`.
+    public var absentEarlierSequenceMembers: [AbsentEarlierSequenceMember]
 
-    public init(featureName: String, staleBlocks: [AdoptionStaleBlock]) {
+    public init(
+        featureName: String, staleBlocks: [AdoptionStaleBlock],
+        absentEarlierSequenceMembers: [AbsentEarlierSequenceMember] = []
+    ) {
         self.featureName = featureName
         self.staleBlocks = staleBlocks
+        self.absentEarlierSequenceMembers = absentEarlierSequenceMembers
     }
 
     func render() -> [String] {
-        var lines = [
-            "### Adoption not completed",
-            "The Feature '\(featureName)' tried to adopt this Card, but its recorded contract had moved:"
-        ]
-        for block in staleBlocks {
-            lines.append("- \(block.repository): \(block.changedPaths.joined(separator: ", "))")
+        var lines = ["### Adoption not completed"]
+        if !staleBlocks.isEmpty {
+            lines.append("The Feature '\(featureName)' tried to adopt this Card, but its recorded contract had moved:")
+            for block in staleBlocks {
+                lines.append("- \(block.repository): \(block.changedPaths.joined(separator: ", "))")
+            }
+        }
+        if !absentEarlierSequenceMembers.isEmpty {
+            lines.append(
+                "The Feature '\(featureName)' tried to adopt this Card, but it was a later member of a " +
+                    "same-repository sequence whose earlier member is not yet merged or adopted ahead of it:"
+            )
+            for member in absentEarlierSequenceMembers {
+                lines.append("- \(member.title) (\(member.repository))")
+            }
         }
         lines.append(
             "This Card was not adopted. A human turn is needed: cancel it, or author the replacement " +

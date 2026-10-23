@@ -200,6 +200,38 @@ extension CardRecord {
         return record
     }
 
+    /// A copy of this Card positioned at `authoredOrder`, every other column unchanged — how the
+    /// same-repository sequence gate (spec ruling OQ182, item 6) places a Card that has since left its
+    /// old Feature back at the old position its `CardAdopted` event recorded, without touching its live
+    /// row.
+    func with(authoredOrder: Int) -> CardRecord {
+        CardRecord(
+            id: id,
+            cycleID: cycleID,
+            issueID: issueID,
+            issueIDForDisplay: issueIDForDisplay,
+            title: title,
+            repository: repository,
+            kind: kind,
+            authoredOrder: authoredOrder,
+            state: state,
+            waitingReason: waitingReason,
+            blockReason: blockReason,
+            shelvedFromState: shelvedFromState,
+            budgetEpoch: budgetEpoch,
+            createdAt: createdAt,
+            stateVersion: stateVersion,
+            boardStateVersion: boardStateVersion,
+            unansweredNights: unansweredNights,
+            unansweredLastCountedNightID: unansweredLastCountedNightID,
+            failedAdoptions: failedAdoptions,
+            divergenceStandingNightID: divergenceStandingNightID,
+            issueKey: issueKey,
+            issueURL: issueURL,
+            removedFromBoard: removedFromBoard
+        )
+    }
+
     func with(state: CardState, shelvedFromState: CardState?) -> CardRecord {
         CardRecord(
             id: id,

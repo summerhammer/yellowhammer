@@ -536,6 +536,55 @@ func appInstallationTokenRefreshRoundTrips() throws {
     }
 }
 
+@Test("cardAdopted event round-trips, with and without its previousAuthoredOrder (spec ruling OQ182, item 6)")
+func cardAdoptedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let withOrder = JournalEvent.cardAdopted(
+        cardID: 1, issueID: "CARD-1", previousFeatureIssueID: "FEAT-OLD", newFeatureIssueID: "FEAT-NEW",
+        priorBlockReason: "reply overdue", coldStartNote: "cold", previousAuthoredOrder: 3
+    )
+    let withoutOrder = JournalEvent.cardAdopted(
+        cardID: 2, issueID: "CARD-2", previousFeatureIssueID: "FEAT-OLD", newFeatureIssueID: "FEAT-NEW",
+        priorBlockReason: nil, coldStartNote: "cold", previousAuthoredOrder: nil
+    )
+
+    try journal.append(withOrder, act: .author, runID: RunID(), now: epoch)
+    try journal.append(withoutOrder, act: .author, runID: RunID(), now: epoch)
+
+    #expect(try journal.events().map(\.event) == [withOrder, withoutOrder])
+}
+
+@Test("adoptionRefused event round-trips, carrying either stale blocks or absent earlier sequence members")
+func adoptionRefusedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let staleRefusal = JournalEvent.adoptionRefused(
+        cardID: 1, issueID: "CARD-1", nightID: 4, featureName: "FEAT-1",
+        staleBlocks: [AdoptionStaleBlock(repository: "backend", changedPaths: ["a.swift"])],
+        absentEarlierSequenceMembers: []
+    )
+    let sequenceRefusal = JournalEvent.adoptionRefused(
+        cardID: 2, issueID: "CARD-2", nightID: 4, featureName: "FEAT-1", staleBlocks: [],
+        absentEarlierSequenceMembers: [AbsentEarlierSequenceMember(title: "Earlier Card", repository: "backend")]
+    )
+
+    try journal.append(staleRefusal, act: .author, runID: RunID(), now: epoch)
+    try journal.append(sequenceRefusal, act: .author, runID: RunID(), now: epoch)
+
+    #expect(try journal.events().map(\.event) == [staleRefusal, sequenceRefusal])
+}
+
+@Test("AdoptionRefusalDetails decodes a bare stale-blocks array, as a Journal before this field existed recorded")
+func adoptionRefusalDetailsDecodesLegacyArray() throws {
+    let legacy = "[{\"repository\":\"backend\",\"changedPaths\":[\"a.swift\"]}]"
+
+    let details = try #require(AdoptionRefusalDetails.decodeLenient(legacy))
+
+    #expect(details.staleBlocks == [AdoptionStaleBlock(repository: "backend", changedPaths: ["a.swift"])])
+    #expect(details.absentEarlierSequenceMembers.isEmpty)
+}
+
 @Test("authoringRouteRejected event round-trips with its cause and reason")
 func authoringRouteRejectedRoundTrips() throws {
     let fixture = try JournalFixture()

@@ -178,7 +178,10 @@ public struct ManagedBlockMaintenance: Sendable {
         else {
             return nil
         }
-        return AdoptionRefusalNotice(featureName: refusal.featureName, staleBlocks: refusal.staleBlocks)
+        return AdoptionRefusalNotice(
+            featureName: refusal.featureName, staleBlocks: refusal.staleBlocks,
+            absentEarlierSequenceMembers: refusal.absentEarlierSequenceMembers
+        )
     }
 
     /// The recurrence to show on the Card: only while it is Blocked under `failure recurrence`, naming the

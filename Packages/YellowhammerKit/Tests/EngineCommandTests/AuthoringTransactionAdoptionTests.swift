@@ -81,11 +81,12 @@ struct AuthoringTransactionAdoptionTests {
         // P11.5), since leaving Blocked clears the Journal's own `block_reason` column.
         let adoptedEvents = try rig.journal.events(ofType: .cardAdopted)
         let adoptedEvent = try #require(adoptedEvents.first { event in
-            if case .cardAdopted(let cardID, _, _, _, _, _) = event.event { return cardID == adopted.cardRowID }
+            if case .cardAdopted(let cardID, _, _, _, _, _, _) = event.event { return cardID == adopted.cardRowID }
             return false
         })
-        guard case .cardAdopted(_, _, let previousFeatureIssueID, _, let priorBlockReason, let coldStartNote) =
-            adoptedEvent.event
+        guard case .cardAdopted(
+            _, _, let previousFeatureIssueID, _, let priorBlockReason, let coldStartNote, let previousAuthoredOrder
+        ) = adoptedEvent.event
         else {
             Issue.record("expected a cardAdopted event")
             return
@@ -93,6 +94,8 @@ struct AuthoringTransactionAdoptionTests {
         #expect(previousFeatureIssueID == "FEAT-OLD")
         #expect(priorBlockReason == "reply overdue")
         #expect(!coldStartNote.isEmpty)
+        // The order the Card held in its old lane, just before this move (spec ruling OQ182, item 6).
+        #expect(previousAuthoredOrder == 3)
 
         let lane = try cardRows(rig.journal).filter { $0.repository == "backend" }
         #expect(lane.map(\.authoredOrder) == [1, 2, 3])

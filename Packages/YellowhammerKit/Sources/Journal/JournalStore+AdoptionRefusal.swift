@@ -8,13 +8,16 @@ import GRDB
 // notice. A sibling of Refusal, never reusing its tables or event.
 
 /// One row of `adoption_refusal`: a Card a selection tried to adopt, refused because at least one
-/// Transcription Block tested stale.
+/// Transcription Block tested stale, or because it was a later same-repository sequence member with an
+/// absent earlier member (spec ruling OQ182, item 6) — `staleBlocks` and `absentEarlierSequenceMembers`
+/// are never both non-empty for the same refusal.
 public struct AdoptionRefusalRecord: Equatable, Sendable {
     public let id: Int64
     public let cardID: Int64
     public let nightID: Int64
     public let featureName: String
     public let staleBlocks: [AdoptionStaleBlock]
+    public let absentEarlierSequenceMembers: [AbsentEarlierSequenceMember]
     public let createdAt: Date
 }
 
@@ -30,6 +33,7 @@ extension JournalStore {
     @discardableResult
     public func recordAdoptionRefusal(
         cardID: Int64, nightID: Int64, featureName: String, staleBlocks: [AdoptionStaleBlock],
+        absentEarlierSequenceMembers: [AbsentEarlierSequenceMember] = [],
         failedAdoptionsMax: Int = 2, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
     ) throws -> AdoptionRefusalRecord {
         try write { db in
@@ -41,7 +45,9 @@ extension JournalStore {
                 throw JournalError.cardUnknown(cardID: cardID)
             }
             let timestamp = JournalStore.timestamp(JournalStore.stored(now))
-            let encoded = Self.encodeStaleBlocks(staleBlocks)
+            let encoded = AdoptionRefusalDetails(
+                staleBlocks: staleBlocks, absentEarlierSequenceMembers: absentEarlierSequenceMembers
+            ).encoded()
             try db.execute(
                 sql: """
                 INSERT INTO adoption_refusal (card_id, night_id, feature_name, stale_blocks, created_at)
@@ -63,7 +69,7 @@ extension JournalStore {
                 db,
                 .adoptionRefused(
                     cardID: cardID, issueID: issueID, nightID: nightID, featureName: featureName,
-                    staleBlocks: staleBlocks
+                    staleBlocks: staleBlocks, absentEarlierSequenceMembers: absentEarlierSequenceMembers
                 ),
                 stamp: stamp
             )
@@ -72,7 +78,8 @@ extension JournalStore {
             )
             return AdoptionRefusalRecord(
                 id: id, cardID: cardID, nightID: nightID, featureName: featureName,
-                staleBlocks: staleBlocks, createdAt: JournalStore.stored(now)
+                staleBlocks: staleBlocks, absentEarlierSequenceMembers: absentEarlierSequenceMembers,
+                createdAt: JournalStore.stored(now)
             )
         }
     }
@@ -176,22 +183,16 @@ extension JournalStore {
         }
     }
 
-    private static func encodeStaleBlocks(_ blocks: [AdoptionStaleBlock]) -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .sortedKeys
-        return (try? encoder.encode(blocks)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-    }
-
     private static func adoptionRefusalRecord(from row: Row) throws -> AdoptionRefusalRecord {
         let id: Int64 = row["id"]
         let raw: String = row["stale_blocks"]
-        let decoder = JSONDecoder()
-        let staleBlocks = (try? decoder.decode([AdoptionStaleBlock].self, from: Data(raw.utf8))) ?? []
+        let details = AdoptionRefusalDetails.decodeLenient(raw) ?? AdoptionRefusalDetails()
         let createdAtText: String = row["created_at"]
         let createdAt = try Self.date(createdAtText) { JournalError.eventUnreadable(id: id) }
         return AdoptionRefusalRecord(
             id: id, cardID: row["card_id"], nightID: row["night_id"], featureName: row["feature_name"],
-            staleBlocks: staleBlocks, createdAt: createdAt
+            staleBlocks: details.staleBlocks, absentEarlierSequenceMembers: details.absentEarlierSequenceMembers,
+            createdAt: createdAt
         )
     }
 }

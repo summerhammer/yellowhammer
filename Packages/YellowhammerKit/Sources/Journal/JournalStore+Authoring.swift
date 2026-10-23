@@ -234,7 +234,8 @@ extension JournalStore {
             db,
             .cardAdopted(
                 cardID: record.id, issueID: record.issueID, previousFeatureIssueID: adoption.previousFeatureIssueID,
-                newFeatureIssueID: featureIssueID, priorBlockReason: priorBlockReason, coldStartNote: coldStartNote
+                newFeatureIssueID: featureIssueID, priorBlockReason: priorBlockReason, coldStartNote: coldStartNote,
+                previousAuthoredOrder: record.authoredOrder
             ),
             stamp: stamp
         )

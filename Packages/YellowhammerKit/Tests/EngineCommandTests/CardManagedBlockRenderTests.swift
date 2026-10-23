@@ -29,6 +29,43 @@ func renderBasicFields() {
     #expect(rendered.contains("**Repo Lane position:** 2 of 3"))
 }
 
+@Test("AdoptionRefusalNotice renders stale blocks exactly as before this Card's work")
+func adoptionRefusalNoticeRendersStaleBlocksUnchanged() {
+    let notice = AdoptionRefusalNotice(
+        featureName: "FEAT-1", staleBlocks: [AdoptionStaleBlock(repository: "backend", changedPaths: ["a.swift"])]
+    )
+
+    let rendered = notice.render()
+
+    #expect(rendered == [
+        "### Adoption not completed",
+        "The Feature 'FEAT-1' tried to adopt this Card, but its recorded contract had moved:",
+        "- backend: a.swift",
+        "This Card was not adopted. A human turn is needed: cancel it, or author the replacement work as " +
+            "new work with fresh budgets."
+    ])
+}
+
+@Test("AdoptionRefusalNotice names each absent earlier sequence member by title and repository (OQ182 item 6)")
+func adoptionRefusalNoticeRendersAbsentEarlierSequenceMembers() {
+    let notice = AdoptionRefusalNotice(
+        featureName: "FEAT-1", staleBlocks: [],
+        absentEarlierSequenceMembers: [
+            AbsentEarlierSequenceMember(title: "Earlier Card", repository: "backend"),
+            AbsentEarlierSequenceMember(title: "Another Card", repository: "backend")
+        ]
+    )
+
+    let rendered = notice.render()
+
+    #expect(rendered.first == "### Adoption not completed")
+    #expect(rendered.contains("- Earlier Card (backend)"))
+    #expect(rendered.contains("- Another Card (backend)"))
+    #expect(!rendered.joined().contains("recorded contract had moved"))
+    #expect(rendered.last == "This Card was not adopted. A human turn is needed: cancel it, or author the " +
+        "replacement work as new work with fresh budgets.")
+}
+
 @Test("Repository line parses back with DeltaRead.repository(inBlock:)")
 func repositoryLineParseable() {
     let brief = ArchitecturalBrief(prose: "Test", transcriptions: [])

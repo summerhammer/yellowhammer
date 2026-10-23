@@ -113,7 +113,7 @@ public struct PlannedAdoption: Codable, Equatable, Sendable {
     public let repository: String
     public let order: Int
     /// The Feature Issue id this Card belonged to before this Adoption (roadmap P11.5) — what
-    /// ``JournalEvent/cardAdopted(cardID:issueID:previousFeatureIssueID:newFeatureIssueID:priorBlockReason:coldStartNote:)``
+    /// ``JournalEvent/cardAdopted(cardID:issueID:previousFeatureIssueID:newFeatureIssueID:priorBlockReason:coldStartNote:previousAuthoredOrder:)``
     /// records.
     public let previousFeatureIssueID: String
 

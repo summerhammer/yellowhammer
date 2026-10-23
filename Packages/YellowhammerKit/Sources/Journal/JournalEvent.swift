@@ -538,16 +538,22 @@ public enum JournalEvent: Equatable, Sendable {
     case cardUnansweredBoundFired(
         cardID: Int64, issueID: String, unansweredNights: Int, bound: Int, blockReason: String
     )
-    /// A Card selection tried to adopt was refused: a stale Transcription Block (roadmap P11.5). Not
-    /// adopted, not re-authored; a Divergence, sibling of Refusal. `featureName` names the Feature that
-    /// tried — its Feature Issue does not exist yet, since re-validation precedes drafting.
+    /// A Card selection tried to adopt was refused: a stale Transcription Block, or — a later sequence
+    /// member whose old lane has an absent earlier member (spec ruling OQ182, item 6) — `staleBlocks`
+    /// empty and `absentEarlierSequenceMembers` not, or vice versa, never both at once (roadmap P11.5).
+    /// Not adopted, not re-authored; a Divergence, sibling of Refusal. `featureName` names the Feature
+    /// that tried — its Feature Issue does not exist yet, since re-validation precedes drafting.
     case adoptionRefused(
-        cardID: Int64, issueID: String, nightID: Int64, featureName: String, staleBlocks: [AdoptionStaleBlock]
+        cardID: Int64, issueID: String, nightID: Int64, featureName: String, staleBlocks: [AdoptionStaleBlock],
+        absentEarlierSequenceMembers: [AbsentEarlierSequenceMember]
     )
     /// A Card was adopted cleanly into a successor Feature (P11.5): cold in a fresh Worktree.
+    /// `previousAuthoredOrder` is the position it held in its old Feature's lane just before this move
+    /// (`record.authoredOrder` in `adoptCard`) — nil only for an event written before this field existed
+    /// (spec ruling OQ182, item 6).
     case cardAdopted(
         cardID: Int64, issueID: String, previousFeatureIssueID: String, newFeatureIssueID: String,
-        priorBlockReason: String?, coldStartNote: String
+        priorBlockReason: String?, coldStartNote: String, previousAuthoredOrder: Int?
     )
     /// A Card a selection tried to adopt had untestable provenance (P11.5): not adopted, not refused.
     case adoptionUntestable(cardID: Int64, issueID: String, featureName: String, reasons: [String])

@@ -57,4 +57,39 @@ extension JournalStore {
             return origins
         }
     }
+
+    /// Every Card whose recorded `CardAdopted` event names `fromFeatureIssueID` as the Feature it left
+    /// (`previous_feature_issue_id`) — no longer in that Feature's old Cycle, so the same-repository
+    /// sequence gate (spec ruling OQ182, item 6) cannot find it there. Read live from `card` (current
+    /// repository, title and state), with `authoredOrder` substituted by the position that event
+    /// recorded it held before it left (``CardRecord/with(authoredOrder:)``) — `Int.min` when the event
+    /// predates this field (a Journal written before this change): unprovable, so it is placed ahead of
+    /// every candidate rather than let through silently. A Card leaves a Feature at most once, so this
+    /// never needs a tie-break between two such events for the same Card.
+    public func cardsAdoptedAway(fromFeatureIssueID: String) throws -> [CardRecord] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT json_extract(payload, '$.card_id') AS card_id,
+                       json_extract(payload, '$.previous_authored_order') AS previous_authored_order
+                FROM event
+                WHERE type = ? AND json_extract(payload, '$.previous_feature_issue_id') = ?
+                """,
+                arguments: [JournalEventType.cardAdopted.rawValue, fromFeatureIssueID]
+            )
+            var cards: [CardRecord] = []
+            for row in rows {
+                guard let cardIDText: String = row["card_id"], let cardID = Int64(cardIDText) else { continue }
+                let orderText: String? = row["previous_authored_order"]
+                let order = orderText.flatMap { Int($0) } ?? Int.min
+                guard let cardRow = try Row.fetchOne(db, sql: "SELECT * FROM card WHERE id = ?", arguments: [cardID])
+                else {
+                    continue
+                }
+                cards.append(try Self.cardRecord(from: cardRow).with(authoredOrder: order))
+            }
+            return cards
+        }
+    }
 }

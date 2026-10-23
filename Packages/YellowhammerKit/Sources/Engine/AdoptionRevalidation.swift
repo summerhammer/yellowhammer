@@ -26,51 +26,20 @@ enum AdoptionRevalidation {
         guard !selection.adoptedCardIssueIDs.isEmpty, let repositories = context.repositories else {
             return Outcome(selection: selection, hadRefusals: false)
         }
-        let journal = context.journal
+        let candidates = try sortedCandidates(selection.adoptedCardIssueIDs, journal: context.journal)
+        let parameters = CandidateRevalidationParameters(
+            provenance: provenance, repositories: repositories, feature: selection.name,
+            failedAdoptionsMax: failedAdoptionsMax
+        )
         var kept: [String] = []
         var hadRefusals = false
 
-        for issueID in selection.adoptedCardIssueIDs {
-            guard let card = try journal.card(issueID: issueID) else {
-                throw AuthoringTransactionError.adoptedCardUnknown(issueID: issueID)
+        for card in candidates {
+            switch try await revalidateOne(card, parameters: parameters, context: context, kept: kept) {
+            case .kept: kept.append(card.issueID)
+            case .refused: hadRefusals = true
+            case .notAdopted: break
             }
-            // A removed Card (trashed, or archived while in play; OQ142) is set aside: not adopted, and its
-            // failed-adoption and divergence counters neither advance nor reset.
-            if card.isRemovedFromBoard {
-                try recordNotAdopted(
-                    card: card, reasons: ["the Card's issue was removed from the board"],
-                    feature: selection.name, context: context
-                )
-                continue
-            }
-            let blocks = try journal.transcriptionBlocks(cardID: card.id).map(\.block)
-            let report = await provenance.evaluate(
-                blocks, projectRepositories: repositories, mainlines: context.mainlines
-            )
-
-            if report.hasDivergence {
-                // The refusal's board writes need this Card's Lease. Another run holding it is not a
-                // finding about the Card: it is simply not adopted tonight, and nothing is recorded as
-                // a Divergence.
-                if case .held(let holder) = try journal.claimCardLease(cardID: card.id, runID: context.runID) {
-                    try recordNotAdopted(
-                        card: card, reasons: ["the Card Lease is held by run \(holder.runID)"],
-                        feature: selection.name, context: context
-                    )
-                    continue
-                }
-                hadRefusals = true
-                try await refuse(
-                    card: card, report: report, feature: selection.name, context: context,
-                    failedAdoptionsMax: failedAdoptionsMax
-                )
-                continue
-            }
-            if !report.isAllClean {
-                try recordUntestable(card: card, report: report, feature: selection.name, context: context)
-                continue
-            }
-            kept.append(issueID)
         }
 
         let narrowed = SelectedFeature(
@@ -80,23 +49,111 @@ enum AdoptionRevalidation {
         return Outcome(selection: narrowed, hadRefusals: hadRefusals)
     }
 
+    /// What became of one candidate: kept in the narrowed selection, refused as a Divergence, or set
+    /// aside without being refused (removed from the board, its Card Lease held elsewhere, or
+    /// provenance that could not be tested this Night).
+    private enum CandidateOutcome {
+        case kept
+        case refused
+        case notAdopted
+    }
+
+    /// `revalidateOne`'s own parameters, held fixed across a whole pass — bundled so that function stays
+    /// within the parameter-count limit.
+    private struct CandidateRevalidationParameters {
+        let provenance: any ProvenanceTesting
+        let repositories: ProjectRepositories
+        let feature: FeatureName
+        let failedAdoptionsMax: Int
+    }
+
+    /// Re-validates one candidate: the same-repository sequence gate (spec ruling OQ182, item 6) runs
+    /// before provenance, so a later sequence member with an absent earlier member is refused without
+    /// ever reading its own Transcription Blocks.
+    private static func revalidateOne(
+        _ card: CardRecord, parameters: CandidateRevalidationParameters, context: ActContext, kept: [String]
+    ) async throws -> CandidateOutcome {
+        let journal = context.journal
+        let feature = parameters.feature
+        // A removed Card (trashed, or archived while in play; OQ142) is set aside: not adopted, and its
+        // failed-adoption and divergence counters neither advance nor reset.
+        if card.isRemovedFromBoard {
+            try recordNotAdopted(
+                card: card, reasons: ["the Card's issue was removed from the board"], feature: feature,
+                context: context
+            )
+            return .notAdopted
+        }
+
+        let absentMembers = try absentEarlierSequenceMembers(
+            of: card, oldCycleID: card.cycleID, journal: journal, kept: kept
+        )
+        if !absentMembers.isEmpty {
+            return try await refuseOrDefer(card: card, feature: feature, context: context) {
+                try await refuse(
+                    card: card, absentEarlierSequenceMembers: absentMembers, feature: feature, context: context,
+                    failedAdoptionsMax: parameters.failedAdoptionsMax
+                )
+            }
+        }
+
+        let blocks = try journal.transcriptionBlocks(cardID: card.id).map(\.block)
+        let report = await parameters.provenance.evaluate(
+            blocks, projectRepositories: parameters.repositories, mainlines: context.mainlines
+        )
+
+        if report.hasDivergence {
+            let staleBlocks = report.results.filter(\.isDiverged).map {
+                AdoptionStaleBlock(repository: $0.repository, changedPaths: $0.changedPaths)
+            }
+            return try await refuseOrDefer(card: card, feature: feature, context: context) {
+                try await refuse(
+                    card: card, staleBlocks: staleBlocks, feature: feature, context: context,
+                    failedAdoptionsMax: parameters.failedAdoptionsMax
+                )
+            }
+        }
+        if !report.isAllClean {
+            try recordUntestable(card: card, report: report, feature: feature, context: context)
+            return .notAdopted
+        }
+        return .kept
+    }
+
+    /// Claims the Card Lease before `refusal` runs it, releasing the shared lease-claim step every
+    /// refusal path needs. Another run holding the Lease is not a finding about the Card: it is simply
+    /// not adopted tonight, and nothing is recorded as a Divergence.
+    private static func refuseOrDefer(
+        card: CardRecord, feature: FeatureName, context: ActContext, refusal: () async throws -> Void
+    ) async throws -> CandidateOutcome {
+        if case .held(let holder) = try context.journal.claimCardLease(cardID: card.id, runID: context.runID) {
+            try recordNotAdopted(
+                card: card, reasons: ["the Card Lease is held by run \(holder.runID)"], feature: feature,
+                context: context
+            )
+            return .notAdopted
+        }
+        try await refusal()
+        return .refused
+    }
+
     /// Records the durable Divergence, moves the Card to a fresh Waiting on You under `divergence`
     /// assigned to the Operator (through the board projection under the Card Lease, mirroring
     /// ``CardAutoBlock``), and renders the Managed Block's notice. The caller has already claimed the
-    /// Card Lease; it is released here.
+    /// Card Lease; it is released here. `staleBlocks` and `absentEarlierSequenceMembers` are never both
+    /// non-empty for the same refusal — a stale-provenance refusal and an OQ182 item 6 sequence-gate
+    /// refusal are siblings, never both at once.
     private static func refuse(
-        card: CardRecord, report: CardProvenanceReport, feature: FeatureName, context: ActContext,
-        failedAdoptionsMax: Int
+        card: CardRecord, staleBlocks: [AdoptionStaleBlock] = [],
+        absentEarlierSequenceMembers: [AbsentEarlierSequenceMember] = [], feature: FeatureName,
+        context: ActContext, failedAdoptionsMax: Int
     ) async throws {
         let journal = context.journal
-        let staleBlocks = report.results.filter(\.isDiverged).map {
-            AdoptionStaleBlock(repository: $0.repository, changedPaths: $0.changedPaths)
-        }
         do {
             try journal.recordAdoptionRefusal(
                 cardID: card.id, nightID: context.night.id, featureName: feature.rawValue,
-                staleBlocks: staleBlocks, failedAdoptionsMax: failedAdoptionsMax,
-                act: context.act, runID: context.runID
+                staleBlocks: staleBlocks, absentEarlierSequenceMembers: absentEarlierSequenceMembers,
+                failedAdoptionsMax: failedAdoptionsMax, act: context.act, runID: context.runID
             )
             try await transitionToWaitingOnYou(card: card, context: context)
         } catch {

@@ -205,7 +205,7 @@ public struct FeatureRollUpMaintenance: Sendable {
     private static func latestAdoptions(newFeatureIssueID: String, journal: JournalStore) throws -> [Int64: String] {
         var result: [Int64: String] = [:]
         for record in try journal.events(ofType: .cardAdopted) {
-            guard case .cardAdopted(let cardID, _, let previousFeatureIssueID, let landedIn, _, _) = record.event,
+            guard case .cardAdopted(let cardID, _, let previousFeatureIssueID, let landedIn, _, _, _) = record.event,
                 landedIn == newFeatureIssueID
             else {
                 continue

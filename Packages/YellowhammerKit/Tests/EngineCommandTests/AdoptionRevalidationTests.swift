@@ -203,6 +203,73 @@ struct AdoptionRevalidationTests {
         #expect(candidates.contains { $0.issueID == "CARD-OLD" })
     }
 
+    @Test("""
+        Two same-repository sequence members, both candidates this pass: the earlier one is refused for \
+        stale provenance; the sequence gate refuses the later one too, before its own provenance ever runs \
+        (spec ruling OQ182, item 6)
+        """)
+    func predecessorRefusedForStaleProvenanceRefusesTheCandidateToo() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let oldFeature = await boards.writing.seed(issue: "FEAT-OLD", description: nil)
+        let cardA = await boards.writing.seed(
+            issue: "CARD-A", description: ManagedBlockFence.initialDescription(rendered: "")
+        )
+        let cardB = await boards.writing.seed(
+            issue: "CARD-B", description: ManagedBlockFence.initialDescription(rendered: "")
+        )
+        _ = try await boards.writing.updateIssue(cardA, BoardIssueChange(parent: .set(oldFeature)))
+        _ = try await boards.writing.updateIssue(cardB, BoardIssueChange(parent: .set(oldFeature)))
+        let (_, cycleID) = try insertFeatureSelectionAdoptionFixture(journal, closedFeatureIssueID: "FEAT-OLD")
+        let aRowID = try insertFeatureSelectionAdoptionCard(
+            journal, cycleID: cycleID, issueID: "CARD-A", repository: "backend", order: 1
+        )
+        let bRowID = try insertFeatureSelectionAdoptionCard(
+            journal, cycleID: cycleID, issueID: "CARD-B", repository: "backend", order: 2
+        )
+        for rowID in [aRowID, bRowID] {
+            try journal.recordTranscriptionBlocks(cardID: rowID, [
+                TranscriptionBlock(
+                    repository: "backend", paths: ["contract.swift"],
+                    mainlineCommit: String(repeating: "a", count: 40), content: "protocol Contract {}",
+                    contentHash: "hash", authorSupplied: false
+                )
+            ])
+        }
+
+        let transaction = try transaction(
+            provenance: FakeProvenanceTester(verdicts: ["backend": .stale(changedPaths: ["contract.swift"])])
+        )
+        let (context, _) = try context(journal, nightStart: "2026-09-20", boards: boards)
+
+        let outcome = try await transaction.author(
+            try authoringSelection(adopting: ["CARD-A", "CARD-B"]), reselectionDepth: 0, context: context
+        )
+
+        #expect(outcome == .authored)
+
+        // CARD-A: refused on its own provenance — a stale block, no absent sequence members.
+        let refusalA = try journal.adoptionRefusals(cardID: aRowID)
+        #expect(refusalA.count == 1)
+        #expect(refusalA[0].staleBlocks.map(\.repository) == ["backend"])
+        #expect(refusalA[0].absentEarlierSequenceMembers.isEmpty)
+
+        // CARD-B: refused by the sequence gate — CARD-A is absent, and CARD-B's own provenance (also
+        // scripted stale) never had to run to produce this refusal.
+        let refusalB = try journal.adoptionRefusals(cardID: bRowID)
+        #expect(refusalB.count == 1)
+        #expect(refusalB[0].staleBlocks.isEmpty)
+        #expect(refusalB[0].absentEarlierSequenceMembers.map(\.title) == ["CARD-A"])
+        #expect(refusalB[0].absentEarlierSequenceMembers.map(\.repository) == ["backend"])
+
+        // The Managed Block names the absent predecessor.
+        let issueB = try #require(await boards.writing.issue(cardB))
+        let descriptionB = try #require(issueB.description)
+        #expect(descriptionB.contains("later member of a same-repository sequence"))
+        #expect(descriptionB.contains("CARD-A"))
+    }
+
     @Test("A real moved path (git): ProvenanceDiffTester finds the recorded path stale and the Adoption is refused")
     func realGitMovedPathRefusesAdoption() async throws {
         let repo = AdoptionGitFixture()
