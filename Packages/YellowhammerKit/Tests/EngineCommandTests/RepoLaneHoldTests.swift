@@ -13,10 +13,11 @@ private let repoLaneHoldEpoch = Date(timeIntervalSince1970: 1_800_000_000)
 
 /// A minimal fixture `CardRecord`, every column defaulted so a test only names what it's checking.
 private func fixtureCard(
-    id: Int64, authoredOrder: Int, state: CardState = .todo, removedFromBoard: CardRemoval? = nil
+    id: Int64, authoredOrder: Int, state: CardState = .todo, removedFromBoard: CardRemoval? = nil,
+    repository: String = "backend", title: String? = nil
 ) -> CardRecord {
     CardRecord(
-        id: id, cycleID: 1, issueID: "CARD-\(id)", title: nil, repository: "backend", kind: "card",
+        id: id, cycleID: 1, issueID: "CARD-\(id)", title: title, repository: repository, kind: "card",
         authoredOrder: authoredOrder, state: state, waitingReason: nil, blockReason: nil, shelvedFromState: nil,
         budgetEpoch: 0, createdAt: repoLaneHoldEpoch, stateVersion: 0, boardStateVersion: nil, unansweredNights: 0,
         unansweredLastCountedNightID: nil, failedAdoptions: 0, divergenceStandingNightID: nil,
@@ -122,5 +123,100 @@ struct RepoLaneHoldTests {
         let predecessors = lane.sequencePredecessors(of: newlyAuthoredThird).map(\.id)
         #expect(predecessors == [newlyAuthoredFirst.id, newlyAuthoredSecond.id])
         #expect(lane.sequencePredecessors(of: newlyAuthoredFirst).isEmpty)
+    }
+}
+
+// spec ruling OQ182 (2026-10-22), item 4: `RepoLane.heldCards(in:adoptedFrom:currentCard:)`, the one
+// definition of "held" shared by the land trigger and the Partial Landing pull request body, as well
+// as `CardAutoBlock.held`.
+
+@Suite("RepoLane.heldCards (OQ182 item 4)")
+struct RepoLaneHeldCardsTests {
+    @Test("Only a Todo Card held by a not-Done predecessor is returned, paired with that predecessor")
+    func onlyHeldTodoCardsArePaired() {
+        let holder = fixtureCard(id: 1, authoredOrder: 1, state: .blocked)
+        let held = fixtureCard(id: 2, authoredOrder: 2, state: .todo)
+        let unheld = fixtureCard(id: 3, authoredOrder: 1, state: .todo, repository: "mobile")
+        let cards = [holder, held, unheld]
+
+        let result = RepoLane.heldCards(in: cards) { $0 }
+
+        #expect(result.count == 1)
+        #expect(result[0].card.id == held.id)
+        #expect(result[0].holder.id == holder.id)
+    }
+
+    @Test("A Card already Blocked or Waiting on You is never returned, even behind a not-Done predecessor")
+    func nonTodoCardsAreNeverHeld() {
+        let holder = fixtureCard(id: 1, authoredOrder: 1, state: .todo)
+        let blocked = fixtureCard(id: 2, authoredOrder: 2, state: .blocked)
+        let waiting = fixtureCard(id: 3, authoredOrder: 3, state: .waitingOnYou)
+
+        let result = RepoLane.heldCards(in: [holder, blocked, waiting]) { $0 }
+
+        #expect(result.isEmpty)
+    }
+
+    @Test("A Todo Card removed from the board is never returned as held")
+    func removedTodoCardIsNeverHeld() {
+        let holder = fixtureCard(id: 1, authoredOrder: 1, state: .blocked)
+        let removedHeld = fixtureCard(id: 2, authoredOrder: 2, state: .todo, removedFromBoard: .trashed)
+
+        let result = RepoLane.heldCards(in: [holder, removedHeld]) { $0 }
+
+        #expect(result.isEmpty)
+    }
+
+    @Test("A held Card whose predecessor is Shelved, or removed from the board, is still held")
+    func shelvedOrRemovedPredecessorsStillHold() {
+        let shelvedHolder = fixtureCard(id: 1, authoredOrder: 1, state: .shelved)
+        let heldByShelved = fixtureCard(id: 2, authoredOrder: 2, state: .todo)
+        let removedHolder = fixtureCard(
+            id: 3, authoredOrder: 1, state: .done, removedFromBoard: .archived, repository: "mobile"
+        )
+        let heldByRemoved = fixtureCard(id: 4, authoredOrder: 2, state: .todo, repository: "mobile")
+
+        let shelvedLane = RepoLane.heldCards(in: [shelvedHolder, heldByShelved]) { $0 }
+        #expect(shelvedLane.map(\.card.id) == [heldByShelved.id])
+        #expect(shelvedLane.first?.holder.id == shelvedHolder.id)
+
+        let removedLane = RepoLane.heldCards(in: [removedHolder, heldByRemoved]) { $0 }
+        #expect(removedLane.map(\.card.id) == [heldByRemoved.id])
+        #expect(removedLane.first?.holder.id == removedHolder.id)
+    }
+
+    @Test("Several repositories' lanes are each considered, independently")
+    func multipleRepositoriesAreEachConsidered() {
+        let backendHolder = fixtureCard(id: 10, authoredOrder: 1, state: .blocked)
+        let backendHeld = fixtureCard(id: 11, authoredOrder: 2, state: .todo)
+        let mobileCard = fixtureCard(id: 12, authoredOrder: 1, state: .todo, repository: "mobile")
+
+        let result = RepoLane.heldCards(in: [backendHolder, backendHeld, mobileCard]) { $0 }
+
+        #expect(result.map(\.card.id) == [backendHeld.id])
+    }
+
+    @Test("currentCard re-reads live state, never trusting the given snapshot (OQ182 item 2)")
+    func currentCardIsReReadThroughTheClosure() {
+        let staleHolder = fixtureCard(id: 1, authoredOrder: 1, state: .blocked)
+        let currentHolder = fixtureCard(id: 1, authoredOrder: 1, state: .done)
+        let held = fixtureCard(id: 2, authoredOrder: 2, state: .todo)
+
+        let result = RepoLane.heldCards(in: [staleHolder, held]) { card in
+            card.id == staleHolder.id ? currentHolder : card
+        }
+
+        #expect(result.isEmpty)
+    }
+
+    @Test("The holder it pairs with names the Work Card to wait on by title")
+    func pairedHolderCarriesItsOwnTitle() {
+        let holder = fixtureCard(id: 1, authoredOrder: 1, state: .blocked, title: "Add the endpoint")
+        let held = fixtureCard(id: 2, authoredOrder: 2, state: .todo, title: "Document the endpoint")
+
+        let result = RepoLane.heldCards(in: [holder, held]) { $0 }
+
+        #expect(result.first?.holder.displayTitle == "Add the endpoint")
+        #expect(result.first?.card.displayTitle == "Document the endpoint")
     }
 }

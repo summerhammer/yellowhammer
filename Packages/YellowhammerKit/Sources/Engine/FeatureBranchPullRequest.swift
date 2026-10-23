@@ -192,8 +192,12 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     ) async throws -> (body: String, isPartial: Bool) {
         let journal = context.act.journal
         let repository = context.lane.repository
+        // Held Cards are read from every Card, including a removed one (OQ142): a removed predecessor
+        // holds too, and the hold must be computed from this Cycle's full picture, not the body's own
+        // filtered list.
+        let allCards = try journal.cards(cycleID: context.cycleID)
         // A removed Card (OQ142) is set aside: the body neither names it nor lists its clauses.
-        let cards = try journal.cards(cycleID: context.cycleID).filter { !$0.isRemovedFromBoard }
+        let cards = allCards.filter { !$0.isRemovedFromBoard }
         let pushed = try journal.pushedRepositories(featureID: context.feature.id)
         let noPullRequest = try journal.noPushedBranchRepositories(featureID: context.feature.id)
         let landings = try journal.landings(featureID: context.feature.id)
@@ -201,8 +205,16 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         let featureTitle = featureObject?.title ?? context.feature.issueID
         let featureIssueURL = featureObject?.url
 
-        let bodyCards = try bodyCards(cards, journal: journal, cycleID: context.cycleID)
-        let unmetClauses = try unmetClauses(cards, journal: journal)
+        // Every Todo Card held behind a not-Done same-repository predecessor (spec ruling OQ182, item
+        // 4), mapped to the display title of the Work Card it waits on.
+        let adoptedFrom = try journal.adoptionOrigins(featureIssueID: context.feature.issueID)
+        let held = try RepoLane.heldCards(in: allCards, adoptedFrom: adoptedFrom) { try journal.card(id: $0.id) }
+        let heldBehindTitles = Dictionary(uniqueKeysWithValues: held.map { ($0.card.id, $0.holder.displayTitle) })
+
+        let bodyCards = try bodyCards(
+            cards, journal: journal, cycleID: context.cycleID, heldBehindTitles: heldBehindTitles
+        )
+        let unmetClauses = try unmetClauses(cards, journal: journal, heldCardIDs: Set(heldBehindTitles.keys))
         // Verification runs before this body is written (roadmap P10.5); when it recorded a report,
         // the body carries it and derives its unmet list from it. That list names issue ids, not
         // titles (VerificationReport carries no Card), so the renderer is handed this Cycle's own
@@ -245,10 +257,11 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         return (PullRequestBody.render(input), input.isPartialLanding)
     }
 
-    /// One rendering input per Card, joining the Journal's Attempt/Round summary and the lane-hole and
-    /// carried-forward flags onto each `CardRecord`.
+    /// One rendering input per Card, joining the Journal's Attempt/Round summary, the lane-hole and
+    /// carried-forward flags, and the held-behind title (spec ruling OQ182, item 4) onto each
+    /// `CardRecord`.
     private func bodyCards(
-        _ cards: [CardRecord], journal: JournalStore, cycleID: Int64
+        _ cards: [CardRecord], journal: JournalStore, cycleID: Int64, heldBehindTitles: [Int64: String]
     ) throws -> [PullRequestBodyCard] {
         // laneHoles (P8.9) is already exactly "Blocked or Waiting on You" within this Cycle — the same
         // vocabulary the Partial Landing announcement names a hole by; reused rather than reimplemented.
@@ -268,19 +281,22 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
                 // The story ("Announce a Partial Landing") names only a Card still Waiting on You at
                 // landing as "carried forward" — it alone is auto-Blocked and awaits Adoption. A
                 // Blocked Card is not renamed; it was already Blocked.
-                carriedForward: card.state == .waitingOnYou
+                carriedForward: card.state == .waitingOnYou,
+                heldBehindTitle: heldBehindTitles[card.id]
             )
         }
     }
 
-    /// Definition of Done clauses of the incomplete (Blocked or Waiting on You) Cards, quoted with
-    /// their Spec Citation and marked unmet. This is the set known from Card state alone; when
-    /// Verification recorded a report (P10.5) the body derives its list from that report instead.
+    /// Definition of Done clauses of the incomplete (Blocked, Waiting on You, or held — spec ruling
+    /// OQ182, item 4) Cards, quoted with their Spec Citation and marked unmet. This is the set known
+    /// from Card state alone; when Verification recorded a report (P10.5) the body derives its list
+    /// from that report instead.
     private func unmetClauses(
-        _ cards: [CardRecord], journal: JournalStore
+        _ cards: [CardRecord], journal: JournalStore, heldCardIDs: Set<Int64>
     ) throws -> [PullRequestBodyUnmetClause] {
         var unmetClauses: [PullRequestBodyUnmetClause] = []
-        for card in cards where card.state == .blocked || card.state == .waitingOnYou {
+        for card in cards where card.state == .blocked || card.state == .waitingOnYou
+            || heldCardIDs.contains(card.id) {
             for clause in try journal.clauses(issueID: card.issueID) {
                 let text = clause.invalidated
                     ? "\(clause.text) (invalidated: \(clause.invalidatedCause ?? "unspecified"))"

@@ -76,4 +76,26 @@ public struct RepoLane: Equatable, Sendable {
         }
         return nil
     }
+
+    /// Every Todo, not-removed Work Card of `cards`, held behind a not-Done same-repository sequence
+    /// predecessor, paired with that predecessor (spec ruling OQ182, item 4): a held Work Card makes
+    /// its Repo Lane finished for the Night — the land trigger (``ActTriggerPredicate``) and the
+    /// Partial Landing pull request body both read this one definition, rather than each deriving its
+    /// own lanes and re-walking ``holder(of:currentCard:)``. `cards` and `adoptedFrom` are one Cycle's
+    /// Cards and its Feature's adoption origins, as ``RepoLane/derive(from:adoptedFrom:)`` takes them;
+    /// `currentCard` re-reads a Card's live state, never trusting a lane's own stale snapshot.
+    public static func heldCards(
+        in cards: [CardRecord], adoptedFrom: [Int64: String] = [:],
+        currentCard: (CardRecord) throws -> CardRecord
+    ) rethrows -> [(card: CardRecord, holder: CardRecord)] {
+        var held: [(card: CardRecord, holder: CardRecord)] = []
+        for lane in RepoLane.derive(from: cards, adoptedFrom: adoptedFrom) {
+            for card in lane.cards where card.state == .todo && !card.isRemovedFromBoard {
+                if let holder = try lane.holder(of: card, currentCard: currentCard) {
+                    held.append((card: card, holder: holder))
+                }
+            }
+        }
+        return held
+    }
 }

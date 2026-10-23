@@ -35,19 +35,23 @@ private struct FixtureCard {
 }
 
 /// Inserts a fixture Feature → Cycle → Card chain, or adds a Card to an existing Cycle when
-/// `cycleID` is given. Each Card lands in its own repository, because `card` is unique on
-/// (cycle_id, repository, authored_order) and these fixtures put several Cards in one Cycle.
+/// `cycleID` is given. Each Card lands in its own repository by default, because `card` is unique on
+/// (cycle_id, repository, authored_order) and these fixtures put several Cards in one Cycle — pass
+/// `uniquifyRepository: false` and a distinct `authoredOrder` to put several Cards in the same
+/// repository instead (the same-repository hold, OQ182, needs that).
 private func insertFixtureCard(
     _ journal: JournalStore,
     issueID: String,
     repository: String = "main",
     state: CardState = .todo,
-    cycleID: Int64? = nil
+    cycleID: Int64? = nil,
+    authoredOrder: Int = 1,
+    uniquifyRepository: Bool = true
 ) throws -> FixtureCard {
     try journal.write { db in
         let actualCycleID: Int64
         let featureID: Int64
-        let uniqueRepo = "\(repository)-\(UUID().uuidString)"
+        let uniqueRepo = uniquifyRepository ? "\(repository)-\(UUID().uuidString)" : repository
 
         if let cycleID {
             actualCycleID = cycleID
@@ -81,7 +85,7 @@ private func insertFixtureCard(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             arguments: [
-                actualCycleID, issueID, uniqueRepo, "card", 1, state.rawValue, 0,
+                actualCycleID, issueID, uniqueRepo, "card", authoredOrder, state.rawValue, 0,
                 JournalStore.timestamp(epoch)
             ]
         )
@@ -239,6 +243,51 @@ func buildNotMetAllFinished() throws {
     let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
 
     #expect(outcome == .notMet(.cycleHasNoUnfinishedCards))
+}
+
+// MARK: - Held same-repository Work Cards (spec ruling OQ182, item 4)
+
+@Test("build and land: a Cycle whose only unfinished Card is held is met for land, not for build")
+func buildNotMetLandMetWhenOnlyUnfinishedCardIsHeld() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    // The holder is Blocked (finished for landing purposes), but it is not Done, so it still holds
+    // its sequence successor, which stays Todo and unfinished.
+    let holder = try insertFixtureCard(
+        journal, issueID: "CARD-1", repository: "backend", state: .blocked, authoredOrder: 1,
+        uniquifyRepository: false
+    )
+    _ = try insertFixtureCard(
+        journal, issueID: "CARD-2", repository: "backend", state: .todo, cycleID: holder.cycleID,
+        authoredOrder: 2, uniquifyRepository: false
+    )
+
+    #expect(try evaluate(act: .build, trigger: .scheduled, journal: journal) == .notMet(.cycleHasNoUnfinishedCards))
+    #expect(try evaluate(act: .land, trigger: .scheduled, journal: journal) == .met)
+}
+
+@Test("build and land: a held Card alongside a runnable Todo Card still gates the Cycle open")
+func buildMetLandNotMetWithAHeldCardAndARunnableCard() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let holder = try insertFixtureCard(
+        journal, issueID: "CARD-1", repository: "backend", state: .blocked, authoredOrder: 1,
+        uniquifyRepository: false
+    )
+    _ = try insertFixtureCard(
+        journal, issueID: "CARD-2", repository: "backend", state: .todo, cycleID: holder.cycleID,
+        authoredOrder: 2, uniquifyRepository: false
+    )
+    // A runnable Todo Card of its own, unrelated repository: no held successor, so it alone keeps
+    // the Cycle's unfinished-unheld count above zero.
+    _ = try insertFixtureCard(
+        journal, issueID: "CARD-3", repository: "mobile", state: .todo, cycleID: holder.cycleID
+    )
+
+    #expect(try evaluate(act: .build, trigger: .scheduled, journal: journal) == .met)
+    #expect(try evaluate(act: .land, trigger: .scheduled, journal: journal) == .notMet(.cycleHasUnfinishedCards))
 }
 
 // MARK: - Land Act Tests

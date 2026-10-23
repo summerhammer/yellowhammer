@@ -23,11 +23,14 @@ public struct PullRequestBodyCard: Equatable, Sendable {
     public let isLaneHole: Bool
     /// Whether this Card is carried forward from a predecessor Feature (Adoption).
     public let carriedForward: Bool
+    /// The display title of the Work Card this Card is held behind (spec ruling OQ182, item 4), nil
+    /// when this Card is not held. Set only on a Todo Card.
+    public let heldBehindTitle: String?
 
     public init(
         title: String, repository: String, state: CardState, routeSummary: String, checkSummary: String,
         roundCount: Int, blockReason: String? = nil, waitingReason: WaitingReason? = nil,
-        isLaneHole: Bool = false, carriedForward: Bool = false
+        isLaneHole: Bool = false, carriedForward: Bool = false, heldBehindTitle: String? = nil
     ) {
         self.title = title
         self.repository = repository
@@ -39,11 +42,14 @@ public struct PullRequestBodyCard: Equatable, Sendable {
         self.waitingReason = waitingReason
         self.isLaneHole = isLaneHole
         self.carriedForward = carriedForward
+        self.heldBehindTitle = heldBehindTitle
     }
 
-    /// Whether this Card counts as one of the Cycle's incomplete Cards for a Partial Landing.
+    /// Whether this Card counts as one of the Cycle's incomplete Cards for a Partial Landing: Blocked,
+    /// Waiting on You, or a Todo Card held behind a not-Done same-repository predecessor (spec ruling
+    /// OQ182, item 4).
     public var isIncomplete: Bool {
-        state == .blocked || state == .waitingOnYou
+        state == .blocked || state == .waitingOnYou || heldBehindTitle != nil
     }
 }
 

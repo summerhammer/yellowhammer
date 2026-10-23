@@ -16,9 +16,11 @@ public enum ActTriggerPredicate {
     /// Evaluates the predicate for the given Act's trigger.
     ///
     /// The two key judgements:
-    /// - build and land are exact complements over the in-flight Cycle's unfinished Cards; once the
-    ///   Cycle has landed (roadmap P10.1; risks OQ8, once per Cycle), both are false regardless, so no
-    ///   Repo Lane re-opens even if a Card returns to Todo.
+    /// - build and land are exact complements over the in-flight Cycle's unfinished, unheld Cards: a
+    ///   held Todo Card (``RepoLane/heldCards(in:adoptedFrom:currentCard:)``, spec ruling OQ182 item 4)
+    ///   counts as finished for both, so a Cycle with no runnable Card lands even while a held Card
+    ///   stays Todo. Once the Cycle has landed (roadmap P10.1; risks OQ8, once per Cycle), both are
+    ///   false regardless, so no Repo Lane re-opens even if a Card returns to Todo.
     /// - the author trigger reads dispatchable Card states from the Journal, and the dispatch-time
     ///   Readiness Check (a later phase) is what refines which of those Cards actually dispatch —
     ///   do not mistake this for the Readiness Check.
@@ -81,7 +83,7 @@ public enum ActTriggerPredicate {
         if try journal.isCycleLanded(cycleID: cycleID) {
             return .notMet(.cycleAlreadyLanded)
         }
-        let count = try journal.unfinishedCardCount(cycleID: cycleID)
+        let count = try unfinishedUnheldCardCount(cycleID: cycleID, journal: journal)
         if count > 0 {
             return .met
         }
@@ -95,10 +97,27 @@ public enum ActTriggerPredicate {
         if try journal.isCycleLanded(cycleID: cycleID) {
             return .notMet(.cycleAlreadyLanded)
         }
-        let count = try journal.unfinishedCardCount(cycleID: cycleID)
+        let count = try unfinishedUnheldCardCount(cycleID: cycleID, journal: journal)
         if count == 0 {
             return .met
         }
         return .notMet(.cycleHasUnfinishedCards)
+    }
+
+    /// `journal.unfinishedCardCount(cycleID:)`, less the Cycle's held Work Cards (spec ruling OQ182,
+    /// item 4): a held Todo Card is not dispatchable, so it no longer keeps build met or land unmet —
+    /// only a runnable Card does. The Journal module cannot see `RepoLane`, so the subtraction happens
+    /// here, from the Feature's own adoption origins and current Cards. `cycleID` is in flight, so its
+    /// Feature must resolve; a miss means the Journal is inconsistent, and `journal.feature(cycleID:)`
+    /// already names that case as nil rather than guessing.
+    private static func unfinishedUnheldCardCount(cycleID: Int64, journal: JournalStore) throws -> Int {
+        let unfinished = try journal.unfinishedCardCount(cycleID: cycleID)
+        guard let feature = try journal.feature(cycleID: cycleID) else {
+            throw JournalError.cycleUnknown(cycleID: cycleID)
+        }
+        let cards = try journal.cards(cycleID: cycleID)
+        let adoptedFrom = try journal.adoptionOrigins(featureIssueID: feature.issueID)
+        let held = try RepoLane.heldCards(in: cards, adoptedFrom: adoptedFrom) { try journal.card(id: $0.id) }
+        return unfinished - held.count
     }
 }

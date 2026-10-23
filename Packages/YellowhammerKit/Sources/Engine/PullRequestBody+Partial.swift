@@ -18,8 +18,10 @@ extension PullRequestBody {
         // reads as one sentence over the whole unfinished set, though: every Blocked-or-Waiting-on-You
         // Card is "carried forward" out of this landing, and only the Waiting-on-You subset of it also
         // needs auto-Blocking. So c_count here counts every incomplete Card (Blocked or Waiting on
-        // You), not just the Waiting-on-You ones the list section names.
-        let carried = incomplete.filter { $0.state == .waitingOnYou }
+        // You), not just the Waiting-on-You ones the list section names. A held Todo Card (OQ182 item
+        // 4) is carried forward too: it is auto-Blocked at the Feature's merge close, not here, but a
+        // Partial Landing names it now, alongside the one named by state.
+        let carried = incomplete.filter { $0.state == .waitingOnYou || $0.heldBehindTitle != nil }
 
         var lines: [String] = []
         lines.append(openingLine1(
@@ -104,6 +106,12 @@ extension PullRequestBody {
         guard !cards.isEmpty else { return "Incomplete Cards: none." }
         var lines = ["Incomplete Cards (every repository):"]
         for card in cards {
+            // A held Card is Todo, not Blocked or Waiting on You (spec ruling OQ182, item 4): it is
+            // named by what holds it, not by a disposition and reason that do not apply to it.
+            if let holderTitle = card.heldBehindTitle {
+                lines.append("- \(card.title) [\(card.repository)]: Todo — held behind \"\(holderTitle)\"")
+                continue
+            }
             let disposition = card.state == .waitingOnYou ? "Waiting on You" : "Blocked"
             let reason = card.state == .waitingOnYou
                 ? (card.waitingReason?.rawValue ?? "unspecified")
@@ -130,7 +138,10 @@ extension PullRequestBody {
         guard !cards.isEmpty else { return "Carried forward: none." }
         var lines = ["Carried forward (Waiting on You, auto-Blocked awaiting Adoption):"]
         for card in cards {
-            lines.append("- \(card.title) [\(card.repository)]")
+            // A held Card names the Work Card it waits on (spec ruling OQ182, item 4); it carries
+            // forward without a state change here — its own auto-Block happens at merge close.
+            let held = card.heldBehindTitle.map { " — held behind \"\($0)\"" } ?? ""
+            lines.append("- \(card.title) [\(card.repository)]\(held)")
         }
         return lines.joined(separator: "\n")
     }
