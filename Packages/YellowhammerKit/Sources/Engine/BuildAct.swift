@@ -188,7 +188,9 @@ public struct BuildAct: Sendable {
         deltaRead: DeltaReadReport?, context: ActContext
     ) async throws {
         let cards = try context.journal.cards(cycleID: cycleID)
-        let lanes = RepoLane.derive(from: cards)
+        let lanes = RepoLane.derive(
+            from: cards, adoptedFrom: try context.journal.adoptionOrigins(featureIssueID: feature.issueID)
+        )
         try context.journal.append(
             .repoLanesDerived(cycleID: cycleID, lanes: lanes.map(\.repository)),
             act: context.act, runID: context.runID, nightID: context.night.id
@@ -257,6 +259,13 @@ public struct BuildAct: Sendable {
         var failure: String?
         for card in runnable {
             do {
+                // The same-repository hold (spec ruling OQ182, item 2): re-read through the Journal,
+                // never the lane's own snapshot, which is stale once an earlier Card in this very loop
+                // has run. A held Card gets no Readiness Check, no dispatch, no Attempt and no board
+                // write, and its state stays Todo — counted in neither `cardsRun` nor `cardsSkipped`.
+                if try lane.holder(of: card, currentCard: { try actContext.journal.card(id: $0.id) }) != nil {
+                    continue
+                }
                 let cardReadiness: CardReadiness
                 if let readiness {
                     switch try await readiness.evaluate(card: card, context: context) {
@@ -285,53 +294,6 @@ public struct BuildAct: Sendable {
             act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
         )
         return (lane.repository, failure)
-    }
-
-    /// Allocates this lane's Repo's Worktree (graph-execution/allocate-a-worktree-per-graph-and-repo)
-    /// before its first Card, when the lane has Cards to run and a Workspace is bound. Returns a
-    /// description of the failure when allocation cannot proceed; nil otherwise. A branch-name collision
-    /// is not a lane failure: it is thrown as
-    /// ``BuildActError/worktreeNameCollision(repository:requested:reported:)`` and halts the Act. Skips
-    /// allocation entirely — never returning a failure — when the lane has no runnable Cards or no
-    /// Workspace is bound, so a fake-runner test with no Workspace keeps behaving exactly as before.
-    private func allocateWorktree(
-        runnable: [CardRecord], lane: RepoLane, context: BuildActContext, actContext: ActContext
-    ) async throws -> String? {
-        guard !runnable.isEmpty, let workspace = actContext.workspace else { return nil }
-
-        guard let worktreeName = context.feature.worktreeName else {
-            return BuildActError.worktreeNameUnrecorded(featureID: context.feature.id).description
-        }
-
-        // Never dispatch over a lane whose reconciliation did not settle, before the held-Worktree reuse below.
-        if let reason = context.reconciliation.undispatchableReason(for: lane.repository) { return reason }
-
-        // A Worktree already held for (Feature, repository) is reused with no Orca ADE call
-        // (``WorktreeAllocator/allocate(featureID:worktreeName:repos:)``), so no configured ``Repo`` is
-        // needed to resolve it — only a fresh allocation needs the repository's path.
-        do {
-            if try actContext.journal.heldWorktree(featureID: context.feature.id, repository: lane.repository) != nil {
-                return nil
-            }
-        } catch {
-            return String(describing: error)
-        }
-
-        guard let repo = actContext.repositories?.workingRepo(named: lane.repository) else {
-            return "no configured repository named '\(lane.repository)' for Worktree allocation"
-        }
-
-        let allocator = WorktreeAllocator(workspace: workspace, journal: actContext.journal, runID: actContext.runID)
-        do {
-            _ = try await allocator.allocate(featureID: context.feature.id, worktreeName: worktreeName, repos: [repo])
-            return nil
-        } catch let WorktreeAllocationError.nameCollision(repository, requested, reported, recorded) {
-            throw BuildActError.worktreeNameCollision(
-                repository: repository, requested: recorded ?? requested, reported: reported
-            )
-        } catch {
-            return String(describing: error)
-        }
     }
 
     /// Re-reads a Card just run and, when it is now Blocked or Waiting on You, appends

@@ -5,10 +5,11 @@ import Foundation
 import Repositories
 import Testing
 
-// graph-execution/handle-a-block-mid-graph, P8.9: a Card ending Blocked or Waiting on You does not
-// halt its Repo Lane, and is recorded as a hole in the Feature — a `LaneHoleRecorded` event, and
+// graph-execution/handle-a-block-mid-graph, P8.9, and spec ruling OQ182 (2026-10-22): a Card ending
+// Blocked or Waiting on You is recorded as a hole in the Feature — a `LaneHoleRecorded` event, and
 // `JournalStore.laneHoles(cycleID:)` for later phases (the Partial Landing announcement, P10.4) to
-// read.
+// read — and, since OQ182, it also holds every later Card of its own same-repository sequence: they
+// stay Todo, undispatched, with no Attempt spent, until it reaches Done.
 
 /// A Dispatch seam that fails the worker pass of one named issue and completes every other pass and
 /// issue normally, so a lane of several Cards can carry one that Blocks and others that run to Done.
@@ -41,11 +42,10 @@ private struct WaitingOnYouRunner: CardRunner {
 
 @Suite("Lane holes (P8.9)")
 struct LaneHoleTests {
-    @Test("A Blocked Card mid-lane does not stop the lane; only it is recorded as a hole")
-    func blockedCardMidLaneIsRecordedAsAHole() async throws {
+    @Test("A Blocked Card holds the later Cards of its sequence; only it is recorded as a hole")
+    func blockedCardHoldsTheRestOfTheLane() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let git = GitRunner()
         let worktrees = fixture.directory.appending(component: "worktrees", directoryHint: .isDirectory)
         try await initReconcilerGitRepo(at: worktrees.appending(component: "backend"), branch: buildActBranch.name)
         let world = try await makeCardRunWorld(
@@ -68,12 +68,12 @@ struct LaneHoleTests {
         try await invocation.run()
 
         #expect(try world.card("BACK-1").state == .blocked)
-        #expect(try world.card("BACK-2").state == .done)
-        #expect(try world.card("BACK-3").state == .done)
+        // BACK-1 holds its sequence: BACK-2 and BACK-3 stay Todo, undispatched.
+        #expect(try world.card("BACK-2").state == .todo)
+        #expect(try world.card("BACK-3").state == .todo)
 
-        // Cards 2 and 3 ran their own Attempts, each its own budget, unaffected by Card 1's Block.
-        #expect(try world.attempts("BACK-2").map(\.result) == ["success"])
-        #expect(try world.attempts("BACK-3").map(\.result) == ["success"])
+        #expect(try world.attempts("BACK-2").isEmpty)
+        #expect(try world.attempts("BACK-3").isEmpty)
 
         let holeEvents = try journal.events(ofType: .laneHoleRecorded)
         #expect(holeEvents.count == 1)
@@ -90,11 +90,10 @@ struct LaneHoleTests {
         #expect(holes.map(\.issueID) == ["BACK-1"])
     }
 
-    @Test("A Waiting-on-You Card mid-lane is recorded as a hole; the lane still runs the Cards after it")
-    func waitingOnYouCardMidLaneIsRecordedAsAHole() async throws {
+    @Test("A Waiting-on-You Card holds the later Cards of its sequence; only it is recorded as a hole")
+    func waitingOnYouCardHoldsTheRestOfTheLane() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let git = GitRunner()
         let worktrees = fixture.directory.appending(component: "worktrees", directoryHint: .isDirectory)
         try await initReconcilerGitRepo(at: worktrees.appending(component: "backend"), branch: buildActBranch.name)
         let world = try await makeCardRunWorld(
@@ -112,9 +111,9 @@ struct LaneHoleTests {
         try await invocation.run()
 
         #expect(try world.card("BACK-1").state == .waitingOnYou)
-        // The lane moved on: the fake runner was invoked for both Cards, in authored order, rather
-        // than stopping at BACK-1.
-        #expect(log.all == ["BACK-1", "BACK-2"])
+        // BACK-1 holds its sequence: the fake runner was invoked for BACK-1 only, never for BACK-2.
+        #expect(log.all == ["BACK-1"])
+        #expect(try world.card("BACK-2").state == .todo)
 
         let holeEvents = try journal.events(ofType: .laneHoleRecorded)
         #expect(holeEvents.count == 1)

@@ -27,7 +27,8 @@ func makeBuildActBoards() async throws -> NightCardTestBoards {
 }
 
 /// Records every Card a lane handed it, in the order it saw them; can be scripted to throw for a
-/// repository's Cards.
+/// repository's Cards. Moves every Card it runs to Done, as a real ``CardRunner`` eventually would, so
+/// the same-repository hold (spec ruling OQ182) never holds the next fixture Card of the same lane.
 final class RecordingCardRunner: CardRunner, Sendable {
     private struct State {
         var seen: [(repository: String, issueID: String)] = []
@@ -47,6 +48,9 @@ final class RecordingCardRunner: CardRunner, Sendable {
         if state.withLock({ $0.throwing.contains(lane.repository) }) {
             throw BuildActTestRunnerError()
         }
+        _ = try context.act.journal.transitionCard(
+            cardID: card.id, to: .done, runID: context.act.runID, act: context.act.act, nightID: context.act.night.id
+        )
     }
 }
 

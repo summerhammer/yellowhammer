@@ -121,7 +121,8 @@ func operatorEditInsideBlockChangesNothing() async throws {
 
     #expect(try scenario.journal.events(ofType: .cardDiverged).isEmpty)
     let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
-    #expect(card.state == .todo)
+    // Readiness passed, so the CardRunner ran: the fake recorder moves every Card it runs to Done.
+    #expect(card.state == .done)
 
     let passedIssueIDs = try scenario.journal.events(ofType: .readinessCheckPassed).map { event -> String in
         if case .readinessCheckPassed(_, let issueID) = event.event { return issueID }

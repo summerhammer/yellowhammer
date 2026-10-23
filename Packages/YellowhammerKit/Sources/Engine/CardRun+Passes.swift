@@ -143,11 +143,13 @@ extension CardRun {
         try frame.record(.authoringInvariantViolated, detail: reason)
     }
 
-    /// The issue ids of every Card earlier in this Card's lane (by authored order) that is, as the
-    /// Journal now reads it, Blocked or Waiting on You — re-read for current state rather than trusting
-    /// the lane snapshot this build Act derived, since it may be stale by the time a later pass runs.
+    /// The issue ids of every Card earlier in this Card's own same-repository sequence
+    /// (``RepoLane/sequencePredecessors(of:)``, spec ruling OQ182, item 5) that is, as the Journal now
+    /// reads it, Blocked or Waiting on You — re-read for current state rather than trusting the lane
+    /// snapshot this build Act derived, since it may be stale by the time a later pass runs. An adopted
+    /// Card is never named here for a newly authored Card's violation, and vice versa.
     private func earlierHoles(frame: CardRunFrame) throws -> [String] {
-        let earlier = frame.lane.cards.filter { $0.authoredOrder < frame.card.authoredOrder }
+        let earlier = frame.lane.sequencePredecessors(of: frame.card)
         var holes: [String] = []
         for card in earlier {
             let current = try frame.journal.card(id: card.id)
