@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.27.0](https://github.com/summerhammer/yellowhammer/compare/v0.26.0...v0.27.0) (2026-10-23)
+
+
+### Features
+
+* **graph-execution:** Hold later same-repository Work Cards behind an unfinished earlier one ([#669](https://github.com/summerhammer/yellowhammer/issues/669)) ([2484087](https://github.com/summerhammer/yellowhammer/commit/2484087c3bc0702b57cfd7337a188fa83ae4d17c))
+
+
+### Bug Fixes
+
+* **cli-adapters:** State the never-search rule in every pass's boundary ([3b7485c](https://github.com/summerhammer/yellowhammer/commit/3b7485cde173506d48b34cdf862db26c20698a0d)), closes [#668](https://github.com/summerhammer/yellowhammer/issues/668)
+
 ## [0.26.0](https://github.com/summerhammer/yellowhammer/compare/v0.25.0...v0.26.0) (2026-10-22)
 
 
