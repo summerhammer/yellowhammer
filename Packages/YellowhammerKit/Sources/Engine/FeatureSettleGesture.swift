@@ -80,11 +80,9 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
             _ = try await outbox.post(write)
         }
         let comment = FeatureCompletionComment(
-            carriedForward: blockedCards.map {
-                FeatureReleaseComment.CarriedForwardCard(
-                    issueID: $0.issueID, blockReason: $0.blockReason.flatMap { BlockReason(rawValue: $0) }
-                )
-            },
+            carriedForward: try carriedForwardCards(
+                blockedCards, cycleID: cycleID, featureIssueID: feature.issueID, journal: journal
+            ),
             acceptedCards: acceptedCards, keptWorktrees: keptWorktrees
         ).body()
         let commentKey = "settle:\(cycleID):complete:comment:\(feature.issueID)"
@@ -228,18 +226,34 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
             _ = try await outbox.post(write)
         }
 
-        let carriedForwardCards = blockedCards.map {
-            FeatureReleaseComment.CarriedForwardCard(
-                issueID: $0.issueID, blockReason: $0.blockReason.flatMap { BlockReason(rawValue: $0) }
-            )
-        }
+        let carriedForward = try carriedForwardCards(
+            blockedCards, cycleID: cycleID, featureIssueID: feature.issueID, journal: journal
+        )
         let triagedNight = try journal.night(id: computed.triagedNightID)
         let comment = FeatureReleaseComment(
-            carriedForward: carriedForwardCards, acceptedCards: computed.acceptedCards,
+            carriedForward: carriedForward, acceptedCards: computed.acceptedCards,
             abandonedRepositories: computed.abandonedRepositories,
             triagedNightStart: triagedNight?.nightStart ?? context.night.nightStart
         ).body()
         let commentKey = "settle:\(cycleID):abandon:comment:\(feature.issueID)"
         _ = try await outbox.post(OutboxWrite(key: commentKey, write: .createComment(issue: issue, body: comment)))
+    }
+
+    /// Each Blocked Card paired with the Work Card it waits on (spec ruling 2026-10-22, item 8.4), ready
+    /// for ``FeatureCompletionComment`` or ``FeatureReleaseComment``: nil for a Card carried forward by
+    /// any other Block Reason. Shared by both terminal dispositions, since both name the same thing.
+    private func carriedForwardCards(
+        _ blockedCards: [CardRecord], cycleID: Int64, featureIssueID: String, journal: JournalStore
+    ) throws -> [FeatureReleaseComment.CarriedForwardCard] {
+        let heldBy = try HeldWorkCards.pairs(cycleID: cycleID, featureIssueID: featureIssueID, journal: journal)
+        let waitsOn = Dictionary(uniqueKeysWithValues: heldBy.map {
+            ($0.card.id, HeldWorkCard(issueID: $0.holder.issueID, title: $0.holder.displayTitle))
+        })
+        return blockedCards.map {
+            FeatureReleaseComment.CarriedForwardCard(
+                issueID: $0.issueID, blockReason: $0.blockReason.flatMap { BlockReason(rawValue: $0) },
+                waitsOn: waitsOn[$0.id]
+            )
+        }
     }
 }

@@ -126,7 +126,7 @@ struct RepoLaneHoldTests {
     }
 }
 
-// spec ruling OQ182 (2026-10-22), item 4: `RepoLane.heldCards(in:adoptedFrom:currentCard:)`, the one
+// spec ruling OQ182 (2026-10-22), item 4: `RepoLane.heldCards(in:where:adoptedFrom:currentCard:)`, the one
 // definition of "held" shared by the land trigger and the Partial Landing pull request body, as well
 // as `CardAutoBlock.held`.
 

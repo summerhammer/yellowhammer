@@ -11,10 +11,14 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
     public struct CarriedForwardCard: Equatable, Sendable {
         public let issueID: String
         public let blockReason: BlockReason?
+        /// The Work Card this Card is held behind (spec ruling 2026-10-22, item 8.4), nil when it was
+        /// carried forward for a reason other than the same-repository hold.
+        public let waitsOn: HeldWorkCard?
 
-        public init(issueID: String, blockReason: BlockReason?) {
+        public init(issueID: String, blockReason: BlockReason?, waitsOn: HeldWorkCard? = nil) {
             self.issueID = issueID
             self.blockReason = blockReason
+            self.waitsOn = waitsOn
         }
     }
 
@@ -89,17 +93,7 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
 
         lines.append("")
         lines.append("## Carried forward")
-        if carriedForward.isEmpty {
-            lines.append("- none")
-        } else {
-            for card in carriedForward.sorted(by: { $0.issueID < $1.issueID }) {
-                let reason = card.blockReason?.rawValue ?? "no Block Reason recorded"
-                lines.append(
-                    "- \(card.issueID) — Blocked (\(reason)), awaiting Adoption by a later Feature; its counters "
-                        + "and round history are intact."
-                )
-            }
-        }
+        lines += carriedForwardLines()
 
         lines.append("")
         lines.append("## Accepted")
@@ -118,5 +112,21 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
         )
 
         return lines.joined(separator: "\n")
+    }
+
+    /// The "## Carried forward" section's own lines, split out to keep ``body()`` under the
+    /// function-body-length limit: one line per Card, naming the Work Card it waits on when it is held
+    /// (spec ruling 2026-10-22, item 8.4).
+    private func carriedForwardLines() -> [String] {
+        guard !carriedForward.isEmpty else { return ["- none"] }
+        return carriedForward.sorted(by: { $0.issueID < $1.issueID }).map { card in
+            let reason = card.blockReason?.rawValue ?? "no Block Reason recorded"
+            var line = "- \(card.issueID) — Blocked (\(reason)), awaiting Adoption by a later Feature; its " +
+                "counters and round history are intact."
+            if let waitsOn = card.waitsOn {
+                line += " It is held behind \(waitsOn.issueID) (\"\(waitsOn.title)\")."
+            }
+            return line
+        }
     }
 }

@@ -31,7 +31,7 @@ enum CardAutoBlock {
     }
 
     /// Every Todo Card of `cycleID` held behind a not-Done same-repository sequence predecessor
-    /// (``RepoLane/heldCards(in:adoptedFrom:currentCard:)``, spec ruling OQ182 item 2) is auto-Blocked
+    /// (``RepoLane/heldCards(in:where:adoptedFrom:currentCard:)``, spec ruling OQ182 item 2) is auto-Blocked
     /// under `reason` — `feature completed` at merge close (spec ruling 2026-10-22, item 3). Lanes are
     /// derived from the Cycle's current Cards, with adopted Cards' sequences read from their recorded
     /// `CardAdopted` events. A Todo Card with no not-Done predecessor, and every Blocked, Done,

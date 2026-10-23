@@ -36,9 +36,12 @@ public struct FeatureCompletionComment: Equatable, Sendable {
         } else {
             for card in carriedForward.sorted(by: { $0.issueID < $1.issueID }) {
                 let reason = card.blockReason?.rawValue ?? "no Block Reason recorded"
-                lines.append(
-                    "- \(card.issueID) — Blocked (\(reason)); a later Feature may adopt it with its history intact."
-                )
+                var line = "- \(card.issueID) — Blocked (\(reason)); a later Feature may adopt it with its " +
+                    "history intact."
+                if let waitsOn = card.waitsOn {
+                    line += " It is held behind \(waitsOn.issueID) (\"\(waitsOn.title)\")."
+                }
+                lines.append(line)
             }
         }
 

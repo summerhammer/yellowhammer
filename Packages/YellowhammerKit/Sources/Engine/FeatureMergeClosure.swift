@@ -117,11 +117,9 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
         let issue = BoardObjectID(rawValue: feature.issueID)
 
         let landings = try journal.landings(featureID: feature.id)
-        let carriedForwardCards = blockedCards.map {
-            FeatureMergeClosureComment.CarriedForwardCard(
-                issueID: $0.issueID, blockReason: $0.blockReason.flatMap { BlockReason(rawValue: $0) }
-            )
-        }
+        let carriedForwardCards = try carriedForwardCards(
+            blockedCards, cycleID: cycleID, featureIssueID: feature.issueID, journal: journal
+        )
         let verification = try journal.featureVerification(cycleID: cycleID)
         let unmetClauses = verification?.clauses.filter { $0.verdict == .unmet || $0.verdict == .unresolved } ?? []
         let notCheckedClauses = verification?.clauses.filter { $0.verdict == .notChecked } ?? []
@@ -147,5 +145,22 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
 
         let archiveKey = "merge:\(cycleID):archive:\(feature.issueID)"
         _ = try await outbox.post(OutboxWrite(key: archiveKey, write: .archiveIssue(issue: issue)))
+    }
+
+    /// Each Blocked Card paired with the Work Card it waits on (spec ruling 2026-10-22, item 8.4), ready
+    /// for ``FeatureMergeClosureComment``: nil for a Card carried forward by any other Block Reason.
+    private func carriedForwardCards(
+        _ blockedCards: [CardRecord], cycleID: Int64, featureIssueID: String, journal: JournalStore
+    ) throws -> [FeatureMergeClosureComment.CarriedForwardCard] {
+        let heldBy = try HeldWorkCards.pairs(cycleID: cycleID, featureIssueID: featureIssueID, journal: journal)
+        let waitsOn = Dictionary(uniqueKeysWithValues: heldBy.map {
+            ($0.card.id, HeldWorkCard(issueID: $0.holder.issueID, title: $0.holder.displayTitle))
+        })
+        return blockedCards.map {
+            FeatureMergeClosureComment.CarriedForwardCard(
+                issueID: $0.issueID, blockReason: $0.blockReason.flatMap { BlockReason(rawValue: $0) },
+                waitsOn: waitsOn[$0.id]
+            )
+        }
     }
 }

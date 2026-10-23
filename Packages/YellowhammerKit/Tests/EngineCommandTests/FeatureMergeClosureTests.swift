@@ -221,6 +221,16 @@ struct FeatureMergeClosureTests {
         }
         #expect(carried == ["BACK-2", "DOCS-1", "DOCS-2", "DOCS-3", "MOB-1"])
 
+        // The closure comment names both held Cards as waiting on DOCS-1, by issue id and title.
+        let comments = await world.boards.writing.comments
+        let comment = try #require(comments.first { $0.issue == BoardObjectID(rawValue: "FEAT-1") })
+        #expect(comment.body.contains("- DOCS-2 — Blocked (feature completed)"))
+        #expect(comment.body.contains("It is held behind DOCS-1 (\"DOCS-1\")."))
+        #expect(comment.body.contains("- DOCS-3 — Blocked (feature completed)"))
+        // DOCS-1 was already Blocked before the close (`reviewer rejection`): never itself named held.
+        let docsFirstLine = try #require(comment.body.components(separatedBy: "\n").first { $0.hasPrefix("- DOCS-1") })
+        #expect(!docsFirstLine.contains("held behind"))
+
         // A second gate pass, with the held Cards already Blocked, writes nothing new.
         try world.journal.releaseActLease(runID: context.runID)
         let context2 = try world.makeContext(repositories: repositories)
@@ -230,6 +240,41 @@ struct FeatureMergeClosureTests {
         #expect(outcome2 == .open)
         #expect(await world.boards.writing.updateCalls == updatesBefore)
         #expect(try world.journal.events(ofType: .featureClosedByMerge).count == 1)
+    }
+
+    @Test("A Card already Blocked `authoring defect` before the close is never named held")
+    func alreadyBlockedCardIsNeverNamedHeld() async throws {
+        let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
+        let repositories = mergeWorldRepositories(world)
+
+        // QA-1 (Todo, not-Done) would hold QA-2 under the same-repository rule — but QA-2 was already
+        // Blocked `authoring defect` before the close, which is not a reason a close itself gives.
+        let qaFirstID = try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "QA-1", repository: "qa", state: .todo
+        )
+        try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "QA-2", repository: "qa", state: .blocked,
+            blockReason: .authoringDefect
+        )
+        for issueID in ["QA-1", "QA-2"] {
+            await world.boards.writing.seed(issue: issueID, description: nil)
+            _ = try await world.boards.writing.updateIssue(
+                BoardObjectID(rawValue: issueID), BoardIssueChange(parent: .set(BoardObjectID(rawValue: "FEAT-1")))
+            )
+        }
+        let context = try world.makeContext(repositories: repositories)
+
+        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure())
+            .check(context, unmergedFeaturesMax: 1)
+        #expect(outcome == .open)
+
+        let comments = await world.boards.writing.comments
+        let comment = try #require(comments.first { $0.issue == BoardObjectID(rawValue: "FEAT-1") })
+        let qaLine = try #require(comment.body.components(separatedBy: "\n").first { $0.hasPrefix("- QA-2") })
+        #expect(qaLine.contains("Blocked (authoring defect)"))
+        #expect(!qaLine.contains("held behind"))
+        // QA-1 is untouched: it is Todo with no not-Done predecessor of its own.
+        #expect(try world.journal.card(id: qaFirstID).state == .todo)
     }
 
     @Test("Content evidence counts like ancestry: a squash and a merge commit together close by merge")

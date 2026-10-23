@@ -17,7 +17,7 @@ public enum ActTriggerPredicate {
     ///
     /// The two key judgements:
     /// - build and land are exact complements over the in-flight Cycle's unfinished, unheld Cards: a
-    ///   held Todo Card (``RepoLane/heldCards(in:adoptedFrom:currentCard:)``, spec ruling OQ182 item 4)
+    ///   held Todo Card (``RepoLane/heldCards(in:where:adoptedFrom:currentCard:)``, spec ruling OQ182 item 4)
     ///   counts as finished for both, so a Cycle with no runnable Card lands even while a held Card
     ///   stays Todo. Once the Cycle has landed (roadmap P10.1; risks OQ8, once per Cycle), both are
     ///   false regardless, so no Repo Lane re-opens even if a Card returns to Todo.

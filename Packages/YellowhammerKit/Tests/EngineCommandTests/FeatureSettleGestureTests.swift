@@ -320,6 +320,16 @@ struct FeatureSettleGestureTests {
         #expect(doneCard.blockReason == BlockReason.featureCompleted.rawValue)
         #expect(doneCard.budgetEpoch == 3)
 
+        // The completion comment names BACK-3 as waiting on BACK-2, by issue id and title.
+        let doneComment = try #require(await doneWorld.boards.writing.comments.first)
+        let doneLine = try #require(doneComment.body.components(separatedBy: "\n").first { $0.hasPrefix("- BACK-3") })
+        #expect(doneLine.contains("It is held behind BACK-2 (\"BACK-2\")."))
+        // BACK-2 was already Blocked `reviewer rejection`, not a close's own reason: never itself named held.
+        let doneHolderLine = try #require(
+            doneComment.body.components(separatedBy: "\n").first { $0.hasPrefix("- BACK-2") }
+        )
+        #expect(!doneHolderLine.contains("held behind"))
+
         let cancelWorld = try await makeSettleWorld()
         let heldOnCancel = try await seedHeldTodoCard(cancelWorld, budgetEpoch: 5)
         await cancelWorld.seedFeatureCancelled()
@@ -331,6 +341,13 @@ struct FeatureSettleGestureTests {
         #expect(cancelCard.state == .blocked)
         #expect(cancelCard.blockReason == BlockReason.featureAbandoned.rawValue)
         #expect(cancelCard.budgetEpoch == 5)
+
+        // The release comment names BACK-3 as waiting on BACK-2 too.
+        let cancelComment = try #require(await cancelWorld.boards.writing.comments.first)
+        let cancelLine = try #require(
+            cancelComment.body.components(separatedBy: "\n").first { $0.hasPrefix("- BACK-3") }
+        )
+        #expect(cancelLine.contains("It is held behind BACK-2 (\"BACK-2\")."))
     }
 
     /// Adds a Todo Card to `world`'s backend lane, held behind its existing Blocked BACK-2 (OQ182 item 2).

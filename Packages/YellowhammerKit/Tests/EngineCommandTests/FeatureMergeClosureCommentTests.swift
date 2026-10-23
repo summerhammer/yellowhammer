@@ -53,4 +53,42 @@ struct FeatureMergeClosureCommentTests {
         #expect(body.contains("- none"))
         #expect(body.contains("No green Cards to accept."))
     }
+
+    @Test("A held Card's carried-forward line names the Work Card it waits on, by issue id and title")
+    func heldCardNamesWhatItWaitsOn() {
+        let comment = FeatureMergeClosureComment(
+            landings: ["backend": "abc123"],
+            carriedForward: [
+                FeatureMergeClosureComment.CarriedForwardCard(
+                    issueID: "DOCS-2", blockReason: .featureCompleted,
+                    waitsOn: HeldWorkCard(issueID: "DOCS-1", title: "Write the migration guide")
+                )
+            ],
+            acceptedCards: [], unmetClauses: [],
+            triagedNightStart: mergeClosureLandingNightStart, observingNightStart: mergeClosureObservingNightStart
+        )
+
+        let body = comment.body()
+
+        #expect(body.contains(
+            "- DOCS-2 — Blocked (feature completed), awaiting Adoption by a later Feature; its counters "
+                + "and round history are intact. It is held behind DOCS-1 (\"Write the migration guide\")."
+        ))
+    }
+
+    @Test("A carried-forward Card with no waitsOn never mentions being held")
+    func unheldCarriedForwardCardNamesNoHolder() {
+        let comment = FeatureMergeClosureComment(
+            landings: ["backend": "abc123"],
+            carriedForward: [
+                FeatureMergeClosureComment.CarriedForwardCard(issueID: "BACK-2", blockReason: .reviewerRejection)
+            ],
+            acceptedCards: [], unmetClauses: [],
+            triagedNightStart: mergeClosureLandingNightStart, observingNightStart: mergeClosureObservingNightStart
+        )
+
+        let body = comment.body()
+
+        #expect(!body.contains("held behind"))
+    }
 }
