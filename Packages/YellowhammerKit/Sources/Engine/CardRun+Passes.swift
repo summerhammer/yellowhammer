@@ -125,8 +125,9 @@ extension CardRun {
     /// When an architect or worker `failed` result carries `authoring_invariant_violation`, records it
     /// before the Attempt ends (graph-execution/handle-a-block-mid-graph, P8.9): this is an
     /// authoring-invariant violation, not an ordering failure — the Feature was mis-authored, and its
-    /// Cards were never in an order that meant anything. Names an earlier Card in the same lane that is
-    /// currently Blocked or Waiting on You as the likely hole this Card needed.
+    /// Cards were never in an order that meant anything. Names an earlier Card of this Card's own
+    /// same-repository sequence (spec ruling OQ182) that is currently Blocked or Waiting on You as the
+    /// likely hole this Card needed.
     private func recordAuthoringInvariantViolationIfNeeded(_ violation: String?, frame: CardRunFrame) throws {
         guard let violation else { return }
         var reason = "authoring-invariant violation, not an ordering failure: the Feature was mis-authored, "

@@ -297,9 +297,10 @@ public struct BuildAct: Sendable {
     }
 
     /// Re-reads a Card just run and, when it is now Blocked or Waiting on You, appends
-    /// `.laneHoleRecorded` (graph-execution/handle-a-block-mid-graph, P8.9): the lane already moved on
-    /// to its next Card, so this only names the hole for the Partial Landing announcement (P10.4) to
-    /// read later, via ``JournalStore/laneHoles(cycleID:)``.
+    /// `.laneHoleRecorded` (graph-execution/handle-a-block-mid-graph, P8.9): since spec ruling OQ182
+    /// the lane now holds every later Card of this Card's own same-repository sequence rather than
+    /// moving on, so this names the hole for the Partial Landing announcement (P10.4) to read later,
+    /// via ``JournalStore/laneHoles(cycleID:)``.
     private func recordLaneHoleIfNeeded(cardID: Int64, repository: String, actContext: ActContext) throws {
         let current = try actContext.journal.card(id: cardID)
         switch current.state {

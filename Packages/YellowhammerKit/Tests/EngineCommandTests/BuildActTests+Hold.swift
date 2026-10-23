@@ -19,6 +19,23 @@ private func claimBuildActLease(_ journal: JournalStore, runID: RunID, now: Date
     }
 }
 
+/// A fake ``CardRunner`` that transitions one named Card straight to Blocked and leaves every other
+/// Card untouched — so BACK-1 ends this Act Blocked (not Done, and not simply unreached), which is
+/// what makes the hold, rather than an unrelated lane break, the reason BACK-2 never runs.
+private struct BlockingRunner: CardRunner {
+    let blockingIssueID: String
+    let log: CallLog
+
+    func run(card: CardRecord, in lane: RepoLane, context: BuildActContext, readiness: CardReadiness) async throws {
+        log.add(card.issueID)
+        guard card.issueID == blockingIssueID else { return }
+        _ = try context.act.journal.transitionCard(
+            cardID: card.id, to: .blocked, blockReason: .routeFailure,
+            runID: context.act.runID, act: context.act.act, nightID: context.act.night.id
+        )
+    }
+}
+
 @Suite("Build Act's same-repository hold (OQ182)")
 struct BuildActHoldTests {
     @Test("""
@@ -40,28 +57,32 @@ struct BuildActHoldTests {
             journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .todo
         )
 
-        // Act 1: the runner throws for "backend" before it can transition BACK-1 to Done — an engine
-        // fault that leaves BACK-1 exactly as it stood (Todo), so BACK-2 is held and never reached.
+        // Act 1: BACK-1 ends Blocked (not Done — and not merely unreached by a lane break), so BACK-2
+        // is held: the CardRunner never sees it.
         let firstRunID = RunID()
         try claimBuildActLease(journal, runID: firstRunID, now: buildActEpoch)
-        let firstRecorder = RecordingCardRunner(throwingFor: ["backend"])
+        let firstLog = CallLog()
         let firstInvocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal,
-            trigger: .scheduled, runID: firstRunID, work: BuildAct(cardRunner: firstRecorder).work
+            trigger: .scheduled, runID: firstRunID,
+            work: BuildAct(cardRunner: BlockingRunner(blockingIssueID: "BACK-1", log: firstLog)).work
         )
-        await #expect(throws: BuildActError.self) {
-            try await firstInvocation.run()
-        }
+        try await firstInvocation.run()
 
-        #expect(firstRecorder.seen.map(\.issueID) == ["BACK-1"])
-        #expect(try journal.card(id: back1).state == .todo)
+        #expect(firstLog.all == ["BACK-1"])
+        #expect(try journal.card(id: back1).state == .blocked)
         #expect(try journal.card(id: back2).state == .todo)
 
-        // Act 2: an ordinary runner. BACK-1 has no predecessor, so it runs and reaches Done; the lane
-        // loop then re-reads BACK-1's current state through the Journal — not the stale lane snapshot —
-        // finds it Done, and runs BACK-2 too, in the same Act.
+        // Between Acts: BACK-1 reaches Done — "Done at the start of a later build Act" (c3) — with no
+        // Card run involved, so the only question left is whether the lane loop re-reads it.
         let secondRunID = RunID()
         try claimBuildActLease(journal, runID: secondRunID, now: buildActEpoch.addingTimeInterval(60))
+        _ = try journal.transitionCard(
+            cardID: back1, to: .done, runID: secondRunID, act: .build, nightID: nil
+        )
+
+        // Act 2: an ordinary runner. The lane loop re-reads BACK-1's current state through the
+        // Journal — not the stale lane snapshot — finds it Done, and runs the held BACK-2.
         let secondRecorder = RecordingCardRunner()
         let secondInvocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal,
@@ -69,8 +90,7 @@ struct BuildActHoldTests {
         )
         try await secondInvocation.run()
 
-        #expect(secondRecorder.seen.map(\.issueID) == ["BACK-1", "BACK-2"])
-        #expect(try journal.card(id: back1).state == .done)
+        #expect(secondRecorder.seen.map(\.issueID) == ["BACK-2"])
         #expect(try journal.card(id: back2).state == .done)
     }
 
