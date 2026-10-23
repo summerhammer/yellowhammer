@@ -160,15 +160,17 @@ struct FeatureMergeClosureTests {
 
         // A same-repository sequence of its own lane: DOCS-1 (already Blocked) holds DOCS-2 and
         // DOCS-3, both still Todo.
-        try insertMergeCard(
+        let docsFirstID = try insertMergeCard(
             world.journal, cycleID: world.cycleID, issueID: "DOCS-1", repository: "docs", state: .blocked,
             blockReason: .reviewerRejection
         )
         let heldFirstID = try insertMergeCard(
-            world.journal, cycleID: world.cycleID, issueID: "DOCS-2", repository: "docs", state: .todo
+            world.journal, cycleID: world.cycleID, issueID: "DOCS-2", repository: "docs", state: .todo,
+            budgetEpoch: 3
         )
         let heldSecondID = try insertMergeCard(
-            world.journal, cycleID: world.cycleID, issueID: "DOCS-3", repository: "docs", state: .todo
+            world.journal, cycleID: world.cycleID, issueID: "DOCS-3", repository: "docs", state: .todo,
+            budgetEpoch: 5
         )
         // A Todo Card whose only sequence predecessor is already Done: never held, never touched.
         try insertMergeCard(
@@ -191,17 +193,19 @@ struct FeatureMergeClosureTests {
 
         // Both held Cards are Blocked `feature completed`, their counters and round history untouched,
         // and detached from the Feature Issue.
-        for cardID in [heldFirstID, heldSecondID] {
+        for (cardID, epoch) in [(heldFirstID, 3), (heldSecondID, 5)] {
             let card = try world.journal.card(id: cardID)
             #expect(card.state == .blocked)
             #expect(card.blockReason == BlockReason.featureCompleted.rawValue)
-            #expect(card.budgetEpoch == 0)
+            #expect(card.budgetEpoch == epoch)
             #expect(try world.journal.attemptSummary(cardID: cardID).roundCount == 0)
         }
         for issueID in ["DOCS-2", "DOCS-3"] {
             let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: issueID)))
             #expect(issue.parent == nil)
         }
+        // DOCS-1 was already Blocked: it keeps its own reason, never overwritten by the new auto-Block.
+        #expect(try world.journal.card(id: docsFirstID).blockReason == BlockReason.reviewerRejection.rawValue)
 
         // The unheld Todo Card is left exactly as it stood.
         let free = try world.journal.card(id: freeCardID)
