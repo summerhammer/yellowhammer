@@ -40,8 +40,6 @@ func protectedPathRefusesBeforeDispatch() async throws {
 
     try await runReadinessAct(scenario, readiness: makeReadinessCheck(), repositories: protectedRepositories)
 
-    #expect(scenario.recorder.seen.map(\.issueID) == [scenario.issueTwo])
-
     let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
     #expect(card.state == .waitingOnYou)
     #expect(card.waitingReason == .overreach)
@@ -69,9 +67,12 @@ func protectedPathRefusesBeforeDispatch() async throws {
         Issue.record("expected repoLaneEnded")
         return
     }
-    #expect(cardsRun == 1)
+    #expect(cardsRun == 0)
     #expect(cardsSkipped == 1)
 
+    // The first Card is Waiting on You, not Done: it holds the second Card of its sequence too, so
+    // the CardRunner never sees either one.
+    #expect(scenario.recorder.seen.isEmpty)
     let cardTwo = try #require(try scenario.journal.card(issueID: scenario.issueTwo))
     #expect(cardTwo.state == .todo)
 }

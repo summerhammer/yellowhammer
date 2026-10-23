@@ -27,4 +27,34 @@ extension JournalStore {
             return try rows.map { try Self.cardRecord(from: $0) }
         }
     }
+
+    /// Every Card adopted into the Feature whose Feature Issue is `featureIssueID`, mapped to the
+    /// `previous_feature_issue_id` of its (latest, if more than one) `CardAdopted` event (spec ruling
+    /// OQ182, item 5): the same-repository hold reads it to keep an adopted Card's sequence apart from
+    /// a newly authored one's. Reads the stored events directly — no column, no migration.
+    public func adoptionOrigins(featureIssueID: String) throws -> [Int64: String] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT json_extract(payload, '$.card_id') AS card_id,
+                       json_extract(payload, '$.previous_feature_issue_id') AS previous_feature_issue_id
+                FROM event
+                WHERE type = ? AND json_extract(payload, '$.new_feature_issue_id') = ?
+                ORDER BY id ASC
+                """,
+                arguments: [JournalEventType.cardAdopted.rawValue, featureIssueID]
+            )
+            var origins: [Int64: String] = [:]
+            for row in rows {
+                guard
+                    let cardIDText: String = row["card_id"], let cardID = Int64(cardIDText),
+                    let previousFeatureIssueID: String = row["previous_feature_issue_id"]
+                else { continue }
+                // Ascending order, so a Card adopted more than once has its latest event win.
+                origins[cardID] = previousFeatureIssueID
+            }
+            return origins
+        }
+    }
 }

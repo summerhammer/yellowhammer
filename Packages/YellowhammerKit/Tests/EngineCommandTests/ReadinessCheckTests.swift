@@ -126,7 +126,7 @@ func directEvaluate(
     return try await readiness.evaluate(card: card, context: context)
 }
 
-@Test("A Card with no Architectural Brief fails readiness; the lane moves on")
+@Test("A Card with no Architectural Brief fails readiness; it holds the next Card of its sequence (OQ182)")
 func briefMissingFailsReadiness() async throws {
     let scenario = try await makeReadinessScenario()
     defer { cleanup(scenario) }
@@ -143,14 +143,17 @@ func briefMissingFailsReadiness() async throws {
     #expect(issueID == scenario.issueOne)
     #expect(failures.contains { $0.contains("no Architectural Brief") })
 
-    #expect(scenario.recorder.seen.map(\.issueID) == [scenario.issueTwo])
+    // The first Card stays Todo (readiness failure is not a state transition), so it holds the second
+    // Card of its same-repository sequence: neither Card ever reaches the CardRunner.
+    #expect(scenario.recorder.seen.isEmpty)
+    #expect(try scenario.journal.card(id: scenario.cardTwo).state == .todo)
 
     let laneEnded = try scenario.journal.events(ofType: .repoLaneEnded)
     guard case .repoLaneEnded(_, let cardsRun, _, let cardsSkipped) = laneEnded[0].event else {
         Issue.record("expected repoLaneEnded")
         return
     }
-    #expect(cardsRun == 1)
+    #expect(cardsRun == 0)
     #expect(cardsSkipped == 1)
 
     let attempts = try scenario.journal.attemptHistory(cardID: scenario.cardOne)
@@ -244,7 +247,7 @@ func readyCardIsDispatched() async throws {
     #expect(cardsSkipped == 0)
 }
 
-@Test("A malformed Card override fails readiness and keeps the Card from dispatching; a valid one does not")
+@Test("A malformed Card override fails readiness and keeps the Card from dispatching; it holds the next Card too")
 func malformedCardOverrideFailsReadiness() async throws {
     let scenario = try await makeReadinessScenario()
     defer { cleanup(scenario) }
@@ -269,7 +272,10 @@ func malformedCardOverrideFailsReadiness() async throws {
     }
     #expect(issueID == scenario.issueOne)
     #expect(failures.contains { $0.contains("Card override") && $0.contains("one space after the colon") })
-    #expect(scenario.recorder.seen.map(\.issueID) == [scenario.issueTwo])
+    // The first Card's own valid override is beside the point: it stays Todo on readiness failure, and
+    // that alone holds the second Card of its sequence, whatever the second Card's own override says.
+    #expect(scenario.recorder.seen.isEmpty)
+    #expect(try scenario.journal.card(id: scenario.cardTwo).state == .todo)
     // Retained as written: failing readiness does not touch the held value.
     #expect(try scenario.journal.cardOverrideLines(cardID: scenario.cardOne) == ["Card override:  codex/o3/high"])
 }

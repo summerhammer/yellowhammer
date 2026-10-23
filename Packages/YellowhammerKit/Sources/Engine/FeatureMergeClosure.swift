@@ -9,7 +9,10 @@ import Journal
 ///
 /// "Merging costs the Card nothing": a Card still Waiting on You is auto-Blocked with Block Reason
 /// `reply overdue`, the same exit `overdue_nights_max` would have given it — its counters and round
-/// history untouched. Surviving Blocked Cards are detached from the Feature Issue, awaiting Adoption.
+/// history untouched. A Todo Card still held behind a not-Done same-repository sequence predecessor
+/// (``CardAutoBlock/held(cycleID:featureIssueID:reason:context:)``, spec ruling 2026-10-22 item 3) is
+/// likewise auto-Blocked `feature completed`, so it never ships Todo in an archived Cycle where no
+/// Adoption can reach it. Surviving Blocked Cards are detached from the Feature Issue, awaiting Adoption.
 /// The Cycle is archived `closed_by = merge`; the Feature Issue is archived (`issueArchive`) and never
 /// moved to Done — the spec leaves the merge-closed state deliberately unnamed, which is how "closed by
 /// merge" stays distinguishable from "closed by verification". Never merges or closes a pull request,
@@ -39,6 +42,9 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
         }
 
         try await CardAutoBlock.waitingOnYou(cycleID: cycleID, context: context)
+        try await CardAutoBlock.held(
+            cycleID: cycleID, featureIssueID: feature.issueID, reason: .featureCompleted, context: context
+        )
 
         // Computed after the auto-Block, from Journal state, so a retry (closedBy already `merge`)
         // recomputes the same values rather than trusting anything held in memory.

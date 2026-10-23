@@ -30,6 +30,28 @@ enum CardAutoBlock {
         try await block(cards: cards, reason: { _ in reason }, context: context)
     }
 
+    /// Every Todo Card of `cycleID` held behind a not-Done same-repository sequence predecessor
+    /// (``RepoLane/holder(of:currentCard:)``, spec ruling OQ182 item 2) is auto-Blocked under `reason` —
+    /// `feature completed` at merge close (spec ruling 2026-10-22, item 3). Lanes are derived from the
+    /// Cycle's current Cards, with adopted Cards' sequences read from their recorded `CardAdopted`
+    /// events. A Todo Card with no not-Done predecessor, and every Blocked, Done, Cancelled or Shelved
+    /// Card, is never touched.
+    static func held(cycleID: Int64, featureIssueID: String, reason: BlockReason, context: ActContext) async throws {
+        let journal = context.journal
+        let cards = try journal.cards(cycleID: cycleID)
+        let adoptedFrom = try journal.adoptionOrigins(featureIssueID: featureIssueID)
+        let lanes = RepoLane.derive(from: cards, adoptedFrom: adoptedFrom)
+        var heldCards: [CardRecord] = []
+        for lane in lanes {
+            for card in lane.cards where card.state == .todo && !card.isRemovedFromBoard {
+                if try lane.holder(of: card, currentCard: { try journal.card(id: $0.id) }) != nil {
+                    heldCards.append(card)
+                }
+            }
+        }
+        try await block(cards: heldCards, reason: { _ in reason }, context: context)
+    }
+
     /// Auto-Blocks specific Cards named by the caller (roadmap P11.4: the unanswered-Nights bound), each
     /// under the Block Reason `reason` computes for it — `reply overdue` on the `question` route,
     /// `decision overdue` on `divergence` and `overreach`. Never touches a Worktree: this bound's firing releases nothing but

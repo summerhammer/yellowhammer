@@ -306,6 +306,45 @@ struct FeatureSettleGestureTests {
         #expect(try world.journal.unmergedFeatureStack().isEmpty)
     }
 
+    @Test("A held Todo Card: `feature completed` on native Done, `feature abandoned` on Cancelled")
+    func heldTodoCardIsCarriedForwardOnNativeDisposition() async throws {
+        let doneWorld = try await makeSettleWorld()
+        let heldOnDone = try await seedHeldTodoCard(doneWorld, budgetEpoch: 3)
+        try await doneWorld.seedFeatureDone()
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(doneWorld), cycleID: doneWorld.cycleID, context: try doneWorld.makeContext()
+        )
+        // BACK-3 is held behind BACK-2 (Blocked, not Done): the same-repository hold, not merely "unfinished".
+        let doneCard = try doneWorld.journal.card(id: heldOnDone)
+        #expect(doneCard.state == .blocked)
+        #expect(doneCard.blockReason == BlockReason.featureCompleted.rawValue)
+        #expect(doneCard.budgetEpoch == 3)
+
+        let cancelWorld = try await makeSettleWorld()
+        let heldOnCancel = try await seedHeldTodoCard(cancelWorld, budgetEpoch: 5)
+        await cancelWorld.seedFeatureCancelled()
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(cancelWorld), cycleID: cancelWorld.cycleID,
+            context: try cancelWorld.makeContext()
+        )
+        let cancelCard = try cancelWorld.journal.card(id: heldOnCancel)
+        #expect(cancelCard.state == .blocked)
+        #expect(cancelCard.blockReason == BlockReason.featureAbandoned.rawValue)
+        #expect(cancelCard.budgetEpoch == 5)
+    }
+
+    /// Adds a Todo Card to `world`'s backend lane, held behind its existing Blocked BACK-2 (OQ182 item 2).
+    private func seedHeldTodoCard(_ world: SettleWorld, budgetEpoch: Int) async throws -> Int64 {
+        await world.boards.writing.seed(issue: "BACK-3", description: nil)
+        _ = try await world.boards.writing.updateIssue(
+            BoardObjectID(rawValue: "BACK-3"), BoardIssueChange(parent: .set(BoardObjectID(rawValue: "FEAT-1")))
+        )
+        return try insertMergeCard(
+            world.journal, cycleID: world.cycleID, issueID: "BACK-3", repository: "backend", state: .todo,
+            budgetEpoch: budgetEpoch
+        )
+    }
+
     @Test("A tracked Feature Card in a started state is continuing: nothing is posted and the Feature stays in flight")
     func startedStatePostsNothing() async throws {
         let world = try await makeSettleWorld()

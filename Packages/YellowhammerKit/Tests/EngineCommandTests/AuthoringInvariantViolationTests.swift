@@ -91,6 +91,54 @@ struct AuthoringInvariantViolationTests {
         #expect(steps.contains(CardRunStep.authoringInvariantViolated.rawValue))
     }
 
+    @Test("""
+    An adopted Blocked Card at the head of the lane neither holds a newly authored Card nor is named as \
+    its likely hole (spec ruling OQ182, item 5)
+    """)
+    func adoptedBlockedCardAtHeadDoesNotHoldOrGetNamed() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try await makeCardRunWorld(
+            journal: journal, cards: [("BACK-0", "backend"), ("BACK-1", "backend")], withBoard: false
+        )
+        // BACK-0 is adopted from a previous Feature, and already Blocked.
+        _ = try journal.transitionCard(
+            cardID: try world.card("BACK-0").id, to: .blocked, blockReason: .routeFailure,
+            runID: world.runID, act: .build, nightID: world.context.act.night.id
+        )
+
+        let card0 = try world.card("BACK-0")
+        let card1 = try world.card("BACK-1")
+        let lane = RepoLane(repository: "backend", cards: [card0, card1], adoptedFrom: [card0.id: "FEAT-0"])
+
+        // The RepoLane predicate itself: BACK-0 belongs to a different sequence, so it never holds BACK-1.
+        #expect(try lane.holder(of: card1) { try journal.card(id: $0.id) } == nil)
+
+        let violation = "needs a schema migration an earlier Card was supposed to add"
+        let run = CardRun(
+            resolver: cardRunResolver(), dispatch: AuthoringViolationDispatch(violation: violation),
+            check: RecordingCheck(log: CallLog()), checks: ["backend": .none], reviewRoundsMax: 2,
+            attemptsPerWorkCard: 3, passTimeoutMinutes: 60, resetting: RecordingAttemptResetting()
+        )
+
+        try await run.run(
+            card: card1, in: lane, context: world.context,
+            readiness: CardReadiness(brief: ArchitecturalBrief(prose: "", transcriptions: []), clauses: [])
+        )
+
+        let broken = try journal.events(ofType: .authoringInvariantBroken)
+        #expect(broken.count == 1)
+        guard case .authoringInvariantBroken(_, let issueID, let reason) = try #require(broken.first?.event) else {
+            Issue.record("expected authoringInvariantBroken")
+            return
+        }
+        #expect(issueID == "BACK-1")
+        #expect(reason.contains(violation))
+        // BACK-0 is adopted: never named as BACK-1's likely hole, even though it is Blocked and precedes it.
+        #expect(!reason.contains("BACK-0"))
+        #expect(!reason.contains("the likely hole"))
+    }
+
     @Test("An architect failure carrying authoring_invariant_violation is recorded the same way")
     func architectViolationIsRecorded() async throws {
         let fixture = try OutboxJournalFixture()

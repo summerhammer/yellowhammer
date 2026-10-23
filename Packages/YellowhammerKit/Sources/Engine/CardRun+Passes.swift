@@ -125,8 +125,9 @@ extension CardRun {
     /// When an architect or worker `failed` result carries `authoring_invariant_violation`, records it
     /// before the Attempt ends (graph-execution/handle-a-block-mid-graph, P8.9): this is an
     /// authoring-invariant violation, not an ordering failure — the Feature was mis-authored, and its
-    /// Cards were never in an order that meant anything. Names an earlier Card in the same lane that is
-    /// currently Blocked or Waiting on You as the likely hole this Card needed.
+    /// Cards were never in an order that meant anything. Names an earlier Card of this Card's own
+    /// same-repository sequence (spec ruling OQ182) that is currently Blocked or Waiting on You as the
+    /// likely hole this Card needed.
     private func recordAuthoringInvariantViolationIfNeeded(_ violation: String?, frame: CardRunFrame) throws {
         guard let violation else { return }
         var reason = "authoring-invariant violation, not an ordering failure: the Feature was mis-authored, "
@@ -143,11 +144,13 @@ extension CardRun {
         try frame.record(.authoringInvariantViolated, detail: reason)
     }
 
-    /// The issue ids of every Card earlier in this Card's lane (by authored order) that is, as the
-    /// Journal now reads it, Blocked or Waiting on You — re-read for current state rather than trusting
-    /// the lane snapshot this build Act derived, since it may be stale by the time a later pass runs.
+    /// The issue ids of every Card earlier in this Card's own same-repository sequence
+    /// (``RepoLane/sequencePredecessors(of:)``, spec ruling OQ182, item 5) that is, as the Journal now
+    /// reads it, Blocked or Waiting on You — re-read for current state rather than trusting the lane
+    /// snapshot this build Act derived, since it may be stale by the time a later pass runs. An adopted
+    /// Card is never named here for a newly authored Card's violation, and vice versa.
     private func earlierHoles(frame: CardRunFrame) throws -> [String] {
-        let earlier = frame.lane.cards.filter { $0.authoredOrder < frame.card.authoredOrder }
+        let earlier = frame.lane.sequencePredecessors(of: frame.card)
         var holes: [String] = []
         for card in earlier {
             let current = try frame.journal.card(id: card.id)
