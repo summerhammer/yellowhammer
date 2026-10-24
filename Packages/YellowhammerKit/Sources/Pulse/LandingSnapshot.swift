@@ -72,6 +72,7 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
         case let .attempt(id): pulse.now.attempts.contains { $0.id == id }
         case let .repo(repo): repos.contains(repo)
         case let .night(id): pulse.night?.id == id
+        case .scheduledNight: pulse.night == nil && pulse.scheduledNight?.isOpen == true
         }
     }
 

@@ -61,11 +61,24 @@ struct InspectorView: View {
                 attempt: project.runningAttempt(for: repo),
                 decisionCardIDs: decisionCardIDs
             )
+        case .night, .scheduledNight:
+            nightPane(for: selection)
+        }
+    }
+
+    @ViewBuilder private func nightPane(for selection: PulseSelection) -> some View {
+        switch selection {
         case let .night(id):
             if let night = project.pulse.night, night.id == id,
                let nightAccount, nightAccount.project == project.id, nightAccount.nightID == id {
                 NightDetailView(night: night, model: nightAccount)
             }
+        case .scheduledNight:
+            if let scheduled = project.pulse.scheduledNight {
+                PendingNightDetailView(scheduled: scheduled)
+            }
+        default:
+            EmptyView()
         }
     }
 }

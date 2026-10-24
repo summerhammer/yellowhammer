@@ -14,6 +14,10 @@ public enum PulseSelection: Hashable, Sendable {
     /// until the selection is cleared, and the Inspector carries the Night's facts and its way out to the
     /// Night Card.
     case night(Int64)
+    /// The Night whose window is open before any Night is recorded: it has no Journal row id yet, so it is
+    /// named by the schedule alone. Only the Inspector shows it, as an explicit empty state; the main area
+    /// keeps the Pulse, because there are no Journal events to play back.
+    case scheduledNight
 }
 
 /// Where a Pulse element leads. None of these is a triage gesture: each opens something, and the
