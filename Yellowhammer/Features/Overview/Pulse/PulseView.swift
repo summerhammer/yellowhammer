@@ -29,10 +29,6 @@ struct PulseView: View {
                     if let failure = project.journalFailure {
                         JournalFailureNotice(failure: failure)
                     } else {
-                        PulseSummaryStrip(pulse: project.pulse) { group in
-                            withAnimation { proxy.scrollTo(group, anchor: .top) }
-                        }
-                        .padding(.bottom, 6)
                         ForEach(PulseGroup.allCases) { group in
                             card(group).id(group)
                         }
