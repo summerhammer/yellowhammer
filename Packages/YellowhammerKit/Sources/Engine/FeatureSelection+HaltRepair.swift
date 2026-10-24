@@ -21,10 +21,10 @@ extension FeatureSelection {
     /// Validates and resumes the oldest tracked halted Feature whose Feature Card the Operator moved to Todo; nil
     /// when there is none, or none can be acted on (another Feature occupies the slot), so selection goes on.
     ///
-    /// The selector is not called when the halt's checkpoint holds the selection. The deterministic checks for the
-    /// halt cause run first and spend no Attempt, no model call and no authoring-fault count; only a genuinely
-    /// missing stage runs a model, and the Journal records why. Todo alone never clears the halt: only the plan
-    /// the transaction durably accepts does.
+    /// The selector is not called when the halt's checkpoint holds an accepted selection with determined repositories.
+    /// The deterministic checks for the halt cause run first and spend no Attempt, no model call and no
+    /// authoring-fault count; only a genuinely missing stage runs a model, and the Journal records why. Todo alone
+    /// never clears the halt: only the plan the transaction durably accepts does.
     func resumeRepairedHalt(_ context: ActContext) async throws -> FeatureAuthoringOutcome? {
         guard let board = context.board, context.outbox != nil, transaction != nil else { return nil }
         let journal = context.journal
@@ -83,15 +83,9 @@ extension FeatureSelection {
         let scope = SelectionScope(repositories: repositories, candidates: candidates, held: held, boardState: board)
 
         let selection: SelectedFeature
-        if let stored = checkpoint.selection {
-            selection = stored
-        } else {
-            switch try await pinnedSelection(
-                of: feature, scope: scope, board: scope.boardState, context: context
-            ) {
-            case .selected(let chosen): selection = chosen
-            case .stopped(let outcome): return try await conclude(outcome, request, context: context)
-            }
+        switch try await resolveRepairSelection(request, scope: scope, context: context) {
+        case .selection(let chosen): selection = chosen
+        case .stopped(let outcome): return try await conclude(outcome, request, context: context)
         }
         try journal.recordAuthoringRepairDiagnostic(haltID: halt.id, diagnostic: nil)
         var snapshot: HaltRepairSnapshot?
@@ -119,20 +113,47 @@ extension FeatureSelection {
         return try await conclude(outcome, request, context: context)
     }
 
+    private enum RepairSelection {
+        case selection(SelectedFeature)
+        case stopped(FeatureAuthoringOutcome)
+    }
+
+    private func resolveRepairSelection(
+        _ request: RepairRequest, scope: SelectionScope, context: ActContext
+    ) async throws -> RepairSelection {
+        let (halt, feature, checkpoint) = (request.halt, request.feature, request.checkpoint)
+        if let stored = checkpoint.selection, halt.causeKind != "repositories-undetermined",
+            !stored.repositories.isEmpty {
+            return .selection(stored)
+        }
+        let reason = (halt.causeKind == "repositories-undetermined"
+            || (checkpoint.selection?.repositories.isEmpty ?? false))
+            ? "the repository set was undetermined: the selection is missing, so it runs pinned to this one"
+            : "the halt predates the selector's choice of a Feature, so it runs pinned to this one"
+        switch try await pinnedSelection(
+            of: feature, reason: reason, scope: scope, board: scope.boardState, context: context
+        ) {
+        case .selected(let chosen): return .selection(chosen)
+        case .stopped(let outcome): return .stopped(outcome)
+        }
+    }
+
     private enum PinnedSelection {
         case selected(SelectedFeature)
         case stopped(FeatureAuthoringOutcome)
     }
 
-    /// The halt was recorded before the selector chose a Feature, so there is no selection to resume: the selector
-    /// is the genuinely missing stage, and it runs pinned to this Feature's name — never to choose another.
+    /// The halt was recorded before the selector chose a Feature, or the repository set was undetermined, so
+    /// there is no accepted selection to resume: the selector is the genuinely missing stage, and it runs pinned
+    /// to this Feature's name — never to choose another.
     private func pinnedSelection(
-        of feature: FeatureName, scope: SelectionScope, board: SelectionBoardState, context: ActContext
+        of feature: FeatureName, reason: String, scope: SelectionScope, board: SelectionBoardState,
+        context: ActContext
     ) async throws -> PinnedSelection {
         let journal = context.journal
         try journal.recordAuthoringRepairStep(
             feature: feature, step: "stage",
-            detail: "selection: the halt predates the selector's choice of a Feature, so it runs pinned to this one",
+            detail: "selection: \(reason)",
             nightID: context.night.id, act: context.act, runID: context.runID
         )
         let source = try Self.specificationSource(scope.repositories)
