@@ -9,7 +9,8 @@ import Domain
 /// Spec Source never overlaps: no Work Card writes it, and a Card's repository is always a working Repo.
 enum ContractOverlapCheck {
     /// OQ175(a): whether an empty Declared Scope reads as the whole repository (the floor then fires at repository
-    /// level) or as nothing (it catches nothing until scope ships). Open; built as the agent's lean.
+    /// level) or as nothing (it catches nothing until scope ships). Closed 2026-10-15 (ruled by the sponsor):
+    /// the repository-level floor fires while scope is empty.
     static let emptyScopeReadsAsWholeRepository = true
 
     /// The cross-repository overlaps in `breakdown` (`reader.repository != writer.repository`), one per

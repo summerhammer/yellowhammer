@@ -309,13 +309,14 @@ extension Instruction {
 
     /// Only the architect and worker passes ever discover a Card cannot be completed against the
     /// repositories as authored (graph-execution/handle-a-block-mid-graph, P8.9): Cards in a Feature
-    /// never depend on Cards, so this is an authoring-invariant violation, not an ordering failure.
-    /// Missing unmerged or unreleased upstream work is also an authoring-invariant violation (OQ175).
+    /// never depend on Cards in other repositories, so this is an authoring-invariant violation, not an
+    /// ordering failure. Missing unmerged or unreleased upstream work is also an authoring-invariant violation
+    /// (OQ175, OQ182).
     private var authoringInvariantSentence: String? {
         switch pass {
         case .architect, .worker:
-            return "Cards in a Feature never depend on each other; if this Card cannot be completed "
-                + "without work another Card has yet to do, report `failed` and describe that work in "
+            return "Cards in a Feature never depend on Cards in other repositories; if this Card cannot be completed "
+                + "without work a Card in another repository has yet to do, report `failed` and describe that work in "
                 + "`authoring_invariant_violation`. Required work absent from another repository's usable "
                 + "mainline or release is an authoring-invariant violation: report `failed` with "
                 + "`authoring_invariant_violation` naming the repository and missing work, and never complete "

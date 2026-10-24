@@ -60,9 +60,9 @@ extension AuthoringInstruction {
     private var authoringInvariantSection: String {
         var paragraphs = [
             "## Authoring invariant",
-            "Every Work Card in a Feature must be completable and verifiable against the repositories as they "
-                + "exist at authoring time: nothing a Work Card needs may be work another Work Card in the same "
-                + "Feature has yet to do."
+            "Across repositories, every Work Card in a Feature must be completable and verifiable against the "
+                + "other repositories as they exist at authoring time: nothing a Work Card needs from another "
+                + "repository may be work another Work Card in the same Feature has yet to do."
         ]
         if pass == .breakdown {
             paragraphs.append(
