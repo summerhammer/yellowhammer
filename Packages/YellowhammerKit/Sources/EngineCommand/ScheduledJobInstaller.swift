@@ -180,7 +180,7 @@ struct ScheduledJobInstaller {
     private func reportRunningJob(_ job: ScheduledJob) {
         output(
             "Project \(job.projectID): skipped running \(job.label); " // glossary:ignore GL001
-                + "rerun yh setup --install-jobs when the job is idle."
+                + "the Project's next scheduled Act regenerates it, or yh doctor --fix once it is idle."
         )
     }
 }

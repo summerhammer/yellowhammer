@@ -3,7 +3,7 @@ import Domain
 /// The wall-clock firing grid a Project's `[schedule]` implies, in whole minutes since midnight. Pure
 /// arithmetic — no `Date`/`Calendar` — so it is not affected by DST and can be tested without a clock.
 extension Schedule {
-    /// This repo's local choice (not the spec's): the per-Project offset that keeps sibling Projects'
+    /// The step setup assigns Stagger Offsets in (Schedule Stagger Ruling): multiples of it keep sibling Projects'
     /// LaunchAgents from firing in the same minute. With the default 15-minute `build_every_minutes`,
     /// five Projects staggered by 3 minutes each interleave without ever sharing a minute.
     public static let staggerStepMinutes = 3
@@ -52,9 +52,9 @@ extension Schedule {
         public let message: String
     }
 
-    /// The firing grid for `staggerIndex`'s position among a machine's Projects (sorted ascending by
-    /// `ProjectID`; see ``ScheduledJob``). Offsets `night_start`/`night_end`/every periodic firing by
-    /// `staggerIndex * staggerStepMinutes` (`o`), wrapping at midnight. For each `k` with
+    /// The firing grid for this schedule's Stagger Offset (``staggerOffsetMinutes``, `o`; see
+    /// ``ScheduledJob``). Offsets `night_start`/`night_end`/every periodic firing by `o`, wrapping at
+    /// midnight. For each `k` with
     /// `o + k × build_every_minutes` inside the window, land fires at
     /// `night_start + o + k × build_every_minutes` and build one minute later; author fires at
     /// `night_start + o` and again two minutes after each periodic land tick (one minute when
@@ -64,8 +64,8 @@ extension Schedule {
     /// Throws when the offset consumes the whole Night window (`offset >= L`) or when the window spans
     /// a full 24 hours (`night_start == night_end`): a 24-hour window has no land firing that belongs to
     /// the Night it closes, since that firing would land at the next Night's `night_start` instead.
-    public func firings(staggerIndex: Int) throws(FiringGridError) -> ScheduledFirings {
-        let offset = staggerIndex * Self.staggerStepMinutes
+    public func firings() throws(FiringGridError) -> ScheduledFirings {
+        let offset = staggerOffsetMinutes
         let nightStartMinutes = nightStart.minutesSinceMidnight
         let nightEndMinutes = nightEnd.minutesSinceMidnight
         let rawLength = (nightEndMinutes - nightStartMinutes) % 1440
@@ -79,7 +79,7 @@ extension Schedule {
         }
         guard offset < length else {
             throw FiringGridError(
-                message: "stagger offset \(offset)m at index \(staggerIndex) is not inside the "
+                message: "stagger offset \(offset)m is not inside the "
                     + "\(length)m Night window (night_start \(nightStart), night_end \(nightEnd))"
             )
         }

@@ -10,7 +10,7 @@ struct DoctorLaunchdTests {
     func installedAndLoadedPasses() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
 
         let home = FileManager.default.temporaryDirectory
             .appending(component: "yh-doctor-home-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -19,7 +19,7 @@ struct DoctorLaunchdTests {
         let label = "dev.yellowhammer.alpha.author"
         let author = ScheduledJob(
             projectID: try #require(ProjectID(rawValue: "alpha")), act: .author, yhExecutablePath: "/opt/yh",
-            firings: try Schedule().firings(staggerIndex: 0).author, pathValue: "/usr/bin"
+            firings: try Schedule(staggerMinutes: 0).firings().author, pathValue: "/usr/bin"
         )
         try author.plistData(homeDirectory: "/Users/test")
             .write(to: agentsDirectory.appending(component: "\(label).plist"))
@@ -38,7 +38,7 @@ struct DoctorLaunchdTests {
     func missingPlistWarns() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
 
         let doctor = makeDoctor(directory: directory, checks: [.configuration, .launchd])
         let findings = await doctor.run()
@@ -52,7 +52,7 @@ struct DoctorLaunchdTests {
     func presentNotLoadedWarns() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
 
         let home = FileManager.default.temporaryDirectory
             .appending(component: "yh-doctor-home-\(UUID().uuidString)", directoryHint: .isDirectory)

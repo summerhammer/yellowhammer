@@ -7,12 +7,12 @@ extension Status {
     /// Gathers one Project's whole section: its job states, its Journal-derived last run/last
     /// Night/missed Nights, and the sleep intervals overlapping its examined Night windows.
     func projectStatus(
-        project: ProjectConfiguration, staggerIndex: Int, disabledLabels: Set<String>, sleepHistory: SleepHistory?
+        project: ProjectConfiguration, disabledLabels: Set<String>, sleepHistory: SleepHistory?
     ) async -> ProjectStatus {
         let jobs = await jobStates(projectID: project.id, disabledLabels: disabledLabels)
         let journal = journalStatus(projectID: project.id)
         let missed = missedNights(
-            project: project, staggerIndex: staggerIndex, journal: journal, jobs: jobs, sleepHistory: sleepHistory
+            project: project, journal: journal, jobs: jobs, sleepHistory: sleepHistory
         )
         let examinedWindows = MissedNightDiagnosis.endedWindows(
             schedule: project.schedule, now: now, calendar: calendar, count: examinedNights

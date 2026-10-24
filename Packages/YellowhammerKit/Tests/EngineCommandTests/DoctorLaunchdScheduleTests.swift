@@ -26,9 +26,10 @@ private func projectID(_ id: String) throws -> ProjectID {
     try #require(ProjectID(rawValue: id))
 }
 
-/// What the default `[schedule]` implies for the Project at `staggerIndex` — the same call doctor makes.
+/// What the default `[schedule]` with `stagger_minutes` recorded as `staggerIndex * 3` implies — the same
+/// call doctor makes.
 private func expectedFirings(_ act: Act, staggerIndex: Int) throws -> [TimeOfDay] {
-    let firings = try Schedule().firings(staggerIndex: staggerIndex)
+    let firings = try Schedule(staggerMinutes: staggerIndex * Schedule.staggerStepMinutes).firings()
     switch act {
     case .author: return firings.author
     case .build: return firings.build
@@ -53,7 +54,7 @@ private func writePlist(
     return url
 }
 
-/// Installs every Act's plist for `project` as `firings(staggerIndex:)` returns it.
+/// Installs every Act's plist for `project` as `firings()` returns it.
 private func writeMatchingPlists(project: String, staggerIndex: Int, in agents: URL) throws {
     for act in Act.allCases {
         try writePlist(
@@ -84,14 +85,14 @@ private func launchdFindings(_ findings: [DoctorFinding]) -> [DoctorFinding] {
 private func twoProjectDirectory() throws -> ConfigurationDirectory {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile()
-    try directory.writeValidProjectFile(id: "alpha")
-    try directory.writeValidProjectFile(id: "beta")
+    try directory.writeValidProjectFile(id: "alpha", stagger: 0)
+    try directory.writeValidProjectFile(id: "beta", stagger: 3)
     return directory
 }
 
 @Suite("Doctor: launchd schedule check")
 struct DoctorLaunchdScheduleTests {
-    @Test("Plists generated from firings() pass, each Project at its own stagger index")
+    @Test("Plists generated from firings() pass, each Project at its own recorded Stagger Offset")
     func matchingPlistsPass() async throws {
         let directory = try twoProjectDirectory()
         let (home, agents) = try temporaryHome()
@@ -113,7 +114,7 @@ struct DoctorLaunchdScheduleTests {
     func preRulingAuthorPlistWarnsAndFixes() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
         let author = try #require(try expectedFirings(.author, staggerIndex: 0).first)
@@ -165,7 +166,7 @@ struct DoctorLaunchdScheduleTests {
     func differingPlistWarns(act: Act, edit: ScheduleEdit) async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
         try writePlist(
@@ -194,7 +195,7 @@ struct DoctorLaunchdScheduleTests {
     func unreadablePlistWarns() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         let authorLabel = try label("alpha", .author)
         try Data().write(to: agents.appending(component: "\(authorLabel).plist"))
@@ -214,7 +215,7 @@ struct DoctorLaunchdScheduleTests {
     func fixRewritesDifferingJobs() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
         let buildLabel = try label("alpha", .build)
@@ -298,8 +299,8 @@ struct DoctorLaunchdScheduleTests {
         #expect(launchdFindings(findings).allSatisfy { $0.severity == .pass })
     }
 
-    @Test("The stagger index does not depend on which Project the filter names")
-    func filterKeepsTheStaggerIndex() async throws {
+    @Test("The recorded Stagger Offset does not depend on which Project the filter names")
+    func filterKeepsTheStaggerOffset() async throws {
         let directory = try twoProjectDirectory()
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "beta", staggerIndex: 1, in: agents)
@@ -315,11 +316,36 @@ struct DoctorLaunchdScheduleTests {
         #expect(launchd.allSatisfy { $0.severity == .pass })
     }
 
+    @Test("Installed jobs with no recorded stagger_minutes warn to run setup, and --fix leaves them alone")
+    func unrecordedOffsetWarnsAndIsNotRegenerated() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let (home, agents) = try temporaryHome()
+        // Installed at some other offset than 0, as an index-staggered older build would have.
+        try writeMatchingPlists(project: "alpha", staggerIndex: 2, in: agents)
+        let buildPlist = agents.appending(component: "\(try label("alpha", .build)).plist")
+        let before = try Data(contentsOf: buildPlist)
+        let loaded = try Set(Act.allCases.map { try label("alpha", $0) })
+        let control = RecordingLaunchAgentControl(loadedLabels: loaded)
+
+        let findings = await makeDoctor(
+            directory: directory, homeDirectory: home, launchAgents: control,
+            fix: true, checks: [.configuration, .launchd], runningExecutablePath: yhPath
+        ).run()
+
+        let warning = try #require(launchdFindings(findings).first { $0.severity == .warning })
+        #expect(warning.message.contains("records no stagger_minutes"))
+        #expect(warning.message.contains("yh setup --install-jobs"))
+        #expect(try Data(contentsOf: buildPlist) == before)
+        #expect(!control.calls.contains { if case .bootstrap = $0 { true } else { false } })
+    }
+
     @Test("--fix rewrites an unloaded job's plist and leaves it unloaded")
     func fixKeepsUnloadedJobUnloaded() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
         let buildFirings = try expectedFirings(.build, staggerIndex: 0)
@@ -353,7 +379,7 @@ struct DoctorLaunchdScheduleTests {
     func fixDoesNotInstallMissingJobs() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         try writePlist(
             project: "alpha", act: .build,
@@ -441,7 +467,7 @@ struct DoctorLaunchdScheduleRepairTests {
     func repairPreservesExecutable() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         let (job, url) = try installedBuildJob(in: agents, home: home)
@@ -466,7 +492,7 @@ struct DoctorLaunchdScheduleRepairTests {
     func repairRepointsAMissingExecutable() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         let (job, url) = try installedBuildJob(in: agents, home: home)
@@ -491,7 +517,7 @@ struct DoctorLaunchdScheduleRepairTests {
     func weekdayConstraintWarns() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
         let authorLabel = try label("alpha", .author)
@@ -513,7 +539,7 @@ struct DoctorLaunchdScheduleRepairTests {
     func fixRemovesTheWeekdayConstraint() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
         let (home, agents) = try temporaryHome()
         try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
         let authorLabel = try label("alpha", .author)

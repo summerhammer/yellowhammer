@@ -18,7 +18,7 @@ private struct ExecutableFixture {
         home = freshHomeDirectory()
         let directory = home.appending(components: "Library", "LaunchAgents")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let firings = try Schedule().firings(staggerIndex: project == "alpha" ? 0 : 1).build
+        let firings = try Schedule(staggerMinutes: project == "alpha" ? 0 : 3).firings().build
         job = ScheduledJob(
             projectID: try #require(ProjectID(rawValue: project)), act: .build, yhExecutablePath: executable,
             firings: stale ? Array(firings.dropFirst()) : firings, pathValue: "/usr/bin:/bin"
@@ -34,7 +34,7 @@ private struct ExecutableFixture {
 private func executableDirectory() throws -> ConfigurationDirectory {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile()
-    try directory.writeValidProjectFile(id: "alpha")
+    try directory.writeValidProjectFile(id: "alpha", stagger: 0)
     return directory
 }
 
@@ -86,7 +86,7 @@ struct DoctorExecutableTests {
     @Test("Stale schedule and mismatch share one rewrite; --repoint preserves configured stagger")
     func repairsTogether() async throws {
         let directory = try executableDirectory()
-        try directory.writeValidProjectFile(id: "beta")
+        try directory.writeValidProjectFile(id: "beta", stagger: 3)
         let fixture = try ExecutableFixture(project: "beta", stale: true)
         defer { fixture.cleanup() }
         let control = RecordingLaunchAgentControl(loadedLabels: [fixture.job.label])
@@ -98,7 +98,7 @@ struct DoctorExecutableTests {
         #expect(try fixture.path() == currentYH)
         #expect(control.calls.filter { $0 == .bootout(fixture.job.label) }.count == 1)
         #expect(control.calls.filter { $0 == .bootstrap(fixture.job.label) }.count == 1)
-        let expected = Set(try Schedule().firings(staggerIndex: 1).build)
+        let expected = Set(try Schedule(staggerMinutes: 3).firings().build)
         #expect(Doctor.installedFirings(in: try Data(contentsOf: fixture.url)) == expected)
         #expect(findings.contains { $0.message.contains("repointed") })
     }
@@ -143,7 +143,7 @@ struct DoctorExecutableTests {
     @Test("Project filter prevents executable repair in a sibling")
     func projectFilter() async throws {
         let directory = try executableDirectory()
-        try directory.writeValidProjectFile(id: "beta")
+        try directory.writeValidProjectFile(id: "beta", stagger: 3)
         let fixture = try ExecutableFixture(project: "beta")
         defer { fixture.cleanup() }
         let before = try Data(contentsOf: fixture.url)

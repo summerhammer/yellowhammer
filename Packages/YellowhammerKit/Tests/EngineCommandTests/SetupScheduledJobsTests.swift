@@ -203,7 +203,7 @@ struct SetupScheduledJobsInstallTests {
         let control = RecordingLaunchAgentControl(states: [label: states])
         let output = RecordingOutput()
         _ = try await runTwoProjectInstall(homeDirectory: home, launchAgents: control, output: output)
-        #expect(output.lines.contains { $0.contains("skipped running \(label)") && $0.contains("rerun") })
+        #expect(output.lines.contains { $0.contains("skipped running \(label)") && $0.contains("next scheduled Act") })
         #expect(try Data(contentsOf: url) == old)
         #expect(!control.calls.contains(.bootout(label)))
         #expect(!control.calls.contains(.bootstrap(label)))

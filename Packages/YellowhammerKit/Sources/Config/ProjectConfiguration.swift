@@ -309,16 +309,30 @@ public struct Schedule: Equatable, Sendable {
     public var nightStart: TimeOfDay
     public var nightEnd: TimeOfDay
     public var buildEveryMinutes: Int
+    /// `[schedule] stagger_minutes` as recorded, nil when the file holds none (Schedule Stagger Ruling).
+    /// Setup assigns an absent value; absent and a recorded `0` are different things.
+    public var staggerMinutes: Int?
+
+    /// The Stagger Offset `o`: the recorded `stagger_minutes`, or 0 when none is recorded.
+    public var staggerOffsetMinutes: Int { staggerMinutes ?? 0 }
 
     /// The defaults are the spec's: Decision Gates Ruling, G-7.
     public init(
         nightStart: TimeOfDay = TimeOfDay(uncheckedHour: 22, minute: 0),
         nightEnd: TimeOfDay = TimeOfDay(uncheckedHour: 6, minute: 0),
-        buildEveryMinutes: Int = 15
+        buildEveryMinutes: Int = 15,
+        staggerMinutes: Int? = nil
     ) {
         self.nightStart = nightStart
         self.nightEnd = nightEnd
         self.buildEveryMinutes = buildEveryMinutes
+        self.staggerMinutes = staggerMinutes
+    }
+
+    /// The length of the Night window in minutes: 1440 when `night_start == night_end`.
+    public var windowLengthMinutes: Int {
+        let raw = (nightEnd.minutesSinceMidnight - nightStart.minutesSinceMidnight) % 1440
+        return raw == 0 ? 1440 : (raw < 0 ? raw + 1440 : raw)
     }
 }
 

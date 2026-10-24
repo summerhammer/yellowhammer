@@ -133,7 +133,7 @@ extension Setup {
         // build interval that leaves no firing, so refuse it here, before the Project file or a Linear
         // project exists.
         do {
-            _ = try placeholder.schedule.firings(staggerIndex: 0)
+            _ = try placeholder.schedule.firings()
         } catch {
             throw SetupError("Project \(declaration.id): invalid [schedule]: \(error.message)")
         }

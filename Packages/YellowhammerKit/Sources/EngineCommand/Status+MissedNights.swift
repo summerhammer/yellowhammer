@@ -8,7 +8,7 @@ extension Status {
     /// means no Journal (or it could not be read) — `MissedNightDiagnosis.missedWindows` treats that
     /// as "examine only the most recent ended window, and it is missed".
     func missedNights(
-        project: ProjectConfiguration, staggerIndex: Int, journal: JournalStatus,
+        project: ProjectConfiguration, journal: JournalStatus,
         jobs: [(act: Act, state: LaunchAgentJobState)],
         sleepHistory: SleepHistory?
     ) -> [MissedNight] {
@@ -18,9 +18,9 @@ extension Status {
         )
         guard !windows.isEmpty else { return [] }
 
-        // A `[schedule]` this Project's stagger offset cannot be scheduled from (Schedule.FiringGridError)
+        // A `[schedule]` this Project's Stagger Offset cannot be scheduled from (Schedule.FiringGridError)
         // leaves no known firing grid; every missed window falls back to just its own `night_start`.
-        let firingsOfDay = try? project.schedule.firings(staggerIndex: staggerIndex)
+        let firingsOfDay = try? project.schedule.firings()
         let logModifications = logModifications(projectID: project.id)
         let evidence = MissedNightDiagnosis.PreOpenEvidence(
             journalFailures: journal.journalFailures, logModifications: logModifications

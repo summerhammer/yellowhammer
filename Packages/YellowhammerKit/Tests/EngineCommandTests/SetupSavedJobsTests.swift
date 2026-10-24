@@ -29,8 +29,9 @@ struct SetupSavedJobsTests {
             type = "keychain"
             credential = "keychain:github-other"
             """)
-        try directory.writeValidProjectFile(id: "alpha")
-        try directory.writeValidProjectFile(id: "beta")
+        // Offsets already recorded: setup writes only an absent one, so these files stay byte-identical.
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
+        try directory.writeValidProjectFile(id: "beta", stagger: 3)
         let betaURL = directory.url.appending(components: "projects", "beta.toml")
         let betaText = try String(contentsOf: betaURL, encoding: .utf8)
             .replacingOccurrences(of: "connection = \"acme\"", with: "connection = \"other\"")

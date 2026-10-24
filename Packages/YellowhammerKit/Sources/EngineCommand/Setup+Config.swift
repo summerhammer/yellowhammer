@@ -92,6 +92,7 @@ extension Setup {
         let isMachineFile = destination == machineFileURL
         let identical = sourceData == destinationData
             || (isMachineFile && differsOnlyByOperator(source: sourceData, destination: destinationData))
+            || (!isMachineFile && differsOnlyByStagger(source: sourceData, destination: destinationData))
         return InstallEntry(source: source, destination: destination, action: identical ? .present : .differs)
     }
 
@@ -114,6 +115,18 @@ extension Setup {
             )
         }
         return expected == destinationText
+    }
+
+    /// Setup records `[schedule] stagger_minutes` in the installed Project file before generating its jobs,
+    /// so a prepared Project file without it must still compare `present` on the next identical run: the
+    /// destination counts as unchanged when it is exactly the prepared text with its recorded value set.
+    private func differsOnlyByStagger(source: Data, destination: Data) -> Bool {
+        guard let sourceText = String(data: source, encoding: .utf8),
+              let destinationText = String(data: destination, encoding: .utf8),
+              let installed = try? ProjectConfiguration.parse(destinationText, file: "project"),
+              let recorded = installed.schedule.staggerMinutes
+        else { return false }
+        return ProjectConfiguration.settingStaggerMinutes(recorded, inFileText: sourceText) == destinationText
     }
 
     private func installFile(_ entry: InstallEntry) throws {

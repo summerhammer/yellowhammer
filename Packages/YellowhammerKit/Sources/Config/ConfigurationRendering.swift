@@ -168,15 +168,18 @@ enum ConfigurationRendering {
         """
     }
 
-    /// All three `[schedule]` keys, explicit. The times are quoted as typed (surrounding whitespace
-    /// trimmed) and the interval through ``boundValue(_:)``, so the loader refuses a garbage value.
+    /// The three `[schedule]` keys, explicit, and `stagger_minutes` only when the Project records one. The
+    /// times are quoted as typed (surrounding whitespace trimmed) and the interval through
+    /// ``boundValue(_:)``, so the loader refuses a garbage value.
     static func renderedSchedule(_ schedule: ScheduleDraft) -> String {
-        """
-        [schedule]
-        night_start = \(quoted(schedule.nightStart.trimmingCharacters(in: .whitespaces)))
-        night_end = \(quoted(schedule.nightEnd.trimmingCharacters(in: .whitespaces)))
-        build_every_minutes = \(boundValue(schedule.buildEveryMinutes))
-        """
+        var lines = [
+            "[schedule]",
+            "night_start = \(quoted(schedule.nightStart.trimmingCharacters(in: .whitespaces)))",
+            "night_end = \(quoted(schedule.nightEnd.trimmingCharacters(in: .whitespaces)))",
+            "build_every_minutes = \(boundValue(schedule.buildEveryMinutes))"
+        ]
+        if let stagger = schedule.staggerMinutes { lines.append("stagger_minutes = \(stagger)") }
+        return lines.joined(separator: "\n")
     }
 }
 
@@ -482,7 +485,7 @@ extension ProjectConfiguration {
         named connectionName: String, inFileText text: String
     ) -> String {
         var lines = text.components(separatedBy: "\n")
-        if let header = lines.firstIndex(where: { isCodeHostingHeader($0) }) {
+        if let header = lines.firstIndex(where: { isTableHeader($0, segments: ["code_hosting"]) }) {
             MachineConfiguration.setKey("connection", to: connectionName, tableAt: header, in: &lines)
             return lines.joined(separator: "\n")
         }
@@ -502,7 +505,26 @@ extension ProjectConfiguration {
         return result + "[code_hosting]\nconnection = \(ConfigurationRendering.quoted(connectionName))\n"
     }
 
-    private static func isCodeHostingHeader(_ line: String) -> Bool {
+    /// A textual edit of an existing Project file: preserves every other line, including comments. Sets
+    /// `stagger_minutes` in `[schedule]` (in place, or after the table's last key), appending a `[schedule]`
+    /// table holding only that key when the file has none. Returns `text` unchanged when `schedule` is an
+    /// inline table, which this edit does not rewrite. Applying it twice equals applying it once.
+    public static func settingStaggerMinutes(_ minutes: Int, inFileText text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        if let header = lines.firstIndex(where: { isTableHeader($0, segments: ["schedule"]) }) {
+            MachineConfiguration.setKey("stagger_minutes", toLiteral: "\(minutes)", tableAt: header, in: &lines)
+            return lines.joined(separator: "\n")
+        }
+        if lines.contains(where: { MachineConfiguration.isKeyAssignment($0, key: "schedule") }) { return text }
+        var result = text
+        if !result.isEmpty {
+            if !result.hasSuffix("\n") { result += "\n" }
+            result += "\n"
+        }
+        return result + "[schedule]\nstagger_minutes = \(minutes)\n"
+    }
+
+    private static func isTableHeader(_ line: String, segments expected: [String]) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("["), !trimmed.hasPrefix("[[") else { return false }
         let characters = Array(trimmed.dropFirst())
@@ -520,6 +542,6 @@ extension ProjectConfiguration {
         }
         MachineConfiguration.skipSpaces(characters, &index)
         guard index == characters.count || characters[index] == "#" else { return false }
-        return segments == ["code_hosting"]
+        return segments == expected
     }
 }

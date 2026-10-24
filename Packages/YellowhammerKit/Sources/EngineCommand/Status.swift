@@ -49,7 +49,7 @@ struct Status {
         let invalidStatuses = matchingInvalid.map(Self.invalidProjectStatus)
         for status in invalidStatuses { printInvalidProjectSection(status) }
 
-        let projectStatuses = await projectStatuses(matchingProjects, allProjectIDs: configuration.projects.map(\.id))
+        let projectStatuses = await projectStatuses(matchingProjects)
         for status in projectStatuses { printProjectSection(status) }
 
         return StatusReport(
@@ -80,17 +80,14 @@ struct Status {
         InvalidProjectStatus(file: invalid.file, id: invalid.id, errors: invalid.errors.map { "\($0)" })
     }
 
-    private func projectStatuses(
-        _ projects: [ProjectConfiguration], allProjectIDs: [ProjectID]
-    ) async -> [ProjectStatus] {
+    private func projectStatuses(_ projects: [ProjectConfiguration]) async -> [ProjectStatus] {
         let disabledLabels = await launchAgents.disabledLabels()
         let sleepHistory = await sleepHistory.sleepHistory()
 
         var statuses: [ProjectStatus] = []
         for project in projects {
-            guard let staggerIndex = allProjectIDs.firstIndex(of: project.id) else { continue }
             let status = await projectStatus(
-                project: project, staggerIndex: staggerIndex, disabledLabels: disabledLabels, sleepHistory: sleepHistory
+                project: project, disabledLabels: disabledLabels, sleepHistory: sleepHistory
             )
             statuses.append(status)
         }

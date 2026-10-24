@@ -102,6 +102,19 @@ struct ConfigurationDecoding {
         return result
     }
 
+    /// An integer of at least 0, or nil when the key is absent.
+    func nonNegativeInteger(_ key: String, in table: TOMLTable, path: String?) throws(ConfigurationError) -> Int? {
+        guard let value = table[key] else { return nil }
+        let keyPath = TOMLKey.path(path, key)
+        guard case .integer(let integer) = value.content else {
+            throw error(line: value.line, key: keyPath, .typeMismatch(expected: "integer", found: value.typeName))
+        }
+        guard integer >= 0, let result = Int(exactly: integer) else {
+            throw error(line: value.line, key: keyPath, .negativeStagger(integer))
+        }
+        return result
+    }
+
     func routingTable(in root: TOMLTable) throws(ConfigurationError) -> [RoutingEntry] {
         guard let value = root["routing"] else { return [] }
         guard case .array(let elements) = value.content else {

@@ -57,8 +57,8 @@ struct MarkdownEquivalenceTests {
 
     @Test("A double-backtick code span comes back as a single-backtick one")
     func doubleBacktickSpanIsNormalised() {
-        let ours = "See ``Schedule/firings(staggerIndex:)`` for the offsets"
-        let linear = "See `Schedule/firings(staggerIndex:)` for the offsets"
+        let ours = "See ``Schedule/firings()`` for the offsets"
+        let linear = "See `Schedule/firings()` for the offsets"
         #expect(MarkdownEquivalence.rendersSame(ours, linear))
     }
 
@@ -72,10 +72,10 @@ struct MarkdownEquivalenceTests {
     @Test("The YLH-337 clause with its brackets escaped renders the same")
     func ylh337Clause() {
         let ours = "With night_start 22:00, night_end 06:00, build_every_minutes 15 and offset 3, "
-            + "`firings(staggerIndex: 1).build` is exactly [22:19, 22:34, …, 05:49]; "
+            + "`firings().build` is exactly [22:19, 22:34, …, 05:49]; "
             + "land still contains its periodic ticks"
         let linear = "With night_start 22:00, night_end 06:00, build_every_minutes 15 and offset 3, "
-            + #"`firings(staggerIndex: 1).build` is exactly \[22:19, 22:34, …, 05:49\]; "#
+            + #"`firings().build` is exactly \[22:19, 22:34, …, 05:49\]; "#
             + "land still contains its periodic ticks"
         #expect(MarkdownEquivalence.rendersSame(ours, linear))
     }
@@ -91,8 +91,8 @@ struct MarkdownEquivalenceTests {
 
     @Test("A changed number inside the escaped bracket run is an edit")
     func changedNumberInsideEscapedBrackets() {
-        let ours = "offset 3, `firings(staggerIndex: 1).build` is exactly [22:19, 22:34, …, 05:49]; land ticks"
-        let edited = #"offset 3, `firings(staggerIndex: 1).build` is exactly \[22:20, 22:34, …, 05:49\]; land ticks"#
+        let ours = "offset 3, `firings().build` is exactly [22:19, 22:34, …, 05:49]; land ticks"
+        let edited = #"offset 3, `firings().build` is exactly \[22:20, 22:34, …, 05:49\]; land ticks"#
         #expect(!MarkdownEquivalence.rendersSame(ours, edited))
     }
 

@@ -123,7 +123,9 @@ final class ProjectConfigurationModel {
     }
 
     /// After a save that changed the Night, regenerates this Project's installed LaunchAgents through
-    /// `yh doctor --fix --check launchd`, which skips a running Act. The file is already saved either way;
+    /// `yh doctor --fix --check launchd`, which skips a running Act; the Project's next scheduled Act
+    /// regenerates a job skipped that way (Schedule Stagger Ruling item 4, issue #682). The file is already
+    /// saved either way;
     /// a failure is shown beside the Night, not as a save failure.
     func regenerateScheduledJobs() async {
         guard scheduleChangedOnLastSave, !isRegeneratingJobs,
@@ -143,7 +145,7 @@ final class ProjectConfigurationModel {
             if status != 0 {
                 jobsRegenerationFailure = Self.jobsFailureText(messages: warnings, lines: lines, status: status)
             } else if let warnings, !warnings.isEmpty {
-                // Exit 0 with warnings: no LaunchAgent installed, or one skipped because its Act is running.
+                // Exit 0 with warnings: no LaunchAgent installed, or one skipped because its Act is running (the Project's next scheduled Act regenerates it).
                 jobsRegenerationResult = warnings.joined(separator: "\n")
             } else if let rows, !rows.isEmpty {
                 jobsRegenerationResult = rows.map(\.message).joined(separator: "\n")
