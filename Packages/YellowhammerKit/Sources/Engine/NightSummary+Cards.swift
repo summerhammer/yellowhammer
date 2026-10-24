@@ -82,14 +82,16 @@ extension NightSummary {
 
     /// The `**Dispositions:**` section: the Blocked/Waiting-on-You count over Cards touched this
     /// Night, then which of this Night's `failureCauseRecorded` events on those Cards were a
-    /// recurrence (`recurrenceCount > 1`) versus a first occurrence, each naming its Card, then each
-    /// Work Card removed from the board this Night (``removedCardLines(events:journal:)``). Empty when
-    /// no Card was touched or removed.
+    /// recurrence (`recurrenceCount > 1`) versus a first occurrence, each naming its Card, any Work
+    /// Card held by a usage limit (``usageLimitedHeldCardLines(journal:)``), then each Work Card
+    /// removed from the board this Night (``removedCardLines(events:journal:)``). Empty when no Card
+    /// was touched or removed and none is held by a usage limit.
     public static func dispositionLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         let events = try nightEvents(night: night, journal: journal)
         let cards = try touchedCards(events: events, journal: journal)
         let removed = try removedCardLines(events: events, journal: journal)
-        guard !cards.isEmpty else { return removed }
+        let usageLimited = try usageLimitedHeldCardLines(journal: journal)
+        guard !cards.isEmpty else { return usageLimited + removed }
         let touchedIDs = Set(cards.map(\.id))
         let blocked = cards.filter { $0.state == .blocked }.count
         let waiting = cards.filter { $0.state == .waitingOnYou }.count
@@ -109,7 +111,19 @@ extension NightSummary {
                     "and excluding no Route. It stays Blocked (`operator abort`) until re-ready."
             )
         }
-        return lines + removed
+        return lines + usageLimited + removed
+    }
+
+    /// Lines naming every Work Card currently Todo whose latest Attempt ended `usage limited`, with its
+    /// CLI and the backoff's until-time (spec: morning-report/write-the-night-summary#usage-limited-held).
+    public static func usageLimitedHeldCardLines(journal: JournalStore) throws -> [String] {
+        let heldCards = try journal.usageLimitedHeldCards()
+        return try heldCards.map { card, attempt in
+            let cli = attempt.route.cli
+            let until = try journal.cliBackoffUntil(cli: cli)
+            let untilText = until.map { "backoff until \($0.formatted(.iso8601))" } ?? "backoff until not recorded"
+            return "\(cardName(card)) — held by a usage limit (\(cli), \(untilText))."
+        }
     }
 
     /// One line per Work Card whose issue was trashed, or archived while in play, this Night (OQ142),

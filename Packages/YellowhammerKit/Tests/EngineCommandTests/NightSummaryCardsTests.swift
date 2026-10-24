@@ -465,3 +465,198 @@ struct NightSummaryCardsTests {
         #expect(description.contains("1 Blocked, 0 Waiting on You"))
     }
 }
+
+extension NightSummaryCardsTests {
+    @Test("A Work Card held by a usage limit is named in Dispositions with its CLI and backoff until-time")
+    func usageLimitedHeldCardInDispositions() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let seeded = try insertCardsFixture(journal, cardIssueID: "CARD-1", cardState: .todo)
+        let night = try await openNightForCardsTest(journal: journal, board: board) { context in
+            let attempt = try journal.recordAttempt(
+                cardID: seeded.cardID, route: codexRoute, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.recordUsageLimit(
+                route: codexRoute, resetHint: nil, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.endAttempt(
+                attemptID: attempt.id, ending: .usageLimited(), runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+        }
+
+        let until = try #require(try journal.cliBackoffUntil(cli: "codex"))
+        let expectedLine = "`CARD-1` — held by a usage limit (codex, backoff until \(until.formatted(.iso8601)))."
+
+        let lines = try NightSummary.dispositionLines(night: night, journal: journal)
+        #expect(lines.first == "0 Blocked, 0 Waiting on You")
+        #expect(lines.contains(expectedLine))
+
+        let heldLines = try NightSummary.usageLimitedHeldCardLines(journal: journal)
+        #expect(heldLines == [expectedLine])
+
+        let cardLines = try NightSummary.cardLines(night: night, journal: journal)
+        #expect(cardLines == [
+            "`CARD-1` — Todo · Attempt 1: codex/gpt-5.4, usage limited (agent CLI usage limit); " +
+                "check: not run; rounds: none"
+        ])
+    }
+
+    @Test("A Work Card held by a usage limit persists into a subsequent quiet Night's Dispositions")
+    func usageLimitedHeldCardPersistsAcrossNights() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let seeded = try insertCardsFixture(journal, cardIssueID: "CARD-1", cardState: .todo)
+        _ = try await openNightForCardsTest(journal: journal, board: board) { context in
+            let attempt = try journal.recordAttempt(
+                cardID: seeded.cardID, route: codexRoute, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.recordUsageLimit(
+                route: codexRoute, resetHint: nil, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.endAttempt(
+                attemptID: attempt.id, ending: .usageLimited(), runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+        }
+        try journal.releaseActLease(runID: RunID())
+
+        let until = try #require(try journal.cliBackoffUntil(cli: "codex"))
+        let expectedLine = "`CARD-1` — held by a usage limit (codex, backoff until \(until.formatted(.iso8601)))."
+
+        let secondNightStart = try #require(NightStart(rawValue: "2026-09-16"))
+        try await EngineInvocation(
+            act: .author, mode: .real, nightStart: secondNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        ).run()
+        let secondNight = try #require(try journal.currentNight())
+
+        // On the second Night, the Card was not touched, but is still Todo and held by the usage limit.
+        #expect(try NightSummary.cardLines(night: secondNight, journal: journal).isEmpty)
+        let secondLines = try NightSummary.dispositionLines(night: secondNight, journal: journal)
+        #expect(secondLines == [expectedLine])
+    }
+
+    @Test("Repeated usage-limited endings do not cap or block the Work Card")
+    func repeatedUsageLimitsDoNotCapOrBlock() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let seeded = try insertCardsFixture(journal, cardIssueID: "CARD-1", cardState: .todo)
+        let night = try await openNightForCardsTest(journal: journal, board: board) { context in
+            for _ in 1...5 {
+                let attempt = try journal.recordAttempt(
+                    cardID: seeded.cardID, route: codexRoute, runID: context.runID, act: context.act,
+                    nightID: context.night.id
+                )
+                try journal.recordUsageLimit(
+                    route: codexRoute, resetHint: nil, runID: context.runID, act: context.act,
+                    nightID: context.night.id
+                )
+                try journal.endAttempt(
+                    attemptID: attempt.id, ending: .usageLimited(), runID: context.runID, act: context.act,
+                    nightID: context.night.id
+                )
+            }
+        }
+
+        let until = try #require(try journal.cliBackoffUntil(cli: "codex"))
+        let expectedLine = "`CARD-1` — held by a usage limit (codex, backoff until \(until.formatted(.iso8601)))."
+
+        let card = try journal.card(id: seeded.cardID)
+        #expect(card.state == .todo)
+        #expect(card.blockReason == nil)
+        let history = try journal.attemptHistory(cardID: seeded.cardID)
+        #expect(history.consumption(inEpoch: 0).consumed == 0)
+        #expect(history.consumption(inEpoch: 0).notConsumed == 5)
+
+        let lines = try NightSummary.dispositionLines(night: night, journal: journal)
+        #expect(lines.first == "0 Blocked, 0 Waiting on You")
+        #expect(lines.contains(expectedLine))
+        #expect(!lines.contains { $0.contains("Blocked") && $0.contains("CARD-1") })
+    }
+
+    @Test("A Work Card whose latest Attempt is not usage-limited is not reported as held")
+    func nonUsageLimitedLatestAttemptNotReportedAsHeld() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let seeded = try insertCardsFixture(journal, cardIssueID: "CARD-1", cardState: .done)
+        let night = try await openNightForCardsTest(journal: journal, board: board) { context in
+            let attempt1 = try journal.recordAttempt(
+                cardID: seeded.cardID, route: codexRoute, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.recordUsageLimit(
+                route: codexRoute, resetHint: nil, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.endAttempt(
+                attemptID: attempt1.id, ending: .usageLimited(), runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            let attempt2 = try journal.recordAttempt(
+                cardID: seeded.cardID, route: agyRoute, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.endAttempt(
+                attemptID: attempt2.id, ending: .success, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.dispositionLines(night: night, journal: journal)
+        #expect(lines.first == "0 Blocked, 0 Waiting on You")
+        #expect(!lines.contains { $0.contains("held by a usage limit") })
+    }
+
+    @Test("A Work Card held by a usage limit renders through acceptCompletion in Dispositions")
+    func acceptCompletionRendersUsageLimitedHeldCard() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let seeded = try insertCardsFixture(journal, cardIssueID: "CARD-1", cardState: .todo)
+        _ = try await openNightForCardsTest(journal: journal, board: board) { context in
+            let attempt = try journal.recordAttempt(
+                cardID: seeded.cardID, route: codexRoute, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.recordUsageLimit(
+                route: codexRoute, resetHint: nil, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.endAttempt(
+                attemptID: attempt.id, ending: .usageLimited(), runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+        }
+
+        let until = try #require(try journal.cliBackoffUntil(cli: "codex"))
+        let expectedLine = "- `CARD-1` — held by a usage limit (codex, backoff until \(until.formatted(.iso8601)))."
+
+        try await EngineInvocation(
+            act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), closesNight: true, board: board, work: { _ in }
+        ).run()
+
+        let issue = try #require(await boards.writing.liveIssues.first)
+        let description = try #require(issue.description)
+        #expect(description.contains("**Cards:**"))
+        #expect(description.contains(
+            "`CARD-1` — Todo · Attempt 1: codex/gpt-5.4, usage limited (agent CLI usage limit); check: not run"
+        ))
+        #expect(description.contains("**Dispositions:**"))
+        #expect(description.contains(expectedLine))
+    }
+}

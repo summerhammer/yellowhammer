@@ -28,4 +28,47 @@ extension JournalStore {
             return Set(rows)
         }
     }
+
+    /// The latest recorded backoff until-time for `cli`, or nil if none is recorded.
+    public func cliBackoffUntil(cli: String) throws -> Date? {
+        try read { db -> Date? in
+            guard let row = try Row.fetchOne(db, sql: """
+                SELECT id, json_extract(payload, '$.until') AS until FROM event
+                WHERE type = ? AND json_extract(payload, '$.cli') = ?
+                ORDER BY id DESC LIMIT 1
+                """, arguments: [JournalEventType.routeUsageLimited.rawValue, cli])
+            else { return nil }
+            let id: Int64 = row["id"]
+            let timestamp: String = row["until"]
+            return try JournalStore.date(timestamp) {
+                JournalError.eventUnreadable(id: id)
+            }
+        }
+    }
+
+    /// Every Work Card currently Todo whose latest Attempt ended `usage limited`, paired with that
+    /// Attempt, ordered by repository then authored order.
+    public func usageLimitedHeldCards() throws -> [(card: CardRecord, attempt: AttemptRecord)] {
+        try read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT * FROM card
+                WHERE state = ? AND removed_from_board IS NULL
+                ORDER BY repository ASC, authored_order ASC
+                """, arguments: [CardState.todo.rawValue])
+            var result: [(CardRecord, AttemptRecord)] = []
+            for row in rows {
+                let card = try Self.cardRecord(from: row)
+                guard let attemptRow = try Row.fetchOne(db, sql: """
+                    SELECT id FROM attempt
+                    WHERE card_id = ?
+                    ORDER BY id DESC LIMIT 1
+                    """, arguments: [card.id]),
+                    let attempt = try Self.fetchAttempt(db, attemptID: attemptRow["id"]),
+                    attempt.result == AttemptOutcome.usageLimited.rawValue
+                else { continue }
+                result.append((card, attempt))
+            }
+            return result
+        }
+    }
 }
