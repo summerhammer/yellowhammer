@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.28.0](https://github.com/summerhammer/yellowhammer/compare/v0.27.0...v0.28.0) (2026-10-24)
+
+
+### Features
+
+* **engine:** hand usage-limited work and Rounds to the next Attempt ([6798127](https://github.com/summerhammer/yellowhammer/commit/679812748ae42cd446a243bf2f4191a0c4321713))
+* **engine:** held same-repository Work Cards must not keep the land trigger unmet (OQ182 item 4) ([dc141d8](https://github.com/summerhammer/yellowhammer/commit/dc141d8cf5e741d80889dcf92f59de8955cb16bd)), closes [#680](https://github.com/summerhammer/yellowhammer/issues/680)
+* **feature-authoring:** Refuse adopting a later sequence member whose earlier members are neither merged nor adopted ahead of it ([4138ae6](https://github.com/summerhammer/yellowhammer/commit/4138ae6736ec7e6c3469f662ef39f34c0ef8e16a))
+* **landing:** Land a Repo Lane past its held Work Cards and name each in the Partial Landing ([9fd5d6d](https://github.com/summerhammer/yellowhammer/commit/9fd5d6d09f81340f224d891add94fd8fe97c9f98))
+* **landing:** Name each held Work Card, with the Work Card it waits on, in the Feature closure comments ([10c0ff1](https://github.com/summerhammer/yellowhammer/commit/10c0ff1f5b48db13a342b6897b302da6bfedc418))
+* **night-summary:** name Work Cards held by a usage limit (OQ180) ([65d3a6a](https://github.com/summerhammer/yellowhammer/commit/65d3a6ac93c821610b18fddd31280a79316aa1a7)), closes [#662](https://github.com/summerhammer/yellowhammer/issues/662)
+
+
+### Bug Fixes
+
+* **engine:** let a periodic author firing through while the in-flight Cycle has landed (OQ177) ([8532559](https://github.com/summerhammer/yellowhammer/commit/8532559aa4dfd812fd7e2d9cb4ccff4cb3044ca5)), closes [#681](https://github.com/summerhammer/yellowhammer/issues/681)
+* **engine:** record stagger_minutes and regenerate stale LaunchAgents from each Act ([#682](https://github.com/summerhammer/yellowhammer/issues/682)) ([e58423e](https://github.com/summerhammer/yellowhammer/commit/e58423efb6c0d926522991f1488d299467afa6fe))
+* **feature-authoring:** name repair and Todo gesture in Authoring Halt comments ([20ff649](https://github.com/summerhammer/yellowhammer/commit/20ff649edce3172a67e09a1421274771d0080e30)), closes [#677](https://github.com/summerhammer/yellowhammer/issues/677)
+* **feature-authoring:** Re-run pinned selection on repairing repositories-undetermined halt ([60e7ed9](https://github.com/summerhammer/yellowhammer/commit/60e7ed916fbe95fd054538d6989ae700b6e20242))
+
 ## [0.27.0](https://github.com/summerhammer/yellowhammer/compare/v0.26.0...v0.27.0) (2026-10-23)
 
 
