@@ -89,8 +89,9 @@ struct FeatureCancellationTests {
         #expect(try BoardSyncDecisionBarrier.isHeld(journal: journal, runID: runID))
     }
 
-    @Test("Status-only maintenance and quiet standing share the note, preserve U, and remove it on uncancellation")
-    func sharedRenderingAndMaintenance() async throws {
+    @Test("Status-only maintenance and quiet standing share the note, preserve U, and remove it on uncancellation",
+          arguments: [BoardWorkflowStateCategory.unstarted, .completed, .started])
+    func sharedRenderingAndMaintenance(restoredCategory: BoardWorkflowStateCategory) async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let world = try makeRollUpWorld(journal)
@@ -112,10 +113,18 @@ struct FeatureCancellationTests {
         #expect(try journal.unmergedFeatureStack().count == 1)
         #expect(try NightSummary.unmergedStackLines(night: world.night, journal: journal)[0]
             .contains("1 of 2 Feature Branches merged"))
-        try observeFeature(journal, runID: world.runID, state: stateTodo, revision: 21)
+        let restored = BoardWorkflowState(
+            id: BoardObjectID(rawValue: "s-restored"), name: "Operator's state", category: restoredCategory
+        )
+        try observeFeature(journal, runID: world.runID, state: restored, revision: 21)
         try await maintenance.maintainAll(night: world.night)
         let updated = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
         #expect(!updated.contains(FeatureCancellationAnnotation.note))
+        let restoredLines = try NightSummary.unmergedStackLines(night: world.night, journal: journal)
+        #expect(restoredLines.count == 1)
+        #expect(!restoredLines[0].contains(FeatureCancellationAnnotation.note))
+        #expect(try journal.unmergedFeatureStack().map(\.feature.id) == [featureID])
+        #expect(try journal.effectiveBase(repository: "mobile")?.featureID == featureID)
         try observeFeature(journal, runID: world.runID, state: stateCanceledByCategory, revision: 22)
         try journal.recordLanding(featureID: featureID, repository: "mobile", mainlineCommit: "b", evidence: .ancestry)
         #expect(try journal.unmergedFeatureStack().isEmpty)
