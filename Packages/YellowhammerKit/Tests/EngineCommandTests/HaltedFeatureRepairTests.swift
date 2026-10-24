@@ -29,8 +29,8 @@ private final class RepairWorld {
     let reading: FakeReadingBoard
     private var previous: ActContext?
 
-    init() async throws {
-        rig = try await AuthoringRig()
+    init(selector: ScriptedFeatureSelector? = nil) async throws {
+        rig = try await AuthoringRig(selector: selector)
         reading = FakeReadingBoard.quiet(40)
         // Seeded before the link: the reading board names a state from the ones it knew when it was linked.
         await rig.boards.provisioning.seed(state: "Canceled", team: teamID, category: .shelved)
@@ -447,6 +447,52 @@ struct HaltedFeatureRepairTests {
         }
         #expect(detail.contains { $0.hasPrefix("selection:") }, "the Journal says why a model stage ran")
         #expect(try rig.journal.inFlightFeature()?.feature.issueID == issue.rawValue)
+    }
+
+    @Test("repositories-undetermined halt runs pinnedSelection at Todo, no duplicate Feature (spec#113, #676)")
+    func repairingRepositoriesUndeterminedHaltRunsPinnedSelection() async throws {
+        let feature = try #require(FeatureName(rawValue: "FEAT-1"))
+        let emptySelection = SelectedFeature(
+            name: feature, reasoning: "no repos determined", sequence: nil,
+            repositories: [], adoptedCardIssueIDs: []
+        )
+        let validSelection = try authoringSelection()
+        let selector = ScriptedFeatureSelector(outcomes: [
+            .selected(emptySelection),
+            .selected(validSelection)
+        ])
+        let world = try await RepairWorld(selector: selector)
+
+        // Night 1: selection returns empty repositories, halting as repositories-undetermined.
+        try await world.runAuthorAct(night: "2026-10-01")
+        let halted = try world.halt()
+        #expect(halted.causeKind == "repositories-undetermined")
+        #expect(world.rig.selector.callCount == 1)
+        let issue = try world.issueID()
+        #expect(try await world.state(of: issue) == (try world.scope().id(for: .waitingOnYou)))
+        #expect(await world.featureIssueCount() == 1)
+
+        // Operator moves the halted Feature to Todo.
+        try await world.operatorMoves(issue, to: .todo)
+
+        // Night 2: repairing the halt runs pinnedSelection instead of reusing the saved empty selection.
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        #expect(world.rig.selector.callCount == 2, "the selector ran pinned to the Feature at repair")
+        #expect(world.rig.selector.lastRequest?.namedFeature == feature, "pinned to this Feature, never another")
+        #expect(await world.featureIssueCount() == 1, "no duplicate Feature was created")
+        let inFlight = try #require(try world.journal.inFlightFeature())
+        #expect(inFlight.feature.issueID == issue.rawValue, "the same Feature Issue now carries the Cycle")
+        #expect(try tableRowCount(world.journal, table: "cycle") == 1)
+        let after = try world.journal.authoringHalts(feature: world.feature)
+        #expect(after.first { $0.id == halted.id }?.state == .cleared)
+        #expect(try world.steps().contains("accepted"))
+
+        let details = try world.journal.events(ofType: .authoringHaltRepair).compactMap { record -> String? in
+            if case .authoringHaltRepair(_, "stage", let detail) = record.event { return detail }
+            return nil
+        }
+        #expect(details.contains { $0.hasPrefix("selection:") }, "the Journal says why a model stage ran")
     }
 }
 

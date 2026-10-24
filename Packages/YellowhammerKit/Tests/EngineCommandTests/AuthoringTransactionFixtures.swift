@@ -119,6 +119,7 @@ final class AuthoringRig {
     var descriptionBudget: DescriptionBudget?
 
     init(
+        selector: ScriptedFeatureSelector? = nil,
         adopting adopted: [String] = [], sequence: FeatureSequence? = nil, drafting: ScriptedBreakdown? = nil,
         citations: (any CitationResolving)? = nil, transcribing: (any ContractTranscribing)? = nil,
         provenance: (any ProvenanceTesting)? = nil
@@ -126,12 +127,12 @@ final class AuthoringRig {
         fixture = try OutboxJournalFixture()
         journal = try fixture.open()
         boards = try await makeBuildActBoards()
-        selector = ScriptedFeatureSelector(
-            outcome: .selected(try authoringSelection(adopting: adopted, sequence: sequence))
+        self.selector = try selector ?? ScriptedFeatureSelector(
+            outcome: .selected(authoringSelection(adopting: adopted, sequence: sequence))
         )
         self.drafting = try drafting ?? ScriptedBreakdown(try authoringBreakdown())
         selection = FeatureSelection(
-            selector: selector,
+            selector: self.selector,
             transaction: AuthoringTransaction(
                 drafting: self.drafting, citations: citations ?? FakeCitationResolver(),
                 transcribing: transcribing ?? FakeContractTranscriber(),

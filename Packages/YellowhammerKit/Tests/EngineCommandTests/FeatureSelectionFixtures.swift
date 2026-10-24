@@ -18,18 +18,28 @@ final class ScriptedFeatureSelector: FeatureSelecting, Sendable {
         var callCount = 0
     }
     private let state = Mutex(State())
-    private let outcome: FeatureSelectionOutcome
+    private let outcomes: [FeatureSelectionOutcome]
 
     init(outcome: FeatureSelectionOutcome) {
-        self.outcome = outcome
+        self.outcomes = [outcome]
+    }
+
+    init(outcomes: [FeatureSelectionOutcome]) {
+        self.outcomes = outcomes
     }
 
     var lastRequest: FeatureSelectionRequest? { state.withLock { $0.request } }
     var callCount: Int { state.withLock { $0.callCount } }
 
     func select(_ request: FeatureSelectionRequest, context: ActContext) async throws -> FeatureSelectionOutcome {
-        state.withLock { $0.request = request; $0.callCount += 1 }
-        return outcome
+        let index = state.withLock { box -> Int in
+            box.request = request
+            let current = box.callCount
+            box.callCount += 1
+            return current
+        }
+        guard !outcomes.isEmpty else { return .noSelectableFeature }
+        return outcomes[min(index, outcomes.count - 1)]
     }
 }
 
