@@ -44,6 +44,8 @@ private func insertFixtureCard(
     issueID: String,
     repository: String = "main",
     state: CardState = .todo,
+    waitingReason: WaitingReason? = nil,
+    blockReason: BlockReason? = nil,
     cycleID: Int64? = nil,
     authoredOrder: Int = 1,
     uniquifyRepository: Bool = true
@@ -81,11 +83,15 @@ private func insertFixtureCard(
 
         try db.execute(
             sql: """
-            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, budget_epoch, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO card (
+                cycle_id, issue_id, repository, kind, authored_order,
+                state, waiting_reason, block_reason, budget_epoch, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             arguments: [
-                actualCycleID, issueID, uniqueRepo, "card", authoredOrder, state.rawValue, 0,
+                actualCycleID, issueID, uniqueRepo, "card", authoredOrder, state.rawValue,
+                waitingReason?.rawValue, blockReason?.rawValue, 0,
                 JournalStore.timestamp(epoch)
             ]
         )
@@ -288,6 +294,42 @@ func buildMetLandNotMetWithAHeldCardAndARunnableCard() throws {
 
     #expect(try evaluate(act: .build, trigger: .scheduled, journal: journal) == .met)
     #expect(try evaluate(act: .land, trigger: .scheduled, journal: journal) == .notMet(.cycleHasUnfinishedCards))
+}
+
+@Test("Waiting on You question predecessor holds successor, land trigger is met (OQ182 item 4, OQ183)")
+func buildNotMetLandMetWhenPredecessorIsWaitingOnYouQuestion() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let holder = try insertFixtureCard(
+        journal, issueID: "CARD-1", repository: "backend", state: .waitingOnYou,
+        waitingReason: .question, authoredOrder: 1, uniquifyRepository: false
+    )
+    _ = try insertFixtureCard(
+        journal, issueID: "CARD-2", repository: "backend", state: .todo, cycleID: holder.cycleID,
+        authoredOrder: 2, uniquifyRepository: false
+    )
+
+    #expect(try evaluate(act: .build, trigger: .scheduled, journal: journal) == .notMet(.cycleHasNoUnfinishedCards))
+    #expect(try evaluate(act: .land, trigger: .scheduled, journal: journal) == .met)
+}
+
+@Test("Blocked reviewer rejection predecessor holds successor, land trigger is met (OQ182 item 4)")
+func buildNotMetLandMetWhenPredecessorIsBlockedReviewerRejection() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let holder = try insertFixtureCard(
+        journal, issueID: "CARD-1", repository: "backend", state: .blocked,
+        blockReason: .reviewerRejection, authoredOrder: 1, uniquifyRepository: false
+    )
+    _ = try insertFixtureCard(
+        journal, issueID: "CARD-2", repository: "backend", state: .todo, cycleID: holder.cycleID,
+        authoredOrder: 2, uniquifyRepository: false
+    )
+
+    #expect(try evaluate(act: .build, trigger: .scheduled, journal: journal) == .notMet(.cycleHasNoUnfinishedCards))
+    #expect(try evaluate(act: .land, trigger: .scheduled, journal: journal) == .met)
 }
 
 // MARK: - Land Act Tests

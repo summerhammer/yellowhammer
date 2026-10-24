@@ -305,4 +305,62 @@ struct LandActTests {
         }
         #expect(try journal.isCycleLanded(cycleID: land.cycleID))
     }
+
+    @Test("WC1 blocks under reviewer rejection, WC2 held: land fires, lands partial landing naming WC2 (OQ182 item 4)")
+    func heldSameRepositoryCardFiresAndLandsPartialLanding() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let runID = RunID()
+        try claimLandLease(journal, runID: runID)
+
+        let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
+        try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: landBranch.rawValue))
+        let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
+        try insertReconcilerCard(
+            journal, cycleID: cycleID, issueID: "WC1", repository: "backend", state: .blocked,
+            title: "Add the endpoint"
+        )
+        _ = try journal.transitionCard(
+            cardID: try #require(try journal.card(issueID: "WC1")?.id),
+            to: .blocked,
+            blockReason: .reviewerRejection,
+            runID: runID,
+            act: .build,
+            nightID: nil,
+            now: landEpoch
+        )
+        try insertReconcilerCard(
+            journal, cycleID: cycleID, issueID: "WC2", repository: "backend", state: .todo,
+            title: "Document the endpoint"
+        )
+        try recordTouchedRepositories(journal, featureID: featureID, repositories: ["backend"])
+        try journal.recordWorktree(
+            featureID: featureID, repository: "backend", worktreeID: "wt-backend",
+            path: "/tmp/backend", runID: runID
+        )
+
+        let log = LandCallLog()
+        let act = LandAct(
+            mergeTest: StubMergeTest(log: log),
+            push: StubPush(log: log),
+            openPullRequest: StubPullRequest(log: log),
+            verification: StubVerification(
+                log: log, verdict: VerificationVerdict(allClausesMet: false, unmetClauses: ["c1"])
+            ),
+            returnFeature: StubReturnFeature(log: log)
+        )
+        let invocation = EngineInvocation(
+            act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
+            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+        )
+
+        try await invocation.run()
+
+        #expect(log.all.contains("mergeTest:backend"))
+        #expect(log.all.contains("push:backend"))
+        #expect(log.all.contains("openPullRequest:backend"))
+        #expect(log.all.contains("verification"))
+        #expect(log.all.contains("returnFeature"))
+        #expect(try journal.isCycleLanded(cycleID: cycleID))
+    }
 }
