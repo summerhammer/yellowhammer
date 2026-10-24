@@ -173,26 +173,87 @@ struct AuthoringStopTests {
 
     @Test("Every halt cause's comment and Night Card line avoid the Refusal vocabulary and name the repository")
     func haltVocabulary() async throws {
-        let contract = UnreadableContract(workCardTitle: "Card", repository: "web",
-        paths: ["a.swift"], reason: "missing")
-        let causes: [(AuthoringHaltCause, String)] = [
-            (seam, "shared endpoint"), (.repositoriesUndetermined, "repositories"),
-            (.contractOutsideProject(repository: "web"), "web"), (.contractUnreadable(contracts: [contract]), "web")
+        let contract = UnreadableContract(
+            workCardTitle: "Card", repository: "web", paths: ["a.swift"], reason: "missing"
+        )
+        struct HaltCase {
+            let cause: AuthoringHaltCause
+            let concerned: String
+            let repair: String
+        }
+        let causes: [HaltCase] = [
+            HaltCase(
+                cause: seam, concerned: "shared endpoint",
+                repair: "Change the specification, then move this Feature to Todo."
+            ),
+            HaltCase(
+                cause: .repositoriesUndetermined, concerned: "repositories",
+                repair: "Change the specification, then move this Feature to Todo."
+            ),
+            HaltCase(
+                cause: .contractOutsideProject(repository: "web"), concerned: "web",
+                repair: "Change the Project configuration, then move this Feature to Todo."
+            ),
+            HaltCase(
+                cause: .contractUnreadable(contracts: [contract]), concerned: "web",
+                repair: "Edit this Feature's draft Work Cards first, then move this Feature to Todo."
+            )
         ]
-        for (cause, concerned) in causes {
+        for item in causes {
             let fixture = try OutboxJournalFixture()
             let journal = try fixture.open()
             let boards = try await makeBuildActBoards()
             let (context, _) = try stopContext(journal, night: "2026-09-15", boards: boards)
-            _ = try await AuthoringHalt.record(feature: try name("FEAT-1"), cause: cause, context: context)
+            _ = try await AuthoringHalt.record(feature: try name("FEAT-1"), cause: item.cause, context: context)
 
             let comment = try #require(await boards.writing.comments.first).body
             let event = try #require(try journal.events(ofType: .featureAuthoringHalted).first).event
             let line = try #require(NightCardMaintenance.authoringLine(for: event))
-            for text in [comment, line, cause.description] {
+            for text in [comment, line, item.cause.description] {
                 #expect(!text.lowercased().contains("refus"))
-                #expect(text.contains(concerned))
+                #expect(text.contains(item.concerned))
             }
+            #expect(comment.hasSuffix("then move this Feature to Todo."))
+            #expect(comment.contains(item.repair))
+        }
+    }
+
+    @Test("Every halt cause's comment names its repair and the Todo gesture")
+    func haltCommentsNameRepairAndTodoGesture() {
+        let contract = UnreadableContract(
+            workCardTitle: "Card", repository: "web", paths: ["a.swift"], reason: "missing"
+        )
+        let overlap = ContractOverlap(
+            readerTitle: "Mobile", writerTitle: "Backend", repository: "backend", paths: ["a"]
+        )
+        let edge = SpannedRepoDependency(consumer: "backend", producer: "contracts", via: .tag)
+        let allCauses: [(AuthoringHaltCause, String)] = [
+            (seam, "Change the specification, then move this Feature to Todo."),
+            (.repositoriesUndetermined, "Change the specification, then move this Feature to Todo."),
+            (
+                .contractOutsideProject(repository: "web"),
+                "Change the Project configuration, then move this Feature to Todo."
+            ),
+            (
+                .contractUnreadable(contracts: [contract]),
+                "Edit this Feature's draft Work Cards first, then move this Feature to Todo."
+            ),
+            (
+                .breakdownConsumesOwnFeatureWork(overlaps: [overlap]),
+                "Edit this Feature's draft Work Cards first, then move this Feature to Todo."
+            ),
+            (
+                .featureSpansRepoDependency(edges: [edge]),
+                "Force a narrower Feature, or change the Project configuration, then move this Feature to Todo."
+            ),
+            (
+                .authoringRepeatedlyFaulted(count: 3, lastReason: "timeout"),
+                "Change the specification, then move this Feature to Todo."
+            )
+        ]
+        for (cause, expectedRepair) in allCauses {
+            #expect(cause.description.hasSuffix("then move this Feature to Todo."))
+            #expect(cause.description.contains(expectedRepair))
         }
     }
 
