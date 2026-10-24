@@ -67,7 +67,9 @@ struct FeatureSelectionRepoDependencyTests {
         #expect(comment.body.contains("backend → contracts (via tag)"))
         #expect(comment.body.contains("author the producer side (contracts) as its own Feature first"))
         #expect(comment.body.contains("the consumer work (backend) follows in a later Feature"))
-        #expect(comment.body.contains("Force a narrower Feature to clear this halt."))
+        #expect(comment.body.contains(
+            "Force a narrower Feature, or change the Project configuration, then move this Feature to Todo."
+        ))
     }
 
     @Test("The same Feature with the edge removed is authored")

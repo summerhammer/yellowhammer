@@ -278,19 +278,24 @@ extension AuthoringHaltCause: CustomStringConvertible {
     public var description: String {
         switch self {
         case .noBackwardCompatibleSeam(let seam):
-            return "No backward-compatible seam could be found: \(seam)"
+            return "No backward-compatible seam could be found: \(seam). "
+                + "Change the specification, then move this Feature to Todo."
         case .repositoriesUndetermined:
-            return "The repositories this Feature touches could not be determined."
+            return "The repositories this Feature touches could not be determined. "
+                + "Change the specification, then move this Feature to Todo."
         case .contractOutsideProject(let repository):
-            return "Repository '\(repository)' is not configured for this Project."
+            return "Repository '\(repository)' is not configured for this Project. "
+                + "Change the Project configuration, then move this Feature to Todo."
         case .authoringRepeatedlyFaulted(let count, let reason):
-            return "authoring repeatedly faulted: faulted on its last \(count) authoring runs; last fault: \(reason)"
+            return "authoring repeatedly faulted: faulted on its last \(count) authoring runs; last fault: \(reason). "
+                + "Change the specification, then move this Feature to Todo."
         case .contractUnreadable(let contracts):
             let named = contracts.map { contract -> String in
                 "Card '\(contract.workCardTitle)': repository '\(contract.repository)' " +
                     "(\(contract.paths.joined(separator: ", "))) could not be read: \(contract.reason)"
             }.joined(separator: "; ")
-            return "A contract this author Act cannot read blocks authoring: \(named)"
+            return "A contract this author Act cannot read blocks authoring: \(named). "
+                + "Edit this Feature's draft Work Cards first, then move this Feature to Todo."
         case .breakdownConsumesOwnFeatureWork(let overlaps):
             let named = overlaps.map {
                 "Card '\($0.readerTitle)' reads \($0.repository) (\($0.paths.joined(separator: ", "))), "
@@ -299,7 +304,7 @@ extension AuthoringHaltCause: CustomStringConvertible {
             return "This breakdown consumes its own Feature's work: \(named). A Work Card can only read what "
                 + "already exists at mainline. Declare the Repo Dependency (`consumes` on the consumer Repo) and "
                 + "split the Feature: the upstream layer first, the consumer work in a later Feature once it has "
-                + "merged."
+                + "merged. Edit this Feature's draft Work Cards first, then move this Feature to Todo."
         case .featureSpansRepoDependency(let edges):
             let named = edges.map { "\($0.consumer) → \($0.producer) (via \($0.via.rawValue))" }
                 .joined(separator: ", ")
@@ -308,7 +313,8 @@ extension AuthoringHaltCause: CustomStringConvertible {
             return "This Feature spans a declared Repo Dependency: \(named). Split it: author the producer side "
                 + "(\(producers)) as its own Feature first; the consumer work (\(consumers)) follows in a later "
                 + "Feature once the producer's work has an Observed Merge and, for a `tag` edge, an Observed "
-                + "Release. Force a narrower Feature to clear this halt."
+                + "Release. Force a narrower Feature, or change the Project configuration, "
+                + "then move this Feature to Todo."
         }
     }
 }
