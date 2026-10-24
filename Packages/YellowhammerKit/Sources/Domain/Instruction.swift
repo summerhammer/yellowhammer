@@ -50,9 +50,17 @@ public struct WIPContext: Equatable, Sendable {
     public let commit: String
     public let note: String?
 
-    public init(commit: String, note: String? = nil) {
+    /// The ending and Rounds belong to the preserved Attempt, never to the new Attempt's budget.
+    public let outcome: AttemptOutcome?
+    public let rounds: [RoundFeedback]
+
+    public init(
+        commit: String, note: String? = nil, outcome: AttemptOutcome? = nil, rounds: [RoundFeedback] = []
+    ) {
         self.commit = commit
         self.note = note
+        self.outcome = outcome
+        self.rounds = rounds
     }
 }
 
