@@ -25,11 +25,11 @@ extension Schedule {
     }
 
     /// The Night whose staggered firing grid `now` falls on. Every firing of a Project's grid is the
-    /// unstaggered grid shifted by `o` (the Stagger Offset of `staggerIndex`), so the Night is resolved from
+    /// unstaggered grid shifted by `o` (this schedule's Stagger Offset), so the Night is resolved from
     /// the unstaggered instant `now - o`. It differs from ``nightWindow(at:calendar:)`` only in
     /// `[night_start, night_start + o)`, where only the previous Night's closing land and flush firings fire.
-    public func nightWindow(at now: Date, staggerIndex: Int, calendar: Calendar = .current) -> NightWindow {
-        let offset = staggerIndex * Self.staggerStepMinutes
+    public func nightWindowStaggered(at now: Date, calendar: Calendar = .current) -> NightWindow {
+        let offset = staggerOffsetMinutes
         let unstaggered = calendar.date(byAdding: .minute, value: -offset, to: now) ?? now
         return nightWindow(at: unstaggered, calendar: calendar)
     }
@@ -45,6 +45,13 @@ extension Schedule {
         components.day = identity.day
         let day = calendar.date(from: components) ?? Date()
         return window(startingOnDayOf: day, calendar: calendar)
+    }
+
+    /// Whether a land Act started at `now` closes the Night `window` describes: `now` is at or past the
+    /// Night-closing land's instant, `night_end + o` (Schedule Stagger Ruling), not `night_end` itself.
+    public func closesNight(at now: Date, in window: NightWindow, calendar: Calendar = .current) -> Bool {
+        let closing = calendar.date(byAdding: .minute, value: staggerOffsetMinutes, to: window.end) ?? window.end
+        return now >= closing
     }
 
     /// Whether `now` is at or past the `night_end` of the Night it belongs to.

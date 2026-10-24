@@ -8,14 +8,8 @@ extension Doctor {
     /// executable fails. --fix regenerates affected installed jobs through setup's generation path.
     func runLaunchdCheck(configuration: Configuration) async -> [DoctorFinding] {
         var findings: [DoctorFinding] = []
-        // The stagger index is a Project's position among ALL configured Projects (sorted by id), exactly
-        // as setup computes it, whatever `--project` narrows the report to.
-        let allIDs = configuration.projects.map(\.id)
         for project in configuration.projects {
-            guard let staggerIndex = allIDs.firstIndex(of: project.id) else { continue }
-            findings += await launchdFindings(
-                project: project, staggerIndex: staggerIndex, machine: configuration.machine
-            )
+            findings += await launchdFindings(project: project, machine: configuration.machine)
         }
         findings.append(commandLineToolFinding())
         return findings

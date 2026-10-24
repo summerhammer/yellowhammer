@@ -146,18 +146,23 @@ public struct ScheduleDraft: Equatable, Sendable {
     public var nightStart: String
     public var nightEnd: String
     public var buildEveryMinutes: String
+    /// The recorded `stagger_minutes`, carried through untouched (the form has no field for it): nil when
+    /// the file holds none, so rendering never writes a `0` setup has not assigned.
+    public var staggerMinutes: Int?
 
-    public init(nightStart: String, nightEnd: String, buildEveryMinutes: String) {
+    public init(nightStart: String, nightEnd: String, buildEveryMinutes: String, staggerMinutes: Int? = nil) {
         self.nightStart = nightStart
         self.nightEnd = nightEnd
         self.buildEveryMinutes = buildEveryMinutes
+        self.staggerMinutes = staggerMinutes
     }
 
     public init(_ schedule: Schedule) {
         self.init(
             nightStart: schedule.nightStart.description,
             nightEnd: schedule.nightEnd.description,
-            buildEveryMinutes: String(schedule.buildEveryMinutes)
+            buildEveryMinutes: String(schedule.buildEveryMinutes),
+            staggerMinutes: schedule.staggerMinutes
         )
     }
 }

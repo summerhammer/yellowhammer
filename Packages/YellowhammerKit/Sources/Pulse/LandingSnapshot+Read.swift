@@ -21,13 +21,10 @@ extension LandingSnapshot {
     public static func read(
         configuration: Configuration, configurationDirectory: URL, actJobs: ActJobs, asOf: Date
     ) -> LandingSnapshot {
-        // A Project's stagger index is its position among ALL configured Projects, as setup computes it.
-        let ids = configuration.projects.map(\.id)
         return LandingSnapshot(
             projects: configuration.projects.map {
                 ProjectSnapshot.read(
-                    $0, staggerIndex: ids.firstIndex(of: $0.id) ?? 0,
-                    configurationDirectory: configurationDirectory, actJobs: actJobs, asOf: asOf
+                    $0, configurationDirectory: configurationDirectory, actJobs: actJobs, asOf: asOf
                 )
             },
             asOf: asOf
@@ -38,7 +35,7 @@ extension LandingSnapshot {
 extension ProjectSnapshot {
     /// One Project's snapshot: its name and Repos from its configuration, its Pulse from its Journal.
     static func read(
-        _ project: ProjectConfiguration, staggerIndex: Int = 0, configurationDirectory: URL, actJobs: ActJobs,
+        _ project: ProjectConfiguration, configurationDirectory: URL, actJobs: ActJobs,
         asOf: Date
     ) -> ProjectSnapshot {
         var snapshot = ProjectSnapshot(
@@ -64,7 +61,7 @@ extension ProjectSnapshot {
         }
         // The Bound is Config's fact, so it is filled even when the Journal is missing or unreadable.
         snapshot.pulse.unmergedFeatures.unmergedFeaturesMax = project.bounds.unmergedFeaturesMax
-        if let upcoming = UpcomingSchedule(schedule: project.schedule, staggerIndex: staggerIndex, asOf: asOf) {
+        if let upcoming = UpcomingSchedule(schedule: project.schedule, asOf: asOf) {
             snapshot.pulse.now.nextAct = upcoming.nextAct
             snapshot.pulse.scheduledNight = upcoming.night
             snapshot.pulse.scheduledNight?.agentsLoaded = actJobs.areLoaded(projectID: project.id)

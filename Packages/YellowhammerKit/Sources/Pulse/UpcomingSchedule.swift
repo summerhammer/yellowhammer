@@ -26,10 +26,10 @@ struct UpcomingSchedule: Equatable, Sendable {
     var nextAct: ScheduledAct?
     var night: ScheduledNight
 
-    /// Nil when the schedule has no firing grid for this stagger index (the load that refuses it says why).
-    init?(schedule: Schedule, staggerIndex: Int, asOf: Date, calendar: Calendar = .current) {
-        guard let firings = try? schedule.firings(staggerIndex: staggerIndex) else { return nil }
-        let offset = staggerIndex * Schedule.staggerStepMinutes
+    /// Nil when the schedule has no firing grid for this Stagger Offset (the load that refuses it says why).
+    init?(schedule: Schedule, asOf: Date, calendar: Calendar = .current) {
+        guard let firings = try? schedule.firings() else { return nil }
+        let offset = schedule.staggerOffsetMinutes
         let startMinutes = schedule.nightStart.minutesSinceMidnight + offset
         let endMinutes = schedule.nightEnd.minutesSinceMidnight + offset
         let length = ((endMinutes - startMinutes) % 1440 + 1440) % 1440

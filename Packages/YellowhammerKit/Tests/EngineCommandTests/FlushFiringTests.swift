@@ -377,16 +377,16 @@ struct FlushFiringClassificationTests {
         }
     }
 
-    @Test("The first flush minute follows the Project's Stagger Offset, by sorted Project id")
+    @Test("The first flush minute follows the Project's recorded Stagger Offset")
     func flushMinuteFollowsTheStaggerOffset() throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
-        try directory.writeValidProjectFile(id: "beta")
+        try directory.writeValidProjectFile(id: "alpha", stagger: 0)
+        try directory.writeValidProjectFile(id: "beta", stagger: 3)
         let sixFifteen = try localDate(day: 16, hour: 6, minute: 15)
         let sixEighteen = try localDate(day: 16, hour: 6, minute: 18)
 
-        // alpha is index 0 (offset 0), beta index 1 (offset 3): beta's first flush minute is 06:18.
+        // alpha records offset 0, beta offset 3: beta's first flush minute is 06:18.
         let alpha = try command(["--project", "alpha"]) // glossary:ignore GL001
         #expect(try alpha.makeInvocation(configurationDirectory: directory.url, now: sixFifteen).isFlushFiring)
         let beta = try command(["--project", "beta"]) // glossary:ignore GL001
@@ -443,13 +443,10 @@ struct FlushFiringClassificationTests {
         #expect(!past.isFlushFiring)
     }
 
-    @Test("A scheduled land at 22:04 of a Project at Stagger Index 3 is the previous Night's flush firing")
+    @Test("A scheduled land at 22:04 of a Project recording stagger_minutes 9 is the previous Night's flush firing")
     func staggeredFlushFiringBeforeTheNextAuthorFiring() throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        for id in ["alpha", "beta", "gamma"] {
-            try directory.writeValidProjectFile(id: id)
-        }
         try directory.writeProjectFile(id: "zeta", """
             id = "zeta"
             name = "zeta"
@@ -461,6 +458,7 @@ struct FlushFiringClassificationTests {
             night_start = "22:00"
             night_end = "21:40"
             build_every_minutes = 60
+            stagger_minutes = 9
 
             [[repos]]
             name = "backend"
@@ -470,7 +468,7 @@ struct FlushFiringClassificationTests {
             """)
         let land = try command(["--project", "zeta"]) // glossary:ignore GL001
 
-        // Sorted by id, zeta is index 3 (o = 9): the flush is generated at 22:04, the author firing at 22:09.
+        // zeta records o = 9: the flush is generated at 22:04, the author firing at 22:09.
         let flush = try land.makeInvocation(
             configurationDirectory: directory.url, now: try localDate(day: 16, hour: 22, minute: 4)
         )
@@ -491,6 +489,21 @@ struct FlushFiringClassificationTests {
         )
         #expect(!forced.isFlushFiring)
         #expect(forced.nightStart == NightStart(rawValue: "2026-09-16"))
+    }
+
+    @Test("A scheduled land closes the Night at night_end + o, not at night_end")
+    func closesNightAtNightEndPlusOffset() throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "beta", stagger: 3)
+        let land = try command(["--project", "beta"]) // glossary:ignore GL001
+
+        for (minute, closes) in [(0, false), (2, false), (3, true), (4, true)] {
+            let invocation = try land.makeInvocation(
+                configurationDirectory: directory.url, now: try localDate(day: 16, hour: 6, minute: minute)
+            )
+            #expect(invocation.closesNight == closes, "06:0\(minute)")
+        }
     }
 
     @Test("Build and author are never flush firings")

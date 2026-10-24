@@ -83,16 +83,15 @@ extension ActCommand {
         // flush firings that fall in `[night_start, night_start + o)` are not mistaken for the next Night's
         // ordinary lands. Every other path (forced, rehearsal, explicit `night`, author, build) resolves from
         // the wall clock.
-        let staggerIndex = configuration.projects.firstIndex { $0.id == resolved.id } ?? 0
         let staggered = !rehearsal && trigger == .scheduled
-        let window = Self.nightWindow(project.schedule, at: now, night: night, staggered ? staggerIndex : nil)
-        let closesNight = Self.act == .land && now >= window.end
+        let window = Self.nightWindow(project.schedule, at: now, night: night, staggered)
+        let closesNight = Self.act == .land && project.schedule.closesNight(at: now, in: window)
         // A scheduled real-mode land at or after the first flush minute is a flush firing: it does no Night
         // work (Transient Board Failure Ruling item 6). A forced land and any rehearsal land are never one —
-        // rehearsal suites close past Nights that way. The stagger index is Setup's: the Project's position
-        // among the machine's Projects, sorted by id.
+        // rehearsal suites close past Nights that way. The Stagger Offset is the Project's recorded
+        // `stagger_minutes`.
         let isFlushFiring = Self.act == .land && !rehearsal && night == nil && trigger == .scheduled
-            && project.schedule.isFlushFiring(at: now, in: window, staggerIndex: staggerIndex)
+            && project.schedule.isFlushFiring(at: now, in: window)
 
         let board = try BoardFootprintBinding.bind(bindBoard, configuration, project, journal, tracksBoardFootprint)
         let workspace = bindWorkspace?()
@@ -141,10 +140,10 @@ extension ActCommand {
     /// scheduled real-mode land; the wall clock's for everything else. Split out of `makeInvocation` to keep
     /// that function within its length limit.
     private static func nightWindow(
-        _ schedule: Schedule, at now: Date, night: NightStart?, _ staggerIndex: Int?
+        _ schedule: Schedule, at now: Date, night: NightStart?, _ staggered: Bool
     ) -> NightWindow {
         if let night { return schedule.nightWindow(for: night) }
-        if let staggerIndex, Self.act == .land { return schedule.nightWindow(at: now, staggerIndex: staggerIndex) }
+        if staggered, Self.act == .land { return schedule.nightWindowStaggered(at: now) }
         return schedule.nightWindow(at: now)
     }
 
@@ -182,26 +181,6 @@ extension ActCommand {
         // A failure is written with a timestamp (`ActLog`), since launchd's log line carries none.
         try await ActLog.reportingFailure(of: Self.self) {
             try await run(configurationDirectory: Configuration.defaultDirectoryURL(homeDirectory: homeDirectory))
-        }
-    }
-
-    func run(configurationDirectory: URL) async throws {
-        let invocation = try makeInvocation(
-            configurationDirectory: configurationDirectory,
-            now: Date(),
-            bindBoard: { configuration, project in
-                try BoardBinding.actBoard(machine: configuration.machine, project: project)
-            },
-            bindWorkspace: { WorkspaceBinding.workspace() },
-            notifier: .headlessApp(),
-            tracksBoardFootprint: true
-        )
-        // Only an Act command runs under signal handling (issue #151): a Ctrl-C at an interactive
-        // `setup` prompt, or any other subcommand, keeps the default disposition. `EngineInvocation`
-        // is `Sendable`, built from `self` above, so the async closure below never needs to capture
-        // `self` (an `ActCommand`, not itself required to be `Sendable`).
-        try await TerminationSignals.run {
-            try await invocation.run()
         }
     }
 }

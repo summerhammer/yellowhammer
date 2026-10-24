@@ -10,7 +10,7 @@ struct ScheduledJob: Equatable {
     let act: Act
     /// The resolved absolute path to the `yh` executable this job invokes.
     let yhExecutablePath: String
-    /// This job's firings, in firing order, deduplicated (``Schedule/firings(staggerIndex:)``).
+    /// This job's firings, in firing order, deduplicated (``Schedule/firings()``).
     let firings: [TimeOfDay]
     /// The `PATH` this job's `EnvironmentVariables` carries (see ``ScheduledJob/composePATH``).
     let pathValue: String

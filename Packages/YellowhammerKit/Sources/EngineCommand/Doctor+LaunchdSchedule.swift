@@ -23,13 +23,16 @@ extension Doctor {
     /// re-reads the plists so a skipped or failed repair retains the actual failure or warning.
     /// Only the Project --project names is regenerated or compared against its schedule.
     func launchdFindings(
-        project: ProjectConfiguration, staggerIndex: Int, machine: MachineConfiguration
+        project: ProjectConfiguration, machine: MachineConfiguration
     ) async -> [DoctorFinding] {
         var findings: [DoctorFinding] = []
         var expected: Schedule.ScheduledFirings?
-        if projectFilter == nil || projectFilter == project.id {
+        // A Project that records no `stagger_minutes` has no expected schedule: --fix must not regenerate
+        // its jobs at offset 0, so it is reported (below) and left to `yh setup --install-jobs`.
+        let recorded = project.schedule.staggerMinutes != nil
+        if recorded, projectFilter == nil || projectFilter == project.id {
             do {
-                expected = try project.schedule.firings(staggerIndex: staggerIndex)
+                expected = try project.schedule.firings()
             } catch {
                 let id = project.id
                 findings.append(finding(
@@ -40,6 +43,15 @@ extension Doctor {
         }
 
         let original = await launchdJobStates(projectID: project.id, expected: expected)
+        if !recorded, original.contains(where: \.installed), projectFilter == nil || projectFilter == project.id {
+            findings.append(finding(
+                .launchd, subject: project.id.rawValue, .warning,
+                "Project \(project.id.rawValue) has installed jobs but its [schedule] records no "
+                    + "stagger_minutes; run yh setup --install-jobs to record the Stagger Offset and "
+                    + "regenerate them",
+                project: project.id
+            ))
+        }
         var states = original
         if fix, let expected, projectFilter == nil || projectFilter == project.id {
             let affected = original.filter { $0.installed && ($0.difference != nil || shouldRepoint($0)) }
@@ -82,7 +94,7 @@ extension Doctor {
             let installed = FileManager.default.fileExists(atPath: plistURL.path(percentEncoded: false))
             let loaded = installed ? await launchAgents.isLoaded(label: label) : false
             let difference = installed ? expected.flatMap {
-                scheduleDifference(act: act, wanted: Self.firings(of: act, in: $0), plistURL: plistURL)
+                scheduleDifference(act: act, wanted: ScheduledJobRefresh.firings(of: act, in: $0), plistURL: plistURL)
             } : nil
             let executablePath = ScheduledExecutable.installedPath(at: plistURL)
             states.append(LaunchdJobState(
@@ -130,7 +142,7 @@ extension Doctor {
                 }
                 jobs.append(ScheduledJob(
                     projectID: projectID, act: state.act, yhExecutablePath: resolved,
-                    firings: Self.firings(of: state.act, in: expected), pathValue: pathValue
+                    firings: ScheduledJobRefresh.firings(of: state.act, in: expected), pathValue: pathValue
                 ))
             } catch {
                 findings.append(finding(
@@ -144,80 +156,12 @@ extension Doctor {
         return findings
     }
 
-    private static func firings(of act: Act, in firings: Schedule.ScheduledFirings) -> [TimeOfDay] {
-        switch act {
-        case .author: firings.author
-        case .build: firings.build
-        case .land: firings.land
-        }
-    }
-
     /// Nil when the plist at `plistURL` carries exactly the `wanted` firings; otherwise what differs.
     private func scheduleDifference(act: Act, wanted: [TimeOfDay], plistURL: URL) -> String? {
-        guard let data = try? Data(contentsOf: plistURL) else {
-            return "its StartCalendarInterval could not be read as Hour and Minute firings"
-        }
-        let stray = Self.strayKeys(in: data)
-        if !stray.isEmpty {
-            return "its StartCalendarInterval restricts a firing by \(stray.joined(separator: ", ")), "
-                + "which setup never writes"
-        }
-        guard let installed = Self.installedFirings(in: data) else {
-            return "its StartCalendarInterval could not be read as Hour and Minute firings"
-        }
-        let wantedSet = Set(wanted)
-        guard installed != wantedSet else { return nil }
-
-        var parts = ["\(installed.count) installed firings, \(wantedSet.count) implied by [schedule]"]
-        let missing = Self.sorted(wantedSet.subtracting(installed))
-        if let first = missing.first {
-            parts.append("missing \(first)" + (missing.count > 1 ? " and \(missing.count - 1) more" : ""))
-        }
-        let unexpected = Self.sorted(installed.subtracting(wantedSet))
-        if let first = unexpected.first {
-            parts.append("unexpected \(first)" + (unexpected.count > 1 ? " and \(unexpected.count - 1) more" : ""))
-        }
-        if act == .author, !missing.isEmpty {
-            parts[0] = "the author job fires after every periodic land tick (Multi-Feature Night Ruling): " + parts[0]
-        }
-        return parts.joined(separator: ", ")
+        ScheduledJobRefresh.scheduleDifference(act: act, wanted: wanted, plistURL: plistURL)
     }
 
-    private static func sorted(_ times: Set<TimeOfDay>) -> [TimeOfDay] {
-        times.sorted { ($0.hour, $0.minute) < ($1.hour, $1.minute) }
-    }
+    static func strayKeys(in data: Data) -> [String] { ScheduledJobRefresh.strayKeys(in: data) }
 
-    /// The `StartCalendarInterval` entries of a LaunchAgent plist (one dictionary or an array of them;
-    /// absent means none). Nil when the plist is not a dictionary or the value is neither shape.
-    private static func intervalEntries(in data: Data) -> [[String: Any]]? {
-        guard let plist = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
-        else { return nil }
-        guard let raw = plist["StartCalendarInterval"] else { return [] }
-        if let dictionary = raw as? [String: Any] { return [dictionary] }
-        return raw as? [[String: Any]]
-    }
-
-    /// The keys, other than `Hour` and `Minute`, that any `StartCalendarInterval` entry carries (`Weekday`,
-    /// `Day`, `Month`), sorted. Such an entry restricts the firing, which setup never writes.
-    static func strayKeys(in data: Data) -> [String] {
-        let keys = (intervalEntries(in: data) ?? []).flatMap(\.keys)
-        return Set(keys).subtracting(["Hour", "Minute"]).sorted()
-    }
-
-    /// The set of `{Hour, Minute}` firings in a LaunchAgent plist's `StartCalendarInterval` (one
-    /// dictionary or an array of them; absent means none). Nil when the plist is not a dictionary, or an
-    /// entry is not exactly a fixed in-range Hour and Minute — a wildcard entry, or one constrained by
-    /// `Weekday`, `Day` or `Month`, is not a firing setup writes.
-    static func installedFirings(in data: Data) -> Set<TimeOfDay>? {
-        guard let entries = intervalEntries(in: data) else { return nil }
-        var firings = Set<TimeOfDay>()
-        for entry in entries {
-            guard Set(entry.keys) == ["Hour", "Minute"],
-                  let hour = entry["Hour"] as? Int, let minute = entry["Minute"] as? Int,
-                  let time = TimeOfDay(hour: hour, minute: minute)
-            else { return nil }
-            firings.insert(time)
-        }
-        return firings
-    }
+    static func installedFirings(in data: Data) -> Set<TimeOfDay>? { ScheduledJobRefresh.installedFirings(in: data) }
 }

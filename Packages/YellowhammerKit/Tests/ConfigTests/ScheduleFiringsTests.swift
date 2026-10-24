@@ -3,9 +3,18 @@ import Domain
 import Foundation
 import Testing
 
-@Test("firings: defaults, stagger index 0")
+extension Schedule {
+    /// This schedule recorded at the Stagger Offset the `index`th Project of a machine is assigned.
+    fileprivate func staggered(_ index: Int) -> Schedule {
+        var copy = self
+        copy.staggerMinutes = index * Schedule.staggerStepMinutes
+        return copy
+    }
+}
+
+@Test("firings: defaults, Stagger Offset 0")
 func firingsDefaultsIndex0() throws {
-    let firings = try Schedule().firings(staggerIndex: 0)
+    let firings = try Schedule().staggered(0).firings()
 
     #expect(firings.author.count == 32)
     #expect(firings.author.first == TimeOfDay(hour: 22, minute: 0)!)
@@ -21,7 +30,7 @@ func firingsDefaultsIndex0() throws {
 
 @Test("firings: worked example, 22:00-06:00 every 15, offset 3")
 func firingsWorkedExample() throws {
-    let firings = try Schedule().firings(staggerIndex: 1)
+    let firings = try Schedule().staggered(1).firings()
 
     func time(_ hour: Int, _ minute: Int) -> TimeOfDay { TimeOfDay(hour: hour, minute: minute)! }
 
@@ -66,21 +75,21 @@ func authorOffsetShrinks() throws {
     }
     func time(_ minute: Int) -> TimeOfDay { TimeOfDay(hour: 22, minute: minute)! }
 
-    let two = try schedule(2).firings(staggerIndex: 0)
+    let two = try schedule(2).staggered(0).firings()
     #expect(two.author == [time(0), time(3), time(5), time(7), time(9)])
     #expect(two.land.contains(time(2)))
 
-    let one = try schedule(1).firings(staggerIndex: 0)
+    let one = try schedule(1).staggered(0).firings()
     #expect(one.author == (0..<10).map(time))
     #expect(Array(one.author.dropFirst()) == one.build)
 
-    let wide = try schedule(10).firings(staggerIndex: 0)
+    let wide = try schedule(10).staggered(0).firings()
     #expect(wide.author == [time(0)])
 }
 
 @Test("firings: defaults, stagger index 2 (offset 6m)")
 func firingsDefaultsIndex2() throws {
-    let firings = try Schedule().firings(staggerIndex: 2)
+    let firings = try Schedule().staggered(2).firings()
 
     #expect(firings.author.first == TimeOfDay(hour: 22, minute: 6)!)
     #expect(firings.author[1] == TimeOfDay(hour: 22, minute: 23)!)
@@ -97,7 +106,7 @@ func firingsSameDayWindow() throws {
         nightStart: TimeOfDay(hour: 1, minute: 0)!, nightEnd: TimeOfDay(hour: 5, minute: 0)!,
         buildEveryMinutes: 20
     )
-    let firings = try schedule.firings(staggerIndex: 0)
+    let firings = try schedule.staggered(0).firings()
 
     #expect(firings.author.first == TimeOfDay(hour: 1, minute: 0)!)
     #expect(firings.author[1] == TimeOfDay(hour: 1, minute: 22)!)
@@ -114,7 +123,7 @@ func firingsNonDividingInterval() throws {
         nightStart: TimeOfDay(hour: 22, minute: 0)!, nightEnd: TimeOfDay(hour: 6, minute: 0)!,
         buildEveryMinutes: 25
     )
-    let firings = try schedule.firings(staggerIndex: 0)
+    let firings = try schedule.staggered(0).firings()
 
     #expect(firings.build.count == 19)
     #expect(firings.build.last == TimeOfDay(hour: 5, minute: 56)!)
@@ -128,7 +137,7 @@ func firingsEveryMinuteHasNoBuildOffset() throws {
         nightStart: TimeOfDay(hour: 1, minute: 0)!, nightEnd: TimeOfDay(hour: 1, minute: 10)!,
         buildEveryMinutes: 1
     )
-    let firings = try schedule.firings(staggerIndex: 0)
+    let firings = try schedule.staggered(0).firings()
 
     let ticks = (1...9).map { TimeOfDay(hour: 1, minute: $0)! }
     #expect(firings.build == ticks)
@@ -142,7 +151,7 @@ func firingsBuildShiftWrapsAtMidnight() throws {
         nightStart: TimeOfDay(hour: 23, minute: 0)!, nightEnd: TimeOfDay(hour: 1, minute: 0)!,
         buildEveryMinutes: 59
     )
-    let firings = try schedule.firings(staggerIndex: 0)
+    let firings = try schedule.staggered(0).firings()
 
     #expect(firings.land.contains(TimeOfDay(hour: 23, minute: 59)!))
     #expect(firings.build == [TimeOfDay(hour: 0, minute: 0)!, TimeOfDay(hour: 0, minute: 59)!])
@@ -156,7 +165,7 @@ func firingsLastBuildOnNightClosingLandMinute() throws {
         nightStart: TimeOfDay(hour: 22, minute: 0)!, nightEnd: TimeOfDay(hour: 6, minute: 1)!,
         buildEveryMinutes: 15
     )
-    let firings = try schedule.firings(staggerIndex: 0)
+    let firings = try schedule.staggered(0).firings()
 
     #expect(firings.build.count == 32)
     #expect(firings.build.last == TimeOfDay(hour: 6, minute: 1)!)
@@ -166,13 +175,13 @@ func firingsLastBuildOnNightClosingLandMinute() throws {
 
 @Test("firings: refuses when the stagger offset consumes the whole window")
 func firingsRefusesOffsetBeyondWindow() throws {
-    // Window is 01:00-01:05 (5m). staggerIndex 2 -> offset 6m >= 5m.
+    // Window is 01:00-01:05 (5m). offset 6m >= 5m.
     let schedule = Schedule(
         nightStart: TimeOfDay(hour: 1, minute: 0)!, nightEnd: TimeOfDay(hour: 1, minute: 5)!,
         buildEveryMinutes: 15
     )
     #expect(throws: Schedule.FiringGridError.self) {
-        try schedule.firings(staggerIndex: 2)
+        try schedule.staggered(2).firings()
     }
 }
 
@@ -182,7 +191,7 @@ func firingsRefuses24HourWindow() throws {
         nightStart: TimeOfDay(hour: 22, minute: 0)!, nightEnd: TimeOfDay(hour: 22, minute: 0)!
     )
     #expect(throws: Schedule.FiringGridError.self) {
-        try schedule.firings(staggerIndex: 0)
+        try schedule.staggered(0).firings()
     }
 }
 
@@ -192,7 +201,7 @@ private func time(_ hour: Int, _ minute: Int) -> TimeOfDay { TimeOfDay(hour: hou
 
 @Test("flush firings: night_end 06:00, offset 3 fires at 06:18, 07:03 and 09:03")
 func flushFiringsWorkedExample() throws {
-    let firings = try Schedule().firings(staggerIndex: 1)
+    let firings = try Schedule().staggered(1).firings()
 
     #expect(firings.flush == [time(6, 18), time(7, 3), time(9, 3)])
     // The land LaunchAgent carries the whole set: periodic ticks, the closing land, then the flush firings.
@@ -202,9 +211,9 @@ func flushFiringsWorkedExample() throws {
     #expect(!firings.landWithinNight.contains(time(6, 18)))
 }
 
-@Test("flush firings: stagger index 0 fires 15 minutes, 1 hour and 3 hours after night_end")
+@Test("flush firings: Stagger Offset 0 fires 15 minutes, 1 hour and 3 hours after night_end")
 func flushFiringsIndexZero() throws {
-    let firings = try Schedule().firings(staggerIndex: 0)
+    let firings = try Schedule().staggered(0).firings()
 
     #expect(firings.flush == [time(6, 15), time(7, 0), time(9, 0)])
     #expect(firings.land.count == 35)
@@ -216,7 +225,7 @@ func flushFiringsWrapAtMidnight() throws {
     let schedule = Schedule(
         nightStart: time(20, 0), nightEnd: time(23, 0), buildEveryMinutes: 60
     )
-    let firings = try schedule.firings(staggerIndex: 0)
+    let firings = try schedule.staggered(0).firings()
 
     #expect(firings.flush == [time(23, 15), time(0, 0), time(2, 0)])
 }
@@ -228,9 +237,9 @@ func flushFiringsStopBeforeTheNextNight() throws {
     // one would land at the next night_start + o and is dropped, whatever o is.
     let schedule = Schedule(nightStart: time(22, 0), nightEnd: time(20, 0), buildEveryMinutes: 60)
 
-    let first = try schedule.firings(staggerIndex: 0)
+    let first = try schedule.staggered(0).firings()
     #expect(first.flush == [time(20, 15), time(21, 0)])
-    let second = try schedule.firings(staggerIndex: 2)
+    let second = try schedule.staggered(2).firings()
     #expect(second.flush == [time(20, 21), time(21, 6)])
     #expect(second.land.contains(time(20, 6)))
 }
@@ -238,7 +247,7 @@ func flushFiringsStopBeforeTheNextNight() throws {
 @Test("flush firings: a gap of 15 minutes or less leaves none")
 func flushFiringsNoneForTinyGap() throws {
     let schedule = Schedule(nightStart: time(6, 10), nightEnd: time(6, 0), buildEveryMinutes: 60)
-    let firings = try schedule.firings(staggerIndex: 0)
+    let firings = try schedule.staggered(0).firings()
 
     #expect(firings.flush.isEmpty)
     #expect(firings.land == firings.landWithinNight)
@@ -247,7 +256,7 @@ func flushFiringsNoneForTinyGap() throws {
 @Test("flush firings: the flush subset shares no minute with the Night's own land firings")
 func flushFiringsAreDisjointFromTheNightsLand() throws {
     for staggerIndex in 0..<5 {
-        let firings = try Schedule().firings(staggerIndex: staggerIndex)
+        let firings = try Schedule().staggered(staggerIndex).firings()
         #expect(Set(firings.flush).isDisjoint(with: Set(firings.landWithinNight)))
         #expect(Set(firings.land) == Set(firings.landWithinNight).union(firings.flush))
         #expect(Set(firings.land).count == firings.land.count)
@@ -267,15 +276,15 @@ func isFlushFiringClassifiesFromTheClock() throws {
     let schedule = Schedule()
     let window = schedule.nightWindow(at: try at(15, 23, 0))
 
-    // Index 1 (offset 3): night_end + o is 06:03, the first flush minute 06:18.
-    #expect(!schedule.isFlushFiring(at: try at(16, 6, 3), in: window, staggerIndex: 1))
-    #expect(!schedule.isFlushFiring(at: try at(16, 6, 17), in: window, staggerIndex: 1))
-    #expect(schedule.isFlushFiring(at: try at(16, 6, 18), in: window, staggerIndex: 1))
-    #expect(schedule.isFlushFiring(at: try at(16, 7, 3), in: window, staggerIndex: 1))
-    #expect(schedule.isFlushFiring(at: try at(16, 9, 3), in: window, staggerIndex: 1))
+    // Offset 3: night_end + o is 06:03, the first flush minute 06:18.
+    #expect(!schedule.staggered(1).isFlushFiring(at: try at(16, 6, 3), in: window))
+    #expect(!schedule.staggered(1).isFlushFiring(at: try at(16, 6, 17), in: window))
+    #expect(schedule.staggered(1).isFlushFiring(at: try at(16, 6, 18), in: window))
+    #expect(schedule.staggered(1).isFlushFiring(at: try at(16, 7, 3), in: window))
+    #expect(schedule.staggered(1).isFlushFiring(at: try at(16, 9, 3), in: window))
     // A land during the Night is never one, and nor is one in the next Night.
-    #expect(!schedule.isFlushFiring(at: try at(15, 23, 30), in: window, staggerIndex: 1))
-    #expect(!schedule.isFlushFiring(at: try at(16, 22, 3), in: window, staggerIndex: 1))
+    #expect(!schedule.staggered(1).isFlushFiring(at: try at(15, 23, 30), in: window))
+    #expect(!schedule.staggered(1).isFlushFiring(at: try at(16, 22, 3), in: window))
 }
 
 // The generator's stagger decides which Night a firing belongs to.
@@ -290,12 +299,12 @@ private func utcInstant(_ day: Int, _ hour: Int, _ minute: Int) throws -> Date {
     try #require(utc.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute)))
 }
 
-/// Window 22:00-21:40 every 60 minutes: at index 3 (o = 9) the flush is 22:04 and the author 22:09.
+/// Window 22:00-21:40 every 60 minutes: at offset 9 the flush is 22:04 and the author 22:09.
 private let staggeredExample = Schedule(nightStart: time(22, 0), nightEnd: time(21, 40), buildEveryMinutes: 60)
 
 @Test("stagger: a flush firing can fall before the next Night's staggered author firing")
 func staggeredExampleFirings() throws {
-    let firings = try staggeredExample.firings(staggerIndex: 3)
+    let firings = try staggeredExample.staggered(3).firings()
 
     #expect(firings.author.first == time(22, 9))
     #expect(firings.flush == [time(22, 4)])
@@ -305,10 +314,10 @@ func staggeredExampleFirings() throws {
 func staggeredNightWindowAtTheFlushMinute() throws {
     let now = try utcInstant(16, 22, 4)
 
-    let window = staggeredExample.nightWindow(at: now, staggerIndex: 3, calendar: utc)
+    let window = staggeredExample.staggered(3).nightWindowStaggered(at: now, calendar: utc)
 
     #expect(window.nightStart == NightStart(rawValue: "2026-09-15"))
-    #expect(staggeredExample.isFlushFiring(at: now, in: window, staggerIndex: 3, calendar: utc))
+    #expect(staggeredExample.staggered(3).isFlushFiring(at: now, in: window, calendar: utc))
     // The unstaggered resolution is unchanged: it picks the new Night.
     #expect(staggeredExample.nightWindow(at: now, calendar: utc).nightStart == NightStart(rawValue: "2026-09-16"))
 }
@@ -317,12 +326,12 @@ func staggeredNightWindowAtTheFlushMinute() throws {
 func staggeredNightWindowAtTheNextNightsFirstFiring() throws {
     let now = try utcInstant(16, 22, 9)
 
-    let window = staggeredExample.nightWindow(at: now, staggerIndex: 3, calendar: utc)
+    let window = staggeredExample.staggered(3).nightWindowStaggered(at: now, calendar: utc)
 
     #expect(window.nightStart == NightStart(rawValue: "2026-09-16"))
-    #expect(!staggeredExample.isFlushFiring(at: now, in: window, staggerIndex: 3, calendar: utc))
-    // Index 0 has no offset: both resolutions agree.
-    #expect(staggeredExample.nightWindow(at: now, staggerIndex: 0, calendar: utc)
+    #expect(!staggeredExample.staggered(3).isFlushFiring(at: now, in: window, calendar: utc))
+    // Offset 0 has none: both resolutions agree.
+    #expect(staggeredExample.staggered(0).nightWindowStaggered(at: now, calendar: utc)
         == staggeredExample.nightWindow(at: now, calendar: utc))
 }
 
@@ -332,6 +341,6 @@ func isFlushFiringStopsAtTheStaggeredNextNightStart() throws {
 
     let before = try utcInstant(16, 22, 8)
     let exactly = try utcInstant(16, 22, 9)
-    #expect(staggeredExample.isFlushFiring(at: before, in: previous, staggerIndex: 3, calendar: utc))
-    #expect(!staggeredExample.isFlushFiring(at: exactly, in: previous, staggerIndex: 3, calendar: utc))
+    #expect(staggeredExample.staggered(3).isFlushFiring(at: before, in: previous, calendar: utc))
+    #expect(!staggeredExample.staggered(3).isFlushFiring(at: exactly, in: previous, calendar: utc))
 }

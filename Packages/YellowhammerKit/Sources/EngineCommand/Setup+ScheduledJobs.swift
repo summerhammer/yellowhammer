@@ -47,22 +47,22 @@ extension Setup {
         request: JobsRequest, configuration: Configuration, machine: MachineConfiguration,
         provisioningFailedIDs: Set<ProjectID>
     ) async -> Bool {
-        let eligibleProjects = configuration.projects.filter { !provisioningFailedIDs.contains($0.id) }
-        guard !eligibleProjects.isEmpty else { return false }
+        let provisioned = configuration.projects.filter { !provisioningFailedIDs.contains($0.id) }
+        guard !provisioned.isEmpty else { return false }
 
-        // `configuration.projects` is sorted by id (`Configuration`'s own contract); the stagger index
-        // is a Project's position in that same order, so an ineligible sibling never shifts it.
-        let allIDsSorted = configuration.projects.map(\.id)
+        // Each Project's Stagger Offset is recorded in its own file before its jobs are generated, so a
+        // sibling added or removed later never moves it (Schedule Stagger Ruling).
+        let recording = recordStaggerOffsets(configuration: configuration, machine: machine, eligible: provisioned)
+        let eligibleProjects = recording.projects
         let installer = jobInstaller
         let pathValue = installer.composedPATH(machine: machine)
         installer.reportUnresolvableTools(pathValue: pathValue, machine: machine)
 
         var jobs: [ScheduledJob] = []
-        var anyFailed = false
+        var anyFailed = recording.failed
         for project in eligibleProjects {
-            guard let staggerIndex = allIDsSorted.firstIndex(of: project.id) else { continue }
             do {
-                let firings = try project.schedule.firings(staggerIndex: staggerIndex)
+                let firings = try project.schedule.firings()
                 jobs.append(contentsOf: installer.jobs(projectID: project.id, firings: firings, pathValue: pathValue))
                 output(
                     "Project \(project.id): scheduled author \(firings.author.count), " // glossary:ignore GL001

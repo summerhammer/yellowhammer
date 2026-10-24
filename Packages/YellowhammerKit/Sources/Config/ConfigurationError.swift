@@ -30,6 +30,10 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         /// `night_start` and `night_end` are the same time: a 24-hour Night window has no land firing to
         /// close the Night.
         case twentyFourHourNightWindow(String)
+        /// `stagger_minutes` is negative.
+        case negativeStagger(Int64)
+        /// `stagger_minutes` is at or past the Night window's length, so no firing fits inside the Night.
+        case staggerBeyondWindow(offset: Int, windowMinutes: Int)
         case noSpecificationSource
         case secondSpecificationSource(firstLine: Int)
         case undeclaredCLIAdapter(String)
@@ -147,6 +151,11 @@ extension ConfigurationError.Reason: CustomStringConvertible {
         case .twentyFourHourNightWindow(let value):
             return "night_start and night_end are both \"\(value)\"; a 24-hour Night window has no land firing "
                 + "to close the Night, so night_end must differ from night_start"
+        case .negativeStagger(let value):
+            return "must be an integer >= 0, got \(value)"
+        case .staggerBeyondWindow(let offset, let windowMinutes):
+            return "stagger_minutes \(offset) is not inside the \(windowMinutes)-minute Night window; "
+                + "it must be smaller than the window's length"
         case .noSpecificationSource:
             return "a Project must declare exactly one specification source: "
                 + "a spec_source path or one repo with role \"spec\"; found none"

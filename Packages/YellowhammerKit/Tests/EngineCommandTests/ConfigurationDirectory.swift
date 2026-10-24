@@ -32,7 +32,10 @@ struct ConfigurationDirectory: ~Copyable {
 
     /// A valid Project file declaring one working Repo at `repoPath`. With `rehearsal`, it also declares
     /// its rehearsal context (OQ149): the Linear project `<id>-rehearsal` and ``rehearsalJournal(id:)``.
-    func writeValidProjectFile(id: String, repoPath: String? = nil, rehearsal: Bool = false) throws {
+    func writeValidProjectFile(
+        id: String, repoPath: String? = nil, rehearsal: Bool = false, stagger: Int? = nil
+    ) throws {
+        let scheduleTable = stagger.map { "\n\n[schedule]\nstagger_minutes = \($0)" } ?? ""
         let rehearsalProject = rehearsal ? ", rehearsal_project = \"\(id)-rehearsal\"" : ""
         let rehearsalTable = rehearsal
             ? "rehearsal = { journal = \"\(rehearsalJournal(id: id).path(percentEncoded: false))\" }\n" : ""
@@ -47,11 +50,11 @@ struct ConfigurationDirectory: ~Copyable {
             name = "backend"
             path = "\(repoPath ?? "~/Developer/\(id)-backend")"
             role = "backend"
-            check = "swift test"
+            check = "swift test"\(scheduleTable)
             """)
     }
 
-    /// Where ``writeValidProjectFile(id:repoPath:rehearsal:)`` declares a Project's rehearsal Journal:
+    /// Where ``writeValidProjectFile(id:repoPath:rehearsal:stagger:)`` declares a Project's rehearsal Journal:
     /// in this directory, outside `journals/`.
     func rehearsalJournal(id: String) -> URL {
         url.appending(components: "rehearsal", "\(id).db", directoryHint: .notDirectory)

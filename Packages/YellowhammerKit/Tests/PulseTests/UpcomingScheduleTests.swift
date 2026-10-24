@@ -16,8 +16,8 @@ private func at(_ hour: Int, _ minute: Int, day: Int = 19) -> Date {
     calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
 }
 
-private func upcoming(_ asOf: Date, staggerIndex: Int = 0) throws -> UpcomingSchedule {
-    try #require(UpcomingSchedule(schedule: Schedule(), staggerIndex: staggerIndex, asOf: asOf, calendar: calendar))
+private func upcoming(_ asOf: Date, staggerMinutes: Int = 0) throws -> UpcomingSchedule {
+    try #require(UpcomingSchedule(schedule: Schedule(staggerMinutes: staggerMinutes), asOf: asOf, calendar: calendar))
 }
 
 @Test("Before night_start: the next Act is tonight's author, and the Night has not opened")
@@ -69,7 +69,7 @@ func rollsOverToTomorrow() throws {
 
 @Test("The stagger index shifts the window and the Acts")
 func staggered() throws {
-    let result = try upcoming(at(19, 30), staggerIndex: 2)
+    let result = try upcoming(at(19, 30), staggerMinutes: 6)
 
     #expect(result.nextAct == ScheduledAct(act: .author, at: at(22, 6)))
     #expect(result.night.startsAt == at(22, 6))
