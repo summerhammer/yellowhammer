@@ -30,8 +30,8 @@ struct CardRunFrame: Sendable {
     var route: Route?
     /// The prior Attempt's preserved work, handed to a retry as context only, never as a starting
     /// tree (OQ60): set by the reset sequence, merged into every pass instruction of the new Attempt.
-    /// A second source seeds it: a resumed Card whose latest Attempt ended `question` carries that
-    /// Attempt's preserved work into the run's first Attempt (OQ106), set in `prepare`.
+    /// A second source seeds it across Card runs after `question` (OQ106) or `usage limited` (OQ179),
+    /// set in `prepare`.
     var wipContext: WIPContext?
     /// The Card's latest recorded question, with every Operator reply this Journal has recorded as an
     /// answer to it (roadmap P11.2): set once in ``prepare(card:in:context:readiness:)`` from the
@@ -172,16 +172,37 @@ extension CardRun {
         return frame
     }
 
-    /// A resumed Card is a new Attempt from `last_known_good_commit`, with the work its question Attempt
-    /// preserved handed over as context, not a starting tree (Landing Edge Cases Ruling 2026-10-01,
-    /// OQ106): the same ``WIPContext`` shape an in-run retry gets. Only the Card's latest Attempt counts,
-    /// and only when it ended `question` and carries a preserved ref; nothing else here is resumption.
-    private static func resumedWIPContext(cardID: Int64, journal: JournalStore) throws -> WIPContext? {
-        guard let latest = try journal.attemptHistory(cardID: cardID).attempts.last,
-            latest.result == AttemptOutcome.question.rawValue,
-            let ref = latest.preservedRef, let commit = latest.preservedCommit
-        else { return nil }
-        return WIPContext(commit: commit, note: "preserved at \(ref)")
+    /// Cross-run hand-over after question (OQ106) or usage limited (OQ179). A refusal that preserved
+    /// nothing passes on its incoming hand-over, without relabelling the source Attempt's outcome or
+    /// Rounds. Other endings are boundaries: their work is handled only by the existing in-run retry.
+    static func resumedWIPContext(cardID: Int64, journal: JournalStore) throws -> WIPContext? {
+        let attempts = try journal.attemptHistory(cardID: cardID).attempts
+        for index in attempts.indices.reversed() {
+            let attempt = attempts[index]
+            let usageLimited = attempt.result == AttemptOutcome.usageLimited.rawValue
+            guard usageLimited || attempt.result == AttemptOutcome.question.rawValue else { return nil }
+            if let ref = attempt.preservedRef, let commit = attempt.preservedCommit {
+                return WIPContext(
+                    commit: commit, note: "preserved at \(ref)",
+                    outcome: usageLimited ? .usageLimited : nil,
+                    rounds: usageLimited ? feedback(of: attempt.rounds) : []
+                )
+            }
+            guard usageLimited else { return nil }
+            // An empty refusal may itself have been an in-run retry. Its incoming WIP was then
+            // the reset's minimal context, whatever ending caused that retry (OQ60, unchanged).
+            if index > 0 {
+                let prior = attempts[index - 1]
+                let retriedEnding = prior.result == AttemptOutcome.hardFailure.rawValue
+                    || prior.result == AttemptOutcome.roundsExhausted.rawValue
+                    || prior.result == AttemptOutcome.crashedUnknown.rawValue
+                if retriedEnding, try journal.attemptRetriedInSameRun(attemptID: attempt.id, after: prior.id) {
+                    guard let ref = prior.preservedRef, let commit = prior.preservedCommit else { return nil }
+                    return WIPContext(commit: commit, note: "preserved at \(ref)")
+                }
+            }
+        }
+        return nil
     }
 
     /// The Card's latest question, with every recorded answer to it that is not itself banked (roadmap

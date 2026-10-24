@@ -227,6 +227,27 @@ extension Instruction {
         if let note = wip.note {
             lines.append("Note: \(note)")
         }
+        if let outcome = wip.outcome {
+            lines.append("Prior Attempt outcome (not known-good): \(outcome.rawValue)")
+        }
+        if !wip.rounds.isEmpty {
+            lines.append("")
+            lines.append("Prior Attempt Rounds (not known-good; context only):")
+            for round in wip.rounds {
+                var entry = "- Round \(round.round) (\(round.lens.rawValue)): verdict \(round.verdict)"
+                if let changes = round.requestedChanges { entry += "; requested changes: \(changes)" }
+                if let commit = round.judgedCommit { entry += "; judged commit: \(commit)" }
+                lines.append(entry)
+            }
+        }
+        if wip.outcome == .usageLimited {
+            lines.append("")
+            lines.append(
+                "The Engine starts this Attempt from last known-good with a fresh round budget. The worker may "
+                    + "merge or cherry-pick the preserved commits if it judges them sound; the Check and review "
+                    + "judge the resulting tree as usual."
+            )
+        }
         return lines.joined(separator: "\n")
     }
 
