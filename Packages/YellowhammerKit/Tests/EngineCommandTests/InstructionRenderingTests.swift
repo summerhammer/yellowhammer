@@ -229,7 +229,7 @@ func checkNoneRendersDeclaredNoneWording() {
 )
 func authoringInvariantSentenceOnlyForArchitectAndWorker(_ pass: RunPass) {
     let rendered = makeInstruction(payloads: .none, pass: pass).render()
-    let sentence = "Cards in a Feature never depend on each other"
+    let sentence = "Cards in a Feature never depend on Cards in other repositories"
     switch pass {
     case .architect, .worker:
         #expect(rendered.contains(sentence))

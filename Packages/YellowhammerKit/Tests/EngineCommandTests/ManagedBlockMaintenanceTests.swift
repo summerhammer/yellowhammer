@@ -248,8 +248,8 @@ struct ManagedBlockMaintenanceTests {
 
         // A quote inside the report must not cut it short: the work and the repository named after it stay.
         let violation = "missing \"Order\" table in backend"
-        let reason = "authoring-invariant violation, not an ordering failure: the Feature was mis-authored, "
-            + "and its Cards were never in an order that meant anything. Reported: \"\(violation)\""
+        let reason = "cross-repository authoring-invariant violation: the Feature was mis-authored across "
+            + "repositories. Reported: \"\(violation)\""
             + "; the likely hole: issue-1"
         try journal.append(
             .authoringInvariantBroken(cardID: cardID, issueID: "issue-2", reason: reason),

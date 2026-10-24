@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 // graph-execution/handle-a-block-mid-graph, P8.9: a later Card that turns out to have needed the
-// blocked Card's work is an authoring-invariant violation, not an ordering failure. The architect and
+// blocked Card's work is a cross-repository authoring-invariant violation. The architect and
 // worker report it in `authoring_invariant_violation` on a `failed` result; the engine records
 // `AuthoringInvariantBroken`, names the earlier hole in the same lane when there is one, and still ends
 // the Attempt hard failure — budget behaviour is unchanged.
@@ -83,7 +83,7 @@ struct AuthoringInvariantViolationTests {
             return
         }
         #expect(issueID == "BACK-2")
-        #expect(reason.contains("authoring-invariant violation, not an ordering failure"))
+        #expect(reason.contains("cross-repository authoring-invariant violation"))
         #expect(reason.contains(violation))
         #expect(reason.contains("BACK-1"))
 
