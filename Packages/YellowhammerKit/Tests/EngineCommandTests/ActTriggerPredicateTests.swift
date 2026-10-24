@@ -554,6 +554,25 @@ func authorFirstFiringOfTheNightIsMetInFlight() throws {
     )
 }
 
+@Test("author trigger: a later firing is met while the in-flight Cycle has landed, so the settle gesture is read")
+func authorLaterFiringMetWhileCycleLanded() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cycleID = try insertFixtureCard(journal, issueID: "CARD-1", state: .done).cycleID
+    _ = try startAuthorFiring(journal, runID: "run-1")
+    let landRun = RunID()
+    try claimLease(journal, runID: landRun, act: .land)
+    try journal.markCycleLanded(cycleID: cycleID, runID: landRun, now: epoch)
+    try journal.releaseActLease(runID: landRun)
+
+    let later = try startAuthorFiring(journal, runID: "run-2")
+    #expect(
+        try ActTriggerPredicate.evaluate(
+            act: .author, trigger: .scheduled, journal: journal, nightID: later.nightID, runID: later.runID
+        ) == .met
+    )
+}
+
 @Test("author trigger: a firing after the Cycle archived is met, as is a forced one while in flight")
 func authorLaterFiringMetAfterArchive() throws {
     let fixture = try JournalFixture()

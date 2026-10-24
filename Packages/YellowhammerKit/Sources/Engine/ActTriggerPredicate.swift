@@ -73,6 +73,9 @@ public enum ActTriggerPredicate {
         if try journal.authorActStartedCount(nightID: nightID, excludingRunID: runID) == 0 {
             return .met
         }
+        if let cycleID = try journal.inFlightCycleID(), try journal.isCycleLanded(cycleID: cycleID) {
+            return .met
+        }
         return cycleInFlight ? .notMet(.featureInFlight) : .notMet(.unfinishedCardsPresent)
     }
 
