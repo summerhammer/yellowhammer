@@ -585,3 +585,21 @@ func landingCarriesUnmergedFeaturesMax() throws {
     #expect(beta.journalFailure != nil)
     #expect(beta.pulse.unmergedFeatures.unmergedFeaturesMax == 3)
 }
+
+@Test("The scheduled Night is selectable only while its window is open and no Night is recorded")
+func projectContainsScheduledNightOnlyWhileWindowOpenAndUnrecorded() throws {
+    let id = try #require(ProjectID(rawValue: "alpha"))
+    func project(scheduled: ScheduledNight?) -> ProjectSnapshot {
+        var pulse = PulseSnapshot.empty
+        pulse.scheduledNight = scheduled
+        return ProjectSnapshot(id: id, name: "Alpha", repos: [], pulse: pulse)
+    }
+    let window = epoch.addingTimeInterval(6 * 3600)
+
+    let open = ScheduledNight(startsAt: epoch, endsAt: window, isOpen: true)
+    let upcoming = ScheduledNight(startsAt: epoch, endsAt: window, isOpen: false)
+
+    #expect(project(scheduled: open).contains(.scheduledNight))
+    #expect(!project(scheduled: upcoming).contains(.scheduledNight))
+    #expect(!project(scheduled: nil).contains(.scheduledNight))
+}

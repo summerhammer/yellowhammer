@@ -81,6 +81,15 @@ struct NightGroup: View {
                 Label("No Night yet", systemImage: "moon.zzz")
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("night-absence")
+                if scheduled?.isOpen == true {
+                    // The window is open but nothing is recorded: the account has no Journal id to open, so
+                    // the Inspector shows the schedule and says so.
+                    Button("Show the Night\u{2019}s account") {
+                        openDestination(.inspector(.scheduledNight))
+                    }
+                    .buttonStyle(.link)
+                    .accessibilityIdentifier("night-account-link")
+                }
             }
             if let scheduled {
                 if night?.state != .running {
