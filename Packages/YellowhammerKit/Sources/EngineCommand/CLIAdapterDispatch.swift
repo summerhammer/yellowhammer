@@ -27,6 +27,8 @@ struct CLIAdapterDispatch: AgentDispatch {
     /// Absolute directories no pass may read — Yellowhammer's configuration directory and the login
     /// Keychains directory (issue #546). Carried into every ``CLIDispatch``.
     let protectedDirectories: [String]
+    let recorder: (any DispatchPromptRecording)?
+    let now: @Sendable () -> Date
 
     init(
         runsDirectory: URL,
@@ -35,8 +37,10 @@ struct CLIAdapterDispatch: AgentDispatch {
         path: String? = ProcessInfo.processInfo.environment["PATH"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         fileExists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-        runner: CLIRunner = CLIRunner(),
-        protectedDirectories: [String] = []
+        runner: CLIRunner? = nil,
+        protectedDirectories: [String] = [],
+        recorder: (any DispatchPromptRecording)? = nil,
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.runsDirectory = runsDirectory
         self.timeout = timeout
@@ -44,7 +48,9 @@ struct CLIAdapterDispatch: AgentDispatch {
         self.path = path
         self.environment = environment
         self.fileExists = fileExists
-        self.runner = runner
+        self.recorder = recorder
+        self.now = now
+        self.runner = runner ?? CLIRunner(recorder: recorder, now: now)
         self.protectedDirectories = protectedDirectories
     }
 
@@ -69,15 +75,19 @@ struct CLIAdapterDispatch: AgentDispatch {
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
         let cli = request.route.cli
         guard let adapter = CLIAdapterRegistry.adapter(named: cli) else {
-            throw AgentDispatchRefusal(reason: "no CLI Adapter for `\(cli)`")
+            let reason = "no CLI Adapter for `\(cli)`"
+            recordRefusalIfNeeded(request: request, reason: reason, outputSchema: nil)
+            throw AgentDispatchRefusal(reason: reason)
         }
         guard let executable = ProbeExecutable.resolve(
             name: cli, declared: declaredExecutables[cli], path: path, fileExists: fileExists
         ) else {
-            throw AgentDispatchRefusal(
-                reason: "no executable found for `\(cli)`: declare `executable` under `[cli.\(cli)]` in "
-                    + "config.toml, or add `\(cli)` to PATH"
+            let reason = "no executable found for `\(cli)`: declare `executable` under `[cli.\(cli)]` in "
+                + "config.toml, or add `\(cli)` to PATH"
+            recordRefusalIfNeeded(
+                request: request, reason: reason, outputSchema: adapter.outputSchema(for: request.pass)
             )
+            throw AgentDispatchRefusal(reason: reason)
         }
         let dispatch = makeDispatch(for: request, executable: executable)
         do {
@@ -89,6 +99,25 @@ struct CLIAdapterDispatch: AgentDispatch {
         } catch let error as CLIAdapterError {
             throw AgentDispatchRefusal(reason: error.description)
         }
+    }
+
+    private func recordRefusalIfNeeded(
+        request: AgentDispatchRequest, reason: String, outputSchema: String?
+    ) {
+        guard let provenance = request.provenance, let recorder else { return }
+        let record = DispatchPromptRecord(
+            provenance: provenance,
+            route: request.route.description,
+            pass: request.pass,
+            dispatchedAt: now(),
+            defaultVersion: provenance.family.defaultVersion,
+            projectInstructions: .absent,
+            session: request.resumeSession != nil ? .resumed : .new,
+            instruction: request.instruction.render(),
+            outputSchema: outputSchema,
+            launch: .notLaunched(cause: reason)
+        )
+        _ = recorder.capture(record)
     }
 
     /// The run directory for one pass of one Attempt, under `runsDirectory`:
@@ -128,7 +157,8 @@ struct CLIAdapterDispatch: AgentDispatch {
             additionalWritableDirectories: request.additionalWritableDirectories,
             protectedDirectories: protectedDirectories,
             executable: executable,
-            environment: environment
+            environment: environment,
+            provenance: request.provenance
         )
     }
 }

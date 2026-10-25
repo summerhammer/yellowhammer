@@ -53,6 +53,7 @@ func eventTypeRawValues() {
         "WaitingOnYouReplyRecorded", "WaitingOnYouReplyBanked", "HumanCardComment",
         "CardRunStep", "CheckRan", "AttemptWorkPreserved", "FailureCauseRecorded", "LaneHoleRecorded",
         "CardReclaimed", "CardReclaimDeferred", "AgentCLIProcessSpawned", "RehearsalFixtureAnswered",
+        "PromptCaptureRequested",
         "CardCommitTrailerMissing", "CardCommitTrailersUnread",
         "LeftoverProcessRecorded",
         "FeatureSelected", "FeatureAuthoringHalted", "FeatureAuthoringAccepted", "FeatureAuthored",
@@ -616,4 +617,29 @@ func verifierRouteRejectedRoundTrips() throws {
 
     #expect(records.map(\.event) == [event])
     #expect(records[0].act == .land)
+}
+
+@Test("promptCaptureRequested event round-trips, with all fields and with optional fields omitted")
+func promptCaptureRequestedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let full = JournalEvent.promptCaptureRequested(
+        recordID: "rec-1", pass: .worker, cardID: 10, issueID: "C-1", attemptID: 2, round: 3, ordinal: 4
+    )
+    let minimal = JournalEvent.promptCaptureRequested(
+        recordID: "rec-2", pass: .selection, cardID: nil, issueID: nil, attemptID: nil, round: nil, ordinal: nil
+    )
+
+    try journal.append(full, act: .build, runID: RunID(), now: epoch)
+    try journal.append(minimal, act: .author, runID: RunID(), now: epoch)
+
+    let records = try journal.events()
+    #expect(records.count == 2)
+    #expect(records.map(\.event) == [full, minimal])
+    #expect(records[0].type == .promptCaptureRequested)
+    #expect(records[1].type == .promptCaptureRequested)
+    #expect(full.payload?.keys.sorted() == [
+        "attempt_id", "card_id", "issue_id", "ordinal", "pass", "record_id", "round"
+    ])
+    #expect(minimal.payload?.keys.sorted() == ["pass", "record_id"])
 }

@@ -91,6 +91,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case cardReclaimDeferred = "CardReclaimDeferred"
     case agentCLIProcessSpawned = "AgentCLIProcessSpawned"
     case rehearsalFixtureAnswered = "RehearsalFixtureAnswered"
+    case promptCaptureRequested = "PromptCaptureRequested"
     case cardCommitTrailerMissing = "CardCommitTrailerMissing"
     case cardCommitTrailersUnread = "CardCommitTrailersUnread"
     case leftoverProcessRecorded = "LeftoverProcessRecorded"

@@ -13,7 +13,8 @@ private let dispatchOpus = Route(cli: "claude", model: "opus", effort: "high")!
 
 private func request(
     route: Route = dispatchOpus, pass: RunPass = .worker, resumeSession: String? = nil,
-    additionalReadableDirectories: [String] = ["/repos/extra-readable"]
+    additionalReadableDirectories: [String] = ["/repos/extra-readable"],
+    provenance: DispatchProvenance? = nil
 ) -> AgentDispatchRequest {
     let repo = Repo(name: "backend", path: "/repos/backend", role: .backend)
     let instruction = Instruction(
@@ -28,7 +29,8 @@ private func request(
         runID: RunID(rawValue: "run-1")!, issueID: "BACK-1", attemptID: 7, route: route, pass: pass,
         instruction: .card(instruction), worktreePath: "/wt/backend", resumeSession: resumeSession,
         additionalReadableDirectories: additionalReadableDirectories,
-        additionalWritableDirectories: ["/repos/backend/.git"]
+        additionalWritableDirectories: ["/repos/backend/.git"],
+        provenance: provenance
     )
 }
 
@@ -193,6 +195,121 @@ struct CLIAdapterDispatchTests {
                 name: "claude", declared: "/opt/claude", path: "/usr/bin", fileExists: { _ in true }
             ) == "/opt/claude"
         )
+    }
+
+    @Test("A CLIAdapterDispatch refusal when no adapter exists captures a not-launched record with nil outputSchema")
+    func refusalNoAdapterCapturesRecord() async throws {
+        let recorder = FakePromptRecorder()
+        let dispatch = CLIAdapterDispatch(
+            runsDirectory: runs,
+            declaredExecutables: ["claude": "/bin/true"],
+            recorder: recorder
+        )
+        let unknown = Route(cli: "unknown-cli", model: "model", effort: "high")!
+        let provenance = DispatchProvenance(
+            recordID: "rec-no-adapter", family: .worker, projectID: "proj-1", runID: "run-1", nightID: 1
+        )
+        var req = request(route: unknown)
+        req.provenance = provenance
+
+        await #expect(throws: AgentDispatchRefusal.self) {
+            try await dispatch.dispatch(req)
+        }
+
+        #expect(recorder.captured.count == 1)
+        let record = try #require(recorder.captured.first)
+        #expect(record.id == "rec-no-adapter")
+        #expect(record.outputSchema == nil)
+        guard case .notLaunched(let cause) = record.launch else {
+            Issue.record("expected .notLaunched, got \(record.launch)")
+            return
+        }
+        #expect(cause.contains("no CLI Adapter"))
+    }
+
+    @Test(
+        "A CLIAdapterDispatch refusal when executable is unresolvable captures not-launched record with outputSchema"
+    )
+    func refusalNoExecutableCapturesRecord() async throws {
+        let recorder = FakePromptRecorder()
+        let dispatch = CLIAdapterDispatch(
+            runsDirectory: runs,
+            path: "/nowhere",
+            recorder: recorder
+        )
+        let provenance = DispatchProvenance(
+            recordID: "rec-no-exec", family: .worker, projectID: "proj-1", runID: "run-1", nightID: 1
+        )
+        var req = request()
+        req.provenance = provenance
+
+        await #expect(throws: AgentDispatchRefusal.self) {
+            try await dispatch.dispatch(req)
+        }
+
+        #expect(recorder.captured.count == 1)
+        let record = try #require(recorder.captured.first)
+        #expect(record.id == "rec-no-exec")
+        let schema = try #require(record.outputSchema)
+        #expect(!schema.isEmpty)
+        guard case .notLaunched(let cause) = record.launch else {
+            Issue.record("expected .notLaunched, got \(record.launch)")
+            return
+        }
+        #expect(cause.contains("no executable found"))
+    }
+
+    @Test("An unavailable recorder leaves the refusal outcome unchanged")
+    func unavailableRecorderLeavesRefusalUnchanged() async throws {
+        let recorder = FakePromptRecorder()
+        recorder.captureResult = .unavailable(cause: "disk full")
+        let dispatch = CLIAdapterDispatch(
+            runsDirectory: runs,
+            path: "/nowhere",
+            recorder: recorder
+        )
+        let provenance = DispatchProvenance(
+            recordID: "rec-unavail", family: .worker, projectID: "proj-1", runID: "run-1", nightID: 1
+        )
+        var req = request()
+        req.provenance = provenance
+
+        await #expect(throws: AgentDispatchRefusal.self) {
+            try await dispatch.dispatch(req)
+        }
+    }
+}
+
+private final class FakePromptRecorder: DispatchPromptRecording, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _captured: [DispatchPromptRecord] = []
+    private var _launches: [(launch: DispatchLaunch, record: DispatchPromptRecord)] = []
+    var captureResult: DispatchPromptCapture = .recorded(id: "fake-id")
+
+    var captured: [DispatchPromptRecord] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _captured
+    }
+
+    var launches: [(launch: DispatchLaunch, record: DispatchPromptRecord)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _launches
+    }
+
+    func capture(_ record: DispatchPromptRecord) -> DispatchPromptCapture {
+        lock.lock()
+        _captured.append(record)
+        lock.unlock()
+        return captureResult
+    }
+
+    func markLaunch(_ launch: DispatchLaunch, of record: DispatchPromptRecord) -> Bool {
+        lock.lock()
+        _launches.append((launch, record))
+        lock.unlock()
+        return true
     }
 }
 

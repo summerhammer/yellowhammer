@@ -19,14 +19,46 @@ public struct CLIRunReport: Equatable, Sendable {
 /// it does no polling or waiting of its own.
 public struct CLIRunner: Sendable {
     public let process: AgentCLIProcess
+    public let recorder: (any DispatchPromptRecording)?
+    public let now: @Sendable () -> Date
 
-    public init(process: AgentCLIProcess = AgentCLIProcess()) {
+    public init(
+        process: AgentCLIProcess = AgentCLIProcess(),
+        recorder: (any DispatchPromptRecording)? = nil,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         self.process = process
+        self.recorder = recorder
+        self.now = now
     }
 
     public func run(_ dispatch: CLIDispatch, adapter: some CLIAdapter) async throws -> CLIRunReport {
-        let launch = try adapter.launch(for: dispatch)
-        let execution = try await process.execute(launch)
+        let promptRecord = capturePromptRecord(for: dispatch, adapter: adapter)
+
+        let launch: AgentCLILaunch
+        do {
+            launch = try adapter.launch(for: dispatch)
+        } catch {
+            if let promptRecord, let recorder {
+                _ = recorder.markLaunch(.notLaunched(cause: error.description), of: promptRecord)
+            }
+            throw error
+        }
+
+        let execution: AgentCLIExecution
+        do {
+            execution = try await process.execute(launch)
+        } catch {
+            if let promptRecord, let recorder {
+                _ = recorder.markLaunch(.notLaunched(cause: error.description), of: promptRecord)
+            }
+            throw error
+        }
+
+        if let promptRecord, let recorder {
+            _ = recorder.markLaunch(.launched, of: promptRecord)
+        }
+
         let session = adapter.collect(end: execution.end, dispatch: dispatch)
         let outcome: RunOutcome
         if case .exited(let status) = execution.end, status != 0,
@@ -39,5 +71,23 @@ public struct CLIRunner: Sendable {
             pid: execution.pid, end: execution.end, outcome: outcome, session: session,
             leftovers: execution.leftovers, snapshot: execution.snapshot
         )
+    }
+
+    private func capturePromptRecord(for dispatch: CLIDispatch, adapter: some CLIAdapter) -> DispatchPromptRecord? {
+        guard let provenance = dispatch.provenance, let recorder else { return nil }
+        let record = DispatchPromptRecord(
+            provenance: provenance,
+            route: dispatch.route.description,
+            pass: dispatch.pass,
+            dispatchedAt: now(),
+            defaultVersion: provenance.family.defaultVersion,
+            projectInstructions: .absent,
+            session: dispatch.resume != nil ? .resumed : .new,
+            instruction: dispatch.instruction,
+            outputSchema: adapter.outputSchema(for: dispatch.pass),
+            launch: .pending
+        )
+        _ = recorder.capture(record)
+        return record
     }
 }

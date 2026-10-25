@@ -48,6 +48,7 @@ public struct AuthoringRoute: Sendable {
     /// ``AuthoringDispatchFault`` when no Route answered.
     func run(
         pass: RunPass, worktreePath: String, context: ActContext,
+        featureIssueID: String? = nil,
         additionalReadableDirectories: [String] = [],
         accept: (DispatchResult) async -> String? = { _ in nil },
         instruction: (Route, [String]) -> AuthoringInstruction
@@ -65,10 +66,29 @@ public struct AuthoringRoute: Sendable {
             }
             let route = resolved.route
             ordinal += 1
+            let recordID = UUID().uuidString.lowercased()
+            let resolvedFeatureIssueID = pass == .breakdown ? featureIssueID : nil
+            let provenance = DispatchProvenance(
+                recordID: recordID,
+                family: PromptFamily(pass: pass) ?? .selection,
+                projectID: context.journal.projectID.rawValue,
+                runID: context.runID.rawValue,
+                nightID: context.night.id,
+                featureIssueID: resolvedFeatureIssueID,
+                routeTry: Int(ordinal)
+            )
             let dispatchRequest = AgentDispatchRequest(
                 runID: context.runID, issueID: Self.runDirectoryName, attemptID: ordinal, route: route,
                 pass: pass, instruction: .authoring(instruction(route, earlierRejections)), worktreePath: worktreePath,
-                additionalReadableDirectories: additionalReadableDirectories
+                additionalReadableDirectories: additionalReadableDirectories,
+                provenance: provenance
+            )
+            try context.journal.append(
+                .promptCaptureRequested(
+                    recordID: recordID, pass: pass, cardID: nil, issueID: resolvedFeatureIssueID,
+                    attemptID: nil, round: nil, ordinal: Int(ordinal)
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
             )
             let judgement: Judgement
             do {

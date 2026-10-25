@@ -182,6 +182,25 @@ extension CardRun {
             bankedReplies: payloads.bankedReplies.isEmpty ? frame.bankedReplies : payloads.bankedReplies,
             roundFeedback: payloads.roundFeedback
         )
+        let currentRound: Int
+        if let attemptRecord = try frame.journal.attempt(id: attempt.id) {
+            currentRound = 1 + attemptRecord.rounds.count { $0.requestedChanges != nil }
+        } else {
+            currentRound = 1
+        }
+        let recordID = UUID().uuidString.lowercased()
+        let provenance = DispatchProvenance(
+            recordID: recordID,
+            family: PromptFamily(pass: pass) ?? .worker,
+            projectID: frame.journal.projectID.rawValue,
+            runID: frame.context.act.runID.rawValue,
+            nightID: frame.context.act.night.id,
+            featureIssueID: frame.context.feature.issueID,
+            workCardIssueID: frame.card.issueID,
+            cardID: frame.card.id,
+            attemptID: attempt.id,
+            round: currentRound
+        )
         let request = AgentDispatchRequest(
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,
             pass: pass,
@@ -191,9 +210,17 @@ extension CardRun {
                 )
             ),
             worktreePath: frame.worktree.path, resumeSession: resumeSession,
-            additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path)
+            additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path),
+            provenance: provenance
         )
         try frame.revalidateLease()
+        try frame.journal.append(
+            .promptCaptureRequested(
+                recordID: recordID, pass: pass, cardID: frame.card.id, issueID: frame.card.issueID,
+                attemptID: attempt.id, round: currentRound, ordinal: nil
+            ),
+            act: frame.context.act.act, runID: frame.context.act.runID, nightID: frame.context.act.night.id
+        )
         let report: AgentDispatchReport
         do {
             report = try await dispatch.dispatch(request)

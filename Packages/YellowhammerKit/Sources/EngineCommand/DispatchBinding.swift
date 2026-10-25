@@ -19,6 +19,12 @@ enum DispatchBinding {
         case .rehearsal:
             return RehearsalDispatch(script: resultFixtures)
         case .real:
+            let promptStore = DispatchPromptStore(
+                rootDirectory: DispatchPromptStore.rootDirectory(
+                    configurationDirectory: configurationDirectory
+                )
+            )
+            let recorder = ReportingDispatchPromptRecorder(store: promptStore)
             return CLIAdapterDispatch(
                 runsDirectory: CLIAdapterDispatch.runsDirectory(
                     configurationDirectory: configurationDirectory, projectID: project.id
@@ -27,7 +33,8 @@ enum DispatchBinding {
                 declaredExecutables: declaredExecutables(configuration),
                 protectedDirectories: CLIAdapterDispatch.protectedDirectories(
                     configurationDirectory: configurationDirectory
-                )
+                ),
+                recorder: recorder
             )
         }
     }

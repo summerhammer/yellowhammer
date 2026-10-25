@@ -184,6 +184,8 @@ extension JournalEvent {
             .agentCLIProcessSpawned
         case .rehearsalFixtureAnswered:
             .rehearsalFixtureAnswered
+        case .promptCaptureRequested:
+            .promptCaptureRequested
         case .cardCommitTrailerMissing:
             .cardCommitTrailerMissing
         case .cardCommitTrailersUnread:

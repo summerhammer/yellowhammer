@@ -55,6 +55,18 @@ struct AntigravityAdapterTests {
         #expect(!args.contains("--sandbox"))
     }
 
+    @Test("outputSchema(for:) matches the --json-schema argument in argv for every pass",
+          arguments: RunPass.allCases)
+    func outputSchemaMatchesArgv(pass: RunPass) throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(cli: "agy", model: "gemini-3.8-flash-low", effort: "low", pass: pass)
+        let launch = try adapter.launch(for: dispatch)
+        let schemaFromArgv = Self.value(after: "--json-schema", in: launch.arguments)
+        #expect(adapter.outputSchema(for: pass) == schemaFromArgv)
+        #expect(adapter.outputSchema(for: pass) == CLIOutputSchema.gemini(for: pass))
+    }
+
     @Test("Readable then writable directories become repeated --add-dir flags in order")
     func addDirFlags() throws {
         let fixture = try CLIDispatchFixture.make()

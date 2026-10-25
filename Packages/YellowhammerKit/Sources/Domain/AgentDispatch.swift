@@ -26,6 +26,8 @@ public struct AgentDispatchRequest: Equatable, Sendable {
     /// Directories the CLI must be able to write beyond the Worktree, such as a linked Worktree's git
     /// common dir.
     public let additionalWritableDirectories: [String]
+    /// Provenance linking this request to its prompt capture record and Journal identity.
+    public var provenance: DispatchProvenance?
 
     public init(
         runID: RunID,
@@ -37,7 +39,8 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         worktreePath: String,
         resumeSession: String? = nil,
         additionalReadableDirectories: [String] = [],
-        additionalWritableDirectories: [String] = []
+        additionalWritableDirectories: [String] = [],
+        provenance: DispatchProvenance? = nil
     ) {
         self.runID = runID
         self.issueID = issueID
@@ -49,6 +52,7 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         self.resumeSession = resumeSession
         self.additionalReadableDirectories = additionalReadableDirectories
         self.additionalWritableDirectories = additionalWritableDirectories
+        self.provenance = provenance
     }
 }
 

@@ -360,6 +360,11 @@ public enum JournalEvent: Equatable, Sendable {
     /// A rehearsal Night's pass was answered from a fixture instead of spawning an agent CLI process
     /// (system-overview, Environment Differences, P8.11): one of the three rehearsal boundaries held.
     case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
+    /// Prompt capture was requested for a dispatch before launch (app/view-the-prompts-used-by-a-pass).
+    case promptCaptureRequested(
+        recordID: String, pass: RunPass, cardID: Int64?, issueID: String?, attemptID: Int64?, round: Int?,
+        ordinal: Int?
+    )
     /// One commit the worker reported (or that the reported range reached) carries no `Yellowhammer-Work-Card`
     /// trailer (graph-execution/run-a-card). Recorded only: it never changes the Card's outcome, never
     /// creates a Round, and is not shown in the Roll-up (OQ102).
