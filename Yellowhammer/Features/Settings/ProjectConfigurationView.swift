@@ -77,6 +77,7 @@ struct ProjectConfigurationFormView: View {
                 nightBlock(draft)
                 boundsBlock(draft)
                 routingBlock(draft)
+                PromptCatalogBlock()
             } footer: {
                 SettingsSaveFooter(
                     note: "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "

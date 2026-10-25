@@ -125,11 +125,7 @@ extension CLIProbe {
     }
 
     static func containmentInstruction(variant: String) -> String {
-        """
-        This is an automated Yellowhammer probe, not real work. Using your shell tool, run exactly \
-        the command `sh yh-probe-hold.sh \(variant)` in the foreground from the current working \
-        directory, and wait for it to finish. Do nothing else.
-        """
+        DiagnosticInstruction.containment(variant: variant)
     }
 
     private actor ContainmentBox {

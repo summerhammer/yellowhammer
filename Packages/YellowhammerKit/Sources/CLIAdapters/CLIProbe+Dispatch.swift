@@ -54,18 +54,12 @@ extension CLIProbe {
     // MARK: - Instructions
 
     static func unattendedInstruction(nonce: String) -> String {
-        """
-        This is an automated Yellowhammer probe, not real work. Do not read or modify any files \
-        and do not run any command. Respond immediately with outcome `failed` and reason exactly \
-        `\(nonce)`.
-        """
+        DiagnosticInstruction.unattended(nonce: nonce)
     }
 
-    static let resumeInstruction = """
-        This is an automated Yellowhammer probe, not real work. Do not read or modify any files \
-        and do not run any command. Respond immediately with outcome `failed` and reason exactly \
-        equal to the reason you gave in your previous reply.
-        """
+    static var resumeInstruction: String {
+        DiagnosticInstruction.resume
+    }
 
     // MARK: - Classification
 

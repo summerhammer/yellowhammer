@@ -1,4 +1,5 @@
 import Config
+import Domain
 import SwiftUI
 
 /// The machine-wide settings of the Settings window's General section: Orca ADE and the Command Line Tool.
@@ -15,6 +16,10 @@ struct GeneralSettingsPane: View {
         ) {
             orcaADE
             commandLineToolCard
+            PromptCatalogBlock(
+                title: "Diagnostic prompts",
+                entries: PromptCatalog.entries.filter(\.family.isDiagnostic)
+            )
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-general-pane")
