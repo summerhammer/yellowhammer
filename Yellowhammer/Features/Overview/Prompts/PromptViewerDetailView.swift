@@ -78,7 +78,9 @@ struct PromptViewerDetailView: View {
         case let .expired(dispatchedAt):
             noticeBanner(
                 title: "Expired",
-                message: "30 days have elapsed since dispatch (\(dispatchedAt.formatted(date: .abbreviated, time: .standard))). Stored prompt text has been cleaned up.", // swiftlint:disable:this line_length
+                message: "30 days have elapsed since dispatch "
+                    + "(\(dispatchedAt.formatted(date: .abbreviated, time: .standard)))."
+                    + " Stored prompt text has been cleaned up.",
                 systemImage: "clock.badge.exclamationmark",
                 color: .orange
             )
@@ -86,7 +88,8 @@ struct PromptViewerDetailView: View {
         case let .deleted(deletedAt):
             noticeBanner(
                 title: "Deleted",
-                message: "This prompt record was deleted on \(deletedAt.formatted(date: .abbreviated, time: .standard)).", // swiftlint:disable:this line_length
+                message: "This prompt record was deleted on "
+                    + "\(deletedAt.formatted(date: .abbreviated, time: .standard)).",
                 systemImage: "trash",
                 color: .red
             )
