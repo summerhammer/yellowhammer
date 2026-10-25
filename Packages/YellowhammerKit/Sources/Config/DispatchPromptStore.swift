@@ -47,6 +47,13 @@ public struct DispatchPromptStore: DispatchPromptRecording, Sendable {
     }
 }
 
+/// Seam for cleaning recorded prompts during Project removal.
+public protocol DispatchPromptCleaning: Sendable {
+    func removeAll(projectID: ProjectID) throws
+}
+
+extension DispatchPromptStore: DispatchPromptCleaning {}
+
 /// Errors raised by `DispatchPromptStore` mutation operations.
 public enum DispatchPromptStoreError: Error, Sendable, CustomStringConvertible {
     case invalidIdentifier(String)

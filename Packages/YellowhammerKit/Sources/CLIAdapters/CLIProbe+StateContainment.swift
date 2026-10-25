@@ -22,6 +22,7 @@ extension CLIProbe {
         // `runDispatch` never throws, so this delete is reached on every path once the item exists.
         let result = await runDispatch(
             pass: .architect,
+            family: .stateContainmentProbe,
             adapter: adapter,
             context: context,
             runDirectory: context.runsDirectory.appendingPathComponent("state-containment"),

@@ -151,7 +151,9 @@ extension DispatchPromptStore {
                     let filePath = scopeDir.appending(components: item, directoryHint: .notDirectory)
                         .path(percentEncoded: false)
                     if Darwin.unlink(filePath) != 0 {
-                        failures.append(item)
+                        if errno != ENOENT {
+                            failures.append(item)
+                        }
                     }
                 }
             }

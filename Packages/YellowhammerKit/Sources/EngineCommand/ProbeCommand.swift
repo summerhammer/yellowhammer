@@ -42,6 +42,14 @@ public struct ProbeCommand: AsyncParsableCommand {
     }
 
     func run(configurationDirectory: URL) async throws {
+        let promptStore = DispatchPromptStore(
+            rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
+        )
+        let sweepFailures = promptStore.sweepExpired(in: .machine)
+        for failure in sweepFailures {
+            print("could not sweep expired prompt record \(failure)")
+        }
+
         let targets: [String]
         if all {
             targets = CLIAdapterRegistry.allNames
@@ -73,6 +81,7 @@ public struct ProbeCommand: AsyncParsableCommand {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func probeTarget(
         cli: String,
         model: String?,
@@ -94,7 +103,13 @@ public struct ProbeCommand: AsyncParsableCommand {
         let store = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let previous = try store.latestProbeResult(cli: cli)
 
-        let report = await CLIProbe().run(
+        let recorder = ReportingDispatchPromptRecorder(
+            store: DispatchPromptStore(
+                rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
+            )
+        )
+
+        let report = await CLIProbe(recorder: recorder).run(
             adapter: adapter,
             route: route,
             executable: executable,

@@ -8,6 +8,7 @@ import Foundation
 /// Project's runs directory, `<runID>/preflight/<uuid>`. A Route with no adapter or no executable fails its
 /// pre-flight: it could not be dispatched either.
 struct CLIAdapterRoutePreflight: RoutePreflighting {
+    let projectID: ProjectID
     let runsDirectory: URL
     let declaredExecutables: [String: String]
     let path: String?
@@ -15,12 +16,14 @@ struct CLIAdapterRoutePreflight: RoutePreflighting {
     let preflight: CLIRoutePreflight
 
     init(
+        projectID: ProjectID,
         runsDirectory: URL,
         declaredExecutables: [String: String] = [:],
         path: String? = ProcessInfo.processInfo.environment["PATH"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         preflight: CLIRoutePreflight = CLIRoutePreflight()
     ) {
+        self.projectID = projectID
         self.runsDirectory = runsDirectory
         self.declaredExecutables = declaredExecutables
         self.path = path
@@ -42,7 +45,9 @@ struct CLIAdapterRoutePreflight: RoutePreflighting {
             .appending(components: runID.rawValue, "preflight", UUID().uuidString, directoryHint: .isDirectory)
         if let reason = await preflight.run(
             adapter: adapter, route: route, executable: executable, environment: environment,
-            workDirectory: workDirectory
+            workDirectory: workDirectory,
+            projectID: projectID.rawValue,
+            runID: runID.rawValue
         ) {
             return .failed(reason: reason)
         }

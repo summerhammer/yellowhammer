@@ -21,19 +21,22 @@ public struct CLIProbe: Sendable {
     public let gracePeriod: Duration
     /// Creates and deletes the throwaway Keychain item the state-containment dispatch tries to read.
     public let keychain: ProbeKeychain
+    public let recorder: (any DispatchPromptRecording)?
 
     public init(
         dispatchTimeout: Duration = .seconds(300),
         holdObservationTimeout: Duration = .seconds(240),
         pollInterval: Duration = .milliseconds(100),
         gracePeriod: Duration = .seconds(3),
-        keychain: ProbeKeychain = .login
+        keychain: ProbeKeychain = .login,
+        recorder: (any DispatchPromptRecording)? = nil
     ) {
         self.dispatchTimeout = dispatchTimeout
         self.holdObservationTimeout = holdObservationTimeout
         self.pollInterval = pollInterval
         self.gracePeriod = gracePeriod
         self.keychain = keychain
+        self.recorder = recorder
     }
 
     /// - Parameter protectedDirectories: the directories no pass may read, exactly as a real dispatch
@@ -48,10 +51,12 @@ public struct CLIProbe: Sendable {
         workDirectory: URL,
         protectedDirectories: [String]
     ) async -> ProbeReport {
+        let runID = UUID().uuidString.lowercased()
         let worktree = workDirectory.appendingPathComponent("worktree")
         let context = ProbeDispatchContext(
             route: route, executable: executable, environment: environment, worktree: worktree,
-            runsDirectory: workDirectory.appendingPathComponent("runs"), protectedDirectories: protectedDirectories
+            runsDirectory: workDirectory.appendingPathComponent("runs"), protectedDirectories: protectedDirectories,
+            projectID: nil, runID: runID
         )
         let reachTargets = ReachTargets(
             keychainAccount: Self.makeNonce(), configurationDirectory: protectedDirectories.first ?? ""
@@ -69,8 +74,8 @@ public struct CLIProbe: Sendable {
         // Dispatch A — unattended dispatch + result file on clean exit.
         let unattendedRunDirectory = context.runsDirectory.appendingPathComponent("unattended")
         let dispatchA = await runDispatch(
-            pass: .architect, adapter: adapter, context: context, runDirectory: unattendedRunDirectory,
-            instruction: Self.unattendedInstruction(nonce: nonce), resume: nil
+            pass: .architect, family: .unattendedProbe, adapter: adapter, context: context,
+            runDirectory: unattendedRunDirectory, instruction: Self.unattendedInstruction(nonce: nonce), resume: nil
         )
         let (unattendedFinding, unattendedDetail) = Self.unattendedFinding(
             for: dispatchA, runDirectory: unattendedRunDirectory
@@ -134,12 +139,42 @@ struct ProbeDispatchContext: Sendable {
     let worktree: URL
     let runsDirectory: URL
     let protectedDirectories: [String]
+    let projectID: String?
+    let runID: String?
+
+    init(
+        route: Route,
+        executable: String,
+        environment: [String: String],
+        worktree: URL,
+        runsDirectory: URL,
+        protectedDirectories: [String],
+        projectID: String? = nil,
+        runID: String? = nil
+    ) {
+        self.route = route
+        self.executable = executable
+        self.environment = environment
+        self.worktree = worktree
+        self.runsDirectory = runsDirectory
+        self.protectedDirectories = protectedDirectories
+        self.projectID = projectID
+        self.runID = runID
+    }
 
     /// One probe dispatch, built the way the engine builds a real one, protected directories included.
-    func dispatch(
-        pass: RunPass, instruction: String, runDirectory: URL, timeout: Duration, resume: CLISession?
+    func dispatch( // swiftlint:disable:this function_parameter_count
+        pass: RunPass, family: PromptFamily, instruction: String, runDirectory: URL,
+        timeout: Duration, resume: CLISession?
     ) -> CLIDispatch {
-        CLIDispatch(
+        let recordID = UUID().uuidString.lowercased()
+        let provenance = DispatchProvenance(
+            recordID: recordID,
+            family: family,
+            projectID: projectID,
+            runID: runID
+        )
+        return CLIDispatch(
             route: route,
             pass: pass,
             instruction: instruction,
@@ -150,7 +185,8 @@ struct ProbeDispatchContext: Sendable {
             additionalWritableDirectories: [],
             protectedDirectories: protectedDirectories,
             executable: executable,
-            environment: environment
+            environment: environment,
+            provenance: provenance
         )
     }
 }

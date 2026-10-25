@@ -8,14 +8,22 @@ import Foundation
 /// exits non-zero, and what it printed is the reason. Never throws, like the Probe.
 public struct CLIRoutePreflight: Sendable {
     public let timeout: Duration
+    public let recorder: (any DispatchPromptRecording)?
 
-    public init(timeout: Duration = .seconds(300)) {
+    public init(timeout: Duration = .seconds(300), recorder: (any DispatchPromptRecording)? = nil) {
         self.timeout = timeout
+        self.recorder = recorder
     }
 
     /// Nil when the Route passed; otherwise why it did not, Operator-facing.
     public func run(
-        adapter: some CLIAdapter, route: Route, executable: String, environment: [String: String], workDirectory: URL
+        adapter: some CLIAdapter,
+        route: Route,
+        executable: String,
+        environment: [String: String],
+        workDirectory: URL,
+        projectID: String? = nil,
+        runID: String? = nil
     ) async -> String? {
         let worktree = workDirectory.appendingPathComponent("worktree")
         let runDirectory = workDirectory.appendingPathComponent("run")
@@ -27,14 +35,15 @@ public struct CLIRoutePreflight: Sendable {
         guard await CLIProbe.runGitInit(in: worktree) else {
             return "`git init -q` did not succeed in \(worktree.path)"
         }
-        let probe = CLIProbe(dispatchTimeout: timeout)
+        let probe = CLIProbe(dispatchTimeout: timeout, recorder: recorder)
         // The pre-flight prompt runs no command, so it carries no protected directories.
         let context = ProbeDispatchContext(
             route: route, executable: executable, environment: environment, worktree: worktree,
-            runsDirectory: workDirectory, protectedDirectories: []
+            runsDirectory: workDirectory, protectedDirectories: [],
+            projectID: projectID, runID: runID
         )
         let result = await probe.runDispatch(
-            pass: .architect, adapter: adapter, context: context, runDirectory: runDirectory,
+            pass: .architect, family: .routePreflight, adapter: adapter, context: context, runDirectory: runDirectory,
             instruction: CLIProbe.unattendedInstruction(nonce: CLIProbe.makeNonce()), resume: nil
         )
         let (finding, detail) = CLIProbe.unattendedFinding(for: result, runDirectory: runDirectory)
