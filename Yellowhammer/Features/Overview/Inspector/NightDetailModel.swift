@@ -21,6 +21,14 @@ final class NightDetailModel {
 
     /// Nil until the first read lands.
     private(set) var read: NightAccountRead?
+    private(set) var promptIndexRead: DispatchPromptIndexRead?
+
+    var promptIndex: DispatchPromptIndex? {
+        if case let .index(index) = promptIndexRead {
+            return index
+        }
+        return nil
+    }
 
     init(project: ProjectID, nightID: Int64) {
         self.project = project
@@ -29,15 +37,24 @@ final class NightDetailModel {
 
     /// Re-reads the Night's account. A blocked read cannot be cancelled, so a read whose task was cancelled
     /// meanwhile (the Inspector closed, or a newer read started) is dropped rather than applied.
-    func load() async {
-        let result = await Self.read(nightID: nightID, project: project, directory: ConfigurationDirectory.current)
+    func load(asOf: Date = Date()) async {
+        async let accountResult = Self.read(nightID: nightID, project: project, directory: ConfigurationDirectory.current)
+        async let promptResult = Self.readPrompts(nightID: nightID, project: project, directory: ConfigurationDirectory.current, asOf: asOf)
+
+        let (acc, prompts) = await (accountResult, promptResult)
         guard !Task.isCancelled else { return }
-        read = result
+        read = acc
+        promptIndexRead = prompts
     }
 
     /// Off the main actor: the Journal open can wait out its busy timeout while an Act writes.
     @concurrent
     private nonisolated static func read(nightID: Int64, project: ProjectID, directory: URL) async -> NightAccountRead {
         NightAccount.read(nightID: nightID, project: project, configurationDirectory: directory)
+    }
+
+    @concurrent
+    private nonisolated static func readPrompts(nightID: Int64, project: ProjectID, directory: URL, asOf: Date) async -> DispatchPromptIndexRead {
+        DispatchPromptIndex.read(configurationDirectory: directory, projectID: project, scope: .night(nightID: nightID), asOf: asOf)
     }
 }

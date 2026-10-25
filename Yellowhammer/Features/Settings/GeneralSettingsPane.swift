@@ -18,7 +18,8 @@ struct GeneralSettingsPane: View {
             commandLineToolCard
             PromptCatalogBlock(
                 title: "Diagnostic prompts",
-                entries: PromptCatalog.entries.filter(\.family.isDiagnostic)
+                entries: PromptCatalog.entries.filter(\.family.isDiagnostic),
+                showRecordedDiagnosticDispatches: true
             )
         }
         .accessibilityElement(children: .contain)

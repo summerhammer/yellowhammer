@@ -51,7 +51,8 @@ extension NightAccount {
                 key: night.nightCardIssueIDForDisplay ?? night.nightCardIssueKey,
                 url: night.nightCardIssueURL
             ),
-            runs: ActRun.runs(from: records, cardNames: cardNames, featureNames: featureNames)
+            runs: ActRun.runs(from: records, cardNames: cardNames, featureNames: featureNames),
+            projectID: journal.projectID
         )
     }
 
@@ -111,12 +112,51 @@ extension NightAccount.ActRun {
     private static func run(
         id: String, records: [JournalEventRecord], cardNames: [Int64: String], featureNames: [String: String]
     ) -> NightAccount.ActRun {
-        NightAccount.ActRun(
+        var promptCaptures: [String: String] = [:]
+        for record in records {
+            if case .promptCaptureRequested(let recordID, let pass, _, _, _, _, let ordinal) = record.event {
+                let key = "\(pass.rawValue)-\(ordinal ?? 1)"
+                promptCaptures[key] = recordID
+                promptCaptures[pass.rawValue] = recordID
+            }
+        }
+
+        let entries = records.map { record -> NightAccount.Entry in
+            let promptID: String?
+            let offersPrompt: Bool
+            switch record.event {
+            case .promptCaptureRequested(let recordID, _, _, _, _, _, _):
+                offersPrompt = true
+                promptID = recordID
+            case .authoringDispatched(let pass, _, let ordinal, let fixture):
+                offersPrompt = true
+                if fixture != nil {
+                    promptID = "rehearsal-\(record.id)"
+                } else {
+                    promptID = promptCaptures["\(pass.rawValue)-\(ordinal)"] ?? promptCaptures[pass.rawValue]
+                }
+            case .authoringRouteRejected(let pass, _, let ordinal, _, _):
+                offersPrompt = true
+                promptID = promptCaptures["\(pass.rawValue)-\(ordinal)"] ?? promptCaptures[pass.rawValue]
+            default:
+                offersPrompt = false
+                promptID = nil
+            }
+            return NightAccount.Entry(
+                record: record,
+                cardNames: cardNames,
+                featureNames: featureNames,
+                promptDispatchID: promptID,
+                offersPrompt: offersPrompt
+            )
+        }
+
+        return NightAccount.ActRun(
             id: id,
             act: id == unstampedID ? nil : records.lazy.compactMap(\.act).first?.rawValue,
             startedAt: records.first?.occurredAt ?? Date(timeIntervalSince1970: 0),
             outcome: outcome(of: records),
-            entries: records.map { NightAccount.Entry(record: $0, cardNames: cardNames, featureNames: featureNames) }
+            entries: entries
         )
     }
 

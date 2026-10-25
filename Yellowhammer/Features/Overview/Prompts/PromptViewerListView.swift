@@ -53,6 +53,13 @@ struct PromptViewerListView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+            case .noDiagnosticDispatchesRecorded:
+                Text("No Diagnostic Dispatches Recorded")
+                    .font(.headline)
+                Text("No diagnostic dispatches recorded.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
         }
         .padding(24)
@@ -94,12 +101,32 @@ struct PromptDispatchRow: View {
     }
 
     private var title: String {
+        if let family = item.family {
+            switch family {
+            case .unattendedProbe:
+                return "Unattended Probe"
+            case .sessionResumptionProbe:
+                return "Session Resumption Probe"
+            case .processContainmentProbe:
+                return "Process Containment Probe"
+            case .stateContainmentProbe:
+                return "State Containment Probe"
+            case .routePreflight:
+                return "Route Pre-flight"
+            default:
+                break
+            }
+        }
         var parts: [String] = [item.pass.rawValue.capitalized]
         if let round = item.round {
             parts.append("Round \(round)")
         }
         if let routeTry = item.routeTry {
-            parts.append("Try \(routeTry)")
+            if let rejectionCause = item.rejectionCause {
+                parts.append("Try \(routeTry) (\(rejectionCause.phrase))")
+            } else {
+                parts.append("Try \(routeTry)")
+            }
         }
         return parts.joined(separator: " \u{00B7} ")
     }

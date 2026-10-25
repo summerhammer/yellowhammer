@@ -1,18 +1,25 @@
+import Config
 import Domain
+import Pulse
 import SwiftUI
 
 /// A boxed settings block displaying prompt catalog entries.
 struct PromptCatalogBlock: View {
     let title: String
     let entries: [PromptCatalogEntry]
+    let showRecordedDiagnosticDispatches: Bool
     @State private var selectedEntry: PromptCatalogEntry?
+    @State private var machineRuns: [DispatchPromptIndex.MachineRun] = []
+    @State private var selectedMachineRun: DispatchPromptIndex.MachineRun?
 
     init(
         title: String = "Prompts",
-        entries: [PromptCatalogEntry] = PromptCatalog.entries
+        entries: [PromptCatalogEntry] = PromptCatalog.entries,
+        showRecordedDiagnosticDispatches: Bool = false
     ) {
         self.title = title
         self.entries = entries
+        self.showRecordedDiagnosticDispatches = showRecordedDiagnosticDispatches
     }
 
     var body: some View {
@@ -27,11 +34,86 @@ struct PromptCatalogBlock: View {
                     }
                     row(for: entry)
                 }
+
+                if showRecordedDiagnosticDispatches {
+                    Divider()
+                    recordedDiagnosticDispatchesSection
+                }
             }
         }
         .sheet(item: $selectedEntry) { entry in
             PromptTemplateSheet(entry: entry)
         }
+        .sheet(item: $selectedMachineRun) { run in
+            PromptViewerSheet(machineRun: run)
+        }
+        .task {
+            if showRecordedDiagnosticDispatches {
+                await loadMachineRuns()
+            }
+        }
+        .onChange(of: selectedMachineRun == nil) { wasNil, isNil in
+            if !wasNil && isNil && showRecordedDiagnosticDispatches {
+                Task { await loadMachineRuns() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var recordedDiagnosticDispatchesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Recorded diagnostic dispatches")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+
+            if machineRuns.isEmpty {
+                Text("No diagnostic dispatches recorded")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                    .accessibilityIdentifier("settings-no-diagnostic-dispatches")
+            } else {
+                ForEach(machineRuns) { run in
+                    Button {
+                        selectedMachineRun = run
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(run.cli)
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                Text("\(run.items.count) \(run.items.count == 1 ? "dispatch" : "dispatches") \u{00B7} Run \(run.runID.prefix(8))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(run.time.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings-diagnostic-run-\(run.runID)")
+                }
+            }
+        }
+        .accessibilityIdentifier("settings-recorded-diagnostic-dispatches")
+    }
+
+    private func loadMachineRuns() async {
+        let store = DispatchPromptStore(
+            rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: ConfigurationDirectory.current)
+        )
+        machineRuns = DispatchPromptIndex.machine(store: store, asOf: Date())
     }
 
     private func row(for entry: PromptCatalogEntry) -> some View {

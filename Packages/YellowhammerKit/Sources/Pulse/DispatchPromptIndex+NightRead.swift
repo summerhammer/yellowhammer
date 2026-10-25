@@ -131,8 +131,7 @@ extension DispatchPromptIndex {
                 projectID: context.projectID,
                 asOf: context.asOf
             )
-            if let ord = ordinal, let rej = rejectedRouteTries[pass]?[ord],
-               item.launch == .pending || item.launch == nil {
+            if let ord = ordinal, let rej = rejectedRouteTries[pass]?[ord] {
                 item = itemApplyingRejected(item: item, cause: rej.cause, reason: rej.reason)
             }
             return item
@@ -184,7 +183,13 @@ extension DispatchPromptIndex {
         cause: AuthoringRouteRejectionCause,
         reason: String
     ) -> DispatchPromptItem {
-        DispatchPromptItem(
+        let launch: DispatchLaunch?
+        if item.launch == .pending || item.launch == nil {
+            launch = .notLaunched(cause: "\(cause.phrase): \(reason)")
+        } else {
+            launch = item.launch
+        }
+        return DispatchPromptItem(
             id: item.id,
             recordID: item.recordID,
             pass: item.pass,
@@ -198,14 +203,15 @@ extension DispatchPromptIndex {
             projectID: item.projectID,
             defaultVersion: item.defaultVersion,
             projectInstructions: item.projectInstructions,
-            launch: .notLaunched(cause: "\(cause.phrase): \(reason)"),
+            launch: launch,
             nightID: item.nightID,
             featureIssueID: item.featureIssueID,
             workCardIssueID: item.workCardIssueID,
             cardID: item.cardID,
             attemptID: item.attemptID,
             instruction: item.instruction,
-            outputSchema: item.outputSchema
+            outputSchema: item.outputSchema,
+            rejectionCause: cause
         )
     }
 

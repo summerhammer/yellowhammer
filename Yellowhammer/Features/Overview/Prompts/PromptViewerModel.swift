@@ -14,9 +14,10 @@ final class PromptViewerModel {
         case attempt(cardID: Int64, attemptID: Int64)
         case attemptByIssue(issueID: String, attemptID: Int64)
         case night(nightID: Int64)
+        case machine(runID: String? = nil, cli: String? = nil)
     }
 
-    let projectID: ProjectID
+    let projectID: ProjectID?
     let targetScope: TargetScope
     let configurationDirectory: URL
 
@@ -36,18 +37,21 @@ final class PromptViewerModel {
         projectID: ProjectID,
         issueID: String,
         attemptID: Int64,
+        selectedItemID: String? = nil,
         configurationDirectory: URL = ConfigurationDirectory.current,
         engine: SetupEngine = SetupEngine()
     ) {
         self.projectID = projectID
         self.targetScope = .attemptByIssue(issueID: issueID, attemptID: attemptID)
+        self.selectedItemID = selectedItemID
         self.configurationDirectory = configurationDirectory
         self.engine = engine
     }
 
     init(
-        projectID: ProjectID,
+        projectID: ProjectID?,
         scope: DispatchPromptIndex.Scope,
+        selectedItemID: String? = nil,
         configurationDirectory: URL = ConfigurationDirectory.current,
         engine: SetupEngine = SetupEngine()
     ) {
@@ -57,7 +61,23 @@ final class PromptViewerModel {
             self.targetScope = .attempt(cardID: cardID, attemptID: attemptID)
         case let .night(nightID):
             self.targetScope = .night(nightID: nightID)
+        case let .machine(runID, cli):
+            self.targetScope = .machine(runID: runID, cli: cli)
         }
+        self.selectedItemID = selectedItemID
+        self.configurationDirectory = configurationDirectory
+        self.engine = engine
+    }
+
+    init(
+        machineRun: DispatchPromptIndex.MachineRun,
+        selectedItemID: String? = nil,
+        configurationDirectory: URL = ConfigurationDirectory.current,
+        engine: SetupEngine = SetupEngine()
+    ) {
+        self.projectID = nil
+        self.targetScope = .machine(runID: machineRun.runID, cli: machineRun.cli)
+        self.selectedItemID = selectedItemID
         self.configurationDirectory = configurationDirectory
         self.engine = engine
     }
@@ -108,10 +128,11 @@ final class PromptViewerModel {
 
     @concurrent
     private nonisolated static func readIndex(
-        directory: URL, project: ProjectID, scope: TargetScope, asOf: Date
+        directory: URL, project: ProjectID?, scope: TargetScope, asOf: Date
     ) async -> DispatchPromptIndexRead {
         switch scope {
         case let .attempt(cardID, attemptID):
+            guard let project else { return .journalMissing }
             return DispatchPromptIndex.read(
                 configurationDirectory: directory,
                 projectID: project,
@@ -119,6 +140,7 @@ final class PromptViewerModel {
                 asOf: asOf
             )
         case let .attemptByIssue(issueID, attemptID):
+            guard let project else { return .journalMissing }
             return DispatchPromptIndex.read(
                 configurationDirectory: directory,
                 projectID: project,
@@ -127,10 +149,17 @@ final class PromptViewerModel {
                 asOf: asOf
             )
         case let .night(nightID):
+            guard let project else { return .journalMissing }
             return DispatchPromptIndex.read(
                 configurationDirectory: directory,
                 projectID: project,
                 scope: .night(nightID: nightID),
+                asOf: asOf
+            )
+        case let .machine(runID, cli):
+            return DispatchPromptIndex.read(
+                configurationDirectory: directory,
+                scope: .machine(runID: runID, cli: cli),
                 asOf: asOf
             )
         }
@@ -161,8 +190,14 @@ final class PromptViewerModel {
 
         var outputLines: [String] = []
         do {
+            let arguments: [String]
+            if let projectID {
+                arguments = ["prompts", "delete", "--project", projectID.rawValue, recordID]
+            } else {
+                arguments = ["prompts", "delete", "--machine", recordID]
+            }
             let status = try await engine.run(
-                arguments: ["prompts", "delete", "--project", projectID.rawValue, recordID]
+                arguments: arguments
             ) { line in
                 outputLines.append(line)
             }

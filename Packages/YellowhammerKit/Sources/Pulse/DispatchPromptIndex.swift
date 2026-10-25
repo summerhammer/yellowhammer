@@ -8,6 +8,7 @@ public struct DispatchPromptIndex: Equatable, Sendable {
     public enum Scope: Hashable, Sendable {
         case attempt(cardID: Int64, attemptID: Int64)
         case night(nightID: Int64)
+        case machine(runID: String? = nil, cli: String? = nil)
     }
 
     /// Distinct empty state when no prompt records are viewable.
@@ -18,6 +19,8 @@ public struct DispatchPromptIndex: Equatable, Sendable {
         case skipped(reason: String)
         /// Legacy dispatches exist without prompt capture evidence (historical before prompt capture was added).
         case legacy
+        /// No diagnostic dispatches recorded for machine scope.
+        case noDiagnosticDispatchesRecorded
     }
 
     /// The state of an individual dispatch's prompt record.
@@ -34,7 +37,7 @@ public struct DispatchPromptIndex: Equatable, Sendable {
         case rehearsal(fixture: String)
     }
 
-    public let projectID: ProjectID
+    public let projectID: ProjectID?
     public let scope: Scope
     public let emptyState: EmptyState?
     public let items: [DispatchPromptItem]
@@ -42,7 +45,7 @@ public struct DispatchPromptIndex: Equatable, Sendable {
     public var isEmpty: Bool { items.isEmpty }
 
     public init(
-        projectID: ProjectID,
+        projectID: ProjectID? = nil,
         scope: Scope,
         emptyState: EmptyState?,
         items: [DispatchPromptItem]
@@ -77,6 +80,7 @@ public struct DispatchPromptItem: Equatable, Sendable, Identifiable {
     public let attemptID: Int64?
     public let instruction: String?
     public let outputSchema: String?
+    public let rejectionCause: AuthoringRouteRejectionCause?
 
     public static let resumedSessionNotice =
         "Resumed session: this is the new input for this dispatch. It does not contain the session's earlier " +
@@ -108,7 +112,8 @@ public struct DispatchPromptItem: Equatable, Sendable, Identifiable {
         cardID: Int64?,
         attemptID: Int64?,
         instruction: String?,
-        outputSchema: String?
+        outputSchema: String?,
+        rejectionCause: AuthoringRouteRejectionCause? = nil
     ) {
         self.id = id
         self.recordID = recordID
@@ -131,6 +136,7 @@ public struct DispatchPromptItem: Equatable, Sendable, Identifiable {
         self.attemptID = attemptID
         self.instruction = instruction
         self.outputSchema = outputSchema
+        self.rejectionCause = rejectionCause
     }
 
     public var isResumed: Bool {
@@ -168,4 +174,39 @@ public enum DispatchPromptIndexRead: Equatable, Sendable {
     case noSuchNight
     case journalMissing
     case journalFailure(String)
+}
+
+extension DispatchPromptIndex {
+    /// A group of machine-scoped diagnostic prompt dispatches sharing one run id.
+    public struct MachineRun: Equatable, Sendable, Identifiable {
+        public var id: String { runID }
+        public let runID: String
+        public let cli: String
+        public let time: Date
+        public let items: [DispatchPromptItem]
+        public let emptyState: EmptyState?
+
+        public init(
+            runID: String,
+            cli: String,
+            time: Date,
+            items: [DispatchPromptItem],
+            emptyState: EmptyState? = nil
+        ) {
+            self.runID = runID
+            self.cli = cli
+            self.time = time
+            self.items = items
+            self.emptyState = emptyState
+        }
+
+        public var index: DispatchPromptIndex {
+            DispatchPromptIndex(
+                projectID: nil,
+                scope: .machine(runID: runID, cli: cli),
+                emptyState: emptyState,
+                items: items
+            )
+        }
+    }
 }

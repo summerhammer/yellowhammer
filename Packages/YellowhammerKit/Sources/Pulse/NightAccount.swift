@@ -31,6 +31,8 @@ public struct NightAccount: Identifiable, Equatable, Sendable {
     /// Every Act run of the Night, in the order its first event was recorded. It includes the runs that stood
     /// down during the Night's span, though they never joined the Night.
     public var runs: [ActRun]
+    /// The Project this Night belongs to, when known.
+    public var projectID: ProjectID?
 
     public init(
         id: Int64,
@@ -41,7 +43,8 @@ public struct NightAccount: Identifiable, Equatable, Sendable {
         completedAt: Date?,
         closeReason: String?,
         nightCard: LinearIssueLink?,
-        runs: [ActRun]
+        runs: [ActRun],
+        projectID: ProjectID? = nil
     ) {
         self.id = id
         self.nightStart = nightStart
@@ -52,6 +55,7 @@ public struct NightAccount: Identifiable, Equatable, Sendable {
         self.closeReason = closeReason
         self.nightCard = nightCard
         self.runs = runs
+        self.projectID = projectID
     }
 
     /// How many entries, across every run, are a problem.
@@ -112,10 +116,14 @@ public struct NightAccount: Identifiable, Equatable, Sendable {
         /// The Act whose log the app can point to: set only on a problem entry that records an Act
         /// (morning-report/disclose-a-failure#log-path); nil on every running or successful entry.
         public var failedAct: Act?
+        /// The dispatch prompt record id, when this entry can view its prompt.
+        public var promptDispatchID: String?
+        /// Whether this entry offers "View Prompt".
+        public var offersPrompt: Bool
 
         public init(
             id: Int64, occurredAt: Date, headline: String, detail: String? = nil, isProblem: Bool = false,
-            failedAct: Act? = nil
+            failedAct: Act? = nil, promptDispatchID: String? = nil, offersPrompt: Bool = false
         ) {
             self.id = id
             self.occurredAt = occurredAt
@@ -123,6 +131,8 @@ public struct NightAccount: Identifiable, Equatable, Sendable {
             self.detail = detail
             self.isProblem = isProblem
             self.failedAct = failedAct
+            self.promptDispatchID = promptDispatchID
+            self.offersPrompt = offersPrompt
         }
     }
 }

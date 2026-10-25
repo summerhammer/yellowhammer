@@ -15,14 +15,17 @@ struct AttemptReadContext {
 extension DispatchPromptIndex {
     /// Reads dispatch prompt index for one Attempt or Night from its own Project's Journal and prompt store.
     public static func read(
-        journal: JournalStore,
+        journal: JournalStore?,
         store: DispatchPromptStore,
-        projectID: ProjectID,
+        projectID: ProjectID?,
         scope: Scope,
         asOf: Date = Date()
     ) throws -> DispatchPromptIndex {
         switch scope {
         case .attempt(let cardID, let attemptID):
+            guard let journal, let projectID else {
+                throw JournalError.missing(path: "journal missing")
+            }
             let context = AttemptReadContext(
                 journal: journal,
                 store: store,
@@ -33,6 +36,9 @@ extension DispatchPromptIndex {
             )
             return try readAttempt(context: context)
         case .night(let nightID):
+            guard let journal, let projectID else {
+                throw JournalError.missing(path: "journal missing")
+            }
             let context = NightReadContext(
                 journal: journal,
                 store: store,
@@ -41,6 +47,28 @@ extension DispatchPromptIndex {
                 asOf: asOf
             )
             return try readNight(context: context)
+        case .machine(let runID, let cli):
+            let runs = machine(store: store, cli: cli, asOf: asOf)
+            if runs.isEmpty {
+                return DispatchPromptIndex(
+                    projectID: nil,
+                    scope: scope,
+                    emptyState: .noDiagnosticDispatchesRecorded,
+                    items: []
+                )
+            }
+            if let runID {
+                if let run = runs.first(where: { $0.runID == runID }) {
+                    return run.index
+                }
+                return DispatchPromptIndex(
+                    projectID: nil,
+                    scope: scope,
+                    emptyState: .noDiagnosticDispatchesRecorded,
+                    items: []
+                )
+            }
+            return runs[0].index
         }
     }
 
@@ -51,6 +79,9 @@ extension DispatchPromptIndex {
         scope: Scope,
         asOf: Date = Date()
     ) -> DispatchPromptIndexRead {
+        if case .machine = scope {
+            return read(configurationDirectory: configurationDirectory, scope: scope, asOf: asOf)
+        }
         let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
         do {
             let journal = try JournalStore.openReadOnly(at: fileURL, projectID: projectID)
@@ -68,6 +99,30 @@ extension DispatchPromptIndex {
             return .index(index)
         } catch JournalError.missing {
             return .journalMissing
+        } catch {
+            return .journalFailure("\(error)")
+        }
+    }
+
+    /// Reads machine-scope prompt index from disk without a Project.
+    public static func read(
+        configurationDirectory: URL,
+        scope: Scope,
+        asOf: Date = Date()
+    ) -> DispatchPromptIndexRead {
+        let store = DispatchPromptStore(
+            rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory),
+            now: { asOf }
+        )
+        do {
+            let index = try read(
+                journal: nil,
+                store: store,
+                projectID: nil,
+                scope: scope,
+                asOf: asOf
+            )
+            return .index(index)
         } catch {
             return .journalFailure("\(error)")
         }

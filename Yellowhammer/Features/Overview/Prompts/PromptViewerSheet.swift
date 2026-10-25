@@ -12,6 +12,7 @@ struct PromptViewerSheet: View {
         projectID: ProjectID,
         issueID: String,
         attemptID: Int64,
+        selectedItemID: String? = nil,
         configurationDirectory: URL = ConfigurationDirectory.current
     ) {
         _model = State(
@@ -19,20 +20,37 @@ struct PromptViewerSheet: View {
                 projectID: projectID,
                 issueID: issueID,
                 attemptID: attemptID,
+                selectedItemID: selectedItemID,
                 configurationDirectory: configurationDirectory
             )
         )
     }
 
     init(
-        projectID: ProjectID,
+        projectID: ProjectID? = nil,
         scope: DispatchPromptIndex.Scope,
+        selectedItemID: String? = nil,
         configurationDirectory: URL = ConfigurationDirectory.current
     ) {
         _model = State(
             initialValue: PromptViewerModel(
                 projectID: projectID,
                 scope: scope,
+                selectedItemID: selectedItemID,
+                configurationDirectory: configurationDirectory
+            )
+        )
+    }
+
+    init(
+        machineRun: DispatchPromptIndex.MachineRun,
+        selectedItemID: String? = nil,
+        configurationDirectory: URL = ConfigurationDirectory.current
+    ) {
+        _model = State(
+            initialValue: PromptViewerModel(
+                machineRun: machineRun,
+                selectedItemID: selectedItemID,
                 configurationDirectory: configurationDirectory
             )
         )

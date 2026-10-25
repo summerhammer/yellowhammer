@@ -16,6 +16,8 @@ import SwiftUI
 struct NightDetailView: View {
     let night: NightPulse
     let model: NightDetailModel
+    @State private var showingPrompts = false
+    @State private var selectedPromptItemID: String?
 
     var body: some View {
         InspectorPane(
@@ -39,6 +41,16 @@ struct NightDetailView: View {
         } content: {
             content
         }
+        .sheet(isPresented: $showingPrompts) {
+            PromptViewerSheet(
+                projectID: model.project,
+                scope: .night(nightID: model.nightID),
+                selectedItemID: selectedPromptItemID
+            )
+        }
+        .task(id: night.startedAt) {
+            await model.load()
+        }
     }
 
     private var account: NightAccount? {
@@ -60,6 +72,7 @@ struct NightDetailView: View {
             }
         case let .account(account):
             NightDetailFacts(account: account)
+            promptsSection
         case .noSuchNight:
             Section {
                 Text("The Journal no longer records this Night.")
@@ -86,6 +99,81 @@ struct NightDetailView: View {
                 }
                 .accessibilityIdentifier("night-detail-failure")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var promptsSection: some View {
+        Section("Prompts") {
+            if let index = model.promptIndex {
+                if index.items.isEmpty {
+                    if let emptyState = index.emptyState {
+                        emptyStateView(emptyState)
+                    } else {
+                        Text("No dispatches recorded yet for this Night.")
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("night-prompts-empty-no-dispatches")
+                    }
+                } else {
+                    ForEach(index.items) { item in
+                        Button {
+                            selectedPromptItemID = item.id
+                            showingPrompts = true
+                        } label: {
+                            HStack {
+                                Text(promptItemLabel(item))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Text(item.time.formatted(date: .omitted, time: .shortened))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("night-detail-prompt-\(item.id)")
+                    }
+                }
+            } else if model.promptIndexRead == nil {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .accessibilityIdentifier("night-detail-prompts-section")
+    }
+
+    private func promptItemLabel(_ item: DispatchPromptItem) -> String {
+        if item.family == .routePreflight {
+            return "Route Pre-flight"
+        }
+        var parts: [String] = [item.pass.rawValue.capitalized]
+        if let routeTry = item.routeTry {
+            if let rejectionCause = item.rejectionCause {
+                parts.append("Try \(routeTry) (\(rejectionCause.phrase))")
+            } else {
+                parts.append("Try \(routeTry)")
+            }
+        }
+        return parts.joined(separator: " \u{00B7} ")
+    }
+
+    @ViewBuilder
+    private func emptyStateView(_ state: DispatchPromptIndex.EmptyState) -> some View {
+        switch state {
+        case .noDispatchesYet:
+            Text("No dispatches recorded yet for this Night.")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("night-prompts-empty-no-dispatches")
+        case let .skipped(reason):
+            Text("Night skipped: \(reason)")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("night-prompts-empty-skipped")
+        case .legacy:
+            Text("Legacy history (no prompts captured).")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("night-prompts-empty-legacy")
+        case .noDiagnosticDispatchesRecorded:
+            Text("No diagnostic dispatches recorded.")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("night-prompts-empty-no-diagnostics")
         }
     }
 }

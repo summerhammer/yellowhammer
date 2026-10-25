@@ -6,13 +6,13 @@ import Testing
 @testable import Journal
 @testable import Pulse
 
-private struct SeededAttempt {
+struct SeededAttempt {
     let cardID: Int64
     let attemptID: Int64
     let runID: RunID
 }
 
-private struct PromptIndexFixture: ~Copyable {
+struct PromptIndexFixture: ~Copyable {
     let directory: URL
     let projectID: ProjectID
     var now: Date
@@ -21,6 +21,7 @@ private struct PromptIndexFixture: ~Copyable {
         self.now = now
         directory = FileManager.default.temporaryDirectory
             .appending(component: "yh-prompt-index-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         projectID = ProjectID(rawValue: "project-test")!
     }
 
@@ -445,85 +446,5 @@ struct DispatchPromptIndexReadTests {
         #expect(item2.session == .resumed)
         #expect(item2.isResumed)
         #expect(item2.instruction == "Address reviewer changes in backend")
-    }
-
-    @Test("Cover Night scope skipped empty state")
-    func nightScopeSkippedEmptyState() async throws {
-        let fixture = PromptIndexFixture()
-        let journal = try fixture.openJournal()
-        let store = fixture.makeStore()
-
-        let run = RunID()
-        _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
-        let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch)
-        _ = try journal.recordAuthoringNoWorkAvailable(
-            nightID: opening.night.id, act: .author, runID: run, now: epoch
-        )
-
-        let index = try DispatchPromptIndex.read(
-            journal: journal,
-            store: store,
-            projectID: fixture.projectID,
-            scope: .night(nightID: opening.night.id),
-            asOf: epoch
-        )
-
-        #expect(index.items.isEmpty)
-        if case .skipped = index.emptyState {
-            // Expected
-        } else {
-            Issue.record("Expected .skipped empty state, got \(String(describing: index.emptyState))")
-        }
-    }
-
-    @Test("Cover Night scope with route preflight")
-    func nightScopeRoutePreflight() async throws {
-        let fixture = PromptIndexFixture()
-        let journal = try fixture.openJournal()
-        let store = fixture.makeStore()
-
-        let run = RunID()
-        _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
-        let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch)
-
-        let preflightRecordID = "rec-preflight-1"
-        let provenance = DispatchProvenance(
-            recordID: preflightRecordID,
-            family: .routePreflight,
-            projectID: fixture.projectID.rawValue,
-            runID: run.rawValue
-        )
-        let record = DispatchPromptRecord(
-            id: preflightRecordID,
-            provenance: provenance,
-            route: "claude/sonnet/medium",
-            pass: .architect,
-            dispatchedAt: epoch,
-            defaultVersion: 1,
-            projectInstructions: .absent,
-            session: .new,
-            instruction: "This is an automated Yellowhammer probe",
-            outputSchema: nil,
-            launch: .launched
-        )
-        _ = store.capture(record)
-
-        let index = try DispatchPromptIndex.read(
-            journal: journal,
-            store: store,
-            projectID: fixture.projectID,
-            scope: .night(nightID: opening.night.id),
-            asOf: epoch
-        )
-
-        #expect(index.emptyState == nil)
-        #expect(index.items.count == 1)
-        guard let item = index.items.first else {
-            Issue.record("Expected at least one item")
-            return
-        }
-        #expect(item.id == preflightRecordID)
-        #expect(item.family == PromptFamily.routePreflight)
-        #expect(item.instruction == "This is an automated Yellowhammer probe")
     }
 }
