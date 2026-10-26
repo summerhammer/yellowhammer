@@ -4,6 +4,7 @@ import Domain
 @testable import EngineCommand
 import Foundation
 @testable import Journal
+@testable import Pulse
 import Repositories
 import Synchronization
 import Testing
@@ -220,6 +221,38 @@ struct PromptCaptureDispatchTests {
         #expect(ordinal == 1)
     }
 
+    @Test("A real authoring walk journals each try's capture before its rejected/dispatched event, and they pair")
+    func authoringWalkPairsEachTryWithItsOwnCapture() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let context = try makeSelectionContext(journal, repositories: selectionRepositories(), boards: boards).context
+        let first = Route(cli: "claude", model: "opus", effort: "high")!
+        let second = Route(cli: "codex", model: "sol", effort: "high")!
+        let table = RoutingTable(entries: [RoutingEntry(kind: .authoring, route: first, fallbacks: [second])])
+        let dispatch = RefusingFirstDispatch(.selection(SelectionResult(outcome: .noSelectableFeature)))
+        let route = AuthoringRoute(resolver: RouteResolver(table: table) { _ in .offered }, dispatch: dispatch)
+
+        _ = try await FeatureSelection(
+            selector: RoutedFeatureSelector(route: route), transaction: ScriptedSelectedFeatureAuthoring()
+        ).selectAndAuthor(context)
+
+        let records = try journal.events(runID: context.runID, ofTypes: [
+            .promptCaptureRequested, .authoringDispatched, .authoringRouteRejected
+        ])
+        let captureIDs = records.compactMap { record -> String? in
+            if case .promptCaptureRequested(let recordID, _, _, _, _, _, _) = record.event { recordID } else { nil }
+        }
+        #expect(captureIDs.count == 2)
+        // The append order the pairing relies on: capture, rejection, capture, dispatched.
+        #expect(records.map(\.type) == [
+            .promptCaptureRequested, .authoringRouteRejected, .promptCaptureRequested, .authoringDispatched
+        ])
+        let paired = PromptCapturePairing.recordIDs(in: records)
+        #expect(paired[records[1].id] == captureIDs[0])
+        #expect(paired[records[3].id] == captureIDs[1])
+    }
+
     // A rehearsal Night's dispatch writes no prompt record, so no pass may journal a capture request for one.
 
     @Test("A rehearsal dispatch records no prompt; an agent CLI dispatch does")
@@ -322,6 +355,25 @@ private final class CapturingAuthoringDispatch: AgentDispatch, Sendable {
         guard let result = results[request.pass] else {
             throw AgentDispatchRefusal(reason: "unscripted pass \(request.pass)")
         }
+        return AgentDispatchReport(outcome: .completed(result))
+    }
+}
+
+/// Refuses its first dispatch (the Route is unavailable), then answers every later one with `result`.
+private final class RefusingFirstDispatch: AgentDispatch, Sendable {
+    private let result: DispatchResult
+    private let calls = Mutex<Int>(0)
+
+    init(_ result: DispatchResult) {
+        self.result = result
+    }
+
+    func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
+        let call = calls.withLock { count -> Int in
+            count += 1
+            return count
+        }
+        if call == 1 { throw AgentDispatchRefusal(reason: "first Route unavailable") }
         return AgentDispatchReport(outcome: .completed(result))
     }
 }
