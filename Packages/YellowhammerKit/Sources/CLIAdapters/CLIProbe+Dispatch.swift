@@ -5,8 +5,10 @@ import Foundation
 /// resumption): building the architect-pass instructions, running them, and classifying their
 /// findings.
 extension CLIProbe {
+    // swiftlint:disable:next function_parameter_count
     func runDispatch(
         pass: RunPass,
+        family: PromptFamily,
         adapter: some CLIAdapter,
         context: ProbeDispatchContext,
         runDirectory: URL,
@@ -14,9 +16,13 @@ extension CLIProbe {
         resume: CLISession? = nil
     ) async -> Result<CLIRunReport, Error> {
         let dispatch = context.dispatch(
-            pass: pass, instruction: instruction, runDirectory: runDirectory, timeout: dispatchTimeout, resume: resume
+            pass: pass, family: family, instruction: instruction, runDirectory: runDirectory,
+            timeout: dispatchTimeout, resume: resume
         )
-        let runner = CLIRunner(process: AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: pollInterval))
+        let runner = CLIRunner(
+            process: AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: pollInterval),
+            recorder: recorder
+        )
         do {
             return .success(try await runner.run(dispatch, adapter: adapter))
         } catch {
@@ -39,8 +45,8 @@ extension CLIProbe {
 
         let resumeRunDirectory = context.runsDirectory.appendingPathComponent("resume")
         let dispatchB = await runDispatch(
-            pass: .architect, adapter: adapter, context: context, runDirectory: resumeRunDirectory,
-            instruction: Self.resumeInstruction, resume: session
+            pass: .architect, family: .sessionResumptionProbe, adapter: adapter, context: context,
+            runDirectory: resumeRunDirectory, instruction: Self.resumeInstruction, resume: session
         )
         return Self.sessionResumptionFinding(for: dispatchB, nonce: nonce)
     }
@@ -48,18 +54,12 @@ extension CLIProbe {
     // MARK: - Instructions
 
     static func unattendedInstruction(nonce: String) -> String {
-        """
-        This is an automated Yellowhammer probe, not real work. Do not read or modify any files \
-        and do not run any command. Respond immediately with outcome `failed` and reason exactly \
-        `\(nonce)`.
-        """
+        DiagnosticInstruction.unattended(nonce: nonce)
     }
 
-    static let resumeInstruction = """
-        This is an automated Yellowhammer probe, not real work. Do not read or modify any files \
-        and do not run any command. Respond immediately with outcome `failed` and reason exactly \
-        equal to the reason you gave in your previous reply.
-        """
+    static var resumeInstruction: String {
+        DiagnosticInstruction.resume
+    }
 
     // MARK: - Classification
 

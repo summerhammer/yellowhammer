@@ -38,6 +38,9 @@ public struct ProjectRemoveCommand: AsyncParsableCommand {
             workspace: WorkspaceBinding.workspace(),
             git: GitRunner(),
             bindPush: { configuration, project in Self.push(configuration: configuration, project: project) },
+            promptStore: DispatchPromptStore(
+                rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
+            ),
             now: Date()
         )
         guard await removal.run(id: id, yes: yes) else {

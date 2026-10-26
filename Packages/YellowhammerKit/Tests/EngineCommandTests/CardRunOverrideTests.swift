@@ -15,7 +15,11 @@ import Testing
 private final class RejectingPreflight: RoutePreflighting {
     let asked = Mutex<[Route]>([])
 
-    func preflight(_ route: Route, runID: RunID) async throws -> RoutePreflightVerdict {
+    var dispatchesAgentCLI: Bool { false }
+
+    func preflight(
+        _ route: Route, runID: RunID, nightID: Int64?, recordID: String
+    ) async throws -> RoutePreflightVerdict {
         asked.withLock { $0.append(route) }
         return .failed(reason: "`\(route.cli)` rejected model `\(route.model)`")
     }

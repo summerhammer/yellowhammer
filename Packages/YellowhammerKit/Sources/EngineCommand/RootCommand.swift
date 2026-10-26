@@ -14,7 +14,8 @@ public struct RootCommand: AsyncParsableCommand {
             AuthorCommand.self, BuildCommand.self, LandCommand.self, ProbeCommand.self, SetupCommand.self,
             DoctorCommand.self, ValidateCommand.self, StatusCommand.self, ProjectCommand.self,
             RecalibrateCommand.self, RehearseCommand.self, StopCommand.self,
-            AbortCommand.self, ConfigCommand.self, JournalSchemaCommand.self
+            AbortCommand.self, ConfigCommand.self, PromptsCommand.self,
+            JournalSchemaCommand.self
         ],
         defaultSubcommand: nil
     )

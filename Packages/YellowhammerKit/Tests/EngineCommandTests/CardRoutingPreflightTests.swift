@@ -20,20 +20,41 @@ private let table = RoutingTable(entries: [
     RoutingEntry(kind: Kind("card")!, route: claudeOpus, fallbacks: [route("codex", "gpt-5.4", "medium")])
 ])
 
+/// One call a pre-flight was asked to make: its Night, its record id, and how many capture events the
+/// Journal held at that moment.
+private struct PreflightCall {
+    let nightID: Int64?
+    let recordID: String
+    let capturesJournaled: Int
+}
+
 /// A pre-flight that answers from a script and counts what it was asked, optionally slowly.
 private final class ScriptedPreflight: RoutePreflighting {
     let asked = Mutex<[Route]>([])
     let verdict: @Sendable (Route) -> RoutePreflightVerdict
     let delay: Duration
+    let dispatchesAgentCLI: Bool
+    let calledWith = Mutex<[PreflightCall]>([])
+    let journal: JournalStore?
 
-    init(delay: Duration = .zero, verdict: @escaping @Sendable (Route) -> RoutePreflightVerdict = { _ in .passed() }) {
+    init(
+        delay: Duration = .zero, dispatchesAgentCLI: Bool = true, journal: JournalStore? = nil,
+        verdict: @escaping @Sendable (Route) -> RoutePreflightVerdict = { _ in .passed() }
+    ) {
         self.delay = delay
+        self.dispatchesAgentCLI = dispatchesAgentCLI
+        self.journal = journal
         self.verdict = verdict
     }
 
     var calls: [Route] { asked.withLock { $0 } }
 
-    func preflight(_ route: Route, runID: RunID) async throws -> RoutePreflightVerdict {
+    func preflight(
+        _ route: Route, runID: RunID, nightID: Int64?, recordID: String
+    ) async throws -> RoutePreflightVerdict {
+        let captures = try journal?.events(ofType: .routePreflightPromptCaptureRequested).count ?? 0
+        let call = PreflightCall(nightID: nightID, recordID: recordID, capturesJournaled: captures)
+        calledWith.withLock { $0.append(call) }
         asked.withLock { $0.append(route) }
         if delay > .zero {
             try await Task.sleep(for: delay)
@@ -250,5 +271,49 @@ struct CardRoutingPreflightTests {
             return
         }
         #expect(answeredBy?.contains("rehearsal fixture") == true)
+    }
+
+    @Test("A real pre-flight journals one capture event before it runs, with the id it is given; a cached one none")
+    func realPreflightJournalsCaptureBeforeRunning() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let runID = RunID()
+        let nightID = try openNight(journal, runID: runID)
+        let first = try insertFixtureCard(journal, issueID: "issue-1")
+        let second = try insertFixtureCard(journal, issueID: "issue-2")
+        let fake = ScriptedPreflight(journal: journal)
+        let routing = routing(journal, runID: runID, nightID: nightID, preflight: RoutePreflight(fake))
+        let override = Override(label: "agy/gemini-3-pro/high")
+        let agy = route("agy", "gemini-3-pro", "high")
+
+        _ = try await routing.route(card: try journal.card(id: first), repoRole: .backend, override: override)
+        _ = try await routing.route(card: try journal.card(id: second), repoRole: .backend, override: override)
+
+        let call = try #require(fake.calledWith.withLock { $0 }.first)
+        #expect(fake.calledWith.withLock { $0.count } == 1)
+        #expect(call.nightID == nightID)
+        #expect(call.capturesJournaled == 1)
+        let captures = try journal.events(ofType: .routePreflightPromptCaptureRequested)
+        #expect(captures.map(\.event) == [.routePreflightPromptCaptureRequested(recordID: call.recordID, route: agy)])
+        #expect(captures.first?.nightID == nightID)
+        #expect(captures.first?.runID == runID)
+    }
+
+    @Test("A pre-flight that dispatches no agent CLI journals no capture event")
+    func rehearsalPreflightJournalsNoCapture() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let runID = RunID()
+        let nightID = try openNight(journal, runID: runID)
+        let cardID = try insertFixtureCard(journal, issueID: "issue-1")
+        let fake = ScriptedPreflight(dispatchesAgentCLI: false)
+        let routing = routing(journal, runID: runID, nightID: nightID, preflight: RoutePreflight(fake))
+
+        _ = try await routing.route(
+            card: try journal.card(id: cardID), repoRole: .backend, override: Override(label: "agy/gemini-3-pro/high")
+        )
+
+        #expect(fake.calls.count == 1)
+        #expect(try journal.events(ofType: .routePreflightPromptCaptureRequested).isEmpty)
     }
 }

@@ -36,12 +36,16 @@ public struct CodexAdapter: CLIAdapter {
 
     public init() {}
 
+    public func outputSchema(for pass: RunPass) -> String {
+        CLIOutputSchema.strict(for: pass)
+    }
+
     public func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch {
         try validateRoute(dispatch)
         let resultFile = try prepareRunDirectory(dispatch)
         let schemaFile = dispatch.runDirectory.appendingPathComponent("schema.json")
         do {
-            try Data(CLIOutputSchema.strict(for: dispatch.pass).utf8).write(to: schemaFile)
+            try Data(outputSchema(for: dispatch.pass).utf8).write(to: schemaFile)
         } catch {
             throw .runDirectoryUnwritable("\(error)")
         }
@@ -82,7 +86,8 @@ public struct CodexAdapter: CLIAdapter {
             pass: dispatch.pass,
             timeout: dispatch.timeout,
             outputLog: dispatch.runDirectory.appendingPathComponent("stderr.log"),
-            standardOutput: dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+            standardOutput: dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName),
+            scratchFiles: [schemaFile]
         )
     }
 

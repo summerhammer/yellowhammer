@@ -184,6 +184,10 @@ extension JournalEvent {
             .agentCLIProcessSpawned
         case .rehearsalFixtureAnswered:
             .rehearsalFixtureAnswered
+        case .promptCaptureRequested:
+            .promptCaptureRequested
+        case .routePreflightPromptCaptureRequested:
+            .routePreflightPromptCaptureRequested
         case .cardCommitTrailerMissing:
             .cardCommitTrailerMissing
         case .cardCommitTrailersUnread:

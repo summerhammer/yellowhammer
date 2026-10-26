@@ -29,7 +29,37 @@ struct ProjectRemoval {
     /// a removal with nothing to push never touches the Keychain either.
     let bindPush: (Configuration, ProjectConfiguration)
         -> @Sendable (FeatureBranch, Repo, NightMode) async -> PushOutcome
+    let promptStore: any DispatchPromptCleaning
     let now: Date
+
+    init(
+        configurationDirectory: URL,
+        homeDirectory: URL,
+        output: @escaping (String) -> Void,
+        console: any SetupConsole,
+        launchAgents: any LaunchAgentControl,
+        bindBoard: @escaping (Configuration, ProjectConfiguration) throws -> any BoardWriting,
+        workspace: any Workspace,
+        git: GitRunner,
+        bindPush: @escaping (Configuration, ProjectConfiguration)
+            -> @Sendable (FeatureBranch, Repo, NightMode) async -> PushOutcome,
+        promptStore: (any DispatchPromptCleaning)? = nil,
+        now: Date
+    ) {
+        self.configurationDirectory = configurationDirectory
+        self.homeDirectory = homeDirectory
+        self.output = output
+        self.console = console
+        self.launchAgents = launchAgents
+        self.bindBoard = bindBoard
+        self.workspace = workspace
+        self.git = git
+        self.bindPush = bindPush
+        self.promptStore = promptStore ?? DispatchPromptStore(
+            rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
+        )
+        self.now = now
+    }
 
     /// Names each replacement the lenient load made for the safety WIP Commit: a refused
     /// `wip_commit_message` falls back to the built-in default, an empty or non-string `change_type` to
@@ -47,6 +77,26 @@ struct ProjectRemoval {
                 break
             }
         }
+    }
+
+    /// Deletes the Project's prompt records and the schema copies under its runs directory. A failure
+    /// stops removal, reported the same way for both.
+    private func removeRecordedPrompts(projectID: ProjectID) -> Bool {
+        let failure: String
+        do {
+            try promptStore.removeAll(projectID: projectID)
+            let runsDirectory = CLIAdapterDispatch.runsDirectory(
+                configurationDirectory: configurationDirectory, projectID: projectID
+            )
+            let schemaFailures = SchemaCopySweep.remove(under: runsDirectory)
+            if schemaFailures.isEmpty { return true }
+            failure = schemaFailures.joined(separator: ", ")
+        } catch {
+            failure = "\(error)"
+        }
+        output("could not delete recorded prompts for \(projectID.rawValue): \(failure)")
+        output("removal incomplete; re-run `yh project remove <id>` to retry") // glossary:ignore GL001
+        return false
     }
 
     /// Runs the whole removal for `id`, printing progress and a final summary line. Returns whether it
@@ -81,6 +131,8 @@ struct ProjectRemoval {
         var failures: [String] = []
         await removeLaunchAgents(projectID: project.id, failures: &failures)
         await removeLogs(projectID: project.id)
+
+        guard removeRecordedPrompts(projectID: project.id) else { return false }
 
         if let journal {
             guard await removeJournaledFootprint(
@@ -177,6 +229,7 @@ struct ProjectRemoval {
         output("This will, for Project \(id):") // glossary:ignore GL001
         output("- unload and delete its 3 LaunchAgents")
         output("- delete its 3 Act logs")
+        output("- delete its recorded prompts")
         output("- comment on its in-flight Feature Issue, if one exists")
         output("- WIP-commit, push and remove each of its held Worktrees")
         output("- close its open Night, if one exists")

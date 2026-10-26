@@ -51,7 +51,8 @@ extension NightAccount {
                 key: night.nightCardIssueIDForDisplay ?? night.nightCardIssueKey,
                 url: night.nightCardIssueURL
             ),
-            runs: ActRun.runs(from: records, cardNames: cardNames, featureNames: featureNames)
+            runs: ActRun.runs(from: records, cardNames: cardNames, featureNames: featureNames),
+            projectID: journal.projectID
         )
     }
 
@@ -111,12 +112,43 @@ extension NightAccount.ActRun {
     private static func run(
         id: String, records: [JournalEventRecord], cardNames: [Int64: String], featureNames: [String: String]
     ) -> NightAccount.ActRun {
-        NightAccount.ActRun(
+        let pairedCaptures = PromptCapturePairing.recordIDs(in: records)
+
+        let entries = records.map { record -> NightAccount.Entry in
+            let promptID: String?
+            let offersPrompt: Bool
+            switch record.event {
+            case .promptCaptureRequested(let recordID, _, _, _, _, _, _):
+                offersPrompt = true
+                promptID = recordID
+            case .routePreflightPromptCaptureRequested(let recordID, _):
+                offersPrompt = true
+                promptID = recordID
+            case .authoringDispatched(_, _, _, let fixture):
+                offersPrompt = true
+                promptID = fixture != nil ? "rehearsal-\(record.id)" : pairedCaptures[record.id]
+            case .authoringRouteRejected:
+                offersPrompt = true
+                promptID = pairedCaptures[record.id]
+            default:
+                offersPrompt = false
+                promptID = nil
+            }
+            return NightAccount.Entry(
+                record: record,
+                cardNames: cardNames,
+                featureNames: featureNames,
+                promptDispatchID: promptID,
+                offersPrompt: offersPrompt
+            )
+        }
+
+        return NightAccount.ActRun(
             id: id,
             act: id == unstampedID ? nil : records.lazy.compactMap(\.act).first?.rawValue,
             startedAt: records.first?.occurredAt ?? Date(timeIntervalSince1970: 0),
             outcome: outcome(of: records),
-            entries: records.map { NightAccount.Entry(record: $0, cardNames: cardNames, featureNames: featureNames) }
+            entries: entries
         )
     }
 

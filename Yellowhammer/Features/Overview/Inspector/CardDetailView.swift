@@ -63,7 +63,7 @@ struct CardDetailView: View {
                     .accessibilityIdentifier("card-detail-loading")
             }
         case let .detail(detail):
-            CardDetailAccount(detail: detail)
+            CardDetailAccount(project: model.project, detail: detail)
         case .noSuchCard:
             Section {
                 Text("The Journal no longer records this Card.")

@@ -1,3 +1,4 @@
+import CLIAdapters
 import Config
 import Domain
 import Engine
@@ -19,6 +20,12 @@ enum DispatchBinding {
         case .rehearsal:
             return RehearsalDispatch(script: resultFixtures)
         case .real:
+            let promptStore = DispatchPromptStore(
+                rootDirectory: DispatchPromptStore.rootDirectory(
+                    configurationDirectory: configurationDirectory
+                )
+            )
+            let recorder = ReportingDispatchPromptRecorder(store: promptStore)
             return CLIAdapterDispatch(
                 runsDirectory: CLIAdapterDispatch.runsDirectory(
                     configurationDirectory: configurationDirectory, projectID: project.id
@@ -27,7 +34,8 @@ enum DispatchBinding {
                 declaredExecutables: declaredExecutables(configuration),
                 protectedDirectories: CLIAdapterDispatch.protectedDirectories(
                     configurationDirectory: configurationDirectory
-                )
+                ),
+                recorder: recorder
             )
         }
     }
@@ -42,13 +50,21 @@ enum DispatchBinding {
     ) -> any RoutePreflighting {
         switch mode {
         case .rehearsal:
-            RehearsalRoutePreflight()
+            return RehearsalRoutePreflight()
         case .real:
-            CLIAdapterRoutePreflight(
+            let promptStore = DispatchPromptStore(
+                rootDirectory: DispatchPromptStore.rootDirectory(
+                    configurationDirectory: configurationDirectory
+                )
+            )
+            let recorder = ReportingDispatchPromptRecorder(store: promptStore)
+            return CLIAdapterRoutePreflight(
+                projectID: project.id,
                 runsDirectory: CLIAdapterDispatch.runsDirectory(
                     configurationDirectory: configurationDirectory, projectID: project.id
                 ),
-                declaredExecutables: declaredExecutables(configuration)
+                declaredExecutables: declaredExecutables(configuration),
+                preflight: CLIRoutePreflight(recorder: recorder)
             )
         }
     }

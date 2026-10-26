@@ -31,6 +31,9 @@ public struct ProbeResult: Equatable, Sendable {
     /// finding (``findingSessionResumption``, ``findingStateContainment``) that failed even though the verdict passed — the DB
     /// check constraint already allows that combination.
     public let reason: String?
+    /// The diagnostic run whose prompt records this result's dispatches wrote, nil for results
+    /// recorded before it existed.
+    public let promptRunID: String?
 
     /// The verdict: passed if the three gating findings are passed, failed if any of them is not.
     /// ``findingSessionResumption`` and ``findingStateContainment`` do not gate this — they are
@@ -56,7 +59,8 @@ public struct ProbeResult: Equatable, Sendable {
         findingProcessContainment: ProbeFinding,
         findingSessionResumption: ProbeFinding,
         findingStateContainment: ProbeFinding,
-        reason: String?
+        reason: String?,
+        promptRunID: String? = nil
     ) {
         self.cli = cli
         self.probedAt = probedAt
@@ -68,5 +72,6 @@ public struct ProbeResult: Equatable, Sendable {
         self.findingSessionResumption = findingSessionResumption
         self.findingStateContainment = findingStateContainment
         self.reason = reason
+        self.promptRunID = promptRunID
     }
 }

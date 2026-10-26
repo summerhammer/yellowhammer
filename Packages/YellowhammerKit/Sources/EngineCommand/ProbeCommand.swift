@@ -42,6 +42,14 @@ public struct ProbeCommand: AsyncParsableCommand {
     }
 
     func run(configurationDirectory: URL) async throws {
+        let promptStore = DispatchPromptStore(
+            rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
+        )
+        let sweepFailures = promptStore.sweepExpired(in: .machine)
+        for failure in sweepFailures {
+            print("could not sweep expired prompt record \(failure)")
+        }
+
         let targets: [String]
         if all {
             targets = CLIAdapterRegistry.allNames
@@ -73,6 +81,7 @@ public struct ProbeCommand: AsyncParsableCommand {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func probeTarget(
         cli: String,
         model: String?,
@@ -94,15 +103,27 @@ public struct ProbeCommand: AsyncParsableCommand {
         let store = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let previous = try store.latestProbeResult(cli: cli)
 
-        let report = await CLIProbe().run(
-            adapter: adapter,
-            route: route,
-            executable: executable,
+        let recorder = ReportingDispatchPromptRecorder(
+            store: DispatchPromptStore(
+                rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
+            )
+        )
+
+        // Minted here, not by the Probe, so the Ledger row can name the run its prompt records belong to.
+        let runID = UUID().uuidString.lowercased()
+        let probe = CLIProbe(
+            recorder: recorder,
             environment: ProcessInfo.processInfo.environment,
-            workDirectory: workDirectory,
             protectedDirectories: CLIAdapterDispatch.protectedDirectories(
                 configurationDirectory: configurationDirectory
             )
+        )
+        let report = await probe.run(
+            adapter: adapter,
+            route: route,
+            executable: executable,
+            workDirectory: workDirectory,
+            runID: runID
         )
 
         let probeResult = ProbeRecording.probeResult(
@@ -115,7 +136,8 @@ public struct ProbeCommand: AsyncParsableCommand {
             processContainment: report.processContainment,
             sessionResumption: report.sessionResumption,
             stateContainment: report.stateContainment,
-            reason: report.reason
+            reason: report.reason,
+            promptRunID: report.runID
         )
         let recorded = try store.record(probeResult)
         let drift = previous.flatMap { recorded.drift(since: $0) }

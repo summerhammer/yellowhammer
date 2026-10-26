@@ -1,5 +1,6 @@
 import Domain
 import Ledger
+import Pulse
 import SwiftUI
 
 // One declared agent CLI as a card in two columns: the facts on the left, the four probe targets with what
@@ -11,6 +12,7 @@ struct AgentCLICard: View {
     @Bindable var model: AgentCLIModel
     let row: AgentCLIModel.CLIRow
     @State private var confirmsRemoval = false
+    @State private var showingProbePrompts = false
 
     private var isProbing: Bool { model.runningCLI == row.name }
 
@@ -52,6 +54,9 @@ struct AgentCLICard: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showingProbePrompts) {
+            PromptViewerSheet(scope: .machine(runID: row.latest?.promptRunID, cli: row.name))
         }
         .confirmationDialog(
             "Remove \(row.name)?", isPresented: $confirmsRemoval, titleVisibility: .visible
@@ -97,8 +102,17 @@ struct AgentCLICard: View {
         Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
             GridRow {
                 factLabel("Probed")
-                Text(probedAtText)
-                    .accessibilityIdentifier("agent-cli-probed-at-\(row.name)")
+                HStack(spacing: 8) {
+                    Text(probedAtText)
+                        .accessibilityIdentifier("agent-cli-probed-at-\(row.name)")
+                    if row.latest?.promptRunID != nil && !isProbing {
+                        Button("View Probe Prompts") {
+                            showingProbePrompts = true
+                        }
+                        .buttonStyle(.link)
+                        .accessibilityIdentifier("agent-cli-view-probe-prompts-\(row.name)")
+                    }
+                }
             }
             fact("CLI version", row.latest?.cliVersion ?? "\u{2014}")
             fact("Adapter", row.latest?.adapterVersion ?? "\u{2014}")

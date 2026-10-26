@@ -30,7 +30,13 @@ extension FeatureVerification {
             }
             let route = resolved.route
             ordinal += 1
-            let dispatchRequest = Self.verifierRequest(base, route: route, ordinal: ordinal, runID: act.runID)
+            // A dispatch that records no prompt (rehearsal) gets no capture request, as in `AuthoringRoute`.
+            let provenance = dispatch.recordsPrompts
+                ? try requestPromptCapture(context: context, ordinal: ordinal)
+                : nil
+            let dispatchRequest = Self.verifierRequest(
+                base, route: route, ordinal: ordinal, runID: act.runID, provenance: provenance
+            )
             let report: AgentDispatchReport
             do {
                 report = try await dispatch.dispatch(dispatchRequest)
@@ -52,6 +58,30 @@ extension FeatureVerification {
                 try recordRejection(rejection, route: route, ordinal: Int(ordinal), act: act)
             }
         }
+    }
+
+    /// Mints the verifier pass's prompt record id, builds its provenance, and journals the capture request
+    /// before the dispatch.
+    private func requestPromptCapture(context: LandActFeatureContext, ordinal: Int64) throws -> DispatchProvenance {
+        let act = context.act
+        let recordID = UUID().uuidString.lowercased()
+        let provenance = DispatchProvenance(
+            recordID: recordID,
+            family: .verifier,
+            projectID: act.journal.projectID.rawValue,
+            runID: act.runID.rawValue,
+            nightID: act.night.id,
+            featureIssueID: context.feature.issueID,
+            routeTry: Int(ordinal)
+        )
+        try act.journal.append(
+            .promptCaptureRequested(
+                recordID: recordID, pass: .verifier, cardID: nil, issueID: context.feature.issueID,
+                attemptID: nil, round: nil, ordinal: Int(ordinal)
+            ),
+            act: act.act, runID: act.runID, nightID: act.night.id
+        )
+        return provenance
     }
 
     /// One Route's failure as its `AuthoringRouteRejected` event records it: the class, and the account.
@@ -115,7 +145,8 @@ extension FeatureVerification {
     }
 
     private static func verifierRequest(
-        _ base: InstructionBase, route: Route, ordinal: Int64, runID: RunID
+        _ base: InstructionBase, route: Route, ordinal: Int64, runID: RunID,
+        provenance: DispatchProvenance? = nil
     ) -> AgentDispatchRequest {
         let instruction = VerificationInstruction(
             route: route, featureTitle: base.featureTitle, clauses: base.clauses,
@@ -124,7 +155,8 @@ extension FeatureVerification {
         return AgentDispatchRequest(
             runID: runID, issueID: runDirectoryName, attemptID: ordinal, route: route,
             pass: .verifier, instruction: .verification(instruction), worktreePath: base.source.path,
-            additionalReadableDirectories: base.repositories.map(\.directory)
+            additionalReadableDirectories: base.repositories.map(\.directory),
+            provenance: provenance
         )
     }
 

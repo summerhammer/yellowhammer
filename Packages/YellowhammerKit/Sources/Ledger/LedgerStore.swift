@@ -185,7 +185,8 @@ public final class LedgerStore: Sendable {
             findingProcessContainment: probeResult.findingProcessContainment,
             findingSessionResumption: probeResult.findingSessionResumption,
             findingStateContainment: probeResult.findingStateContainment,
-            reason: probeResult.reason
+            reason: probeResult.reason,
+            promptRunID: probeResult.promptRunID
         )
 
         try queue.write { db in
@@ -195,8 +196,8 @@ public final class LedgerStore: Sendable {
                 (cli, probed_at, adapter_version, cli_version,
                  finding_result_file_on_clean_exit, finding_unattended_dispatch,
                  finding_process_containment, finding_session_resumption, finding_state_containment,
-                 verdict, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 verdict, reason, prompt_run_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     storedResult.cli,
@@ -210,7 +211,8 @@ public final class LedgerStore: Sendable {
                     storedResult.findingStateContainment.rawValue,
                     // Verdict is computed from findings; this materializes it for query efficiency.
                     storedResult.verdict.rawValue,
-                    storedResult.reason
+                    storedResult.reason,
+                    storedResult.promptRunID
                 ]
             )
         }
@@ -229,7 +231,7 @@ public final class LedgerStore: Sendable {
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
                        finding_process_containment, finding_session_resumption, finding_state_containment,
-                       verdict, reason
+                       verdict, reason, prompt_run_id
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -253,7 +255,7 @@ public final class LedgerStore: Sendable {
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
                        finding_process_containment, finding_session_resumption, finding_state_containment,
-                       verdict, reason
+                       verdict, reason, prompt_run_id
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -324,7 +326,8 @@ public final class LedgerStore: Sendable {
             findingProcessContainment: findingProcess,
             findingSessionResumption: findingSessionResumption,
             findingStateContainment: findingStateContainment,
-            reason: reason
+            reason: reason,
+            promptRunID: row["prompt_run_id"] as? String
         )
 
         // Cross-check: the stored verdict must match the verdict derived from findings.

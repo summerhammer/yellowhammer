@@ -6,10 +6,12 @@ import SwiftUI
 /// history oldest first. Each Attempt expands in place to its Rounds and Check runs; the latest one
 /// starts expanded, because it holds the current Round.
 struct CardDetailAccount: View {
+    let project: ProjectID?
     let detail: CardDetail
     @State private var expanded: Set<String>
 
-    init(detail: CardDetail) {
+    init(project: ProjectID? = nil, detail: CardDetail) {
+        self.project = project
         self.detail = detail
         _expanded = State(initialValue: Set(detail.attempts.last.map { [$0.id] } ?? []))
     }
@@ -34,7 +36,7 @@ struct CardDetailAccount: View {
             }
             ForEach(Array(detail.attempts.enumerated()), id: \.element.id) { index, attempt in
                 DisclosureGroup(isExpanded: isExpanded(attempt)) {
-                    AttemptAccount(attempt: attempt)
+                    AttemptAccount(project: project, issueID: detail.id, attempt: attempt)
                         .padding(.top, 4)
                 } label: {
                     AttemptLabel(number: index + 1, attempt: attempt)
@@ -79,10 +81,27 @@ private struct AttemptLabel: View {
 /// An Attempt expanded in place: how its route was chosen and how it ended, then its Rounds and the
 /// Check runs over its work.
 private struct AttemptAccount: View {
+    let project: ProjectID?
+    let issueID: String?
     let attempt: CardDetail.Attempt
+    @State private var showingPrompts = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let project, let issueID, let attemptID = Int64(attempt.id) {
+                Button("View Prompts") {
+                    showingPrompts = true
+                }
+                .buttonStyle(.link)
+                .accessibilityIdentifier("card-detail-view-prompts-\(attempt.id)")
+                .sheet(isPresented: $showingPrompts) {
+                    PromptViewerSheet(
+                        projectID: project,
+                        issueID: issueID,
+                        attemptID: attemptID
+                    )
+                }
+            }
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 2) {
                 if let source = attempt.routeSource {
                     gridFact("Route source", source)

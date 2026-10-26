@@ -66,6 +66,28 @@ extension JournalStore {
         }
     }
 
+    /// The events of the given types that name one Card's Attempt (`card_id` and `attempt_id` in the payload),
+    /// in append order, filtered in SQL so a read of one Attempt decodes no other row.
+    public func events(
+        ofTypes types: Set<JournalEventType>, cardID: Int64, attemptID: Int64
+    ) throws -> [JournalEventRecord] {
+        guard !types.isEmpty else { return [] }
+        return try read { db in
+            let orderedTypes = types.sorted { $0.rawValue < $1.rawValue }
+            let placeholders = Array(repeating: "?", count: orderedTypes.count).joined(separator: ", ")
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT * FROM event WHERE type IN (\(placeholders))
+                AND json_extract(payload, '$.card_id') = ? AND json_extract(payload, '$.attempt_id') = ?
+                ORDER BY id ASC
+                """,
+                arguments: StatementArguments(orderedTypes.map(\.rawValue) + [String(cardID), String(attemptID)])
+            )
+            return try Self.decodeEvents(rows)
+        }
+    }
+
     /// Lifecycle event rows for one run, filtered in SQL so status reads decode no unrelated event rows.
     public func events(runID: RunID, ofTypes types: Set<JournalEventType>) throws -> [JournalEventRecord] {
         guard !types.isEmpty else { return [] }

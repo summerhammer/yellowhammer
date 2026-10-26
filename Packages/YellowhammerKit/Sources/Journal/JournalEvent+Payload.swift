@@ -406,6 +406,26 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "pass": pass.rawValue, "fixture": fixture
             ]
+        case .promptCaptureRequested(
+            let recordID, let pass, let cardID, let issueID, let attemptID, let round, let ordinal
+        ):
+            {
+                var dict: [String: String] = [
+                    "record_id": recordID,
+                    "pass": pass.rawValue
+                ]
+                if let cardID { dict["card_id"] = String(cardID) }
+                if let issueID { dict["issue_id"] = issueID }
+                if let attemptID { dict["attempt_id"] = String(attemptID) }
+                if let round { dict["round"] = String(round) }
+                if let ordinal { dict["ordinal"] = String(ordinal) }
+                return dict
+            }()
+        case .routePreflightPromptCaptureRequested(let recordID, let route):
+            [
+                "record_id": recordID,
+                "route_cli": route.cli, "route_effort": route.effort, "route_model": route.model
+            ]
         case .cardCommitTrailerMissing(let cardID, let issueID, let attemptID, let commit):
             [
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),

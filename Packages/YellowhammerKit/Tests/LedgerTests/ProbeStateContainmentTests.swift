@@ -31,12 +31,15 @@ private func makeResult(
 
 // MARK: - v3 migration
 
-@Test("The v3 migration is registered after v2 and applied on a fresh open")
+@Test("The v3 migration is registered after v2 and applied on a fresh open, before v4")
 func v3MigrationApplied() throws {
     let fixture = try LedgerFixture()
     let store = try fixture.open()
 
-    let expected = ["v1-probe-result-history", "v2-probe-session-resumption", "v3-probe-state-containment"]
+    let expected = [
+        "v1-probe-result-history", "v2-probe-session-resumption", "v3-probe-state-containment",
+        "v4-probe-prompt-run-id"
+    ]
     #expect(try store.appliedMigrations() == expected)
     #expect(LedgerStore.migrationIdentifiers == expected)
 }
@@ -70,7 +73,7 @@ func v2StoreMigratesAndReadsNotRun() async throws {
 
     // Opening normally migrates the v2 store the rest of the way.
     let store = try fixture.open()
-    #expect(try store.appliedMigrations().last == "v3-probe-state-containment")
+    #expect(try store.appliedMigrations().contains("v3-probe-state-containment"))
     let latest = try #require(try store.latestProbeResult(cli: "legacy-cli"))
     #expect(latest.findingStateContainment == .notRun)
     #expect(latest.findingSessionResumption == .passed)

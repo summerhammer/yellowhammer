@@ -38,6 +38,19 @@ struct CodexAdapterTests {
         #expect(args.count == dashIndex + 2)
     }
 
+    @Test("outputSchema(for:) matches the schema.json written during launch for every pass",
+          arguments: RunPass.allCases)
+    func outputSchemaMatchesSchemaFile(pass: RunPass) throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(cli: "codex", model: "gpt-5.5", effort: "low", pass: pass)
+        let launch = try adapter.launch(for: dispatch)
+        let schemaPath = try #require(ClaudeCodeAdapterTests.value(after: "--output-schema", in: launch.arguments))
+        let schemaContents = try String(contentsOfFile: schemaPath, encoding: .utf8)
+        #expect(adapter.outputSchema(for: pass) == schemaContents)
+        #expect(adapter.outputSchema(for: pass) == CLIOutputSchema.strict(for: pass))
+    }
+
     @Test("Round, worker: exec resume with full access and no writable-roots override")
     func roundWorkerArgv() throws {
         let fixture = try CLIDispatchFixture.make()
