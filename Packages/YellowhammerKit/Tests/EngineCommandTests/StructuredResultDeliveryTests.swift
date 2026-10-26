@@ -41,6 +41,8 @@ struct StructuredResultDeliveryTests {
         try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
         let capture = root.appendingPathComponent("argv.txt")
         let promptFile = root.appendingPathComponent("prompt.txt")
+        // The runner removes the adapter's `schema.json` once the pass ends, so the stub copies what it read.
+        let schemaSeen = root.appendingPathComponent("schema-seen.json")
         let script = try Self.stubScript(in: root, cli: testCase.cli)
         let route = Self.route(for: testCase.cli)
         let request = Self.request(for: testCase, route: route, worktreePath: worktree.path)
@@ -49,6 +51,7 @@ struct StructuredResultDeliveryTests {
             runsDirectory: runs, timeout: .seconds(10), declaredExecutables: [testCase.cli: script.path], path: nil,
             environment: [
                 "PATH": "/usr/bin:/bin", "CAPTURE": capture.path, "PROMPT": promptFile.path,
+                "SCHEMA_COPY": schemaSeen.path,
                 "RESPONSE": Self.response(for: testCase.pass), "CLI": testCase.cli
             ],
             fileExists: { _ in true }
@@ -63,7 +66,8 @@ struct StructuredResultDeliveryTests {
         return DeliveryResult(
             testCase: testCase, report: report, runDirectory: runDirectory,
             resultExists: FileManager.default.fileExists(atPath: resultURL.path),
-            schema: try? String(contentsOf: schemaURL, encoding: .utf8),
+            schema: try? String(contentsOf: schemaSeen, encoding: .utf8),
+            schemaRemoved: !FileManager.default.fileExists(atPath: schemaURL.path),
             args: try String(contentsOf: capture, encoding: .utf8),
             prompt: try String(contentsOf: promptFile, encoding: .utf8),
             response: try String(contentsOf: resultURL, encoding: .utf8)
@@ -127,6 +131,7 @@ struct StructuredResultDeliveryTests {
         #expect(args.contains("-o\n\(resultPath)\n"))
         #expect(args.contains("--output-schema\n\(schemaPath)\n"))
         #expect(result.schema?.contains(pass.schemaIdentifier) == true)
+        #expect(result.schemaRemoved)
         let sandbox = pass == .worker ? "danger-full-access" : "read-only"
         #expect(args.contains("--sandbox\n\(sandbox)\n") || args.contains("sandbox_mode=\"\(sandbox)\""))
     }
@@ -263,6 +268,7 @@ struct StructuredResultDeliveryTests {
             out=""
             while [ "$#" -gt 0 ]; do
                 if [ "$1" = "-o" ]; then out="$2"; fi
+                if [ "$1" = "--output-schema" ]; then cp "$2" "$SCHEMA_COPY"; fi
                 shift
             done
             printf '%s' "$RESPONSE" > "$out"
@@ -291,6 +297,7 @@ private struct DeliveryResult {
     let runDirectory: URL
     let resultExists: Bool
     let schema: String?
+    let schemaRemoved: Bool
     let args: String
     let prompt: String
     let response: String

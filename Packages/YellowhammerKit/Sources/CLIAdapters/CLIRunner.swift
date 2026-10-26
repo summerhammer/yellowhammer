@@ -45,6 +45,11 @@ public struct CLIRunner: Sendable {
             throw error
         }
 
+        // Every path out of here, including a failed spawn, passes through this defer.
+        defer {
+            for file in launch.scratchFiles { try? FileManager.default.removeItem(at: file) }
+        }
+
         let execution: AgentCLIExecution
         do {
             execution = try await process.execute(launch)

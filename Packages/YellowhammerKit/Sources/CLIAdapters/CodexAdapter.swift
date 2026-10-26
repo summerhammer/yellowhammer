@@ -86,7 +86,8 @@ public struct CodexAdapter: CLIAdapter {
             pass: dispatch.pass,
             timeout: dispatch.timeout,
             outputLog: dispatch.runDirectory.appendingPathComponent("stderr.log"),
-            standardOutput: dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+            standardOutput: dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName),
+            scratchFiles: [schemaFile]
         )
     }
 

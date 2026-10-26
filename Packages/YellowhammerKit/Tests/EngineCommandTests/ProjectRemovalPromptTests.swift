@@ -45,6 +45,33 @@ struct ProjectRemovalPromptTests {
         #expect(!FileManager.default.fileExists(atPath: promptProjectDir.path(percentEncoded: false)))
     }
 
+    @Test("Removal deletes the Project's schema copies and leaves another Project's alone")
+    func removalDeletesProjectSchemaCopies() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let home = try RemovalHomeFixture(projectID: "alpha", plists: false, logs: false)
+
+        func schemaFile(_ project: String) throws -> URL {
+            let runs = CLIAdapterDispatch.runsDirectory(
+                configurationDirectory: directory.url, projectID: try #require(ProjectID(rawValue: project))
+            )
+            let run = runs.appending(components: "card-1", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: run, withIntermediateDirectories: true)
+            let file = run.appending(components: "schema.json", directoryHint: .notDirectory)
+            try Data("{}".utf8).write(to: file)
+            return file
+        }
+        let ours = try schemaFile("alpha")
+        let theirs = try schemaFile("beta")
+
+        let succeeded = await makeRemoval(directory: directory, home: home).run(id: "alpha", yes: true)
+
+        #expect(succeeded)
+        #expect(!FileManager.default.fileExists(atPath: ours.path(percentEncoded: false)))
+        #expect(FileManager.default.fileExists(atPath: theirs.path(percentEncoded: false)))
+    }
+
     @Test("An injected cleanup failure stops removal before TOML is deleted, without touching journaled footprint")
     func injectedCleanupFailureStopsRemoval() async throws {
         let directory = ConfigurationDirectory()

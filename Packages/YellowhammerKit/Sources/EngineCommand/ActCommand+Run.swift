@@ -48,6 +48,16 @@ extension ActCommand {
                     "failed to sweep expired prompt record \(failure) for Project \(resolved.id.rawValue)"
                 )
             }
+            let schemaFailures = SchemaCopySweep.removeExpired(
+                under: CLIAdapterDispatch.runsDirectory(
+                    configurationDirectory: configurationDirectory, projectID: resolved.id
+                )
+            )
+            for failure in schemaFailures {
+                ActLog.writeToStandardError(
+                    "failed to sweep expired schema copy \(failure) for Project \(resolved.id.rawValue)"
+                )
+            }
         }
 
         let invocation = try makeInvocation(

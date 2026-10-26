@@ -23,6 +23,10 @@ public struct AgentCLILaunch: Sendable {
     /// CLI's structured stdout separately from its diagnostic stderr). `nil` keeps the original
     /// behavior — both streams share ``outputLog``.
     public var standardOutput: URL?
+    /// Files the adapter wrote only so the CLI could read them (a schema copy, say). The runner
+    /// removes them once the process has ended, whatever the outcome: the adapter translates, it does
+    /// not clean up.
+    public var scratchFiles: [URL]
 
     public init(
         executable: String,
@@ -33,7 +37,8 @@ public struct AgentCLILaunch: Sendable {
         pass: RunPass,
         timeout: Duration,
         outputLog: URL? = nil,
-        standardOutput: URL? = nil
+        standardOutput: URL? = nil,
+        scratchFiles: [URL] = []
     ) {
         self.executable = executable
         self.arguments = arguments
@@ -44,5 +49,6 @@ public struct AgentCLILaunch: Sendable {
         self.timeout = timeout
         self.outputLog = outputLog
         self.standardOutput = standardOutput
+        self.scratchFiles = scratchFiles
     }
 }

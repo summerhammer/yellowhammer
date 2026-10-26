@@ -79,6 +79,26 @@ struct ProjectRemoval {
         }
     }
 
+    /// Deletes the Project's prompt records and the schema copies under its runs directory. A failure
+    /// stops removal, reported the same way for both.
+    private func removeRecordedPrompts(projectID: ProjectID) -> Bool {
+        let failure: String
+        do {
+            try promptStore.removeAll(projectID: projectID)
+            let runsDirectory = CLIAdapterDispatch.runsDirectory(
+                configurationDirectory: configurationDirectory, projectID: projectID
+            )
+            let schemaFailures = SchemaCopySweep.remove(under: runsDirectory)
+            if schemaFailures.isEmpty { return true }
+            failure = schemaFailures.joined(separator: ", ")
+        } catch {
+            failure = "\(error)"
+        }
+        output("could not delete recorded prompts for \(projectID.rawValue): \(failure)")
+        output("removal incomplete; re-run `yh project remove <id>` to retry") // glossary:ignore GL001
+        return false
+    }
+
     /// Runs the whole removal for `id`, printing progress and a final summary line. Returns whether it
     /// succeeded, the command's exit code.
     func run(id: String, yes: Bool) async -> Bool {
@@ -112,13 +132,7 @@ struct ProjectRemoval {
         await removeLaunchAgents(projectID: project.id, failures: &failures)
         await removeLogs(projectID: project.id)
 
-        do {
-            try promptStore.removeAll(projectID: project.id)
-        } catch {
-            output("could not delete recorded prompts for \(project.id.rawValue): \(error)")
-            output("removal incomplete; re-run `yh project remove <id>` to retry") // glossary:ignore GL001
-            return false
-        }
+        guard removeRecordedPrompts(projectID: project.id) else { return false }
 
         if let journal {
             guard await removeJournaledFootprint(
