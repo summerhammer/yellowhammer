@@ -2,13 +2,13 @@
   "fill-specializations" : [
     {
       "value" : {
-        "automatic-gradient" : "srgb:0.98431,0.96863,0.91765,1.00000"
+        "automatic-gradient" : "srgb:0.99216,0.98039,0.94118,1.00000"
       }
     },
     {
       "appearance" : "dark",
       "value" : {
-        "automatic-gradient" : "srgb:0.13333,0.13333,0.06667,1.00000"
+        "automatic-gradient" : "srgb:0.10980,0.10980,0.11765,1.00000"
       }
     }
   ],
@@ -16,16 +16,15 @@
     {
       "layers" : [
         {
-          "blend-mode" : "normal",
           "glass" : true,
           "hidden" : false,
-          "image-name" : "yellowhammer-mark.svg",
-          "name" : "yellowhammer-mark",
+          "image-name" : "app-icon-v2-mark.svg",
+          "name" : "app-icon-v2-mark",
           "position" : {
-            "scale" : 0.8,
+            "scale" : 1.08,
             "translation-in-points" : [
               0,
-              0
+              -10
             ]
           }
         }
