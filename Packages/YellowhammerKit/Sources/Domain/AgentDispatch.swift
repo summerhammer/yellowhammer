@@ -110,5 +110,14 @@ public struct AgentDispatchRefusal: Error, Equatable, Sendable, CustomStringConv
 /// decides; a refusal it cannot avoid is thrown as ``AgentDispatchRefusal``, and any other thrown error is
 /// an engine fault.
 public protocol AgentDispatch: Sendable {
+    /// Whether a pass dispatched here leaves a prompt record. The Engine journals a prompt capture request
+    /// before each dispatch only when this is true, so a dispatch that records nothing (a rehearsal Night's
+    /// fixture answers) never causes a request whose record can never exist.
+    var recordsPrompts: Bool { get }
+
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport
+}
+
+extension AgentDispatch {
+    public var recordsPrompts: Bool { true }
 }

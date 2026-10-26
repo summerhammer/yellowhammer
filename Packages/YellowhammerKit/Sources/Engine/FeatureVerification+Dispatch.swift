@@ -30,7 +30,10 @@ extension FeatureVerification {
             }
             let route = resolved.route
             ordinal += 1
-            let provenance = try requestPromptCapture(context: context, ordinal: ordinal)
+            // A dispatch that records no prompt (rehearsal) gets no capture request, as in `AuthoringRoute`.
+            let provenance = dispatch.recordsPrompts
+                ? try requestPromptCapture(context: context, ordinal: ordinal)
+                : nil
             let dispatchRequest = Self.verifierRequest(
                 base, route: route, ordinal: ordinal, runID: act.runID, provenance: provenance
             )

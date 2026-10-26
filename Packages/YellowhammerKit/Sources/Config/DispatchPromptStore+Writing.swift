@@ -46,6 +46,16 @@ extension DispatchPromptStore {
             let result = writeRestrictedFile(data: data, to: targetURL, in: scopeDir)
             switch result {
             case .recorded:
+                // A delete may have landed between the lookup and the rename: it unlinked the old record
+                // and wrote its tombstone, and the rename just re-created the record. Take it back out.
+                let tombstonePath = scopeDir
+                    .appending(components: "\(record.id).deleted.json", directoryHint: .notDirectory)
+                    .path(percentEncoded: false)
+                var tombstoneStat = stat()
+                if lstat(tombstonePath, &tombstoneStat) == 0 {
+                    Darwin.unlink(targetURL.path(percentEncoded: false))
+                    return false
+                }
                 return true
             case .unavailable:
                 return false

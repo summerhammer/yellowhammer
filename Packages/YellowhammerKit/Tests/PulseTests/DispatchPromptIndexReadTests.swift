@@ -324,8 +324,10 @@ struct DispatchPromptIndexReadTests {
             asOf: epoch
         )
 
+        // A rehearsal pass is listed once, as Round 1: the engine journals no capture request beside the fixture.
         #expect(index.items.count == 1)
         let item = try #require(index.items.first)
+        #expect(item.round == 1)
         #expect(item.instruction == nil)
         if case .rehearsal(let fixtureName) = item.state {
             #expect(fixtureName == "worker-success.json")

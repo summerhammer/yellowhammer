@@ -50,18 +50,21 @@ public struct CLIRunner: Sendable {
             for file in launch.scratchFiles { try? FileManager.default.removeItem(at: file) }
         }
 
+        // Marked at spawn, not at exit: the record reads "launched" for the whole run, and a yh killed
+        // mid-run leaves it launched rather than pending forever. `execute` throws only before the spawn.
+        let onSpawn: (@Sendable () -> Void)? = if let promptRecord, let recorder {
+            { _ = recorder.markLaunch(.launched, of: promptRecord) }
+        } else {
+            nil
+        }
         let execution: AgentCLIExecution
         do {
-            execution = try await process.execute(launch)
+            execution = try await process.execute(launch, onSpawn: onSpawn)
         } catch {
             if let promptRecord, let recorder {
                 _ = recorder.markLaunch(.notLaunched(cause: error.description), of: promptRecord)
             }
             throw error
-        }
-
-        if let promptRecord, let recorder {
-            _ = recorder.markLaunch(.launched, of: promptRecord)
         }
 
         let session = adapter.collect(end: execution.end, dispatch: dispatch)

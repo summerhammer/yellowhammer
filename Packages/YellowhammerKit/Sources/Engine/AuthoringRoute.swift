@@ -66,9 +66,13 @@ public struct AuthoringRoute: Sendable {
             }
             let route = resolved.route
             ordinal += 1
-            let provenance = try requestPromptCapture(
-                pass: pass, featureIssueID: featureIssueID, ordinal: ordinal, context: context
-            )
+            // A dispatch that records no prompt (rehearsal) gets no capture request, or the Journal would name a
+            // record that can never exist.
+            let provenance = dispatch.recordsPrompts
+                ? try requestPromptCapture(
+                    pass: pass, featureIssueID: featureIssueID, ordinal: ordinal, context: context
+                )
+                : nil
             let dispatchRequest = AgentDispatchRequest(
                 runID: context.runID, issueID: Self.runDirectoryName, attemptID: ordinal, route: route,
                 pass: pass, instruction: .authoring(instruction(route, earlierRejections)), worktreePath: worktreePath,

@@ -112,14 +112,7 @@ extension NightAccount.ActRun {
     private static func run(
         id: String, records: [JournalEventRecord], cardNames: [Int64: String], featureNames: [String: String]
     ) -> NightAccount.ActRun {
-        var promptCaptures: [String: String] = [:]
-        for record in records {
-            if case .promptCaptureRequested(let recordID, let pass, _, _, _, _, let ordinal) = record.event {
-                let key = "\(pass.rawValue)-\(ordinal ?? 1)"
-                promptCaptures[key] = recordID
-                promptCaptures[pass.rawValue] = recordID
-            }
-        }
+        let pairedCaptures = PromptCapturePairing.recordIDs(in: records)
 
         let entries = records.map { record -> NightAccount.Entry in
             let promptID: String?
@@ -131,16 +124,12 @@ extension NightAccount.ActRun {
             case .routePreflightPromptCaptureRequested(let recordID, _):
                 offersPrompt = true
                 promptID = recordID
-            case .authoringDispatched(let pass, _, let ordinal, let fixture):
+            case .authoringDispatched(_, _, _, let fixture):
                 offersPrompt = true
-                if fixture != nil {
-                    promptID = "rehearsal-\(record.id)"
-                } else {
-                    promptID = promptCaptures["\(pass.rawValue)-\(ordinal)"] ?? promptCaptures[pass.rawValue]
-                }
-            case .authoringRouteRejected(let pass, _, let ordinal, _, _):
+                promptID = fixture != nil ? "rehearsal-\(record.id)" : pairedCaptures[record.id]
+            case .authoringRouteRejected:
                 offersPrompt = true
-                promptID = promptCaptures["\(pass.rawValue)-\(ordinal)"] ?? promptCaptures[pass.rawValue]
+                promptID = pairedCaptures[record.id]
             default:
                 offersPrompt = false
                 promptID = nil

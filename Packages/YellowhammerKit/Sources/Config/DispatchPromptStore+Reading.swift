@@ -17,12 +17,9 @@ extension DispatchPromptStore {
 
         let scopeDir = directory(for: scope)
 
-        // The record file decides while it exists: a leftover tombstone must never hide content still on disk.
-        let recordPath = scopeDir.appending(components: "\(id).json", directoryHint: .notDirectory)
-            .path(percentEncoded: false)
-        var recordStat = stat()
-        if lstat(recordPath, &recordStat) != 0, errno == ENOENT,
-           let tombstoneLookup = lookupTombstone(id: id, scopeDir: scopeDir) {
+        // The tombstone decides while it exists: record ids are fresh UUIDs never re-created, so a record
+        // beside a tombstone is a launch rewrite that raced the deletion, and must not resurrect the prompt.
+        if let tombstoneLookup = lookupTombstone(id: id, scopeDir: scopeDir) {
             return tombstoneLookup
         }
 
@@ -154,7 +151,13 @@ extension DispatchPromptStore {
             if item.hasSuffix(".json") && !item.hasSuffix(".deleted.json") && !item.hasPrefix(".") {
                 let id = String(item.dropLast(".json".count))
                 let result = lookup(id: id, scope: scope)
-                if case .expired = result {
+                // A record beside a tombstone is a deletion's leftover; sweep it with the expired ones.
+                let sweepable: Bool
+                switch result {
+                case .expired, .deleted: sweepable = true
+                default: sweepable = false
+                }
+                if sweepable {
                     let filePath = scopeDir.appending(components: item, directoryHint: .notDirectory)
                         .path(percentEncoded: false)
                     if Darwin.unlink(filePath) != 0 {

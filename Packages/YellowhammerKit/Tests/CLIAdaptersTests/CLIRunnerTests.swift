@@ -117,6 +117,38 @@ struct CLIRunnerTests {
         #expect(recorder.launches.first?.record.id == "rec-order-test")
     }
 
+    @Test("The record reads launched while the CLI is still running, not only after it exits")
+    func launchIsMarkedAtSpawn() async throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let recorder = FakePromptRecorder()
+        let gate = fixture.tempDir.appendingPathComponent("gate-\(UUID().uuidString)")
+        let script = try Self.makeStubScript(
+            in: fixture.tempDir,
+            body: "while [ ! -e '\(gate.path)' ]; do sleep 0.05; done\nexit 0"
+        )
+        let provenance = DispatchProvenance(
+            recordID: "rec-spawn", family: .worker, projectID: "proj-1", runID: "run-1", nightID: 1
+        )
+        let dispatch = fixture.dispatch(cli: "fake-cli", executable: script.path, provenance: provenance)
+        let adapter = SpyAdapter(recorder: recorder)
+        let runner = CLIRunner(recorder: recorder)
+
+        let running = Task { try await runner.run(dispatch, adapter: adapter) }
+        let deadline = ContinuousClock.now + .seconds(4)
+        while recorder.launches.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        // The stub is still blocked on the gate, so the run has not returned: the mark came from the spawn.
+        #expect(recorder.launches.map(\.launch) == [.launched])
+        #expect(!FileManager.default.fileExists(atPath: gate.path))
+
+        FileManager.default.createFile(atPath: gate.path, contents: Data())
+        let report = try await running.value
+        #expect(report.end == .exited(status: 0))
+        #expect(recorder.launches.map(\.launch) == [.launched])
+    }
+
     @Test("A launch-build failure marks notLaunched with the error description")
     func launchBuildFailureMarksNotLaunched() async throws {
         let fixture = try CLIDispatchFixture.make()

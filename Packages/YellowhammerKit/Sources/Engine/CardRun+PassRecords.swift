@@ -42,10 +42,12 @@ extension CardRun {
     }
 
     /// Journals the prompt capture request before the dispatch, so the Night's account can name the record
-    /// even if the dispatch never returns.
+    /// even if the dispatch never returns. A dispatch that records no prompt (rehearsal) gets no request, or the
+    /// Journal would name a record that can never exist.
     func requestPromptCapture(
         recordID: String, pass: RunPass, frame: CardRunFrame, attemptID: Int64, round: Int
     ) throws {
+        guard dispatch.recordsPrompts else { return }
         try frame.journal.append(
             .promptCaptureRequested(
                 recordID: recordID, pass: pass, cardID: frame.card.id, issueID: frame.card.issueID,

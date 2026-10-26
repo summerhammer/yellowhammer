@@ -92,8 +92,8 @@ struct DispatchPromptStoreDeletionTests {
         ))
     }
 
-    @Test("A leftover tombstone beside a record is served as the record, and delete removes it")
-    func leftoverPairServesRecord() throws {
+    @Test("A tombstone beside a record reads as deleted in lookup and entries, and delete removes the record")
+    func tombstoneBesideRecordReadsDeleted() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = DispatchPromptStore(rootDirectory: root, now: { Date(timeIntervalSince1970: 1_700_000_100) })
@@ -101,10 +101,30 @@ struct DispatchPromptStoreDeletionTests {
         #expect(store.capture(record) == .recorded(id: "rec-pair"))
         try writeLeftoverTombstone(store: store, record: record)
         let scope = record.provenance.scope
+        let deletedAt = record.dispatchedAt.addingTimeInterval(10)
 
-        #expect(store.lookup(id: "rec-pair", scope: scope) == .available(record))
+        #expect(store.lookup(id: "rec-pair", scope: scope) == .deleted(deletedAt: deletedAt))
+        #expect(store.entries(in: scope).map(\.lookup) == [.deleted(deletedAt: deletedAt)])
         #expect(store.delete(ids: ["rec-pair"], in: scope) == [.deleted])
         let recordURL = store.directory(for: scope).appending(components: "rec-pair.json", directoryHint: .notDirectory)
+        #expect(!FileManager.default.fileExists(atPath: recordURL.path(percentEncoded: false)))
+    }
+
+    @Test("markLaunch refuses a record whose deletion tombstone exists and leaves it unchanged")
+    func markLaunchRefusesTombstonedRecord() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = DispatchPromptStore(rootDirectory: root, now: { Date(timeIntervalSince1970: 1_700_000_100) })
+        let record = makeStoreTestRecord(id: "rec-race")
+        #expect(store.capture(record) == .recorded(id: "rec-race"))
+        try writeLeftoverTombstone(store: store, record: record)
+        let scope = record.provenance.scope
+
+        #expect(!store.markLaunch(.launched, of: record))
+        // The rename-then-recheck path cannot be interleaved from a test; a deleted record is the observable edge.
+        #expect(store.delete(ids: ["rec-race"], in: scope) == [.deleted])
+        #expect(!store.markLaunch(.launched, of: record))
+        let recordURL = store.directory(for: scope).appending(components: "rec-race.json", directoryHint: .notDirectory)
         #expect(!FileManager.default.fileExists(atPath: recordURL.path(percentEncoded: false)))
     }
 
@@ -119,7 +139,7 @@ struct DispatchPromptStoreDeletionTests {
         try writeLeftoverTombstone(store: store, record: record)
         let scope = record.provenance.scope
 
-        #expect(store.lookup(id: "rec-old", scope: scope) == .expired(dispatchedAt: dispatched))
+        #expect(store.lookup(id: "rec-old", scope: scope) == .deleted(deletedAt: dispatched.addingTimeInterval(10)))
         #expect(store.sweepExpired(in: scope).isEmpty)
         let recordURL = store.directory(for: scope).appending(components: "rec-old.json", directoryHint: .notDirectory)
         #expect(!FileManager.default.fileExists(atPath: recordURL.path(percentEncoded: false)))

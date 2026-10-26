@@ -218,6 +218,61 @@ struct PromptCaptureDispatchTests {
         #expect(ordinal == 1)
     }
 
+    // A rehearsal Night's dispatch writes no prompt record, so no pass may journal a capture request for one.
+
+    @Test("A rehearsal dispatch records no prompt; an agent CLI dispatch does")
+    func onlyRehearsalRecordsNoPrompts() {
+        #expect(!RehearsalDispatch().recordsPrompts)
+        #expect(CapturingAuthoringDispatch([:]).recordsPrompts)
+    }
+
+    @Test("A rehearsal CardRun journals no PromptCaptureRequested for any of its passes")
+    func rehearsalCardRunJournalsNoPromptCapture() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try await makeCardRunWorld(journal: journal)
+        let dispatch = RehearsalDispatch()
+
+        try await makeCardRun(dispatch: dispatch).run("BACK-1", in: world)
+
+        #expect(dispatch.answered.contains { $0.pass == .worker })
+        #expect(try journal.events(ofType: .promptCaptureRequested).isEmpty)
+    }
+
+    @Test("A rehearsal authoring pass journals no PromptCaptureRequested")
+    func rehearsalAuthoringJournalsNoPromptCapture() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let context = try makeSelectionContext(journal, repositories: selectionRepositories(), boards: boards).context
+        let primary = Route(cli: "claude", model: "opus", effort: "high")!
+        let table = RoutingTable(entries: [RoutingEntry(kind: .authoring, route: primary)])
+        let dispatch = RehearsalDispatch()
+        let route = AuthoringRoute(resolver: RouteResolver(table: table) { _ in .offered }, dispatch: dispatch)
+
+        _ = try await FeatureSelection(
+            selector: RoutedFeatureSelector(route: route), transaction: ScriptedSelectedFeatureAuthoring()
+        ).selectAndAuthor(context)
+
+        #expect(dispatch.answered.map(\.pass) == [.selection])
+        #expect(dispatch.answered.allSatisfy { $0.provenance == nil })
+        #expect(try journal.events(ofType: .promptCaptureRequested).isEmpty)
+    }
+
+    @Test("A rehearsal verifier pass journals no PromptCaptureRequested")
+    func rehearsalVerifierJournalsNoPromptCapture() async throws {
+        let world = try await VerificationWorld()
+        try world.addClause(issue: "BACK-1", cid: "c1")
+        try world.addAttempt(card: "BACK-1", route: routeWriter)
+        let dispatch = RehearsalDispatch()
+        let resolver = verificationResolver(primary: routeWriter, fallbacks: [routeOther])
+
+        _ = try await world.verification(resolver: resolver, dispatch: dispatch).verify(world.featureContext)
+
+        #expect(dispatch.answered.map(\.pass) == [.verifier])
+        #expect(try world.journal.events(ofType: .promptCaptureRequested).isEmpty)
+    }
+
     @Test("ReportingDispatchPromptRecorder forwards capture and markLaunch, writing to stderr on unavailable")
     func reportingRecorderBehavior() {
         final class MockStore: DispatchPromptRecording, @unchecked Sendable {

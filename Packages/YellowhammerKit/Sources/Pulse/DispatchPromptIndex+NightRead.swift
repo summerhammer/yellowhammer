@@ -74,13 +74,17 @@ extension DispatchPromptIndex {
         return nil
     }
 
+    /// The rejection of each prompt record's own route try, keyed by record id: a rejection reaches only the
+    /// capture it pairs with (``PromptCapturePairing``), never another Act's or Feature's try of the same ordinal.
     private static func detectRejectedRouteTries(
         in events: [JournalEventRecord]
-    ) -> [RunPass: [Int: (cause: AuthoringRouteRejectionCause, reason: String)]] {
-        var rejected: [RunPass: [Int: (cause: AuthoringRouteRejectionCause, reason: String)]] = [:]
+    ) -> [String: (cause: AuthoringRouteRejectionCause, reason: String)] {
+        let paired = PromptCapturePairing.recordIDs(in: events)
+        var rejected: [String: (cause: AuthoringRouteRejectionCause, reason: String)] = [:]
         for eventRecord in events {
-            if case .authoringRouteRejected(let pass, _, let ordinal, let cause, let reason) = eventRecord.event {
-                rejected[pass, default: [:]][ordinal] = (cause, reason)
+            if case .authoringRouteRejected(_, _, _, let cause, let reason) = eventRecord.event,
+               let recordID = paired[eventRecord.id] {
+                rejected[recordID] = (cause, reason)
             }
         }
         return rejected
@@ -99,7 +103,7 @@ extension DispatchPromptIndex {
     private static func processNightEvent(
         eventRecord: JournalEventRecord,
         nightID: Int64,
-        rejectedRouteTries: [RunPass: [Int: (cause: AuthoringRouteRejectionCause, reason: String)]],
+        rejectedRouteTries: [String: (cause: AuthoringRouteRejectionCause, reason: String)],
         context: NightReadContext
     ) -> DispatchPromptItem? {
         switch eventRecord.event {
@@ -121,7 +125,7 @@ extension DispatchPromptIndex {
             var item = makeItem(
                 context: itemContext, store: context.store, projectID: context.projectID, asOf: context.asOf
             )
-            if let ord = ordinal, let rej = rejectedRouteTries[pass]?[ord] {
+            if let rej = rejectedRouteTries[recordID] {
                 item = itemApplyingRejected(item: item, cause: rej.cause, reason: rej.reason)
             }
             return item
@@ -198,8 +202,10 @@ extension DispatchPromptIndex {
         cause: AuthoringRouteRejectionCause,
         reason: String
     ) -> DispatchPromptItem {
+        // Only an unavailable Route never started; any other rejection judged a run that did, so the record's
+        // own launch state stands.
         let launch: DispatchLaunch?
-        if item.launch == .pending || item.launch == nil {
+        if cause == .unavailable, item.launch == .pending || item.launch == nil {
             launch = .notLaunched(cause: "\(cause.phrase): \(reason)")
         } else {
             launch = item.launch
