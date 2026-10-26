@@ -128,10 +128,22 @@ public struct DispatchPromptTombstone: Codable, Equatable, Sendable {
     public let id: String
     public let dispatchedAt: Date
     public let deletedAt: Date
+    /// The deleted record's run, when its provenance named one. Absent in older tombstones.
+    public let runID: String?
+    /// The deleted record's prompt family, when the record decoded. Absent in older tombstones.
+    public let family: PromptFamily?
 
-    public init(id: String, dispatchedAt: Date, deletedAt: Date) {
+    public init(
+        id: String,
+        dispatchedAt: Date,
+        deletedAt: Date,
+        runID: String? = nil,
+        family: PromptFamily? = nil
+    ) {
         self.id = id
         self.dispatchedAt = dispatchedAt
         self.deletedAt = deletedAt
+        self.runID = runID
+        self.family = family
     }
 }

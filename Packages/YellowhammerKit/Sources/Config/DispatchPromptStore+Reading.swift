@@ -17,7 +17,12 @@ extension DispatchPromptStore {
 
         let scopeDir = directory(for: scope)
 
-        if let tombstoneLookup = lookupTombstone(id: id, scopeDir: scopeDir) {
+        // The record file decides while it exists: a leftover tombstone must never hide content still on disk.
+        let recordPath = scopeDir.appending(components: "\(id).json", directoryHint: .notDirectory)
+            .path(percentEncoded: false)
+        var recordStat = stat()
+        if lstat(recordPath, &recordStat) != 0, errno == ENOENT,
+           let tombstoneLookup = lookupTombstone(id: id, scopeDir: scopeDir) {
             return tombstoneLookup
         }
 
@@ -32,7 +37,8 @@ extension DispatchPromptStore {
             return nil
         }
 
-        if case .failure(let error) = verifyFilePermissions(statBuf: tombstoneStat, kind: "tombstone") {
+        let tombstoneCheck = verifyFilePermissions(statBuf: tombstoneStat, path: tombstonePath, kind: "tombstone")
+        if case .failure(let error) = tombstoneCheck {
             return .unreadable(cause: error.message)
         }
         if case .failure(let error) = verifyDirectoryHierarchyOnRead(scopeDir: scopeDir) {
@@ -60,7 +66,8 @@ extension DispatchPromptStore {
             return .unreadable(cause: "could not stat record file: \(String(cString: strerror(errno)))")
         }
 
-        if case .failure(let error) = verifyFilePermissions(statBuf: recordStat, kind: "record file") {
+        let recordCheck = verifyFilePermissions(statBuf: recordStat, path: recordPath, kind: "record file")
+        if case .failure(let error) = recordCheck {
             return .unreadable(cause: error.message)
         }
         if case .failure(let error) = verifyDirectoryHierarchyOnRead(scopeDir: scopeDir) {
@@ -82,7 +89,7 @@ extension DispatchPromptStore {
         return .available(record)
     }
 
-    private func verifyFilePermissions(statBuf: stat, kind: String) -> Result<Void, RestrictionError> {
+    private func verifyFilePermissions(statBuf: stat, path: String, kind: String) -> Result<Void, RestrictionError> {
         if (statBuf.st_mode & S_IFMT) == S_IFLNK {
             return .failure(RestrictionError(message: "\(kind) is a symlink"))
         }
@@ -96,7 +103,7 @@ extension DispatchPromptStore {
         if (statBuf.st_mode & 0o077) != 0 {
             return .failure(RestrictionError(message: "\(kind) mode has group or other bits set"))
         }
-        return .success(())
+        return verifyNoExtendedACL(path: path, kind: kind)
     }
 
     /// Lists all prompt entries in a scope (including tombstones), sorted oldest dispatch first.
@@ -238,6 +245,18 @@ extension DispatchPromptStore {
         if (statBuf.st_mode & 0o077) != 0 {
             return .failure(RestrictionError(message: "directory at \(path) has group or other bits set"))
         }
-        return .success(())
+        return verifyNoExtendedACL(path: path, kind: "directory at \(path)")
+    }
+
+    /// Read-only ACL check: any extended entry may grant another user access, so it refuses.
+    private func verifyNoExtendedACL(path: String, kind: String) -> Result<Void, RestrictionError> {
+        switch Self.hasExtendedACL(path: path) {
+        case .some(false):
+            return .success(())
+        case .some(true):
+            return .failure(RestrictionError(message: "\(kind) has an extended ACL entry"))
+        case .none:
+            return .failure(RestrictionError(message: "could not read the ACL of \(kind)"))
+        }
     }
 }

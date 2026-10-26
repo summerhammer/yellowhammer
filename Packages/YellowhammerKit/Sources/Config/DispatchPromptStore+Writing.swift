@@ -69,52 +69,70 @@ extension DispatchPromptStore {
             return .failed(cause: error)
         }
         let scopeDir = directory(for: scope)
-        let tombstoneURL = scopeDir.appending(components: "\(id).deleted.json", directoryHint: .notDirectory)
-        if FileManager.default.fileExists(atPath: tombstoneURL.path(percentEncoded: false)) {
-            return .alreadyMissing
-        }
-
         let recordURL = scopeDir.appending(components: "\(id).json", directoryHint: .notDirectory)
         let recordPath = recordURL.path(percentEncoded: false)
-        if !FileManager.default.fileExists(atPath: recordPath) {
-            return .alreadyMissing
-        }
-
-        guard case .success(let ensuredDir) = ensureRestrictedDirectoryTree(for: scope) else {
-            return .failed(cause: "could not ensure restricted scope directory")
-        }
-
-        let dispatchedAt = extractDispatchedAt(recordURL: recordURL, recordPath: recordPath)
-        let tombstone = DispatchPromptTombstone(id: id, dispatchedAt: dispatchedAt, deletedAt: now())
-        guard let tombstoneData = try? DispatchPromptRecord.makeJSONEncoder().encode(tombstone) else {
-            return .failed(cause: "could not encode deletion tombstone")
-        }
-
-        let tombstoneCapture = writeRestrictedFile(data: tombstoneData, to: tombstoneURL, in: ensuredDir)
-        guard case .recorded = tombstoneCapture else {
-            if case .unavailable(let cause) = tombstoneCapture {
-                return .failed(cause: "could not write deletion tombstone: \(cause)")
+        var recordStat = stat()
+        if lstat(recordPath, &recordStat) != 0 {
+            if errno == ENOENT {
+                return .alreadyMissing
             }
-            return .failed(cause: "could not write deletion tombstone")
+            return .failed(cause: "could not stat record file: \(String(cString: strerror(errno)))")
         }
 
+        // Unlink first: a failed unlink leaves the record intact with no tombstone, so a retry works
+        // and nothing reports the content gone while it is still on disk.
+        let details = extractDeletionDetails(recordURL: recordURL, recordPath: recordPath)
         if Darwin.unlink(recordPath) != 0 {
+            if errno == ENOENT {
+                return .alreadyMissing
+            }
             return .failed(cause: "could not remove record file: \(String(cString: strerror(errno)))")
         }
 
+        // The content is gone from here on, so a tombstone failure still reports `.deleted`.
+        writeTombstone(for: id, details: details, in: scope)
         return .deleted
     }
 
-    private func extractDispatchedAt(recordURL: URL, recordPath: String) -> Date {
+    private func writeTombstone(for id: String, details: DeletionDetails, in scope: DispatchPromptScope) {
+        guard case .success(let ensuredDir) = ensureRestrictedDirectoryTree(for: scope) else {
+            return
+        }
+        let tombstone = DispatchPromptTombstone(
+            id: id,
+            dispatchedAt: details.dispatchedAt,
+            deletedAt: now(),
+            runID: details.runID,
+            family: details.family
+        )
+        guard let data = try? DispatchPromptRecord.makeJSONEncoder().encode(tombstone) else {
+            return
+        }
+        let tombstoneURL = ensuredDir.appending(components: "\(id).deleted.json", directoryHint: .notDirectory)
+        _ = writeRestrictedFile(data: data, to: tombstoneURL, in: ensuredDir)
+    }
+
+    private struct DeletionDetails {
+        let dispatchedAt: Date
+        let runID: String?
+        let family: PromptFamily?
+    }
+
+    private func extractDeletionDetails(recordURL: URL, recordPath: String) -> DeletionDetails {
         if let data = try? Data(contentsOf: recordURL),
            let record = try? DispatchPromptRecord.makeJSONDecoder().decode(DispatchPromptRecord.self, from: data) {
-            return record.dispatchedAt
+            return DeletionDetails(
+                dispatchedAt: record.dispatchedAt,
+                runID: record.provenance.runID,
+                family: record.provenance.family
+            )
         }
         var st = stat()
         if lstat(recordPath, &st) == 0 {
-            return Date(timeIntervalSince1970: TimeInterval(st.st_mtimespec.tv_sec))
+            let modified = Date(timeIntervalSince1970: TimeInterval(st.st_mtimespec.tv_sec))
+            return DeletionDetails(dispatchedAt: modified, runID: nil, family: nil)
         }
-        return now()
+        return DeletionDetails(dispatchedAt: now(), runID: nil, family: nil)
     }
 
     /// Removes all records for a project entirely. Missing directory counts as success.
@@ -246,7 +264,7 @@ extension DispatchPromptStore {
             }
         }
 
-        return .success(())
+        return Self.clearExtendedACL(path: path)
     }
 
     /// Writes data to a temporary file in `scopeDirectory`, validates owner and mode via `fstat`, fsyncs,
@@ -328,7 +346,8 @@ extension DispatchPromptStore {
             )
         }
 
-        return .success(())
+        // A file created in a directory with an inheritable ACL inherits it; clear it before any byte lands.
+        return Self.clearExtendedACL(fd: fd)
     }
 
     private func writeAllBytes(fd: Int32, data: Data) -> Bool {

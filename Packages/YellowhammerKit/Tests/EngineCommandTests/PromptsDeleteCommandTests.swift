@@ -110,4 +110,49 @@ struct PromptsDeleteCommandTests {
         #expect(output.lines[0] == "deleted rec-good")
         #expect(output.lines[1].hasPrefix("failed ../bad-id:"))
     }
+
+    @Test("A record that cannot be unlinked is reported failed, never already deleted, and a retry deletes it")
+    func deleteWithUnlinkFailureReportsFailedThenRetries() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+
+        let storeRoot = DispatchPromptStore.rootDirectory(configurationDirectory: directory.url)
+        let store = DispatchPromptStore(rootDirectory: storeRoot)
+        let record = makePromptRecord(id: "rec-locked", family: .worker, projectID: "alpha")
+        _ = store.capture(record)
+        let recordURL = store.directory(for: record.provenance.scope)
+            .appending(components: "rec-locked.json", directoryHint: .notDirectory)
+        try runChflags("uchg", on: recordURL)
+        defer {
+            try? runChflags("nouchg", on: recordURL)
+        }
+
+        let parsed = try RootCommand.parseAsRoot(["prompts", "delete", "--project", "alpha", "rec-locked"])
+        let command = try #require(parsed as? PromptsDeleteCommand)
+
+        let failedOutput = OutputCollector()
+        await #expect(throws: ExitCode(1)) {
+            try await command.run(configurationDirectory: directory.url, output: { failedOutput.record($0) })
+        }
+        #expect(failedOutput.lines.count == 1)
+        #expect(failedOutput.lines.first?.hasPrefix("failed rec-locked:") == true)
+        #expect(!failedOutput.lines.contains { $0.hasPrefix("already deleted") })
+
+        try runChflags("nouchg", on: recordURL)
+        let retryOutput = OutputCollector()
+        try await command.run(configurationDirectory: directory.url, output: { retryOutput.record($0) })
+        #expect(retryOutput.lines == ["deleted rec-locked"])
+    }
+}
+
+private func runChflags(_ flag: String, on url: URL) throws {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/chflags")
+    process.arguments = [flag, url.path(percentEncoded: false)]
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        throw CocoaError(.fileWriteNoPermission)
+    }
 }
