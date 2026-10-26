@@ -365,6 +365,9 @@ public enum JournalEvent: Equatable, Sendable {
         recordID: String, pass: RunPass, cardID: Int64?, issueID: String?, attemptID: Int64?, round: Int?,
         ordinal: Int?
     )
+    /// Prompt capture was requested for a Route Pre-flight dispatch before launch. A pre-flight has no Card,
+    /// Attempt or pass of its own; the event carries the Route and is stamped with the Night and run.
+    case routePreflightPromptCaptureRequested(recordID: String, route: Route)
     /// One commit the worker reported (or that the reported range reached) carries no `Yellowhammer-Work-Card`
     /// trailer (graph-execution/run-a-card). Recorded only: it never changes the Card's outcome, never
     /// creates a Round, and is not shown in the Roll-up (OQ102).

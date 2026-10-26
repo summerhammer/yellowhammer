@@ -23,7 +23,9 @@ public struct CLIRoutePreflight: Sendable {
         environment: [String: String],
         workDirectory: URL,
         projectID: String? = nil,
-        runID: String? = nil
+        runID: String? = nil,
+        nightID: Int64? = nil,
+        recordID: String? = nil
     ) async -> String? {
         let worktree = workDirectory.appendingPathComponent("worktree")
         let runDirectory = workDirectory.appendingPathComponent("run")
@@ -40,7 +42,7 @@ public struct CLIRoutePreflight: Sendable {
         let context = ProbeDispatchContext(
             route: route, executable: executable, environment: environment, worktree: worktree,
             runsDirectory: workDirectory, protectedDirectories: [],
-            projectID: projectID, runID: runID
+            projectID: projectID, runID: runID, nightID: nightID, recordID: recordID
         )
         let result = await probe.runDispatch(
             pass: .architect, family: .routePreflight, adapter: adapter, context: context, runDirectory: runDirectory,

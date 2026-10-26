@@ -227,6 +227,8 @@ extension JournalEvent {
             try Self.decodeRehearsalFixtureAnswered(reader)
         case .promptCaptureRequested:
             try Self.decodePromptCaptureRequested(reader)
+        case .routePreflightPromptCaptureRequested:
+            try Self.decodeRoutePreflightPromptCaptureRequested(reader)
         case .cardCommitTrailerMissing:
             try Self.decodeCardCommitTrailerMissing(reader)
         case .cardCommitTrailersUnread:

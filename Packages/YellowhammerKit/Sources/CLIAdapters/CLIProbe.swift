@@ -141,6 +141,10 @@ struct ProbeDispatchContext: Sendable {
     let protectedDirectories: [String]
     let projectID: String?
     let runID: String?
+    /// The Night the dispatch belongs to, when it has one (a Route Pre-flight does; the Probe does not).
+    let nightID: Int64?
+    /// A record id fixed by the caller, so it could be journaled before launch; minted per dispatch when nil.
+    let recordID: String?
 
     init(
         route: Route,
@@ -150,7 +154,9 @@ struct ProbeDispatchContext: Sendable {
         runsDirectory: URL,
         protectedDirectories: [String],
         projectID: String? = nil,
-        runID: String? = nil
+        runID: String? = nil,
+        nightID: Int64? = nil,
+        recordID: String? = nil
     ) {
         self.route = route
         self.executable = executable
@@ -160,6 +166,8 @@ struct ProbeDispatchContext: Sendable {
         self.protectedDirectories = protectedDirectories
         self.projectID = projectID
         self.runID = runID
+        self.nightID = nightID
+        self.recordID = recordID
     }
 
     /// One probe dispatch, built the way the engine builds a real one, protected directories included.
@@ -167,12 +175,13 @@ struct ProbeDispatchContext: Sendable {
         pass: RunPass, family: PromptFamily, instruction: String, runDirectory: URL,
         timeout: Duration, resume: CLISession?
     ) -> CLIDispatch {
-        let recordID = UUID().uuidString.lowercased()
+        let recordID = recordID ?? UUID().uuidString.lowercased()
         let provenance = DispatchProvenance(
             recordID: recordID,
             family: family,
             projectID: projectID,
-            runID: runID
+            runID: runID,
+            nightID: nightID
         )
         return CLIDispatch(
             route: route,

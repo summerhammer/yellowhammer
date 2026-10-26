@@ -17,8 +17,16 @@ public enum RoutePreflightVerdict: Equatable, Sendable {
 /// works, the pre-flight that it accepts that model and effort — and nothing else can check it,
 /// because a Card override is set in Linear and Yellowhammer knows no CLI's model list. An
 /// implementation translates and never decides; any thrown error is an engine fault.
+///
+/// A pre-flight that dispatches an agent CLI records its prompt under `recordID`, stamped with the
+/// Night; the caller has already journaled that id, so the record stays listed even once it is gone.
 public protocol RoutePreflighting: Sendable {
-    func preflight(_ route: Route, runID: RunID) async throws -> RoutePreflightVerdict
+    /// Whether `preflight` dispatches an agent CLI, and so records a prompt under `recordID`.
+    var dispatchesAgentCLI: Bool { get }
+
+    func preflight(
+        _ route: Route, runID: RunID, nightID: Int64?, recordID: String
+    ) async throws -> RoutePreflightVerdict
 }
 
 /// The pre-flight a Rehearsal Night runs: it never spawns anything (a rehearsal Night never dispatches
@@ -27,7 +35,11 @@ public protocol RoutePreflighting: Sendable {
 public struct RehearsalRoutePreflight: RoutePreflighting {
     public init() {}
 
-    public func preflight(_ route: Route, runID: RunID) async throws -> RoutePreflightVerdict {
+    public var dispatchesAgentCLI: Bool { false }
+
+    public func preflight(
+        _ route: Route, runID: RunID, nightID: Int64?, recordID: String
+    ) async throws -> RoutePreflightVerdict {
         .passed(answeredBy: "rehearsal fixture: no agent CLI was run")
     }
 }
@@ -36,7 +48,8 @@ public struct RehearsalRoutePreflight: RoutePreflighting {
 /// Readiness Check (OQ126). A Route's verdict is cached for the rest of the Night in the Journal, as a
 /// `RoutePreflightRan` event stamped with the Night, so Cards pinned to the same Route share one
 /// pre-flight across Acts. Within one invocation, Cards in concurrent Repo Lanes asking about the same
-/// Route at once share one run too.
+/// Route at once share one run too. A pre-flight that really dispatches journals a
+/// `RoutePreflightPromptCaptureRequested` event first, so the Night account lists its prompt record.
 ///
 /// One per invocation, shared by every Card run in it; it holds nothing beyond the runs in flight.
 public actor RoutePreflight {
@@ -60,7 +73,16 @@ public actor RoutePreflight {
             if let nightID, let cached = try Self.cachedVerdict(for: route, nightID: nightID, journal: journal) {
                 return cached
             }
-            let verdict = try await preflighting.preflight(route, runID: runID)
+            let recordID = UUID().uuidString.lowercased()
+            if preflighting.dispatchesAgentCLI {
+                try journal.append(
+                    .routePreflightPromptCaptureRequested(recordID: recordID, route: route),
+                    act: act, runID: runID, nightID: nightID
+                )
+            }
+            let verdict = try await preflighting.preflight(
+                route, runID: runID, nightID: nightID, recordID: recordID
+            )
             try journal.append(Self.event(route: route, verdict: verdict), act: act, runID: runID, nightID: nightID)
             return verdict
         }

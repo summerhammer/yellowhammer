@@ -421,6 +421,11 @@ extension JournalEvent {
                 if let ordinal { dict["ordinal"] = String(ordinal) }
                 return dict
             }()
+        case .routePreflightPromptCaptureRequested(let recordID, let route):
+            [
+                "record_id": recordID,
+                "route_cli": route.cli, "route_effort": route.effort, "route_model": route.model
+            ]
         case .cardCommitTrailerMissing(let cardID, let issueID, let attemptID, let commit):
             [
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),

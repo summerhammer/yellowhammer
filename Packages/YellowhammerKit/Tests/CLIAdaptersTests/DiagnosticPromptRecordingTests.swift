@@ -124,7 +124,9 @@ struct DiagnosticPromptRecordingTests {
             environment: ProcessInfo.processInfo.environment,
             workDirectory: workDirectory,
             projectID: "project-omega",
-            runID: "act-run-777"
+            runID: "act-run-777",
+            nightID: 42,
+            recordID: "0A0B0C0D-pre-flight"
         )
 
         #expect(reason == nil)
@@ -134,6 +136,9 @@ struct DiagnosticPromptRecordingTests {
         #expect(record.provenance.family == .routePreflight)
         #expect(record.provenance.projectID == "project-omega")
         #expect(record.provenance.runID == "act-run-777")
+        #expect(record.provenance.nightID == 42)
+        #expect(record.id == "0a0b0c0d-pre-flight")
+        #expect(record.provenance.recordID == "0a0b0c0d-pre-flight")
         #expect(record.provenance.scope == .project(ProjectID(rawValue: "project-omega")!))
         #expect(record.instruction.contains("This is an automated Yellowhammer probe, not real work."))
         #expect(record.instruction.contains("Do not read or modify any files and do not run any command."))

@@ -13,6 +13,8 @@ struct PromptItemBuildContext {
     let nightID: Int64?
     let fallbackRoute: String
     let eventTime: Date
+    /// The prompt family when it is not the pass's own (a Route Pre-flight dispatches as the architect pass).
+    var family: PromptFamily?
 }
 
 extension DispatchPromptIndex {
@@ -114,7 +116,7 @@ extension DispatchPromptIndex {
             time: time,
             session: isResumed ? .resumed : .new,
             state: state,
-            family: PromptFamily(pass: context.pass),
+            family: context.family ?? PromptFamily(pass: context.pass),
             projectID: projectID,
             defaultVersion: nil,
             projectInstructions: .absent,

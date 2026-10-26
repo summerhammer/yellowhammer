@@ -17,4 +17,11 @@ extension JournalEvent {
             ordinal: reader.payload?["ordinal"].flatMap { Int($0) }
         )
     }
+
+    static func decodeRoutePreflightPromptCaptureRequested(_ reader: PayloadReader) throws -> JournalEvent {
+        .routePreflightPromptCaptureRequested(
+            recordID: try reader.require("record_id"),
+            route: try reader.route()
+        )
+    }
 }

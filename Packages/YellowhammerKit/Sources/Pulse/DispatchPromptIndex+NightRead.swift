@@ -14,7 +14,6 @@ struct NightReadContext {
 extension DispatchPromptIndex {
     static func readNight(context: NightReadContext) throws -> DispatchPromptIndex {
         let nightEvents = try context.journal.events(nightID: context.nightID)
-        let nightRunIDs = Set(nightEvents.compactMap { $0.runID?.rawValue })
 
         var items: [DispatchPromptItem] = []
         var hasEvidence = false
@@ -34,13 +33,6 @@ extension DispatchPromptIndex {
                 hasEvidence = true
             }
         }
-
-        appendPreflightItems(
-            items: &items,
-            hasEvidence: &hasEvidence,
-            context: context,
-            nightRunIDs: nightRunIDs
-        )
 
         if items.isEmpty {
             let emptyState = resolveNightEmptyState(
@@ -96,7 +88,8 @@ extension DispatchPromptIndex {
 
     private static func isNightDispatchEvidence(_ event: JournalEvent) -> Bool {
         switch event {
-        case .promptCaptureRequested, .authoringDispatched, .rehearsalFixtureAnswered, .agentCLIProcessSpawned:
+        case .promptCaptureRequested, .routePreflightPromptCaptureRequested, .authoringDispatched,
+             .rehearsalFixtureAnswered, .agentCLIProcessSpawned:
             true
         default:
             false
@@ -126,15 +119,17 @@ extension DispatchPromptIndex {
                 eventTime: eventRecord.occurredAt
             )
             var item = makeItem(
-                context: itemContext,
-                store: context.store,
-                projectID: context.projectID,
-                asOf: context.asOf
+                context: itemContext, store: context.store, projectID: context.projectID, asOf: context.asOf
             )
             if let ord = ordinal, let rej = rejectedRouteTries[pass]?[ord] {
                 item = itemApplyingRejected(item: item, cause: rej.cause, reason: rej.reason)
             }
             return item
+
+        case .routePreflightPromptCaptureRequested(let recordID, let route):
+            return makePreflightItem(
+                recordID: recordID, route: route, eventTime: eventRecord.occurredAt, nightID: nightID, context: context
+            )
 
         case .authoringDispatched(let pass, let route, let ordinal, let fixture):
             guard let fixture else { return nil }
@@ -161,6 +156,26 @@ extension DispatchPromptIndex {
         default:
             return nil
         }
+    }
+
+    /// A Route Pre-flight dispatches as the architect pass, but is its own prompt family.
+    private static func makePreflightItem(
+        recordID: String, route: Route, eventTime: Date, nightID: Int64, context: NightReadContext
+    ) -> DispatchPromptItem {
+        let itemContext = PromptItemBuildContext(
+            recordID: recordID,
+            pass: .architect,
+            round: nil,
+            ordinal: nil,
+            issueID: nil,
+            cardID: nil,
+            attemptID: nil,
+            nightID: nightID,
+            fallbackRoute: route.description,
+            eventTime: eventTime,
+            family: .routePreflight
+        )
+        return makeItem(context: itemContext, store: context.store, projectID: context.projectID, asOf: context.asOf)
     }
 
     private struct RehearsalParams {
@@ -274,51 +289,6 @@ extension DispatchPromptIndex {
             instruction: nil,
             outputSchema: nil
         )
-    }
-
-    private static func appendPreflightItems(
-        items: inout [DispatchPromptItem],
-        hasEvidence: inout Bool,
-        context: NightReadContext,
-        nightRunIDs: Set<String>
-    ) {
-        for entry in context.store.entries(in: .project(context.projectID)) {
-            guard case .available(let rec) = entry.lookup,
-                  rec.provenance.family == .routePreflight,
-                  let runID = rec.provenance.runID,
-                  nightRunIDs.contains(runID) else { continue }
-
-            hasEvidence = true
-            let state: DispatchPromptIndex.EntryState = rec.isExpired(at: context.asOf)
-                ? .expired(dispatchedAt: rec.dispatchedAt)
-                : .recorded(rec)
-
-            items.append(
-                DispatchPromptItem(
-                    id: rec.id,
-                    recordID: rec.id,
-                    pass: rec.pass,
-                    round: rec.provenance.round,
-                    routeTry: rec.provenance.routeTry,
-                    route: rec.route,
-                    time: rec.dispatchedAt,
-                    session: rec.session,
-                    state: state,
-                    family: rec.provenance.family,
-                    projectID: context.projectID,
-                    defaultVersion: rec.defaultVersion,
-                    projectInstructions: rec.projectInstructions,
-                    launch: rec.launch,
-                    nightID: context.nightID,
-                    featureIssueID: rec.provenance.featureIssueID,
-                    workCardIssueID: rec.provenance.workCardIssueID,
-                    cardID: rec.provenance.cardID,
-                    attemptID: rec.provenance.attemptID,
-                    instruction: state == .recorded(rec) ? rec.instruction : nil,
-                    outputSchema: state == .recorded(rec) ? rec.outputSchema : nil
-                )
-            )
-        }
     }
 
     private static func resolveNightEmptyState(

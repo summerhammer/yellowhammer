@@ -186,6 +186,8 @@ extension JournalEvent {
             .rehearsalFixtureAnswered
         case .promptCaptureRequested:
             .promptCaptureRequested
+        case .routePreflightPromptCaptureRequested:
+            .routePreflightPromptCaptureRequested
         case .cardCommitTrailerMissing:
             .cardCommitTrailerMissing
         case .cardCommitTrailersUnread:

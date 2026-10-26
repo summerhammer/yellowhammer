@@ -31,7 +31,11 @@ struct CLIAdapterRoutePreflight: RoutePreflighting {
         self.preflight = preflight
     }
 
-    func preflight(_ route: Route, runID: RunID) async throws -> RoutePreflightVerdict {
+    var dispatchesAgentCLI: Bool { true }
+
+    func preflight(
+        _ route: Route, runID: RunID, nightID: Int64?, recordID: String
+    ) async throws -> RoutePreflightVerdict {
         guard let adapter = CLIAdapterRegistry.adapter(named: route.cli) else {
             return .failed(reason: "no CLI Adapter for `\(route.cli)`")
         }
@@ -47,7 +51,9 @@ struct CLIAdapterRoutePreflight: RoutePreflighting {
             adapter: adapter, route: route, executable: executable, environment: environment,
             workDirectory: workDirectory,
             projectID: projectID.rawValue,
-            runID: runID.rawValue
+            runID: runID.rawValue,
+            nightID: nightID,
+            recordID: recordID
         ) {
             return .failed(reason: reason)
         }

@@ -128,6 +128,9 @@ extension NightAccount.ActRun {
             case .promptCaptureRequested(let recordID, _, _, _, _, _, _):
                 offersPrompt = true
                 promptID = recordID
+            case .routePreflightPromptCaptureRequested(let recordID, _):
+                offersPrompt = true
+                promptID = recordID
             case .authoringDispatched(let pass, _, let ordinal, let fixture):
                 offersPrompt = true
                 if fixture != nil {
