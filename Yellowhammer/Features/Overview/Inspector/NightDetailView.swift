@@ -174,6 +174,10 @@ struct NightDetailView: View {
             Text("No diagnostic dispatches recorded.")
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("night-prompts-empty-no-diagnostics")
+        case .probeRecordsNotRetained:
+            Text("This Probe's prompt records are no longer retained (expired or deleted).")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("night-prompts-empty-probe-not-retained")
         }
     }
 }

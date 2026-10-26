@@ -63,18 +63,19 @@ struct DiagnosticPromptRecordingTests {
             pollInterval: .milliseconds(50),
             gracePeriod: .milliseconds(300),
             keychain: StubProbeKeychain().keychain,
-            recorder: recorder
+            recorder: recorder,
+            protectedDirectories: Self.protectedDirectories
         )
 
         let report = await probe.run(
             adapter: StubProbeAdapter(),
             route: Self.route,
             executable: executable,
-            environment: ProcessInfo.processInfo.environment,
             workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            runID: "caller-minted-run"
         )
 
+        #expect(report.runID == "caller-minted-run")
         #expect(report.unattendedDispatch == .passed)
         #expect(report.resultFileOnCleanExit == .passed)
         #expect(report.processContainment == .passed)
@@ -84,12 +85,9 @@ struct DiagnosticPromptRecordingTests {
         let captured = recorder.captured
         #expect(captured.count == 5)
 
-        // All 5 must share the same non-nil runID and have nil projectID (machine scope)
-        let firstRunID = try #require(captured.first?.provenance.runID)
-        #expect(!firstRunID.isEmpty)
-
+        // All 5 must carry exactly the runID the caller passed and have nil projectID (machine scope)
         for record in captured {
-            #expect(record.provenance.runID == firstRunID)
+            #expect(record.provenance.runID == "caller-minted-run")
             #expect(record.provenance.projectID == nil)
             #expect(record.provenance.scope == .machine)
         }

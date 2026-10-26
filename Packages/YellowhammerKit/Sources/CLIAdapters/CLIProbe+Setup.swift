@@ -9,7 +9,7 @@ extension CLIProbe {
     /// fully-failed ``ProbeReport`` when any step fails (setup failures are reported honestly, not
     /// thrown). No Keychain item exists yet at this point: it is created only around the reach dispatch.
     static func setUp(
-        worktree: URL, adapter: some CLIAdapter, workDirectory: URL, reachTargets: ReachTargets
+        worktree: URL, adapter: some CLIAdapter, workDirectory: URL, reachTargets: ReachTargets, runID: String
     ) async -> ProbeReport? {
         let fileManager = FileManager.default
 
@@ -24,7 +24,8 @@ extension CLIProbe {
                 sessionResumption: .notRun,
                 stateContainment: .notRun,
                 reason: reason,
-                workDirectory: workDirectory
+                workDirectory: workDirectory,
+                runID: runID
             )
         }
 

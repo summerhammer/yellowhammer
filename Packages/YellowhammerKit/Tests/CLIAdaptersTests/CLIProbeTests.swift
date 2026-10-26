@@ -18,7 +18,8 @@ struct CLIProbeTests {
             holdObservationTimeout: .seconds(10),
             pollInterval: .milliseconds(50),
             gracePeriod: .milliseconds(300),
-            keychain: keychain
+            keychain: keychain,
+            protectedDirectories: Self.protectedDirectories
         )
     }
 
@@ -52,8 +53,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            workDirectory: workDirectory,
+            runID: "test-run"
         )
 
         #expect(report.unattendedDispatch == .passed)
@@ -74,8 +75,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            workDirectory: workDirectory,
+            runID: "test-run"
         )
 
         #expect(report.unattendedDispatch == .failed)
@@ -96,11 +97,12 @@ struct CLIProbeTests {
         let report = await CLIProbe(
             dispatchTimeout: .seconds(1), holdObservationTimeout: .seconds(2),
             pollInterval: .milliseconds(50), gracePeriod: .milliseconds(300),
-            keychain: StubProbeKeychain().keychain
+            keychain: StubProbeKeychain().keychain,
+            protectedDirectories: Self.protectedDirectories
         ).run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            workDirectory: workDirectory,
+            runID: "test-run"
         )
 
         #expect(report.unattendedDispatch == .failed)
@@ -116,8 +118,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            workDirectory: workDirectory,
+            runID: "test-run"
         )
 
         // The escaped tool subprocess is a direct child of the CLI leader (`setsid` never changes
@@ -147,8 +149,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            workDirectory: workDirectory,
+            runID: "test-run"
         )
 
         #expect(report.processContainment == .failed)
@@ -184,8 +186,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            workDirectory: workDirectory,
+            runID: "test-run"
         )
 
         #expect(report.unattendedDispatch == .passed)

@@ -109,15 +109,21 @@ public struct ProbeCommand: AsyncParsableCommand {
             )
         )
 
-        let report = await CLIProbe(recorder: recorder).run(
-            adapter: adapter,
-            route: route,
-            executable: executable,
+        // Minted here, not by the Probe, so the Ledger row can name the run its prompt records belong to.
+        let runID = UUID().uuidString.lowercased()
+        let probe = CLIProbe(
+            recorder: recorder,
             environment: ProcessInfo.processInfo.environment,
-            workDirectory: workDirectory,
             protectedDirectories: CLIAdapterDispatch.protectedDirectories(
                 configurationDirectory: configurationDirectory
             )
+        )
+        let report = await probe.run(
+            adapter: adapter,
+            route: route,
+            executable: executable,
+            workDirectory: workDirectory,
+            runID: runID
         )
 
         let probeResult = ProbeRecording.probeResult(
@@ -130,7 +136,8 @@ public struct ProbeCommand: AsyncParsableCommand {
             processContainment: report.processContainment,
             sessionResumption: report.sessionResumption,
             stateContainment: report.stateContainment,
-            reason: report.reason
+            reason: report.reason,
+            promptRunID: report.runID
         )
         let recorded = try store.record(probeResult)
         let drift = previous.flatMap { recorded.drift(since: $0) }

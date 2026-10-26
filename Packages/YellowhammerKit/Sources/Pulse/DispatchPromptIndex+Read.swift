@@ -49,18 +49,19 @@ extension DispatchPromptIndex {
             return try readNight(context: context)
         case .machine(let runID, let cli):
             let runs = machine(store: store, cli: cli, asOf: asOf)
-            if runs.isEmpty {
-                return DispatchPromptIndex(
-                    projectID: nil,
-                    scope: scope,
-                    emptyState: .noDiagnosticDispatchesRecorded,
-                    items: []
-                )
-            }
             if let runID {
-                if let run = runs.first(where: { $0.runID == runID }) {
-                    return run.index
+                // A requested run never falls back to another: no match means its records are gone.
+                guard let run = runs.first(where: { $0.runID == runID }) else {
+                    return DispatchPromptIndex(
+                        projectID: nil,
+                        scope: scope,
+                        emptyState: .probeRecordsNotRetained,
+                        items: []
+                    )
                 }
+                return run.index
+            }
+            guard let newest = runs.first else {
                 return DispatchPromptIndex(
                     projectID: nil,
                     scope: scope,
@@ -68,7 +69,7 @@ extension DispatchPromptIndex {
                     items: []
                 )
             }
-            return runs[0].index
+            return newest.index
         }
     }
 

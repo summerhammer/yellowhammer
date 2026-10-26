@@ -22,6 +22,13 @@ public struct CLIProbe: Sendable {
     /// Creates and deletes the throwaway Keychain item the state-containment dispatch tries to read.
     public let keychain: ProbeKeychain
     public let recorder: (any DispatchPromptRecording)?
+    /// The environment every probe dispatch and the `--version` probe run under.
+    public let environment: [String: String]
+    /// The directories no pass may read, exactly as a real dispatch gets them
+    /// (`CLIDispatch.protectedDirectories`): the configuration directory first, then the Keychains
+    /// directory. Every probe dispatch carries them, so a read-only probe pass is contained the way a
+    /// real one is, and the reach script checks the first one.
+    public let protectedDirectories: [String]
 
     public init(
         dispatchTimeout: Duration = .seconds(300),
@@ -29,7 +36,9 @@ public struct CLIProbe: Sendable {
         pollInterval: Duration = .milliseconds(100),
         gracePeriod: Duration = .seconds(3),
         keychain: ProbeKeychain = .login,
-        recorder: (any DispatchPromptRecording)? = nil
+        recorder: (any DispatchPromptRecording)? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        protectedDirectories: [String]
     ) {
         self.dispatchTimeout = dispatchTimeout
         self.holdObservationTimeout = holdObservationTimeout
@@ -37,21 +46,19 @@ public struct CLIProbe: Sendable {
         self.gracePeriod = gracePeriod
         self.keychain = keychain
         self.recorder = recorder
+        self.environment = environment
+        self.protectedDirectories = protectedDirectories
     }
 
-    /// - Parameter protectedDirectories: the directories no pass may read, exactly as a real dispatch
-    ///   gets them (`CLIDispatch.protectedDirectories`): the configuration directory first, then the
-    ///   Keychains directory. Every probe dispatch carries them, so a read-only probe pass is
-    ///   contained the way a real one is, and the reach script checks the first one.
+    /// - Parameter runID: minted by the caller and stamped on every dispatch's prompt record, so the
+    ///   caller can later open exactly this run's prompts.
     public func run(
         adapter: some CLIAdapter,
         route: Route,
         executable: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
         workDirectory: URL,
-        protectedDirectories: [String]
+        runID: String
     ) async -> ProbeReport {
-        let runID = UUID().uuidString.lowercased()
         let worktree = workDirectory.appendingPathComponent("worktree")
         let context = ProbeDispatchContext(
             route: route, executable: executable, environment: environment, worktree: worktree,
@@ -63,7 +70,8 @@ public struct CLIProbe: Sendable {
         )
 
         if let failure = await Self.setUp(
-            worktree: worktree, adapter: adapter, workDirectory: workDirectory, reachTargets: reachTargets
+            worktree: worktree, adapter: adapter, workDirectory: workDirectory, reachTargets: reachTargets,
+            runID: runID
         ) {
             return failure
         }
@@ -110,7 +118,8 @@ public struct CLIProbe: Sendable {
             sessionResumption: sessionResumptionFinding,
             stateContainment: stateContainmentFinding,
             reason: reason,
-            workDirectory: workDirectory
+            workDirectory: workDirectory,
+            runID: runID
         )
     }
 

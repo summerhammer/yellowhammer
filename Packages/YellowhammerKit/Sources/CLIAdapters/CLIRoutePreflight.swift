@@ -37,7 +37,7 @@ public struct CLIRoutePreflight: Sendable {
         guard await CLIProbe.runGitInit(in: worktree) else {
             return "`git init -q` did not succeed in \(worktree.path)"
         }
-        let probe = CLIProbe(dispatchTimeout: timeout, recorder: recorder)
+        let probe = CLIProbe(dispatchTimeout: timeout, recorder: recorder, protectedDirectories: [])
         // The pre-flight prompt runs no command, so it carries no protected directories.
         let context = ProbeDispatchContext(
             route: route, executable: executable, environment: environment, worktree: worktree,

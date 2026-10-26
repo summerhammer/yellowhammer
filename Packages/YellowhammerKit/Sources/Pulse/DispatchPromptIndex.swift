@@ -21,6 +21,8 @@ public struct DispatchPromptIndex: Equatable, Sendable {
         case legacy
         /// No diagnostic dispatches recorded for machine scope.
         case noDiagnosticDispatchesRecorded
+        /// A Probe Result named a diagnostic run whose prompt records are gone: expired or deleted.
+        case probeRecordsNotRetained
     }
 
     /// The state of an individual dispatch's prompt record.

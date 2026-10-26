@@ -103,7 +103,8 @@ extension DispatchPromptStore {
             dispatchedAt: details.dispatchedAt,
             deletedAt: now(),
             runID: details.runID,
-            family: details.family
+            family: details.family,
+            route: details.route
         )
         guard let data = try? DispatchPromptRecord.makeJSONEncoder().encode(tombstone) else {
             return
@@ -116,6 +117,7 @@ extension DispatchPromptStore {
         let dispatchedAt: Date
         let runID: String?
         let family: PromptFamily?
+        let route: String?
     }
 
     private func extractDeletionDetails(recordURL: URL, recordPath: String) -> DeletionDetails {
@@ -124,15 +126,16 @@ extension DispatchPromptStore {
             return DeletionDetails(
                 dispatchedAt: record.dispatchedAt,
                 runID: record.provenance.runID,
-                family: record.provenance.family
+                family: record.provenance.family,
+                route: record.route
             )
         }
         var st = stat()
         if lstat(recordPath, &st) == 0 {
             let modified = Date(timeIntervalSince1970: TimeInterval(st.st_mtimespec.tv_sec))
-            return DeletionDetails(dispatchedAt: modified, runID: nil, family: nil)
+            return DeletionDetails(dispatchedAt: modified, runID: nil, family: nil, route: nil)
         }
-        return DeletionDetails(dispatchedAt: now(), runID: nil, family: nil)
+        return DeletionDetails(dispatchedAt: now(), runID: nil, family: nil, route: nil)
     }
 
     /// Removes all records for a project entirely. Missing directory counts as success.

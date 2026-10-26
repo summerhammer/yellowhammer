@@ -17,7 +17,8 @@ enum ProbeRecording {
         processContainment: ProbeFinding,
         sessionResumption: ProbeFinding,
         stateContainment: ProbeFinding,
-        reason: String?
+        reason: String?,
+        promptRunID: String? = nil
     ) -> ProbeResult {
         ProbeResult(
             cli: cli,
@@ -29,7 +30,8 @@ enum ProbeRecording {
             findingProcessContainment: processContainment,
             findingSessionResumption: sessionResumption,
             findingStateContainment: stateContainment,
-            reason: reason
+            reason: reason,
+            promptRunID: promptRunID
         )
     }
 }

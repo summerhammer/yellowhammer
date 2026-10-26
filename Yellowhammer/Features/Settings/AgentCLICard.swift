@@ -56,7 +56,7 @@ struct AgentCLICard: View {
             }
         }
         .sheet(isPresented: $showingProbePrompts) {
-            PromptViewerSheet(scope: .machine(runID: nil, cli: row.name))
+            PromptViewerSheet(scope: .machine(runID: row.latest?.promptRunID, cli: row.name))
         }
         .confirmationDialog(
             "Remove \(row.name)?", isPresented: $confirmsRemoval, titleVisibility: .visible
@@ -105,7 +105,7 @@ struct AgentCLICard: View {
                 HStack(spacing: 8) {
                     Text(probedAtText)
                         .accessibilityIdentifier("agent-cli-probed-at-\(row.name)")
-                    if row.latest != nil && !isProbing {
+                    if row.latest?.promptRunID != nil && !isProbing {
                         Button("View Probe Prompts") {
                             showingProbePrompts = true
                         }

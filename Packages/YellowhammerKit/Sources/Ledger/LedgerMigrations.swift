@@ -22,6 +22,9 @@ enum LedgerMigrations {
         migrator.registerMigration("v3-probe-state-containment") { db in
             try addStateContainmentColumn(db)
         }
+        migrator.registerMigration("v4-probe-prompt-run-id") { db in
+            try addPromptRunIDColumn(db)
+        }
         return migrator
     }
 }

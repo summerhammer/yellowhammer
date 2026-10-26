@@ -161,12 +161,13 @@ struct CLIProbeStateContainmentTests {
         environment["STUB_REACH_LINE"] = reachLine
         let probe = CLIProbe(
             dispatchTimeout: .seconds(10), holdObservationTimeout: .seconds(5),
-            pollInterval: .milliseconds(50), gracePeriod: .milliseconds(300), keychain: keychain.keychain
+            pollInterval: .milliseconds(50), gracePeriod: .milliseconds(300), keychain: keychain.keychain,
+            environment: environment, protectedDirectories: Self.protectedDirectories
         )
         return await probe.run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable.path,
-            environment: environment, workDirectory: workDirectory,
-            protectedDirectories: Self.protectedDirectories
+            workDirectory: workDirectory,
+            runID: "test-run"
         )
     }
 
@@ -273,10 +274,11 @@ struct CLIProbeStateContainmentTests {
 
         let report = await CLIProbe(
             dispatchTimeout: .seconds(10), holdObservationTimeout: .seconds(5),
-            pollInterval: .milliseconds(50), gracePeriod: .milliseconds(300), keychain: keychain.keychain
+            pollInterval: .milliseconds(50), gracePeriod: .milliseconds(300), keychain: keychain.keychain,
+            protectedDirectories: []
         ).run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable.path,
-            workDirectory: workDirectory, protectedDirectories: []
+            workDirectory: workDirectory, runID: "test-run"
         )
 
         #expect(report.stateContainment == .notRun)

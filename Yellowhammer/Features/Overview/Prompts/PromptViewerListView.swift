@@ -60,6 +60,13 @@ struct PromptViewerListView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+            case .probeRecordsNotRetained:
+                Text("Probe Prompts Not Retained")
+                    .font(.headline)
+                Text("This Probe's prompt records are no longer retained: they expired or were deleted.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
         }
         .padding(24)
