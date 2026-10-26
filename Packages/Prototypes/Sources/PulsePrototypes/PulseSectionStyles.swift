@@ -32,6 +32,8 @@ enum PulseSectionStyle: String, CaseIterable {
     case bandStripCards
     /// A status pill beside the name and a tinted strip, over tinted cards.
     case pillCards
+    /// A colour box at the top saying the current status, over tinted cards; see `PulseStatusHead`.
+    case statusHead
 }
 
 struct PulseSectionsView: View {
@@ -53,6 +55,7 @@ struct PulseSectionsView: View {
         case .bandCards: PulseBandCardsSections(context: context, showsHeader: showsHeader)
         case .bandStripCards: PulseBandStripCardsSections(context: context, showsHeader: showsHeader)
         case .pillCards: PulsePillCardsSections(context: context, showsHeader: showsHeader)
+        case .statusHead: PulseStatusHeadSections(context: context)
         }
     }
 }
