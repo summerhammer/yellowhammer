@@ -9,6 +9,8 @@ public struct DispatchProvenance: Codable, Equatable, Sendable {
     public let runID: String?
     public let nightID: Int64?
     public let featureIssueID: String?
+    /// The Feature's name, for a dispatch that runs before the Feature Issue exists (its breakdown).
+    public let featureName: String?
     public let workCardIssueID: String?
     public let cardID: Int64?
     public let attemptID: Int64?
@@ -22,6 +24,7 @@ public struct DispatchProvenance: Codable, Equatable, Sendable {
         runID: String? = nil,
         nightID: Int64? = nil,
         featureIssueID: String? = nil,
+        featureName: String? = nil,
         workCardIssueID: String? = nil,
         cardID: Int64? = nil,
         attemptID: Int64? = nil,
@@ -34,6 +37,7 @@ public struct DispatchProvenance: Codable, Equatable, Sendable {
         self.runID = runID
         self.nightID = nightID
         self.featureIssueID = featureIssueID
+        self.featureName = featureName
         self.workCardIssueID = workCardIssueID
         self.cardID = cardID
         self.attemptID = attemptID

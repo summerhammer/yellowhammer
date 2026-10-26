@@ -165,7 +165,8 @@ struct PromptCaptureDispatchTests {
         #expect(prov.family == .breakdown)
         #expect(prov.routeTry == 1)
         let expectedFeatureID = try authoringSelection().name.rawValue
-        #expect(prov.featureIssueID == expectedFeatureID)
+        #expect(prov.featureIssueID == nil)
+        #expect(prov.featureName == expectedFeatureID)
 
         let event = try #require(try journal.events(ofType: .promptCaptureRequested).first?.event)
         guard case .promptCaptureRequested(
@@ -177,7 +178,8 @@ struct PromptCaptureDispatchTests {
         #expect(bdID == prov.recordID)
         #expect(bdPass == .breakdown)
         #expect(bdCardID == nil)
-        #expect(bdIssueID == expectedFeatureID)
+        // The Feature Issue does not exist yet: the Feature's name is no `issue_id`, it rides on the provenance.
+        #expect(bdIssueID == nil)
         #expect(bdAttemptID == nil)
         #expect(bdRound == nil)
         #expect(bdOrdinal == 1)

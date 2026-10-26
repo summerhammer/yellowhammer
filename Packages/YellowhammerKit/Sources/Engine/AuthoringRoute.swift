@@ -48,7 +48,7 @@ public struct AuthoringRoute: Sendable {
     /// ``AuthoringDispatchFault`` when no Route answered.
     func run(
         pass: RunPass, worktreePath: String, context: ActContext,
-        featureIssueID: String? = nil,
+        featureName: String? = nil,
         additionalReadableDirectories: [String] = [],
         accept: (DispatchResult) async -> String? = { _ in nil },
         instruction: (Route, [String]) -> AuthoringInstruction
@@ -70,7 +70,7 @@ public struct AuthoringRoute: Sendable {
             // record that can never exist.
             let provenance = dispatch.recordsPrompts
                 ? try requestPromptCapture(
-                    pass: pass, featureIssueID: featureIssueID, ordinal: ordinal, context: context
+                    pass: pass, featureName: featureName, ordinal: ordinal, context: context
                 )
                 : nil
             let dispatchRequest = AgentDispatchRequest(
@@ -126,22 +126,23 @@ public struct AuthoringRoute: Sendable {
     /// Mints the pass's prompt record id, builds its provenance, and journals the capture request before
     /// the dispatch, so the Night's account can name the record even if the dispatch never returns.
     private func requestPromptCapture(
-        pass: RunPass, featureIssueID: String?, ordinal: Int64, context: ActContext
+        pass: RunPass, featureName: String?, ordinal: Int64, context: ActContext
     ) throws -> DispatchProvenance {
         let recordID = UUID().uuidString.lowercased()
-        let resolvedFeatureIssueID = pass == .breakdown ? featureIssueID : nil
+        // The Feature Issue does not exist yet while its breakdown is drafted: the record names the Feature.
+        let resolvedFeatureName = pass == .breakdown ? featureName : nil
         let provenance = DispatchProvenance(
             recordID: recordID,
             family: PromptFamily(pass: pass) ?? .selection,
             projectID: context.journal.projectID.rawValue,
             runID: context.runID.rawValue,
             nightID: context.night.id,
-            featureIssueID: resolvedFeatureIssueID,
+            featureName: resolvedFeatureName,
             routeTry: Int(ordinal)
         )
         try context.journal.append(
             .promptCaptureRequested(
-                recordID: recordID, pass: pass, cardID: nil, issueID: resolvedFeatureIssueID,
+                recordID: recordID, pass: pass, cardID: nil, issueID: nil,
                 attemptID: nil, round: nil, ordinal: Int(ordinal)
             ),
             act: context.act, runID: context.runID, nightID: context.night.id

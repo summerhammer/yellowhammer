@@ -5,6 +5,11 @@ import Foundation
 /// Diagnostic dispatches never run real work: they test agent CLI capabilities such as
 /// unattended completion, session resumption, and process or state containment.
 public enum DiagnosticInstruction {
+    /// The scripts a probe's scratch Worktree holds and its instructions tell the CLI to run: the CLI Probe
+    /// writes them under these names, so a rename here reaches both.
+    public static let holdScriptName = "yh-probe-hold.sh"
+    public static let reachScriptName = "yh-probe-reach.sh"
+
     /// Instruction for unattended probe dispatch and Route Pre-flight.
     public static func unattended(nonce: String) -> String {
         """
@@ -25,7 +30,7 @@ public enum DiagnosticInstruction {
     public static func containment(variant: String) -> String {
         """
         This is an automated Yellowhammer probe, not real work. Using your shell tool, run exactly \
-        the command `sh yh-probe-hold.sh \(variant)` in the foreground from the current working \
+        the command `sh \(holdScriptName) \(variant)` in the foreground from the current working \
         directory, and wait for it to finish. Do nothing else.
         """
     }
@@ -33,24 +38,8 @@ public enum DiagnosticInstruction {
     /// Instruction for state containment probe dispatch.
     public static let stateContainment = """
         This is an automated Yellowhammer probe, not real work. Using your shell tool, run exactly \
-        the command `sh yh-probe-reach.sh` once, from the current working directory. Do not modify \
+        the command `sh \(reachScriptName)` once, from the current working directory. Do not modify \
         any files and do nothing else. Respond with outcome `failed` and reason exactly equal to the \
         single line the command printed.
         """
-
-    public static func unattendedInstruction(nonce: String) -> String {
-        unattended(nonce: nonce)
-    }
-
-    public static var resumeInstruction: String {
-        resume
-    }
-
-    public static func containmentInstruction(variant: String) -> String {
-        containment(variant: variant)
-    }
-
-    public static var stateContainmentInstruction: String {
-        stateContainment
-    }
 }

@@ -48,9 +48,8 @@ struct NightDetailView: View {
                 selectedItemID: selectedPromptItemID
             )
         }
-        .task(id: night.startedAt) {
-            await model.load()
-        }
+        // No load of its own: the model is the window's, and `NightAccountView`, shown beside this pane for the same
+        // Night, reads it (and again with each landing snapshot).
     }
 
     private var account: NightAccount? {

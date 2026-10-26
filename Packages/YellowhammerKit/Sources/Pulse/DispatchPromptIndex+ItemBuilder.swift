@@ -90,12 +90,13 @@ extension DispatchPromptIndex {
             projectInstructions: record.projectInstructions,
             launch: record.launch,
             nightID: record.provenance.nightID ?? context.nightID,
-            featureIssueID: record.provenance.featureIssueID,
-            workCardIssueID: record.provenance.workCardIssueID ?? context.issueID,
+            featureIssueID: record.provenance.featureIssueID ?? (context.pass == .verifier ? context.issueID : nil),
+            workCardIssueID: record.provenance.workCardIssueID ?? (context.pass == .verifier ? nil : context.issueID),
             cardID: record.provenance.cardID ?? context.cardID,
             attemptID: record.provenance.attemptID ?? context.attemptID,
             instruction: record.instruction,
-            outputSchema: record.outputSchema
+            outputSchema: record.outputSchema,
+            featureName: record.provenance.featureName
         )
     }
 
@@ -106,7 +107,9 @@ extension DispatchPromptIndex {
         time: Date,
         isResumed: Bool
     ) -> DispatchPromptItem {
-        DispatchPromptItem(
+        // A verifier's capture event names its Feature Issue; every other pass that names one names a Work Card.
+        let isFeatureLevel = context.pass == .verifier
+        return DispatchPromptItem(
             id: context.recordID,
             recordID: context.recordID,
             pass: context.pass,
@@ -122,8 +125,8 @@ extension DispatchPromptIndex {
             projectInstructions: .absent,
             launch: nil,
             nightID: context.nightID,
-            featureIssueID: nil,
-            workCardIssueID: context.issueID,
+            featureIssueID: isFeatureLevel ? context.issueID : nil,
+            workCardIssueID: isFeatureLevel ? nil : context.issueID,
             cardID: context.cardID,
             attemptID: context.attemptID,
             instruction: nil,

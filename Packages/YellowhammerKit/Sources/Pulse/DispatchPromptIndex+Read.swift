@@ -165,7 +165,10 @@ extension DispatchPromptIndex {
     // MARK: - Private Attempt Read
 
     private static func readAttempt(context: AttemptReadContext) throws -> DispatchPromptIndex {
-        let allEvents = try context.journal.events(ofType: nil)
+        let allEvents = try context.journal.events(
+            ofTypes: [.agentCLIProcessSpawned, .rehearsalFixtureAnswered, .promptCaptureRequested],
+            cardID: context.cardID, attemptID: context.attemptID
+        )
         let attemptHistory = try? context.journal.attemptHistory(cardID: context.cardID)
         let attemptRecord = attemptHistory?.attempts.first(where: { $0.id == context.attemptID })
         let fallbackRoute = attemptRecord?.route.description ?? ""
@@ -205,7 +208,7 @@ extension DispatchPromptIndex {
             projectID: context.projectID,
             scope: .attempt(cardID: context.cardID, attemptID: context.attemptID),
             emptyState: nil,
-            items: items
+            items: try resolvingDisplays(of: items, in: context.journal)
         )
     }
 

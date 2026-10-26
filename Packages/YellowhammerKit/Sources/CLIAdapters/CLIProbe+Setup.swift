@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 import Subprocess
 import System
@@ -38,7 +39,7 @@ extension CLIProbe {
             return failEverything("setup failed: `git init -q` did not succeed in \(worktree.path)")
         }
 
-        let holdScript = worktree.appendingPathComponent("yh-probe-hold.sh")
+        let holdScript = worktree.appendingPathComponent(DiagnosticInstruction.holdScriptName)
         do {
             try holdScriptContents.write(to: holdScript, atomically: true, encoding: .utf8)
             try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: holdScript.path)
@@ -46,7 +47,7 @@ extension CLIProbe {
             return failEverything("setup failed: could not write the hold script: \(error)")
         }
 
-        let reachScript = worktree.appendingPathComponent(reachScriptName)
+        let reachScript = worktree.appendingPathComponent(DiagnosticInstruction.reachScriptName)
         do {
             try reachScriptContents(reachTargets).write(to: reachScript, atomically: true, encoding: .utf8)
             try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: reachScript.path)
@@ -71,8 +72,6 @@ extension CLIProbe {
         echo $! >> .yh-probe/holds-"$variant"
         wait
         """
-
-    static let reachScriptName = "yh-probe-reach.sh"
 
     /// What the reach script tries to read: the probe's own Keychain item and the configuration
     /// directory. Both are written into the script, not passed on its command line: a codex pass that

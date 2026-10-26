@@ -62,7 +62,7 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
         }
         let result = try await route.run(
             pass: .breakdown, worktreePath: source.path, context: context,
-            featureIssueID: selection.name.rawValue,
+            featureName: selection.name.rawValue,
             additionalReadableDirectories: repositories.workingRepos.map(\.path),
             accept: { result in
                 guard case .breakdown(let breakdown) = result, case .drafted(let drafted) = breakdown.outcome

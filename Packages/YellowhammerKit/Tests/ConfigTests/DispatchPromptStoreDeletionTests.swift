@@ -145,6 +145,24 @@ struct DispatchPromptStoreDeletionTests {
         #expect(!FileManager.default.fileExists(atPath: recordURL.path(percentEncoded: false)))
     }
 
+    @Test("entries orders records and tombstones by dispatch time, then id")
+    func entriesOrderByDispatchTimeThenID() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = DispatchPromptStore(rootDirectory: root, now: { Date(timeIntervalSince1970: 1_700_000_100) })
+        let early = Date(timeIntervalSince1970: 1_700_000_000)
+        let late = early.addingTimeInterval(50)
+        let specs = [("rec-d", late), ("rec-c", early), ("rec-b", late), ("rec-a", early)]
+        for (id, date) in specs {
+            #expect(store.capture(makeStoreTestRecord(id: id, dispatchedAt: date)) == .recorded(id: id))
+        }
+        let scope = makeStoreTestRecord(id: "rec-x").provenance.scope
+        // A deleted record keeps its place by the dispatch time its tombstone carries.
+        #expect(store.delete(ids: ["rec-c"], in: scope) == [.deleted])
+
+        #expect(store.entries(in: scope).map(\.id) == ["rec-a", "rec-c", "rec-b", "rec-d"])
+    }
+
     @Test("A tombstone carries the deleted record's runID and family")
     func tombstoneCarriesRunIDAndFamily() throws {
         let root = try makeTemporaryDirectory()

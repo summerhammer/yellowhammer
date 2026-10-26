@@ -120,22 +120,22 @@ extension DispatchPromptStore {
             }
         }
 
-        var result: [DispatchPromptEntry] = []
+        // The dispatch date is read once per entry (a deletion marker is a file read), then the sort compares.
+        var dated: [(entry: DispatchPromptEntry, date: Date)] = []
         for id in ids {
             let lookupResult = lookup(id: id, scope: scope)
-            result.append(DispatchPromptEntry(id: id, lookup: lookupResult))
+            let date = dispatchDate(for: id, scope: scope, lookup: lookupResult) ?? Date.distantPast
+            dated.append((DispatchPromptEntry(id: id, lookup: lookupResult), date))
         }
 
-        result.sort { first, second in
-            let dateFirst = dispatchDate(for: first.id, scope: scope, lookup: first.lookup) ?? Date.distantPast
-            let dateSecond = dispatchDate(for: second.id, scope: scope, lookup: second.lookup) ?? Date.distantPast
-            if dateFirst != dateSecond {
-                return dateFirst < dateSecond
+        dated.sort { first, second in
+            if first.date != second.date {
+                return first.date < second.date
             }
-            return first.id < second.id
+            return first.entry.id < second.entry.id
         }
 
-        return result
+        return dated.map(\.entry)
     }
 
     /// Sweeps expired records in the scope by unlinking them. Returns failed removals by filename.

@@ -52,7 +52,7 @@ extension DispatchPromptIndex {
             projectID: context.projectID,
             scope: .night(nightID: context.nightID),
             emptyState: nil,
-            items: items
+            items: try resolvingDisplays(of: items, in: context.journal)
         )
     }
 
@@ -232,7 +232,8 @@ extension DispatchPromptIndex {
             attemptID: item.attemptID,
             instruction: item.instruction,
             outputSchema: item.outputSchema,
-            rejectionCause: cause
+            rejectionCause: cause,
+            featureName: item.featureName
         )
     }
 

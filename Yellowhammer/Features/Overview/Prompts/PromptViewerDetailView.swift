@@ -41,11 +41,11 @@ struct PromptViewerDetailView: View {
                 if let nightID = item.nightID {
                     gridRow("Night", "\(nightID)")
                 }
-                if let featureIssueID = item.featureIssueID {
-                    gridRow("Feature", featureIssueID)
+                if let feature = item.featureDisplay ?? item.featureName {
+                    gridRow("Feature", feature)
                 }
-                if let workCardIssueID = item.workCardIssueID {
-                    gridRow("Work Card", workCardIssueID)
+                if let workCard = item.workCardDisplay {
+                    gridRow("Work Card", workCard)
                 }
                 if let attemptID = item.attemptID {
                     gridRow("Attempt", "\(attemptID)")

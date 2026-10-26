@@ -83,6 +83,12 @@ public struct DispatchPromptItem: Equatable, Sendable, Identifiable {
     public let instruction: String?
     public let outputSchema: String?
     public let rejectionCause: AuthoringRouteRejectionCause?
+    /// The Feature's name, for a dispatch that ran before its Feature Issue existed (the breakdown).
+    public let featureName: String?
+    /// The Feature and Work Card as the Operator reads them (`FEAT-12`), resolved from the Journal by the read.
+    /// Nil when the Journal does not know them: the raw issue ids are Linear UUIDs and are never shown.
+    public internal(set) var featureDisplay: String?
+    public internal(set) var workCardDisplay: String?
 
     public static let resumedSessionNotice =
         "Resumed session: this is the new input for this dispatch. It does not contain the session's earlier " +
@@ -115,7 +121,8 @@ public struct DispatchPromptItem: Equatable, Sendable, Identifiable {
         attemptID: Int64?,
         instruction: String?,
         outputSchema: String?,
-        rejectionCause: AuthoringRouteRejectionCause? = nil
+        rejectionCause: AuthoringRouteRejectionCause? = nil,
+        featureName: String? = nil
     ) {
         self.id = id
         self.recordID = recordID
@@ -139,6 +146,7 @@ public struct DispatchPromptItem: Equatable, Sendable, Identifiable {
         self.instruction = instruction
         self.outputSchema = outputSchema
         self.rejectionCause = rejectionCause
+        self.featureName = featureName
     }
 
     public var isResumed: Bool {
