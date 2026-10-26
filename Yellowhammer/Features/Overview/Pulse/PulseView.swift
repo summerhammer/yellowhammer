@@ -22,7 +22,7 @@ struct PulseView: View {
     let boardRepairResult: String?
 
     var body: some View {
-        ScrollViewReader { proxy in
+        ScrollViewReader { _ in
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     PulseHeader(project: project)

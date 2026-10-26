@@ -85,7 +85,10 @@ struct PromptCatalogBlock: View {
                                 Text(run.cli)
                                     .font(.body.weight(.medium))
                                     .foregroundStyle(.primary)
-                                Text("\(run.items.count) \(run.items.count == 1 ? "dispatch" : "dispatches") \u{00B7} Run \(run.runID.prefix(8))")
+                                Text(
+                                    "\(run.items.count) \(run.items.count == 1 ? "dispatch" : "dispatches")"
+                                        + " \u{00B7} Run \(run.runID.prefix(8))"
+                                )
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

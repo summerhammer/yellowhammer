@@ -38,8 +38,11 @@ final class NightDetailModel {
     /// Re-reads the Night's account. A blocked read cannot be cancelled, so a read whose task was cancelled
     /// meanwhile (the Inspector closed, or a newer read started) is dropped rather than applied.
     func load(asOf: Date = Date()) async {
-        async let accountResult = Self.read(nightID: nightID, project: project, directory: ConfigurationDirectory.current)
-        async let promptResult = Self.readPrompts(nightID: nightID, project: project, directory: ConfigurationDirectory.current, asOf: asOf)
+        let directory = ConfigurationDirectory.current
+        async let accountResult = Self.read(nightID: nightID, project: project, directory: directory)
+        async let promptResult = Self.readPrompts(
+            nightID: nightID, project: project, directory: directory, asOf: asOf
+        )
 
         let (acc, prompts) = await (accountResult, promptResult)
         guard !Task.isCancelled else { return }
@@ -49,12 +52,18 @@ final class NightDetailModel {
 
     /// Off the main actor: the Journal open can wait out its busy timeout while an Act writes.
     @concurrent
-    private nonisolated static func read(nightID: Int64, project: ProjectID, directory: URL) async -> NightAccountRead {
+    private nonisolated static func read(
+        nightID: Int64, project: ProjectID, directory: URL
+    ) async -> NightAccountRead {
         NightAccount.read(nightID: nightID, project: project, configurationDirectory: directory)
     }
 
     @concurrent
-    private nonisolated static func readPrompts(nightID: Int64, project: ProjectID, directory: URL, asOf: Date) async -> DispatchPromptIndexRead {
-        DispatchPromptIndex.read(configurationDirectory: directory, projectID: project, scope: .night(nightID: nightID), asOf: asOf)
+    private nonisolated static func readPrompts(
+        nightID: Int64, project: ProjectID, directory: URL, asOf: Date
+    ) async -> DispatchPromptIndexRead {
+        DispatchPromptIndex.read(
+            configurationDirectory: directory, projectID: project, scope: .night(nightID: nightID), asOf: asOf
+        )
     }
 }

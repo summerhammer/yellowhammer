@@ -66,29 +66,14 @@ public struct AuthoringRoute: Sendable {
             }
             let route = resolved.route
             ordinal += 1
-            let recordID = UUID().uuidString.lowercased()
-            let resolvedFeatureIssueID = pass == .breakdown ? featureIssueID : nil
-            let provenance = DispatchProvenance(
-                recordID: recordID,
-                family: PromptFamily(pass: pass) ?? .selection,
-                projectID: context.journal.projectID.rawValue,
-                runID: context.runID.rawValue,
-                nightID: context.night.id,
-                featureIssueID: resolvedFeatureIssueID,
-                routeTry: Int(ordinal)
+            let provenance = try requestPromptCapture(
+                pass: pass, featureIssueID: featureIssueID, ordinal: ordinal, context: context
             )
             let dispatchRequest = AgentDispatchRequest(
                 runID: context.runID, issueID: Self.runDirectoryName, attemptID: ordinal, route: route,
                 pass: pass, instruction: .authoring(instruction(route, earlierRejections)), worktreePath: worktreePath,
                 additionalReadableDirectories: additionalReadableDirectories,
                 provenance: provenance
-            )
-            try context.journal.append(
-                .promptCaptureRequested(
-                    recordID: recordID, pass: pass, cardID: nil, issueID: resolvedFeatureIssueID,
-                    attemptID: nil, round: nil, ordinal: Int(ordinal)
-                ),
-                act: context.act, runID: context.runID, nightID: context.night.id
             )
             let judgement: Judgement
             do {
@@ -100,10 +85,7 @@ public struct AuthoringRoute: Sendable {
                 }
                 judgement = try await judge(report.outcome, pass: pass, route: route, accept: accept)
             } catch let refusal as AgentDispatchRefusal {
-                judgement = .rejected(Rejection(
-                    cause: .unavailable, reason: "\(refusal)",
-                    lastFailure: "\(pass.rawValue) on \(route) is unavailable: \(refusal)"
-                ))
+                judgement = .rejected(Self.unavailable(refusal, pass: pass, route: route))
             }
             switch judgement {
             case .answered(let result):
@@ -113,15 +95,54 @@ public struct AuthoringRoute: Sendable {
                 lastFailure = rejection.lastFailure
                 rejectedBreakdown = rejectedBreakdown || rejection.producedBreakdown
                 earlierRejections += rejection.draftingFeedback(route: route)
-                try recordRejection(
-                    .authoringRouteRejected(
-                        pass: pass, route: route.description, ordinal: Int(ordinal), cause: rejection.cause,
-                        reason: rejection.reason
-                    ),
-                    context: context
-                )
+                try recordRejection(rejection, pass: pass, route: route, ordinal: ordinal, context: context)
             }
         }
+    }
+
+    private static func unavailable(_ refusal: AgentDispatchRefusal, pass: RunPass, route: Route) -> Rejection {
+        Rejection(
+            cause: .unavailable, reason: "\(refusal)",
+            lastFailure: "\(pass.rawValue) on \(route) is unavailable: \(refusal)"
+        )
+    }
+
+    private func recordRejection(
+        _ rejection: Rejection, pass: RunPass, route: Route, ordinal: Int64, context: ActContext
+    ) throws {
+        try recordRejection(
+            .authoringRouteRejected(
+                pass: pass, route: route.description, ordinal: Int(ordinal), cause: rejection.cause,
+                reason: rejection.reason
+            ),
+            context: context
+        )
+    }
+
+    /// Mints the pass's prompt record id, builds its provenance, and journals the capture request before
+    /// the dispatch, so the Night's account can name the record even if the dispatch never returns.
+    private func requestPromptCapture(
+        pass: RunPass, featureIssueID: String?, ordinal: Int64, context: ActContext
+    ) throws -> DispatchProvenance {
+        let recordID = UUID().uuidString.lowercased()
+        let resolvedFeatureIssueID = pass == .breakdown ? featureIssueID : nil
+        let provenance = DispatchProvenance(
+            recordID: recordID,
+            family: PromptFamily(pass: pass) ?? .selection,
+            projectID: context.journal.projectID.rawValue,
+            runID: context.runID.rawValue,
+            nightID: context.night.id,
+            featureIssueID: resolvedFeatureIssueID,
+            routeTry: Int(ordinal)
+        )
+        try context.journal.append(
+            .promptCaptureRequested(
+                recordID: recordID, pass: pass, cardID: nil, issueID: resolvedFeatureIssueID,
+                attemptID: nil, round: nil, ordinal: Int(ordinal)
+            ),
+            act: context.act, runID: context.runID, nightID: context.night.id
+        )
+        return provenance
     }
 
     private func resolve(tried: Set<Route>, context: ActContext) throws -> RouteResolution {

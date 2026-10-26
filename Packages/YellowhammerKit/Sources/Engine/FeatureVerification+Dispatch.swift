@@ -30,25 +30,9 @@ extension FeatureVerification {
             }
             let route = resolved.route
             ordinal += 1
-            let recordID = UUID().uuidString.lowercased()
-            let provenance = DispatchProvenance(
-                recordID: recordID,
-                family: .verifier,
-                projectID: act.journal.projectID.rawValue,
-                runID: act.runID.rawValue,
-                nightID: act.night.id,
-                featureIssueID: context.feature.issueID,
-                routeTry: Int(ordinal)
-            )
+            let provenance = try requestPromptCapture(context: context, ordinal: ordinal)
             let dispatchRequest = Self.verifierRequest(
                 base, route: route, ordinal: ordinal, runID: act.runID, provenance: provenance
-            )
-            try act.journal.append(
-                .promptCaptureRequested(
-                    recordID: recordID, pass: .verifier, cardID: nil, issueID: context.feature.issueID,
-                    attemptID: nil, round: nil, ordinal: Int(ordinal)
-                ),
-                act: act.act, runID: act.runID, nightID: act.night.id
             )
             let report: AgentDispatchReport
             do {
@@ -71,6 +55,30 @@ extension FeatureVerification {
                 try recordRejection(rejection, route: route, ordinal: Int(ordinal), act: act)
             }
         }
+    }
+
+    /// Mints the verifier pass's prompt record id, builds its provenance, and journals the capture request
+    /// before the dispatch.
+    private func requestPromptCapture(context: LandActFeatureContext, ordinal: Int64) throws -> DispatchProvenance {
+        let act = context.act
+        let recordID = UUID().uuidString.lowercased()
+        let provenance = DispatchProvenance(
+            recordID: recordID,
+            family: .verifier,
+            projectID: act.journal.projectID.rawValue,
+            runID: act.runID.rawValue,
+            nightID: act.night.id,
+            featureIssueID: context.feature.issueID,
+            routeTry: Int(ordinal)
+        )
+        try act.journal.append(
+            .promptCaptureRequested(
+                recordID: recordID, pass: .verifier, cardID: nil, issueID: context.feature.issueID,
+                attemptID: nil, round: nil, ordinal: Int(ordinal)
+            ),
+            act: act.act, runID: act.runID, nightID: act.night.id
+        )
+        return provenance
     }
 
     /// One Route's failure as its `AuthoringRouteRejected` event records it: the class, and the account.

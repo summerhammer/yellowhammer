@@ -104,60 +104,28 @@ struct PromptIndexNightMachineTests {
         rejectedID: String,
         acceptedID: String
     ) throws {
-        try journal.append(
+        func append(_ event: JournalEvent, at offset: TimeInterval) throws {
+            try journal.append(
+                event, act: .author, runID: run, nightID: nightID, now: epoch.addingTimeInterval(offset)
+            )
+        }
+        func capture(_ recordID: String, ordinal: Int) -> JournalEvent {
             .promptCaptureRequested(
-                recordID: rejectedID,
-                pass: .breakdown,
-                cardID: nil,
-                issueID: "ALPHA-F",
-                attemptID: nil,
-                round: nil,
-                ordinal: 1
-            ),
-            act: .author,
-            runID: run,
-            nightID: nightID,
-            now: epoch
-        )
-        try journal.append(
+                recordID: recordID, pass: .breakdown, cardID: nil, issueID: "ALPHA-F",
+                attemptID: nil, round: nil, ordinal: ordinal
+            )
+        }
+        try append(capture(rejectedID, ordinal: 1), at: 0)
+        try append(
             .authoringRouteRejected(
-                pass: .breakdown,
-                route: "claude/sonnet/medium",
-                ordinal: 1,
-                cause: .invalidOutput,
-                reason: "Malformed JSON schema output"
+                pass: .breakdown, route: "claude/sonnet/medium", ordinal: 1,
+                cause: .invalidOutput, reason: "Malformed JSON schema output"
             ),
-            act: .author,
-            runID: run,
-            nightID: nightID,
-            now: epoch.addingTimeInterval(5)
+            at: 5
         )
-        try journal.append(
-            .promptCaptureRequested(
-                recordID: acceptedID,
-                pass: .breakdown,
-                cardID: nil,
-                issueID: "ALPHA-F",
-                attemptID: nil,
-                round: nil,
-                ordinal: 2
-            ),
-            act: .author,
-            runID: run,
-            nightID: nightID,
-            now: epoch.addingTimeInterval(10)
-        )
-        try journal.append(
-            .authoringDispatched(
-                pass: .breakdown,
-                route: "codex/sol/medium",
-                ordinal: 2,
-                fixture: nil
-            ),
-            act: .author,
-            runID: run,
-            nightID: nightID,
-            now: epoch.addingTimeInterval(15)
+        try append(capture(acceptedID, ordinal: 2), at: 10)
+        try append(
+            .authoringDispatched(pass: .breakdown, route: "codex/sol/medium", ordinal: 2, fixture: nil), at: 15
         )
     }
 
@@ -268,6 +236,32 @@ struct PromptIndexNightMachineTests {
         #expect(emptyIndex.emptyState == .noDiagnosticDispatchesRecorded)
     }
 
+    private struct ProbeSeed {
+        let id: String
+        let family: PromptFamily
+        let runID: String
+        let route: String
+        let time: Date
+        let instruction: String
+    }
+
+    private func captureProbe(_ seed: ProbeSeed, in store: DispatchPromptStore) {
+        let rec = DispatchPromptRecord(
+            id: seed.id,
+            provenance: DispatchProvenance(recordID: seed.id, family: seed.family, runID: seed.runID),
+            route: seed.route,
+            pass: .worker,
+            dispatchedAt: seed.time,
+            defaultVersion: 1,
+            projectInstructions: .absent,
+            session: .new,
+            instruction: seed.instruction,
+            outputSchema: nil,
+            launch: .launched
+        )
+        #expect(store.capture(rec) == .recorded(id: rec.id))
+    }
+
     private func seedProbeRecords(
         store: DispatchPromptStore,
         run1ID: String,
@@ -275,60 +269,34 @@ struct PromptIndexNightMachineTests {
         run3ID: String,
         times: [Date]
     ) {
-        let time1 = times[0]
-        let time2 = times[1]
-        let time3 = times[2]
+        let claude = "claude/sonnet/medium"
         for (index, family) in [PromptFamily.unattendedProbe, .sessionResumptionProbe].enumerated() {
-            let rec = DispatchPromptRecord(
-                id: "rec-c1-\(index)",
-                provenance: DispatchProvenance(recordID: "rec-c1-\(index)", family: family, runID: run1ID),
-                route: "claude/sonnet/medium",
-                pass: .worker,
-                dispatchedAt: time1,
-                defaultVersion: 1,
-                projectInstructions: .absent,
-                session: .new,
-                instruction: "Probe \(family.rawValue) for claude 1",
-                outputSchema: nil,
-                launch: .launched
+            captureProbe(
+                ProbeSeed(
+                    id: "rec-c1-\(index)", family: family, runID: run1ID, route: claude, time: times[0],
+                    instruction: "Probe \(family.rawValue) for claude 1"
+                ),
+                in: store
             )
-            let capture = store.capture(rec)
-            #expect(capture == .recorded(id: rec.id))
         }
 
         let run2Families: [PromptFamily] = [.unattendedProbe, .sessionResumptionProbe, .stateContainmentProbe]
         for (index, family) in run2Families.enumerated() {
-            let rec = DispatchPromptRecord(
-                id: "rec-c2-\(index)",
-                provenance: DispatchProvenance(recordID: "rec-c2-\(index)", family: family, runID: run2ID),
-                route: "claude/sonnet/medium",
-                pass: .worker,
-                dispatchedAt: time2,
-                defaultVersion: 1,
-                projectInstructions: .absent,
-                session: .new,
-                instruction: "Probe \(family.rawValue) for claude 2",
-                outputSchema: nil,
-                launch: .launched
+            captureProbe(
+                ProbeSeed(
+                    id: "rec-c2-\(index)", family: family, runID: run2ID, route: claude, time: times[1],
+                    instruction: "Probe \(family.rawValue) for claude 2"
+                ),
+                in: store
             )
-            let capture = store.capture(rec)
-            #expect(capture == .recorded(id: rec.id))
         }
 
-        let recCodex = DispatchPromptRecord(
-            id: "rec-codex-1",
-            provenance: DispatchProvenance(recordID: "rec-codex-1", family: .unattendedProbe, runID: run3ID),
-            route: "codex/sol/medium",
-            pass: .worker,
-            dispatchedAt: time3,
-            defaultVersion: 1,
-            projectInstructions: .absent,
-            session: .new,
-            instruction: "Probe for codex",
-            outputSchema: nil,
-            launch: .launched
+        captureProbe(
+            ProbeSeed(
+                id: "rec-codex-1", family: .unattendedProbe, runID: run3ID, route: "codex/sol/medium",
+                time: times[2], instruction: "Probe for codex"
+            ),
+            in: store
         )
-        let captureCodex = store.capture(recCodex)
-        #expect(captureCodex == .recorded(id: recCodex.id))
     }
 }
