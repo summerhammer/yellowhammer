@@ -8,6 +8,8 @@ DerivedData/
 xcuserdata/
 # The throwaway Prototypes package pins nothing of its own: YellowhammerKit's Package.resolved does.
 /Packages/Prototypes/Package.resolved
+# Likewise the screenshot tool.
+/Tools/LandingScreenshots/Package.resolved
 
 # Agent worktrees and scratch space
 .worktrees/

@@ -39,6 +39,8 @@ struct OverviewWindow: View {
     /// Where a Failure Notice asked the Night's account to put its playhead; nil opens it on its first problem.
     @State private var playheadRequest: NightPlayheadRequest?
     @State private var inspectorShown = true
+    /// The sidebar's visibility; `.automatic` except under a DEBUG screenshot launch (`ShowcaseLaunch`).
+    @State private var columnVisibility = ShowcaseLaunch.columnVisibility
     @State private var stop = EngineStopModel()
     @State private var confirmingStop = false
     /// Only a synchronous launch failure is retained; the app never owns an Author run's state.
@@ -84,7 +86,7 @@ struct OverviewWindow: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             OverviewSidebar(
                 projects: model.snapshot?.projects ?? [],
                 asOf: model.snapshot?.asOf ?? .now,
@@ -134,6 +136,7 @@ struct OverviewWindow: View {
         .environment(\.attemptAbort, attemptAbortControl)
         .focusedSceneValue(\.overviewProject, scopedProject)
         .task { await readWhileOpen() }
+        .showcaseLaunch(model.snapshot, scope: rescope, inspectorShown: $inspectorShown, inspected: $inspected)
         // A sheet finishing, or a Project removed in Settings, fires neither appear nor didBecomeActive; the
         // initial load is `readWhileOpen`'s.
         .onChange(of: projectListChanges.token) { Task { await model.load() } }
@@ -305,19 +308,6 @@ struct OverviewWindow: View {
         )
     }
 
-    // MARK: Reading
-
-    /// Reads the snapshot when the window opens, then again each time the app becomes active, unless a
-    /// read is still running then (`OverviewModel.readOnActivation`). The loop never waits for a read,
-    /// because the notifications would queue behind it. It is the window's own task, so it ends when the
-    /// window closes.
-    private func readWhileOpen() async {
-        await model.load()
-        for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
-            model.readOnActivation()
-        }
-    }
-
     // MARK: Scoping
 
     /// Shows `id` in this window. A selection from the previous Project must not stay beside the new
@@ -380,5 +370,21 @@ private extension OverviewWindow {
         guard let nightAccount, nightAccount.project == night.project, nightAccount.nightID == night.night
         else { return nil }
         return nightAccount
+    }
+}
+
+// MARK: Reading
+
+// Outside the struct body, which is at SwiftLint's type body length.
+extension OverviewWindow {
+    /// Reads the snapshot when the window opens, then again each time the app becomes active, unless a
+    /// read is still running then (`OverviewModel.readOnActivation`). The loop never waits for a read,
+    /// because the notifications would queue behind it. It is the window's own task, so it ends when the
+    /// window closes.
+    private func readWhileOpen() async {
+        await model.load()
+        for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
+            model.readOnActivation()
+        }
     }
 }

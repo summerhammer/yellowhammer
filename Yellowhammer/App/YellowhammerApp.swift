@@ -52,12 +52,14 @@ struct YellowhammerApp: App {
             updaterDelegate: UpdaterDelegate(),
             userDriverDelegate: nil
         )
+        AppearanceOverride.apply()
     }
 
     var body: some Scene {
         // First, so it is the window the app opens on, and the one File > New Window opens.
         WindowGroup(id: OverviewWindow.windowID, for: ProjectID.self) { $project in
             OverviewWindow(project: $project)
+                .mainWindowSizeOverride()
                 .addProjectSheet()
                 .environment(settingsRequest)
                 .environment(projectListChanges)
@@ -72,7 +74,7 @@ struct YellowhammerApp: App {
                 }
         }
         // Room for the three columns at their ideal widths. The minimum comes from the columns' own.
-        .defaultSize(width: 1180, height: 760)
+        .defaultSize(MainWindowSize.standard)
         .windowResizability(.contentMinSize)
         .handlesExternalEvents(matching: [ProjectDeepLink.scheme])
         .commands {
