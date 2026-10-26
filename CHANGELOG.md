@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.29.0](https://github.com/summerhammer/yellowhammer/compare/v0.28.0...v0.29.0) (2026-10-26)
+
+
+### Features
+
+* **app:** head the Pulse with the Project's status over a Mist mesh ([#700](https://github.com/summerhammer/yellowhammer/issues/700)) ([c33452e](https://github.com/summerhammer/yellowhammer/commit/c33452e5b427b7228d5dd9025ac055a18325e241))
+* **app:** View the Prompts Used by a Pass: record each dispatch's resolved prompt and show it read-only ([#697](https://github.com/summerhammer/yellowhammer/issues/697)) ([abe5f4b](https://github.com/summerhammer/yellowhammer/commit/abe5f4b8422824166c72eb742127028cf94b6acb))
+
 ## [0.28.0](https://github.com/summerhammer/yellowhammer/compare/v0.27.0...v0.28.0) (2026-10-24)
 
 
