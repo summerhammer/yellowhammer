@@ -92,7 +92,7 @@ struct PulseInspectorView: View {
             return context.project.runningAttempt(id: id).map(attemptModel)
         case let .repo(repo):
             return context.project.repos.contains(repo) ? repoModel(repo) : nil
-        case .night:
+        case .night, .scheduledNight:
             // A Night's account is the app's to draw; the prototypes have no model for it.
             return nil
         }

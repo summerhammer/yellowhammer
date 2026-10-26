@@ -8,7 +8,7 @@ import SwiftUI
 extension PulseVariant {
     /// The variants the Playground and Gallery offer. Every other variant stays in `all`, reachable by
     /// name from a `#Preview`, so a shelved idea can come back without being rewritten.
-    static let shown: Set<String> = ["Strip and Cards", "Stack Ladder"]
+    static let shown = Set(["Strip and Cards", "Stack Ladder"] + PulseStatusHead.allCases.map(\.rawValue))
 
     /// The shown variants, in catalog order.
     static var inPlay: [PulseVariant] { all.filter { shown.contains($0.name) } }
@@ -146,7 +146,28 @@ extension PulseVariant {
                 sections: .pillCards, sidebar: .badged, toolbar: .status, inspector: .headerForm, opens: .repo
             )
         )
-    ]
+    ] + statusHeads
+
+    /// Round three: the current status as a colour box at the top of the Pulse, over the shipped tinted
+    /// cards with no summary strip. They differ only in how the box draws its colour; see `PulseStatusHead`.
+    private static let statusHeads: [PulseVariant] = PulseStatusHead.allCases.map { head in
+        PulseVariant(
+            head.rawValue,
+            idea: idea(of: head),
+            design: PulseDesign(
+                sections: .statusHead, sidebar: .badged, toolbar: .minimal, inspector: .headerForm, head: head
+            )
+        )
+    }
+
+    private static func idea(of head: PulseStatusHead) -> String {
+        switch head {
+        case .pixels: "A pixelated gradient: square cells in the status colour dissolve downward"
+        case .mesh: "A mesh gradient of the status colour and two neighbours, fading into the cards"
+        case .meshMist: "Mesh Aurora, lighter in light appearance, with the icon on a solid tile"
+        case .spectrum: "A gradient whose bands are each state's share, with a legend of the counts"
+        }
+    }
 }
 
 #Preview("Strip and Cards") {

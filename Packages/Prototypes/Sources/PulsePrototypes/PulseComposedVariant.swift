@@ -16,6 +16,8 @@ struct PulseDesign {
     var opens: PulseOpening = .firstDecisionCard
     /// How the Awaiting merge list is drawn.
     var stack: PulseStackStyle = .rows
+    /// How the status head draws the current status, for the `statusHead` sections.
+    var head: PulseStatusHead = .pixels
 }
 
 /// The Inspector's first selection. Each falls back along the Pulse, so the Inspector is filled
@@ -67,6 +69,7 @@ struct PulseComposedVariant: View {
         }
         .tint(palette.accent)
         .environment(\.pulseStackStyle, design.stack)
+        .environment(\.pulseStatusHead, design.head)
         .onAppear {
             guard !didOpen, let project else { return }
             didOpen = true
@@ -201,15 +204,8 @@ struct PulseComposedVariant: View {
     }
 
     private static func resolves(_ selection: PulseSelection?, in project: ProjectSnapshot) -> Bool {
-        switch selection {
-        case nil: false
-        case let .card(id): project.pulse.needsYou.cards.contains { $0.id == id }
-        case let .feature(id):
-            project.pulse.feature?.id == id || project.pulse.unmergedFeatures.features.contains { $0.id == id }
-        case let .attempt(id): project.pulse.now.attempts.contains { $0.id == id }
-        case let .repo(repo): project.repos.contains(repo)
-        case let .night(id): project.pulse.night?.id == id
-        }
+        guard let selection else { return false }
+        return project.contains(selection)
     }
 }
 
