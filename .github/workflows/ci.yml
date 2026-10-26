@@ -62,7 +62,9 @@ jobs:
     name: Lint
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, which lacks libxml2.so.2, so the
+    # SwiftLint 0.65.0 Linux binary will not load.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:

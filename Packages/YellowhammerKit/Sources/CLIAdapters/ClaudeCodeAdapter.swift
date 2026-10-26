@@ -23,6 +23,10 @@ public struct ClaudeCodeAdapter: CLIAdapter {
 
     public init() {}
 
+    public func outputSchema(for pass: RunPass) -> String {
+        CLIOutputSchema.strict(for: pass)
+    }
+
     public func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch {
         try validateRoute(dispatch)
         let resultFile = try prepareRunDirectory(dispatch)
@@ -33,7 +37,7 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         var arguments = [
             "-p", dispatch.instruction,
             "--output-format", "stream-json", "--verbose",
-            "--json-schema", CLIOutputSchema.strict(for: dispatch.pass),
+            "--json-schema", outputSchema(for: dispatch.pass),
             "--model", dispatch.route.model,
             "--effort", dispatch.route.effort
         ]

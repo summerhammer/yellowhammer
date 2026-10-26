@@ -21,44 +21,57 @@ public struct CLIProbe: Sendable {
     public let gracePeriod: Duration
     /// Creates and deletes the throwaway Keychain item the state-containment dispatch tries to read.
     public let keychain: ProbeKeychain
+    public let recorder: (any DispatchPromptRecording)?
+    /// The environment every probe dispatch and the `--version` probe run under.
+    public let environment: [String: String]
+    /// The directories no pass may read, exactly as a real dispatch gets them
+    /// (`CLIDispatch.protectedDirectories`): the configuration directory first, then the Keychains
+    /// directory. Every probe dispatch carries them, so a read-only probe pass is contained the way a
+    /// real one is, and the reach script checks the first one.
+    public let protectedDirectories: [String]
 
     public init(
         dispatchTimeout: Duration = .seconds(300),
         holdObservationTimeout: Duration = .seconds(240),
         pollInterval: Duration = .milliseconds(100),
         gracePeriod: Duration = .seconds(3),
-        keychain: ProbeKeychain = .login
+        keychain: ProbeKeychain = .login,
+        recorder: (any DispatchPromptRecording)? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        protectedDirectories: [String]
     ) {
         self.dispatchTimeout = dispatchTimeout
         self.holdObservationTimeout = holdObservationTimeout
         self.pollInterval = pollInterval
         self.gracePeriod = gracePeriod
         self.keychain = keychain
+        self.recorder = recorder
+        self.environment = environment
+        self.protectedDirectories = protectedDirectories
     }
 
-    /// - Parameter protectedDirectories: the directories no pass may read, exactly as a real dispatch
-    ///   gets them (`CLIDispatch.protectedDirectories`): the configuration directory first, then the
-    ///   Keychains directory. Every probe dispatch carries them, so a read-only probe pass is
-    ///   contained the way a real one is, and the reach script checks the first one.
+    /// - Parameter runID: minted by the caller and stamped on every dispatch's prompt record, so the
+    ///   caller can later open exactly this run's prompts.
     public func run(
         adapter: some CLIAdapter,
         route: Route,
         executable: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
         workDirectory: URL,
-        protectedDirectories: [String]
+        runID: String
     ) async -> ProbeReport {
         let worktree = workDirectory.appendingPathComponent("worktree")
         let context = ProbeDispatchContext(
             route: route, executable: executable, environment: environment, worktree: worktree,
-            runsDirectory: workDirectory.appendingPathComponent("runs"), protectedDirectories: protectedDirectories
+            runsDirectory: workDirectory.appendingPathComponent("runs"), protectedDirectories: protectedDirectories,
+            projectID: nil, runID: runID
         )
         let reachTargets = ReachTargets(
             keychainAccount: Self.makeNonce(), configurationDirectory: protectedDirectories.first ?? ""
         )
 
         if let failure = await Self.setUp(
-            worktree: worktree, adapter: adapter, workDirectory: workDirectory, reachTargets: reachTargets
+            worktree: worktree, adapter: adapter, workDirectory: workDirectory, reachTargets: reachTargets,
+            runID: runID
         ) {
             return failure
         }
@@ -69,8 +82,8 @@ public struct CLIProbe: Sendable {
         // Dispatch A — unattended dispatch + result file on clean exit.
         let unattendedRunDirectory = context.runsDirectory.appendingPathComponent("unattended")
         let dispatchA = await runDispatch(
-            pass: .architect, adapter: adapter, context: context, runDirectory: unattendedRunDirectory,
-            instruction: Self.unattendedInstruction(nonce: nonce), resume: nil
+            pass: .architect, family: .unattendedProbe, adapter: adapter, context: context,
+            runDirectory: unattendedRunDirectory, instruction: Self.unattendedInstruction(nonce: nonce), resume: nil
         )
         let (unattendedFinding, unattendedDetail) = Self.unattendedFinding(
             for: dispatchA, runDirectory: unattendedRunDirectory
@@ -105,7 +118,8 @@ public struct CLIProbe: Sendable {
             sessionResumption: sessionResumptionFinding,
             stateContainment: stateContainmentFinding,
             reason: reason,
-            workDirectory: workDirectory
+            workDirectory: workDirectory,
+            runID: runID
         )
     }
 
@@ -134,12 +148,51 @@ struct ProbeDispatchContext: Sendable {
     let worktree: URL
     let runsDirectory: URL
     let protectedDirectories: [String]
+    let projectID: String?
+    let runID: String?
+    /// The Night the dispatch belongs to, when it has one (a Route Pre-flight does; the Probe does not).
+    let nightID: Int64?
+    /// A record id fixed by the caller, so it could be journaled before launch; minted per dispatch when nil.
+    let recordID: String?
+
+    init(
+        route: Route,
+        executable: String,
+        environment: [String: String],
+        worktree: URL,
+        runsDirectory: URL,
+        protectedDirectories: [String],
+        projectID: String? = nil,
+        runID: String? = nil,
+        nightID: Int64? = nil,
+        recordID: String? = nil
+    ) {
+        self.route = route
+        self.executable = executable
+        self.environment = environment
+        self.worktree = worktree
+        self.runsDirectory = runsDirectory
+        self.protectedDirectories = protectedDirectories
+        self.projectID = projectID
+        self.runID = runID
+        self.nightID = nightID
+        self.recordID = recordID
+    }
 
     /// One probe dispatch, built the way the engine builds a real one, protected directories included.
-    func dispatch(
-        pass: RunPass, instruction: String, runDirectory: URL, timeout: Duration, resume: CLISession?
+    func dispatch( // swiftlint:disable:this function_parameter_count
+        pass: RunPass, family: PromptFamily, instruction: String, runDirectory: URL,
+        timeout: Duration, resume: CLISession?
     ) -> CLIDispatch {
-        CLIDispatch(
+        let recordID = recordID ?? UUID().uuidString.lowercased()
+        let provenance = DispatchProvenance(
+            recordID: recordID,
+            family: family,
+            projectID: projectID,
+            runID: runID,
+            nightID: nightID
+        )
+        return CLIDispatch(
             route: route,
             pass: pass,
             instruction: instruction,
@@ -150,7 +203,8 @@ struct ProbeDispatchContext: Sendable {
             additionalWritableDirectories: [],
             protectedDirectories: protectedDirectories,
             executable: executable,
-            environment: environment
+            environment: environment,
+            provenance: provenance
         )
     }
 }

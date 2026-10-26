@@ -36,6 +36,30 @@ extension ActCommand {
     }
 
     private func runAct(configurationDirectory: URL) async throws {
+        if let (_, resolved) = try? ProjectResolution.resolve(
+            projectArgument: project, configurationDirectory: configurationDirectory
+        ) {
+            let promptStore = DispatchPromptStore(
+                rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
+            )
+            let sweepFailures = promptStore.sweepExpired(in: .project(resolved.id))
+            for failure in sweepFailures {
+                ActLog.writeToStandardError(
+                    "failed to sweep expired prompt record \(failure) for Project \(resolved.id.rawValue)"
+                )
+            }
+            let schemaFailures = SchemaCopySweep.removeExpired(
+                under: CLIAdapterDispatch.runsDirectory(
+                    configurationDirectory: configurationDirectory, projectID: resolved.id
+                )
+            )
+            for failure in schemaFailures {
+                ActLog.writeToStandardError(
+                    "failed to sweep expired schema copy \(failure) for Project \(resolved.id.rawValue)"
+                )
+            }
+        }
+
         let invocation = try makeInvocation(
             configurationDirectory: configurationDirectory,
             now: Date(),

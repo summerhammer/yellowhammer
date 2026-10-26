@@ -44,6 +44,7 @@ public struct CLIDispatch: Sendable {
     /// The CLI's absolute path, already resolved by the caller from `CLIAdapterDeclaration.executable`.
     public var executable: String
     public var environment: [String: String]
+    public var provenance: DispatchProvenance?
 
     public init(
         route: Route,
@@ -57,7 +58,8 @@ public struct CLIDispatch: Sendable {
         additionalWritableDirectories: [String] = [],
         protectedDirectories: [String] = [],
         executable: String,
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
+        provenance: DispatchProvenance? = nil
     ) {
         self.route = route
         self.pass = pass
@@ -71,6 +73,7 @@ public struct CLIDispatch: Sendable {
         self.protectedDirectories = protectedDirectories
         self.executable = executable
         self.environment = environment
+        self.provenance = provenance
     }
 }
 
@@ -114,6 +117,8 @@ public protocol CLIAdapter: Sendable {
     var adapterVersion: String { get }
     /// Efforts this CLI accepts; a Route with another effort is refused at launch build time.
     var supportedEfforts: [String] { get }
+    /// Returns the structured-output schema JSON string passed to the CLI for this pass.
+    func outputSchema(for pass: RunPass) -> String
     /// Builds the process launch for `dispatch`. Deletes any stale result file in `runDirectory`
     /// first, so an old file can never satisfy the dual-key completion check.
     func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch

@@ -22,6 +22,7 @@ extension CLIProbe {
         // `runDispatch` never throws, so this delete is reached on every path once the item exists.
         let result = await runDispatch(
             pass: .architect,
+            family: .stateContainmentProbe,
             adapter: adapter,
             context: context,
             runDirectory: context.runsDirectory.appendingPathComponent("state-containment"),
@@ -33,12 +34,9 @@ extension CLIProbe {
     }
 
     /// Names no path: the directory to check is written into the script (see ``ReachTargets``).
-    static let stateContainmentInstruction = """
-        This is an automated Yellowhammer probe, not real work. Using your shell tool, run exactly \
-        the command `sh \(reachScriptName)` once, from the current working directory. Do not modify \
-        any files and do nothing else. Respond with outcome `failed` and reason exactly equal to the \
-        single line the command printed.
-        """
+    static var stateContainmentInstruction: String {
+        DiagnosticInstruction.stateContainment
+    }
 
     // MARK: - Classification
 

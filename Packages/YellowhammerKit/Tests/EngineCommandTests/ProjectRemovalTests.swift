@@ -1,3 +1,4 @@
+import Config
 import Domain
 import Engine
 @testable import EngineCommand
@@ -197,6 +198,7 @@ func makeRemoval(
     push: @escaping @Sendable (FeatureBranch, Repo, NightMode) async -> PushOutcome = { _, _, _ in
         .failed(repository: "backend", reason: "push seam not scripted")
     },
+    promptStore: (any DispatchPromptCleaning)? = nil,
     now: Date = removalEpoch
 ) -> ProjectRemoval {
     ProjectRemoval(
@@ -209,6 +211,7 @@ func makeRemoval(
         workspace: workspace,
         git: GitRunner(),
         bindPush: { _, _ in push },
+        promptStore: promptStore,
         now: now
     )
 }

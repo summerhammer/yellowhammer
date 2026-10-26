@@ -15,12 +15,16 @@ extension CLIProbe {
         let runDirectory = context.runsDirectory.appendingPathComponent(variant)
         let dispatch = context.dispatch(
             pass: .worker,
+            family: .processContainmentProbe,
             instruction: Self.containmentInstruction(variant: variant),
             runDirectory: runDirectory,
             timeout: dispatchTimeout,
             resume: nil
         )
-        let runner = CLIRunner(process: AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: pollInterval))
+        let runner = CLIRunner(
+            process: AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: pollInterval),
+            recorder: recorder
+        )
 
         let box = ContainmentBox()
         let dispatchTask = Task {
@@ -121,11 +125,7 @@ extension CLIProbe {
     }
 
     static func containmentInstruction(variant: String) -> String {
-        """
-        This is an automated Yellowhammer probe, not real work. Using your shell tool, run exactly \
-        the command `sh yh-probe-hold.sh \(variant)` in the foreground from the current working \
-        directory, and wait for it to finish. Do nothing else.
-        """
+        DiagnosticInstruction.containment(variant: variant)
     }
 
     private actor ContainmentBox {

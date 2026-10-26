@@ -14,6 +14,7 @@ struct AttemptDetailView: View {
     let asOf: Date
     @Environment(\.openPulseDestination) private var openDestination
     @Environment(\.attemptAbort) private var attemptAbort
+    @State private var showingPrompts = false
 
     var body: some View {
         InspectorPane(
@@ -48,9 +49,23 @@ struct AttemptDetailView: View {
                     label: "Started", value: attempt.startedAt.formatted(date: .abbreviated, time: .shortened)
                 )
                 InspectorFact(label: "Status", value: attempt.status ?? "status unknown")
+                Button("View Prompts") {
+                    showingPrompts = true
+                }
+                .buttonStyle(.link)
+                .accessibilityIdentifier("attempt-detail-view-prompts")
             }
             if attemptAbort.isAborting(project, attempt) || attemptAbort.canAbort(project, attempt) {
                 Section { abortControl }
+            }
+        }
+        .sheet(isPresented: $showingPrompts) {
+            if let attemptID = Int64(attempt.id) {
+                PromptViewerSheet(
+                    projectID: project,
+                    issueID: attempt.cardID,
+                    attemptID: attemptID
+                )
             }
         }
     }

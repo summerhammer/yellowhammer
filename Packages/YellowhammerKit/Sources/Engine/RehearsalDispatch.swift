@@ -74,6 +74,9 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
         )
     }
 
+    /// A rehearsal Night never dispatches an agent CLI, so no prompt is ever written.
+    public var recordsPrompts: Bool { false }
+
     /// Every request answered so far, in order.
     public var answered: [AgentDispatchRequest] { requests.withLock { $0 } }
 

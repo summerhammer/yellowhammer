@@ -10,6 +10,8 @@ struct NightLog: View {
     @Binding var playhead: Date
     /// The entry last chosen in the log. Shown as chosen only while the playhead stays on its time.
     @State private var chosen: (id: NightTimeline.Item.ID, at: Date)?
+    @State private var showingPromptViewer = false
+    @State private var viewingPromptDispatchID: String?
 
     private static let playheadID = "night-log-playhead"
 
@@ -40,19 +42,41 @@ struct NightLog: View {
         .font(.system(.callout, design: .monospaced))
         .background(.surface, in: .rect(cornerRadius: 10))
         .clipShape(.rect(cornerRadius: 10))
+        .sheet(isPresented: $showingPromptViewer) {
+            if let projectID = moment.timeline.account.projectID {
+                PromptViewerSheet(
+                    projectID: projectID,
+                    scope: .night(nightID: moment.timeline.account.id),
+                    selectedItemID: viewingPromptDispatchID
+                )
+            }
+        }
     }
 
     private func row(_ item: NightTimeline.Item, isAfter: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button {
-                chosen = (item.id, item.entry.occurredAt)
-                playhead = item.entry.occurredAt
-            } label: {
-                NightLogRow(item: item, isAfter: isAfter)
+            HStack(alignment: .center, spacing: 0) {
+                Button {
+                    chosen = (item.id, item.entry.occurredAt)
+                    playhead = item.entry.occurredAt
+                } label: {
+                    NightLogRow(item: item, isAfter: isAfter)
+                }
+                .buttonStyle(NightLogRowStyle(isSelected: selection == item.id))
+                .accessibilityAddTraits(selection == item.id ? .isSelected : [])
+                .accessibilityIdentifier("night-account-entry-\(item.entry.id)")
+
+                if item.entry.offersPrompt {
+                    Button("View Prompt") {
+                        viewingPromptDispatchID = item.entry.promptDispatchID
+                        showingPromptViewer = true
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                    .padding(.trailing, 10)
+                    .accessibilityIdentifier("night-account-view-prompt-\(item.entry.id)")
+                }
             }
-            .buttonStyle(NightLogRowStyle(isSelected: selection == item.id))
-            .accessibilityAddTraits(selection == item.id ? .isSelected : [])
-            .accessibilityIdentifier("night-account-entry-\(item.entry.id)")
             // The last pointer of a failed entry's details, once it is the chosen one.
             if selection == item.id, let failedAct = item.entry.failedAct {
                 ActLogPointer(act: failedAct)

@@ -16,7 +16,13 @@ extension NightAccount.Entry {
     /// The entry for one Journal event. `cardNames` maps a Card's Journal id to its display identifier;
     /// a Card it does not name reads as `Card <id>`. `featureNames` maps a Feature Issue's id to its display
     /// identifier; a Feature it does not name reads as the raw issue id.
-    init(record: JournalEventRecord, cardNames: [Int64: String], featureNames: [String: String] = [:]) {
+    init(
+        record: JournalEventRecord,
+        cardNames: [Int64: String],
+        featureNames: [String: String] = [:],
+        promptDispatchID: String? = nil,
+        offersPrompt: Bool = false
+    ) {
         let wording = NightWording(act: record.act, cardNames: cardNames, featureNames: featureNames)
         let words = wording.words(for: record.event)
         self.init(
@@ -26,7 +32,9 @@ extension NightAccount.Entry {
             detail: words.detail,
             isProblem: NightAccount.isProblem(record),
             failedAct: NightAccount.isProblem(record) && !NightAccount.isAuthoringDecision(record.type)
-                ? record.act : nil
+                ? record.act : nil,
+            promptDispatchID: promptDispatchID,
+            offersPrompt: offersPrompt
         )
     }
 }

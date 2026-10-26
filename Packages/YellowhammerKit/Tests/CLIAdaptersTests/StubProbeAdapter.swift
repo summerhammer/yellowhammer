@@ -13,6 +13,10 @@ struct StubProbeAdapter: CLIAdapter {
     let adapterVersion = "test"
     let supportedEfforts = ["low"]
 
+    func outputSchema(for pass: RunPass) -> String {
+        CLIOutputSchema.strict(for: pass)
+    }
+
     func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch {
         try validateRoute(dispatch)
         let resultFile = try prepareRunDirectory(dispatch)

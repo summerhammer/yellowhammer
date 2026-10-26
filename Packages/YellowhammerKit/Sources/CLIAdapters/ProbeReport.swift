@@ -21,6 +21,9 @@ public struct ProbeReport: Equatable, Sendable {
     /// The scratch directory the probe ran in (its Worktree, run directories and hold script). The
     /// Probe never removes this itself — the caller decides whether to keep or clean it up.
     public let workDirectory: URL
+    /// The diagnostic run id the caller handed to ``CLIProbe/run``: every prompt record this probe's
+    /// dispatches wrote carries it, so a Probe Result can open exactly its own prompts.
+    public let runID: String
 
     public init(
         cli: String,
@@ -32,7 +35,8 @@ public struct ProbeReport: Equatable, Sendable {
         sessionResumption: ProbeFinding,
         stateContainment: ProbeFinding,
         reason: String?,
-        workDirectory: URL
+        workDirectory: URL,
+        runID: String
     ) {
         self.cli = cli
         self.adapterVersion = adapterVersion
@@ -44,5 +48,6 @@ public struct ProbeReport: Equatable, Sendable {
         self.stateContainment = stateContainment
         self.reason = reason
         self.workDirectory = workDirectory
+        self.runID = runID
     }
 }

@@ -173,14 +173,11 @@ extension CardRun {
             preconditionFailure("a pass is dispatched only after the Route is resolved and the Attempt recorded")
         }
         try frame.revalidateLease()
-        // A new Attempt's preserved work (OQ60) and an answered question (P11.2) are both context the
-        // frame carries for the whole run: merged onto every pass instruction unless the caller already
-        // carries its own value for either, so neither ever clobbers `wip` or `roundFeedback`.
-        let effectivePayloads = InstructionPayloads(
-            wip: payloads.wip ?? frame.wipContext,
-            answeredQuestion: payloads.answeredQuestion ?? frame.answeredQuestion,
-            bankedReplies: payloads.bankedReplies.isEmpty ? frame.bankedReplies : payloads.bankedReplies,
-            roundFeedback: payloads.roundFeedback
+        let effectivePayloads = Self.effectivePayloads(payloads, frame: frame)
+        let currentRound = try currentRound(of: attempt.id, frame: frame)
+        let recordID = UUID().uuidString.lowercased()
+        let provenance = Self.provenance(
+            recordID: recordID, pass: pass, frame: frame, attemptID: attempt.id, round: currentRound
         )
         let request = AgentDispatchRequest(
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,
@@ -191,9 +188,13 @@ extension CardRun {
                 )
             ),
             worktreePath: frame.worktree.path, resumeSession: resumeSession,
-            additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path)
+            additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path),
+            provenance: provenance
         )
         try frame.revalidateLease()
+        try requestPromptCapture(
+            recordID: recordID, pass: pass, frame: frame, attemptID: attempt.id, round: currentRound
+        )
         let report: AgentDispatchReport
         do {
             report = try await dispatch.dispatch(request)
@@ -210,9 +211,7 @@ extension CardRun {
         try frame.recordDispatchOrigin(report.origin, attemptID: attempt.id, pass: pass, cli: route.cli)
         try frame.record(Self.step(of: pass), detail: Self.describe(report.outcome))
         if case .usageLimited(let hint) = report.outcome {
-            try frame.revalidateLease()
-            try frame.journal.recordUsageLimit(route: route, resetHint: hint, runID: frame.context.act.runID,
-                act: frame.context.act.act, nightID: frame.context.act.night.id)
+            try recordUsageLimit(route: route, resetHint: hint, frame: frame)
             throw PassStop(ending: .usageLimited(beforeWorker: pass == .architect))
         }
         if let ending = AttemptEnding(failedRun: report.outcome) {

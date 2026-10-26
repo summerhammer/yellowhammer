@@ -102,7 +102,12 @@ public struct AgentCLIProcess: Sendable {
     /// Spawns and waits for `launch`, stopping short of the dual-key verdict. A CLI Adapter calls
     /// this directly so it can read and materialize structured output, and resolve which session to
     /// resume next, before ``RunOutcome/classify(end:resultFileAt:pass:)`` runs.
-    public func execute(_ launch: AgentCLILaunch) async throws(AgentCLILaunchError) -> AgentCLIExecution {
+    ///
+    /// `onSpawn` runs once, right after the CLI has spawned and before the wait. Every throw happens
+    /// before the spawn, so a run that threw never called it, and one that called it never throws.
+    public func execute(
+        _ launch: AgentCLILaunch, onSpawn: (@Sendable () -> Void)? = nil
+    ) async throws(AgentCLILaunchError) -> AgentCLIExecution {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: launch.worktreePath, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else {
@@ -136,6 +141,7 @@ public struct AgentCLIProcess: Sendable {
             throw .spawnFailed(errno: errorCode, executable: launch.executable)
         }
 
+        onSpawn?()
         let result = await self.wait(
             pid: pid, timeout: launch.timeout, dispatchedAt: dispatchedAt, promptWatch: promptWatch
         )

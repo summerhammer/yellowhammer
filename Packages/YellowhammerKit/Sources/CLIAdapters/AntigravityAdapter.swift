@@ -42,6 +42,10 @@ public struct AntigravityAdapter: CLIAdapter {
 
     public init() {}
 
+    public func outputSchema(for pass: RunPass) -> String {
+        CLIOutputSchema.gemini(for: pass)
+    }
+
     public func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch {
         try validateRoute(dispatch)
         let resultFile = try prepareRunDirectory(dispatch)
@@ -51,7 +55,7 @@ public struct AntigravityAdapter: CLIAdapter {
         var arguments = [
             "-p", dispatch.instruction,
             "--output-format", "json",
-            "--json-schema", CLIOutputSchema.gemini(for: dispatch.pass),
+            "--json-schema", outputSchema(for: dispatch.pass),
             "--model", dispatch.route.model,
             "--effort", dispatch.route.effort
         ]
