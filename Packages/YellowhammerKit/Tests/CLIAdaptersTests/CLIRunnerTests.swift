@@ -135,7 +135,9 @@ struct CLIRunnerTests {
         let runner = CLIRunner(recorder: recorder)
 
         let running = Task { try await runner.run(dispatch, adapter: adapter) }
-        let deadline = ContinuousClock.now + .seconds(4)
+        // The stub blocks until the gate exists, so a long wait cannot let the run return first. On a
+        // loaded CI runner the spawn alone has taken more than 4 s.
+        let deadline = ContinuousClock.now + .seconds(60)
         while recorder.launches.isEmpty, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(20))
         }
