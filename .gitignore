@@ -71,3 +71,5 @@ default.profraw
 
 # Tool state written when an agent sandbox points HOME at the repo (e.g. gh device-id)
 .local/
+
+.playwright-mcp/
