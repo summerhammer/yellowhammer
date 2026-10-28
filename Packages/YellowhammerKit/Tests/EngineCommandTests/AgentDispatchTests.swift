@@ -365,7 +365,9 @@ struct ProjectInstructionsDispatchTests {
             Issue.record("expected a saved revision")
             return
         }
-        await #expect(throws: AgentDispatchRefusal.self) { try await seam.dispatch(provenanced("rec-2", resumeSession: "same-worker")) }
+        await #expect(throws: AgentDispatchRefusal.self) {
+            try await seam.dispatch(provenanced("rec-2", resumeSession: "same-worker"))
+        }
 
         let records = recorder.captured
         #expect(records.map(\.projectInstructions) == [.revision(first.id), .revision(second.id)])

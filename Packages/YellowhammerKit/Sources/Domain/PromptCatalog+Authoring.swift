@@ -1,5 +1,7 @@
 import Foundation
 
+// These builders are declarative prompt fixtures; keep each instruction and its placeholder list together.
+// swiftlint:disable function_body_length
 extension PromptCatalog {
     /// Builds the entry through the real renderer, composed with the Project's instructions when given.
     static func selectionEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
@@ -308,3 +310,4 @@ extension PromptCatalog {
         )
     }
 }
+// swiftlint:enable function_body_length
