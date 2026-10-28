@@ -89,7 +89,7 @@ public struct CLIRunner: Sendable {
             pass: dispatch.pass,
             dispatchedAt: now(),
             defaultVersion: provenance.family.defaultVersion,
-            projectInstructions: .absent,
+            projectInstructions: dispatch.projectInstructions,
             session: dispatch.resume != nil ? .resumed : .new,
             instruction: dispatch.instruction,
             outputSchema: adapter.outputSchema(for: dispatch.pass),

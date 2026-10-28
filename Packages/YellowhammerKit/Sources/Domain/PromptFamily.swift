@@ -74,7 +74,7 @@ public enum DispatchSession: String, CaseIterable, Codable, Equatable, Sendable 
 public enum ProjectInstructionsUse: Codable, Equatable, Sendable {
     case absent
     case revision(String)
-    /// A revision is saved but could not be read completely, so the dispatch ran without it.
+    /// A revision is saved but could not be read completely, so the dispatch was refused.
     case unavailable(cause: String)
 }
 

@@ -45,6 +45,9 @@ public struct CLIDispatch: Sendable {
     public var executable: String
     public var environment: [String: String]
     public var provenance: DispatchProvenance?
+    /// The Project instructions revision composed into `instruction`, or their absence; recorded with the
+    /// dispatch's prompt record.
+    public var projectInstructions: ProjectInstructionsUse
 
     public init(
         route: Route,
@@ -59,7 +62,8 @@ public struct CLIDispatch: Sendable {
         protectedDirectories: [String] = [],
         executable: String,
         environment: [String: String] = [:],
-        provenance: DispatchProvenance? = nil
+        provenance: DispatchProvenance? = nil,
+        projectInstructions: ProjectInstructionsUse = .absent
     ) {
         self.route = route
         self.pass = pass
@@ -74,6 +78,7 @@ public struct CLIDispatch: Sendable {
         self.executable = executable
         self.environment = environment
         self.provenance = provenance
+        self.projectInstructions = projectInstructions
     }
 }
 

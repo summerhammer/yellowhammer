@@ -47,19 +47,26 @@ public struct PromptCatalogEntry: Equatable, Sendable, Identifiable {
 /// guaranteeing that the catalog never drifts from the engine's shipped prompt text.
 public enum PromptCatalog {
     /// All prompt catalog entries, production families first, then diagnostic families.
-    public static let entries: [PromptCatalogEntry] = [
-        selectionEntry,
-        breakdownEntry,
-        architectEntry,
-        workerEntry,
-        reviewerEntry,
-        verifierEntry,
-        unattendedProbeEntry,
-        sessionResumptionProbeEntry,
-        routePreflightEntry,
-        processContainmentProbeEntry,
-        stateContainmentProbeEntry
-    ]
+    public static let entries: [PromptCatalogEntry] = entries(projectInstructions: nil)
+
+    /// The same entries, built through the same real renderers, with the six production families composed
+    /// with `projectInstructions` and the diagnostic families unchanged. Placeholders stay those of the
+    /// shipped templates, so angle brackets in the Operator's text are never labelled.
+    public static func entries(projectInstructions: String?) -> [PromptCatalogEntry] {
+        [
+            selectionEntry(projectInstructions),
+            breakdownEntry(projectInstructions),
+            architectEntry(projectInstructions),
+            workerEntry(projectInstructions),
+            reviewerEntry(projectInstructions),
+            verifierEntry(projectInstructions),
+            unattendedProbeEntry,
+            sessionResumptionProbeEntry,
+            routePreflightEntry,
+            processContainmentProbeEntry,
+            stateContainmentProbeEntry
+        ]
+    }
 
     /// Finds the catalog entry for a prompt family.
     public static func entry(for family: PromptFamily) -> PromptCatalogEntry? {
@@ -69,8 +76,10 @@ public enum PromptCatalog {
     static func makeVariant(
         name: String,
         template: String,
+        shippedTemplate: String? = nil,
         candidatePlaceholders: [String]
     ) -> PromptTemplateVariant {
+        let source = shippedTemplate ?? template
         var seen = Set<String>()
         var uniqueCandidates: [String] = []
         for candidate in candidatePlaceholders where !seen.contains(candidate) {
@@ -79,10 +88,10 @@ public enum PromptCatalog {
         }
 
         let ordered = uniqueCandidates
-            .filter { template.contains($0) }
+            .filter { source.contains($0) }
             .sorted {
-                let r1 = template.range(of: $0)!.lowerBound
-                let r2 = template.range(of: $1)!.lowerBound
+                let r1 = source.range(of: $0)!.lowerBound
+                let r2 = source.range(of: $1)!.lowerBound
                 return r1 < r2
             }
 

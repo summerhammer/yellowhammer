@@ -5,6 +5,12 @@ extension Instruction {
     /// are omitted entirely when their payload is nil or empty. Uses `\n` newlines only and ends with
     /// a single trailing newline; rendering the same instruction twice yields identical output.
     public func render() -> String {
+        render(projectInstructions: nil)
+    }
+
+    /// The same rendering with the Project's instructions composed in just before `## Boundaries`. A nil or
+    /// blank argument yields exactly ``render()``.
+    public func render(projectInstructions: String?) -> String {
         var sections: [String] = [
             header,
             cardSection,
@@ -21,6 +27,7 @@ extension Instruction {
         if let previousRoundsSection { sections.append(previousRoundsSection) }
         if let timeLimitSection { sections.append(timeLimitSection) }
         sections.append(PassBoundaries.section)
+        sections = ProjectInstructionsSection.insertingBeforeBoundaries(projectInstructions, into: sections)
         sections.append(resultContractSection)
         return sections.joined(separator: "\n\n") + "\n"
     }

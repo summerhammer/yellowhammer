@@ -99,7 +99,8 @@ struct CLIRunnerTests {
         let provenance = DispatchProvenance(
             recordID: "rec-order-test", family: .worker, projectID: "proj-1", runID: "run-1", nightID: 1
         )
-        let dispatch = fixture.dispatch(cli: "fake-cli", instruction: "exact instruction text", provenance: provenance)
+        var dispatch = fixture.dispatch(cli: "fake-cli", instruction: "exact instruction text", provenance: provenance)
+        dispatch.projectInstructions = .revision("saved-revision")
 
         let adapter = SpyAdapter(recorder: recorder)
         let runner = CLIRunner(recorder: recorder)
@@ -108,6 +109,7 @@ struct CLIRunnerTests {
         let captured = try #require(adapter.capturedDuringLaunch)
         #expect(captured.id == "rec-order-test")
         #expect(captured.instruction == "exact instruction text")
+        #expect(captured.projectInstructions == .revision("saved-revision"))
         #expect(captured.outputSchema == "fake-schema-for-worker")
         #expect(captured.launch == .pending)
         #expect(adapter.launchesDuringLaunchCount == 0)

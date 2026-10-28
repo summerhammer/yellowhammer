@@ -79,10 +79,20 @@ public struct VerificationInstruction: Equatable, Sendable {
 
     /// Deterministic Markdown in a fixed section order, `\n` newlines, one trailing newline.
     public func render() -> String {
-        [
-            header, featureSection, rulesSection, clausesSection, repositoriesSection, PassBoundaries.section,
-            resultContractSection
-        ].joined(separator: "\n\n") + "\n"
+        render(projectInstructions: nil)
+    }
+
+    /// The same rendering with the Project's instructions composed in just before `## Boundaries`. A nil or
+    /// blank argument yields exactly ``render()``.
+    public func render(projectInstructions: String?) -> String {
+        let sections = ProjectInstructionsSection.insertingBeforeBoundaries(
+            projectInstructions,
+            into: [
+                header, featureSection, rulesSection, clausesSection, repositoriesSection,
+                PassBoundaries.section
+            ]
+        )
+        return (sections + [resultContractSection]).joined(separator: "\n\n") + "\n"
     }
 
     private var header: String { "# Verification pass — land Act" }
