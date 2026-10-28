@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.30.0](https://github.com/summerhammer/yellowhammer/compare/v0.29.0...v0.30.0) (2026-10-28)
+
+
+### Features
+
+* **app:** Edit Project instructions: an append-only Project instructions slot composed into the six production prompts ([#709](https://github.com/summerhammer/yellowhammer/issues/709)) ([9694b46](https://github.com/summerhammer/yellowhammer/commit/9694b46438befc66aeeb79caf35881b4bcfb6ee2))
+* **engine:** hold landing for answers and re-readies ([7b4d981](https://github.com/summerhammer/yellowhammer/commit/7b4d981ba496639b935d169916c0b8eebbb887c0)), closes [#679](https://github.com/summerhammer/yellowhammer/issues/679)
+
+
+### Bug Fixes
+
+* **engine:** name a returned Feature when build and land idle on its landed Cycle ([#695](https://github.com/summerhammer/yellowhammer/issues/695)) ([8d5c80c](https://github.com/summerhammer/yellowhammer/commit/8d5c80cb9f3f64e6abe955e3867c360d57b017e7))
+
 ## [0.29.0](https://github.com/summerhammer/yellowhammer/compare/v0.28.0...v0.29.0) (2026-10-26)
 
 
