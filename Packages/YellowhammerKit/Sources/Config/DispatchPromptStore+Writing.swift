@@ -203,7 +203,7 @@ extension DispatchPromptStore {
         }
     }
 
-    private func ensureSingleRestrictedDirectory(at dir: URL) -> Result<Void, RestrictionError> {
+    func ensureSingleRestrictedDirectory(at dir: URL) -> Result<Void, RestrictionError> {
         let path = dir.path(percentEncoded: false)
         var statBuf = stat()
         if lstat(path, &statBuf) != 0 {

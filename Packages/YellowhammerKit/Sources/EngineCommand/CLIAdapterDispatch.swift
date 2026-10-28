@@ -29,6 +29,9 @@ struct CLIAdapterDispatch: AgentDispatch {
     let protectedDirectories: [String]
     let recorder: (any DispatchPromptRecording)?
     let now: @Sendable () -> Date
+    /// The Project's saved instructions, read afresh on every dispatch of a production pass. Nil means
+    /// there are none. Never given to a diagnostic probe.
+    let projectInstructions: ProjectInstructionsStore?
 
     init(
         runsDirectory: URL,
@@ -40,8 +43,10 @@ struct CLIAdapterDispatch: AgentDispatch {
         runner: CLIRunner? = nil,
         protectedDirectories: [String] = [],
         recorder: (any DispatchPromptRecording)? = nil,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        projectInstructions: ProjectInstructionsStore? = nil
     ) {
+        self.projectInstructions = projectInstructions
         self.runsDirectory = runsDirectory
         self.timeout = timeout
         self.declaredExecutables = declaredExecutables
@@ -72,11 +77,44 @@ struct CLIAdapterDispatch: AgentDispatch {
         configurationDirectory.appending(components: "runs", projectID.rawValue, directoryHint: .isDirectory)
     }
 
+    /// The Project instructions one dispatch uses, resolved once and never cached, so a save made during a
+    /// pass reaches the next dispatch, a resumed worker Round included.
+    struct ResolvedInstructions: Equatable {
+        /// The text composed into the instruction; nil when none is.
+        let text: String?
+        let use: ProjectInstructionsUse
+        /// Set when saved instructions exist but cannot be read completely.
+        let unavailableCause: String?
+
+        static let none = ResolvedInstructions(text: nil, use: .absent, unavailableCause: nil)
+    }
+
+    func resolveProjectInstructions(for request: AgentDispatchRequest) -> ResolvedInstructions {
+        guard let projectInstructions, PromptFamily(pass: request.pass)?.acceptsProjectInstructions == true else {
+            return .none
+        }
+        switch projectInstructions.read() {
+        case .absent:
+            return .none
+        case .saved(let revision):
+            return ResolvedInstructions(text: revision.text, use: .revision(revision.id), unavailableCause: nil)
+        case .unavailable(let cause):
+            return ResolvedInstructions(text: nil, use: .unavailable(cause: cause), unavailableCause: cause)
+        }
+    }
+
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
+        let resolved = resolveProjectInstructions(for: request)
+        if let cause = resolved.unavailableCause {
+            let reason = "the Project's saved instructions could not be used: \(cause). Reset or re-save them "
+                + "in Settings → Configuration → Prompts"
+            recordRefusalIfNeeded(request: request, resolved: resolved, reason: reason, outputSchema: nil)
+            throw AgentDispatchRefusal(reason: reason)
+        }
         let cli = request.route.cli
         guard let adapter = CLIAdapterRegistry.adapter(named: cli) else {
             let reason = "no CLI Adapter for `\(cli)`"
-            recordRefusalIfNeeded(request: request, reason: reason, outputSchema: nil)
+            recordRefusalIfNeeded(request: request, resolved: resolved, reason: reason, outputSchema: nil)
             throw AgentDispatchRefusal(reason: reason)
         }
         guard let executable = ProbeExecutable.resolve(
@@ -85,11 +123,12 @@ struct CLIAdapterDispatch: AgentDispatch {
             let reason = "no executable found for `\(cli)`: declare `executable` under `[cli.\(cli)]` in "
                 + "config.toml, or add `\(cli)` to PATH"
             recordRefusalIfNeeded(
-                request: request, reason: reason, outputSchema: adapter.outputSchema(for: request.pass)
+                request: request, resolved: resolved, reason: reason,
+                outputSchema: adapter.outputSchema(for: request.pass)
             )
             throw AgentDispatchRefusal(reason: reason)
         }
-        let dispatch = makeDispatch(for: request, executable: executable)
+        let dispatch = makeDispatch(for: request, executable: executable, resolved: resolved)
         do {
             let report = try await runner.run(dispatch, adapter: adapter)
             return AgentDispatchReport(
@@ -102,7 +141,7 @@ struct CLIAdapterDispatch: AgentDispatch {
     }
 
     private func recordRefusalIfNeeded(
-        request: AgentDispatchRequest, reason: String, outputSchema: String?
+        request: AgentDispatchRequest, resolved: ResolvedInstructions, reason: String, outputSchema: String?
     ) {
         guard let provenance = request.provenance, let recorder else { return }
         let record = DispatchPromptRecord(
@@ -111,9 +150,9 @@ struct CLIAdapterDispatch: AgentDispatch {
             pass: request.pass,
             dispatchedAt: now(),
             defaultVersion: provenance.family.defaultVersion,
-            projectInstructions: .absent,
+            projectInstructions: resolved.use,
             session: request.resumeSession != nil ? .resumed : .new,
-            instruction: request.instruction.render(),
+            instruction: request.instruction.render(projectInstructions: resolved.text),
             outputSchema: outputSchema,
             launch: .notLaunched(cause: reason)
         )
@@ -143,12 +182,14 @@ struct CLIAdapterDispatch: AgentDispatch {
     /// The request as a ``CLIDispatch``. The rendered instruction names no result file: the adapter
     /// persists the structured response as `result.json` in the run directory, for validation, without
     /// the model being told where.
-    func makeDispatch(for request: AgentDispatchRequest, executable: String) -> CLIDispatch {
+    func makeDispatch(
+        for request: AgentDispatchRequest, executable: String, resolved: ResolvedInstructions = .none
+    ) -> CLIDispatch {
         let directory = runDirectory(for: request)
         return CLIDispatch(
             route: request.route,
             pass: request.pass,
-            instruction: request.instruction.render(),
+            instruction: request.instruction.render(projectInstructions: resolved.text),
             worktreePath: request.worktreePath,
             runDirectory: directory,
             timeout: timeout,
@@ -158,7 +199,8 @@ struct CLIAdapterDispatch: AgentDispatch {
             protectedDirectories: protectedDirectories,
             executable: executable,
             environment: environment,
-            provenance: request.provenance
+            provenance: request.provenance,
+            projectInstructions: resolved.use
         )
     }
 }

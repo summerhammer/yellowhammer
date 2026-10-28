@@ -31,6 +31,8 @@ struct SettingsWindow: View {
     @State private var linearWorkspaces = LinearWorkspacesModel()
     @State private var codeHostingConnections = CodeHostingConnectionsModel()
     @State private var highlightedBoardConnection: String?
+    /// Holds a move away from a Project whose instructions draft is unsaved until the Operator chose.
+    @State private var navigationGuard = ProjectInstructionsGuard()
     /// The last request token this window has applied. A new window starts at zero, so it applies the
     /// request that opened it.
     @State private var appliedRequest = 0
@@ -42,8 +44,10 @@ struct SettingsWindow: View {
             get: { history.current },
             set: { section in
                 guard let section, section != history.current else { return }
-                highlightedBoardConnection = nil
-                history.visit(section)
+                navigationGuard.navigate {
+                    highlightedBoardConnection = nil
+                    history.visit(section)
+                }
             }
         )
     }
@@ -56,7 +60,7 @@ struct SettingsWindow: View {
                 selection: selection,
                 onProjectAdded: { id in
                     readConfiguration()
-                    history.visit(.project(id))
+                    navigationGuard.navigate { history.visit(.project(id)) }
                 }
             )
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
@@ -71,19 +75,40 @@ struct SettingsWindow: View {
         .toolbar(removing: .title)
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
-                Button { history.back() } label: { Image(systemName: "chevron.backward") }
+                Button {
+                    navigationGuard.navigate { history.back() }
+                } label: {
+                    Image(systemName: "chevron.backward")
+                }
                     .help("Back")
                     .disabled(!history.canGoBack)
                     .accessibilityIdentifier("settings-back")
-                Button { history.forward() } label: { Image(systemName: "chevron.forward") }
+                Button {
+                    navigationGuard.navigate { history.forward() }
+                } label: {
+                    Image(systemName: "chevron.forward")
+                }
                     .help("Forward")
                     .disabled(!history.canGoForward)
                     .accessibilityIdentifier("settings-forward")
             }
         }
-        .environment(\.showSettingsSection) {
-            highlightedBoardConnection = nil
-            history.visit($0)
+        .environment(\.showSettingsSection) { section in
+            navigationGuard.navigate {
+                highlightedBoardConnection = nil
+                history.visit(section)
+            }
+        }
+        .environment(navigationGuard)
+        .confirmationDialog(
+            "Save the Project instructions you edited?", isPresented: $navigationGuard.isConfirming,
+            titleVisibility: .visible
+        ) {
+            Button("Save") { navigationGuard.saveAndContinue() }
+            Button("Discard", role: .destructive) { navigationGuard.discardAndContinue() }
+            Button("Cancel", role: .cancel) { navigationGuard.cancel() }
+        } message: {
+            Text("Leaving this Project would lose them. They are not part of its configuration file.")
         }
         .accessibilityIdentifier("settings-window")
         .onAppear {
@@ -173,15 +198,15 @@ struct SettingsWindow: View {
         guard request.token != appliedRequest else { return }
         appliedRequest = request.token
         let previousSection = history.current
-        highlightedBoardConnection = request.boardConnection ?? resolveBoardConnection(for: request.project)
-        if let section = request.section {
-            history.visit(section)
-        } else if let project = request.project {
-            history.visit(.project(project))
-        }
-        // Bringing forward an already selected pane does not cause another pane appearance.
-        if previousSection == .codeHosting, history.current == .codeHosting {
-            codeHostingConnections.requestRefresh()
+        let boardConnection = request.boardConnection ?? resolveBoardConnection(for: request.project)
+        let target = request.section ?? request.project.map(SettingsSection.project)
+        navigationGuard.navigate {
+            highlightedBoardConnection = boardConnection
+            if let target { history.visit(target) }
+            // Bringing forward an already selected pane does not cause another pane appearance.
+            if previousSection == .codeHosting, history.current == .codeHosting {
+                codeHostingConnections.requestRefresh()
+            }
         }
     }
 

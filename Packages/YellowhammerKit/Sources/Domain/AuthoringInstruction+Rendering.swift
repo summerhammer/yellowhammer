@@ -3,6 +3,12 @@ extension AuthoringInstruction {
     /// payload is absent or empty are omitted entirely. Uses `\n` newlines only and ends with a single
     /// trailing newline; rendering the same instruction twice yields identical output.
     public func render() -> String {
+        render(projectInstructions: nil)
+    }
+
+    /// The same rendering with the Project's instructions composed in just before `## Boundaries`. A nil or
+    /// blank argument yields exactly ``render()``.
+    public func render(projectInstructions: String?) -> String {
         var sections: [String] = [header, specificationSection, repositoriesSection, authoringInvariantSection]
         if pass != .breakdown {
             sections.append(repoDependenciesSection)
@@ -16,6 +22,7 @@ extension AuthoringInstruction {
         if let descriptionBudgetSection { sections.append(descriptionBudgetSection) }
         if let earlierRejectionsSection { sections.append(earlierRejectionsSection) }
         sections.append(PassBoundaries.section)
+        sections = ProjectInstructionsSection.insertingBeforeBoundaries(projectInstructions, into: sections)
         sections.append(resultContractSection)
         return sections.joined(separator: "\n\n") + "\n"
     }

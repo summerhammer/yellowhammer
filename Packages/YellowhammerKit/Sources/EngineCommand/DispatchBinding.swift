@@ -35,7 +35,11 @@ enum DispatchBinding {
                 protectedDirectories: CLIAdapterDispatch.protectedDirectories(
                     configurationDirectory: configurationDirectory
                 ),
-                recorder: recorder
+                recorder: recorder,
+                projectInstructions: ProjectInstructionsStore(
+                    rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory),
+                    projectID: project.id
+                )
             )
         }
     }

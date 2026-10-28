@@ -1,7 +1,10 @@
 import Foundation
 
+// These builders are declarative prompt fixtures; keep each instruction and its placeholder list together.
+// swiftlint:disable function_body_length
 extension PromptCatalog {
-    static var selectionEntry: PromptCatalogEntry {
+    /// Builds the entry through the real renderer, composed with the Project's instructions when given.
+    static func selectionEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
         let repo = Repo(
             name: "⟨repo name⟩",
             path: "⟨repo path⟩",
@@ -109,7 +112,12 @@ extension PromptCatalog {
             "⟨refused feature⟩",
             "⟨earlier rejection⟩"
         ]
-        let variant = makeVariant(name: "Default", template: instruction.render(), candidatePlaceholders: candidates)
+        let variant = makeVariant(
+            name: "Default",
+            template: instruction.render(projectInstructions: projectInstructions),
+            shippedTemplate: instruction.render(),
+            candidatePlaceholders: candidates
+        )
         return PromptCatalogEntry(
             family: .selection,
             title: "Selection",
@@ -121,7 +129,8 @@ extension PromptCatalog {
         )
     }
 
-    static var breakdownEntry: PromptCatalogEntry {
+    /// Builds the entry through the real renderer, composed with the Project's instructions when given.
+    static func breakdownEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
         let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
         let specRepo = Repo(name: "⟨specification repository⟩", path: "⟨specification path⟩", role: .spec)
         let instruction = AuthoringInstruction(
@@ -193,7 +202,12 @@ extension PromptCatalog {
             "88888",
             "⟨earlier rejection⟩"
         ]
-        let variant = makeVariant(name: "Default", template: instruction.render(), candidatePlaceholders: candidates)
+        let variant = makeVariant(
+            name: "Default",
+            template: instruction.render(projectInstructions: projectInstructions),
+            shippedTemplate: instruction.render(),
+            candidatePlaceholders: candidates
+        )
         return PromptCatalogEntry(
             family: .breakdown,
             title: "Breakdown",
@@ -204,7 +218,8 @@ extension PromptCatalog {
         )
     }
 
-    static var architectEntry: PromptCatalogEntry {
+    /// Builds the entry through the real renderer, composed with the Project's instructions when given.
+    static func architectEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
         let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
         let instruction = Instruction(
             pass: .architect,
@@ -279,7 +294,12 @@ extension PromptCatalog {
             "⟨earlier card title⟩",
             "999"
         ]
-        let variant = makeVariant(name: "Default", template: instruction.render(), candidatePlaceholders: candidates)
+        let variant = makeVariant(
+            name: "Default",
+            template: instruction.render(projectInstructions: projectInstructions),
+            shippedTemplate: instruction.render(),
+            candidatePlaceholders: candidates
+        )
         return PromptCatalogEntry(
             family: .architect,
             title: "Architect",
@@ -290,3 +310,4 @@ extension PromptCatalog {
         )
     }
 }
+// swiftlint:enable function_body_length

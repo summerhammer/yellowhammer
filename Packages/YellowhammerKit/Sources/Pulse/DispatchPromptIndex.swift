@@ -172,6 +172,8 @@ public struct DispatchPromptItem: Equatable, Sendable, Identifiable {
             "Project instructions: none"
         case .revision(let revision):
             "Project instructions: revision \(revision)"
+        case .unavailable(let cause):
+            "Project instructions: unavailable — \(cause)"
         }
     }
 }

@@ -86,7 +86,7 @@ extension DispatchPromptStore {
         return .available(record)
     }
 
-    private func verifyFilePermissions(statBuf: stat, path: String, kind: String) -> Result<Void, RestrictionError> {
+    func verifyFilePermissions(statBuf: stat, path: String, kind: String) -> Result<Void, RestrictionError> {
         if (statBuf.st_mode & S_IFMT) == S_IFLNK {
             return .failure(RestrictionError(message: "\(kind) is a symlink"))
         }
@@ -197,7 +197,7 @@ extension DispatchPromptStore {
 
     /// Verifies that directories leading to `scopeDir` exist, are owned by `currentUser`,
     /// and have no group or other bits set. Never modifies files or directories.
-    private func verifyDirectoryHierarchyOnRead(scopeDir: URL) -> Result<Void, RestrictionError> {
+    func verifyDirectoryHierarchyOnRead(scopeDir: URL) -> Result<Void, RestrictionError> {
         var current = scopeDir.standardizedFileURL
         var dirs: [URL] = []
         let rootPath = rootDirectory.standardizedFileURL.path(percentEncoded: false)

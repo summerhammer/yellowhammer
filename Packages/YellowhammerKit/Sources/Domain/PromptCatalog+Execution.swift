@@ -1,7 +1,10 @@
 import Foundation
 
+// These builders are declarative prompt fixtures; keep each instruction and its placeholder list together.
+// swiftlint:disable function_body_length
 extension PromptCatalog {
-    static var workerEntry: PromptCatalogEntry {
+    /// Builds the entry through the real renderer, composed with the Project's instructions when given.
+    static func workerEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
         let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
         let makeBase = { (payloads: InstructionPayloads) in
             Instruction(
@@ -87,7 +90,8 @@ extension PromptCatalog {
         ]
         let newSessionVariant = makeVariant(
             name: "New session",
-            template: newSessionInstruction.render(),
+            template: newSessionInstruction.render(projectInstructions: projectInstructions),
+            shippedTemplate: newSessionInstruction.render(),
             candidatePlaceholders: newSessionCandidates
         )
 
@@ -161,7 +165,8 @@ extension PromptCatalog {
         ]
         let resumedVariant = makeVariant(
             name: "Resumed round",
-            template: resumedInstruction.render(),
+            template: resumedInstruction.render(projectInstructions: projectInstructions),
+            shippedTemplate: resumedInstruction.render(),
             candidatePlaceholders: resumedCandidates
         )
 
@@ -176,7 +181,8 @@ extension PromptCatalog {
         )
     }
 
-    static var reviewerEntry: PromptCatalogEntry {
+    /// Builds the entry through the real renderer, composed with the Project's instructions when given.
+    static func reviewerEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
         let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
         let makeInstruction = { (lens: Lens) in
             Instruction(
@@ -273,12 +279,14 @@ extension PromptCatalog {
 
         let reviewVariant = makeVariant(
             name: "Review lens",
-            template: makeInstruction(.review).render(),
+            template: makeInstruction(.review).render(projectInstructions: projectInstructions),
+            shippedTemplate: makeInstruction(.review).render(),
             candidatePlaceholders: candidates
         )
         let checkVariant = makeVariant(
             name: "Check lens",
-            template: makeInstruction(.check).render(),
+            template: makeInstruction(.check).render(projectInstructions: projectInstructions),
+            shippedTemplate: makeInstruction(.check).render(),
             candidatePlaceholders: candidates
         )
 
@@ -292,7 +300,8 @@ extension PromptCatalog {
         )
     }
 
-    static var verifierEntry: PromptCatalogEntry {
+    /// Builds the entry through the real renderer, composed with the Project's instructions when given.
+    static func verifierEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
         let specRepo = Repo(name: "⟨specification repository⟩", path: "⟨specification path⟩", role: .spec)
         let instruction = VerificationInstruction(
             route: Route(cli: "⟨cli⟩", model: "⟨model⟩", effort: "⟨effort⟩")!,
@@ -337,7 +346,12 @@ extension PromptCatalog {
             "⟨judged commit⟩",
             "0"
         ]
-        let variant = makeVariant(name: "Default", template: instruction.render(), candidatePlaceholders: candidates)
+        let variant = makeVariant(
+            name: "Default",
+            template: instruction.render(projectInstructions: projectInstructions),
+            shippedTemplate: instruction.render(),
+            candidatePlaceholders: candidates
+        )
         return PromptCatalogEntry(
             family: .verifier,
             title: "Verifier",
@@ -349,3 +363,4 @@ extension PromptCatalog {
         )
     }
 }
+// swiftlint:enable function_body_length

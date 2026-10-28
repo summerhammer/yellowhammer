@@ -18,10 +18,12 @@ struct ProjectSettingsPane: View {
     var workspaceLabel: (String) -> String = { $0 }
 
     @State private var configuration: ProjectConfigurationModel
+    @State private var instructions: ProjectInstructionsModel
     @State private var recalibrate: RecalibrateModel
     @State private var removal: ProjectRemovalModel
     @State private var tab = ProjectSettingsTab.configuration
     @State private var isRemoving = false
+    @Environment(ProjectInstructionsGuard.self) private var navigationGuard: ProjectInstructionsGuard?
 
     init(
         project: ProjectID, name: String, onSaved: @escaping () -> Void = {},
@@ -34,6 +36,7 @@ struct ProjectSettingsPane: View {
         self.onRemoved = onRemoved
         self.workspaceLabel = workspaceLabel
         _configuration = State(initialValue: ProjectConfigurationModel(project: project))
+        _instructions = State(initialValue: ProjectInstructionsModel(project: project))
         _recalibrate = State(initialValue: RecalibrateModel(project: project))
         _removal = State(initialValue: ProjectRemovalModel(projectID: project))
     }
@@ -55,7 +58,10 @@ struct ProjectSettingsPane: View {
             .padding([.horizontal, .top], 20)
             switch tab {
             case .configuration:
-                ProjectConfigurationView(model: configuration, onSaved: onSaved, workspaceLabel: workspaceLabel)
+                ProjectConfigurationView(
+                    model: configuration, instructions: instructions, projectName: name, onSaved: onSaved,
+                    workspaceLabel: workspaceLabel
+                )
             case .recalibrate:
                 RecalibrateView(model: recalibrate)
             }
@@ -65,6 +71,13 @@ struct ProjectSettingsPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-project-pane-\(project.rawValue)")
+        // The window asks this pane before leaving it with an unsaved instructions draft.
+        .onAppear { navigationGuard?.register(instructions) }
+        .onDisappear { navigationGuard?.unregister(instructions) }
+        // A refused save from the leave-this-Project prompt is shown by the editor, which sits under Configuration.
+        .onChange(of: instructions.hasProblem) { _, hasProblem in
+            if hasProblem { tab = .configuration }
+        }
         // Removal reads the configuration again only once the sheet has closed: if Settings navigated away
         // while the sheet was still presented, SwiftUI would orphan it.
         .sheet(

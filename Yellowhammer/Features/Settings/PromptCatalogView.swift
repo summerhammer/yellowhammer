@@ -8,6 +8,9 @@ struct PromptCatalogBlock: View {
     let title: String
     let entries: [PromptCatalogEntry]
     let showRecordedDiagnosticDispatches: Bool
+    /// The Project's instructions editor, shown above the catalog; nil for General, whose Prompts are read-only.
+    let projectInstructions: ProjectInstructionsModel?
+    let projectName: String
     @State private var selectedEntry: PromptCatalogEntry?
     @State private var machineRuns: [DispatchPromptIndex.MachineRun] = []
     @State private var selectedMachineRun: DispatchPromptIndex.MachineRun?
@@ -15,14 +18,27 @@ struct PromptCatalogBlock: View {
     init(
         title: String = "Prompts",
         entries: [PromptCatalogEntry] = PromptCatalog.entries,
-        showRecordedDiagnosticDispatches: Bool = false
+        showRecordedDiagnosticDispatches: Bool = false,
+        projectInstructions: ProjectInstructionsModel? = nil,
+        projectName: String = ""
     ) {
         self.title = title
         self.entries = entries
         self.showRecordedDiagnosticDispatches = showRecordedDiagnosticDispatches
+        self.projectInstructions = projectInstructions
+        self.projectName = projectName
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if let projectInstructions {
+                ProjectInstructionsEditor(model: projectInstructions, name: projectName)
+            }
+            catalog
+        }
+    }
+
+    private var catalog: some View {
         WizardBlock(
             title: title,
             footer: "Shipped defaults Yellowhammer uses to dispatch agent CLIs. Tap a prompt to inspect its template."

@@ -79,10 +79,16 @@ public enum AgentInstruction: Equatable, Sendable {
     }
 
     public func render() -> String {
+        render(projectInstructions: nil)
+    }
+
+    /// The pass's prompt with the Project's instructions composed in just before `## Boundaries`. A nil or
+    /// blank argument yields exactly ``render()``.
+    public func render(projectInstructions: String?) -> String {
         switch self {
-        case .card(let instruction): instruction.render()
-        case .authoring(let instruction): instruction.render()
-        case .verification(let instruction): instruction.render()
+        case .card(let instruction): instruction.render(projectInstructions: projectInstructions)
+        case .authoring(let instruction): instruction.render(projectInstructions: projectInstructions)
+        case .verification(let instruction): instruction.render(projectInstructions: projectInstructions)
         }
     }
 }
