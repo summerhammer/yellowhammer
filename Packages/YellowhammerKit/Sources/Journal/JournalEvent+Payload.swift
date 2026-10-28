@@ -520,6 +520,7 @@ extension JournalEvent {
         case .refusalPromotedToStandingItem: refusalPromotedToStandingItemPayload
         case .cardPromotedToStandingItem: cardPromotedToStandingItemPayload
         case .projectRemoved: projectRemovedPayload
+        case .landHoldChanged(let cycleID, let detail): ["cycle_id": String(cycleID), "detail": detail]
         case .flushFiringRan: flushFiringRanPayload
         }
     }

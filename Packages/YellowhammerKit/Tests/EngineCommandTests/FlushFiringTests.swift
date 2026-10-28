@@ -117,7 +117,8 @@ struct FlushFiringTests {
         #expect(try scene.journal.pendingOutboxEntries().isEmpty)
         #expect(scene.posts.events == [.closed()])
         // No trigger evaluation and no Roll-up: nothing idle was recorded.
-        #expect(try scene.journal.events(ofType: .actIdle).isEmpty)
+        let idle = try scene.journal.events(ofType: .actIdle)
+        #expect(idle.contains { $0.event == .actIdle(reason: .noFeatureInFlight) })
 
         let issue = try #require(await scene.boards.writing.liveIssues.first)
         let description = try #require(issue.description)

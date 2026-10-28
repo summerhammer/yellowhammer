@@ -35,7 +35,8 @@ struct Recalibrate {
             consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
             failedAdoptionsMax: project.bounds.failedAdoptionsMax,
             consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax,
-            unmergedFeaturesMax: project.bounds.unmergedFeaturesMax
+            unmergedFeaturesMax: project.bounds.unmergedFeaturesMax,
+            answerWaitMinutes: project.bounds.answerWaitMinutes
         )
 
         let night = try journal.flatMap { try Self.thisNight(journal: $0) }
@@ -89,6 +90,7 @@ struct Recalibrate {
         case "consecutive_refusals_max": return bounds.consecutiveRefusalsMax
         case "consecutive_authoring_faults_max": return bounds.consecutiveAuthoringFaultsMax
         case "unmerged_features_max": return bounds.unmergedFeaturesMax
+        case "answer_wait_minutes": return bounds.answerWaitMinutes
         default: return bounds.failedAdoptionsMax
         }
     }
@@ -115,7 +117,8 @@ struct Recalibrate {
         ),
         Consequence(
             name: "unmerged_features_max", shape: "stops", wording: "stops the Night's authoring"
-        )
+        ),
+        Consequence(name: "answer_wait_minutes", shape: "ends hold", wording: "ends the hold on the land Act")
     ]
 
     private static func encode(_ report: RecalibrateReport) throws -> String {

@@ -167,7 +167,8 @@ struct ProjectConfigurationDecoder {
             allowed: [
                 "review_rounds_max", "attempts_per_work_card", "overdue_nights_max",
                 "reselections_max", "consecutive_refusals_max", "failed_adoptions_max",
-                "consecutive_authoring_faults_max", "unmerged_features_max", "pass_timeout_minutes"
+                "consecutive_authoring_faults_max", "unmerged_features_max",
+                "answer_wait_minutes", "pass_timeout_minutes"
             ]
         )
         func bound(_ key: String, _ defaultValue: Int) throws(ConfigurationError) -> Int {
@@ -183,7 +184,8 @@ struct ProjectConfigurationDecoder {
             consecutiveAuthoringFaultsMax: try bound(
                 "consecutive_authoring_faults_max", defaults.consecutiveAuthoringFaultsMax
             ),
-            unmergedFeaturesMax: try bound("unmerged_features_max", defaults.unmergedFeaturesMax)
+            unmergedFeaturesMax: try bound("unmerged_features_max", defaults.unmergedFeaturesMax),
+            answerWaitMinutes: try bound("answer_wait_minutes", defaults.answerWaitMinutes)
         )
     }
 

@@ -91,7 +91,8 @@ extension NightSummary {
         let cards = try touchedCards(events: events, journal: journal)
         let removed = try removedCardLines(events: events, journal: journal)
         let usageLimited = try usageLimitedHeldCardLines(journal: journal)
-        guard !cards.isEmpty else { return usageLimited + removed }
+        let landHold = try landHoldCardLines(night: night, journal: journal)
+        guard !cards.isEmpty else { return usageLimited + landHold + removed }
         let touchedIDs = Set(cards.map(\.id))
         let blocked = cards.filter { $0.state == .blocked }.count
         let waiting = cards.filter { $0.state == .waitingOnYou }.count
@@ -111,7 +112,7 @@ extension NightSummary {
                     "and excluding no Route. It stays Blocked (`operator abort`) until re-ready."
             )
         }
-        return lines + usageLimited + removed
+        return lines + usageLimited + landHold + removed
     }
 
     /// Lines naming every Work Card currently Todo whose latest Attempt ended `usage limited`, with its

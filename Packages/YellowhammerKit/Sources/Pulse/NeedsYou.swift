@@ -60,6 +60,8 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
     public var repo: String
     /// The Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
     public var link: LinearIssueLink?
+    /// The land firing at which this Card stops keeping the land Act from firing; nil outside the hold.
+    public var landHoldEndsAt: Date?
 
     public init(
         id: String,
@@ -68,7 +70,8 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
         state: CardState,
         blockReason: BlockReason?,
         repo: String,
-        link: LinearIssueLink? = nil
+        link: LinearIssueLink? = nil,
+        landHoldEndsAt: Date? = nil
     ) {
         self.id = id
         self.issueIDForDisplay = issueIDForDisplay
@@ -77,6 +80,7 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
         self.blockReason = blockReason
         self.repo = repo
         self.link = link
+        self.landHoldEndsAt = landHoldEndsAt
     }
 
     public init(
@@ -85,7 +89,8 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
         state: CardState,
         blockReason: BlockReason?,
         repo: String,
-        link: LinearIssueLink? = nil
+        link: LinearIssueLink? = nil,
+        landHoldEndsAt: Date? = nil
     ) {
         self.init(
             id: id,
@@ -94,7 +99,8 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
             state: state,
             blockReason: blockReason,
             repo: repo,
-            link: link
+            link: link,
+            landHoldEndsAt: landHoldEndsAt
         )
     }
 }

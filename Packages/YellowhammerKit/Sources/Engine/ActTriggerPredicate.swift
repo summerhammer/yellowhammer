@@ -25,15 +25,26 @@ public enum ActTriggerPredicate {
     ///   Readiness Check (a later phase) is what refines which of those Cards actually dispatch —
     ///   do not mistake this for the Readiness Check.
     ///
-    /// `nightID` and `runID` identify the invocation evaluating the predicate; only the author trigger reads
-    /// them, to recognise the Night's first author firing.
+    /// `nightID` and `runID` identify this firing and its hold evidence. The optional firing grid
+    /// is supplied by EngineCommand for production; callers without a grid retain state-only triggers.
     public static func evaluate(
         act: Act,
         trigger: ActTrigger,
         journal: JournalStore,
         nightID: Int64,
-        runID: RunID
+        runID: RunID,
+        landHoldSchedule: LandHoldSchedule? = nil,
+        now: Date = Date()
     ) throws -> ActTriggerOutcome {
+        let holding = try LandHold.refresh(journal: journal, nightID: nightID, runID: runID,
+                                           schedule: landHoldSchedule, now: now)
+        if act == .land, let cycleID = try journal.inFlightCycleID() {
+            if let schedule = landHoldSchedule, now >= schedule.end {
+                try journal.endNightHold(nightID: nightID, runID: runID, now: now)
+            } else if trigger.isForced {
+                try journal.endLandHold(cycleID: cycleID, reason: "forced land", runID: runID, now: now)
+            }
+        }
         // Forced triggers always fire.
         if trigger.isForced {
             return .met
@@ -43,9 +54,12 @@ public enum ActTriggerPredicate {
         case .author:
             return try evaluateAuthor(journal: journal, nightID: nightID, runID: runID)
         case .build:
-            return try evaluateBuild(journal: journal)
+            return try evaluateBuild(journal: journal, holding: holding)
         case .land:
-            return try evaluateLand(journal: journal)
+            return try evaluateLand(
+                journal: journal, holding: holding && !(landHoldSchedule.map { now >= $0.end } ?? false),
+                runID: runID, now: now
+            )
         }
     }
 
@@ -79,29 +93,37 @@ public enum ActTriggerPredicate {
         return cycleInFlight ? .notMet(.featureInFlight) : .notMet(.unfinishedCardsPresent)
     }
 
-    private static func evaluateBuild(journal: JournalStore) throws -> ActTriggerOutcome {
+    private static func evaluateBuild(journal: JournalStore, holding: Bool) throws -> ActTriggerOutcome {
         guard let cycleID = try journal.inFlightCycleID() else {
             return .notMet(.noFeatureInFlight)
         }
         if try journal.isCycleLanded(cycleID: cycleID) {
             return .notMet(.cycleAlreadyLanded)
         }
+        if try journal.hasCycleHandoffBegun(cycleID: cycleID) { return .notMet(.handoffBegun) }
         let count = try unfinishedUnheldCardCount(cycleID: cycleID, journal: journal)
-        if count > 0 {
+        if count > 0 || holding {
             return .met
         }
         return .notMet(.cycleHasNoUnfinishedCards)
     }
 
-    private static func evaluateLand(journal: JournalStore) throws -> ActTriggerOutcome {
+    private static func evaluateLand(
+        journal: JournalStore, holding: Bool, runID: RunID, now: Date
+    ) throws -> ActTriggerOutcome {
         guard let cycleID = try journal.inFlightCycleID() else {
             return .notMet(.noFeatureInFlight)
         }
         if try journal.isCycleLanded(cycleID: cycleID) {
             return .notMet(.cycleAlreadyLanded)
         }
+        if try journal.hasCycleHandoffBegun(cycleID: cycleID) { return .met }
         let count = try unfinishedUnheldCardCount(cycleID: cycleID, journal: journal)
         if count == 0 {
+            if holding, try !LandHold.canEnd(journal: journal, cycleID: cycleID, now: now) {
+                return .notMet(.waitingForAnswer)
+            }
+            try journal.endLandHold(cycleID: cycleID, reason: "ran out", runID: runID, now: now)
             return .met
         }
         return .notMet(.cycleHasUnfinishedCards)

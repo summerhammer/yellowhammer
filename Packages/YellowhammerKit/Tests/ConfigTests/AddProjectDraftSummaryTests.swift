@@ -112,10 +112,10 @@ struct AddProjectDraftSummaryTests {
         #expect(draft.summary(of: .board) == "\u{201c}other\u{201d} \u{b7} acme")
     }
 
-    @Test("Bounds fields cover the eight Bounds with their defaults")
+    @Test("Bounds fields cover the nine Bounds with their defaults")
     func boundsFields() {
-        #expect(Bounds.fields.count == 8)
-        #expect(Bounds.fields.map(\.defaultValue) == [2, 3, 3, 2, 3, 2, 3, 3])
+        #expect(Bounds.fields.count == 9)
+        #expect(Bounds.fields.map(\.defaultValue) == [2, 3, 3, 2, 3, 2, 3, 3, 30])
         #expect(Bounds.fields(.stopsCard).count == 3)
         #expect(Bounds.fields(.stopsAuthoring).count == 3)
         #expect(Bounds.fields(.raisesToYou).count == 2)

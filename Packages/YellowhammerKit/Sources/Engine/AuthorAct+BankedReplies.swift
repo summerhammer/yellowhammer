@@ -49,7 +49,8 @@ enum PostLandingReplies {
         read.acceptsReReady = false
         switch try await read.perform() {
         case .read:
-            if let (_, cycleID) = try journal.inFlightFeature(), try !journal.isCycleLanded(cycleID: cycleID) {
+            if let (_, cycleID) = try journal.inFlightFeature(),
+               try !journal.isCycleLanded(cycleID: cycleID) && !journal.hasCycleHandoffBegun(cycleID: cycleID) {
                 return .read
             }
             try await WaitingOnYouReplies.apply(context: context, unansweredNightsMax: unansweredNightsMax)

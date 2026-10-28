@@ -276,6 +276,7 @@ extension JournalEvent {
             .cardPromotedToStandingItem
         case .projectRemoved:
             .projectRemoved
+        case .landHoldChanged: .landHoldChanged
         case .flushFiringRan:
             .flushFiringRan
         }

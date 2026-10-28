@@ -39,7 +39,7 @@ extension PulseSnapshot {
         let outboxFlags = try Self.undeliveredBoardWrites(journal)
         let liveRunID = runningAct != nil ? try journal.currentActLease()?.runID : nil
         return PulseSnapshot(
-            needsYou: try needsYou(journal, inFlight: inFlight),
+            needsYou: try needsYou(journal, inFlight: inFlight, night: selectedNight),
             now: now,
             feature: try feature(
                 journal, inFlight: inFlight,

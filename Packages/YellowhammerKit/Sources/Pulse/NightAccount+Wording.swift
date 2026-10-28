@@ -89,6 +89,9 @@ extension NightAccount {
         case .cycleHasNoUnfinishedCards: "the Cycle has nothing left to build"
         case .cycleHasUnfinishedCards: "the Cycle still has unfinished Cards"
         case .cycleAlreadyLanded: "the Cycle has already landed"
+        case .waitingForAnswer:
+            "Work Cards are keeping the land Act from firing while an answer or re-ready can be used"
+        case .handoffBegun: "the handoff has begun, so no more Card work can run"
         }
     }
 

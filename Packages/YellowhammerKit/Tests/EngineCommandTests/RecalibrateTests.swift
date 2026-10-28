@@ -23,10 +23,11 @@ struct RecalibrateTests {
 
         #expect(report.project == "alpha")
         #expect(report.night == nil)
-        #expect(report.bounds.count == 8)
+        #expect(report.bounds.count == 9)
         #expect(report.bounds.allSatisfy { $0.proximity == nil && $0.measure == nil })
         #expect(report.bounds.first { $0.name == "review_rounds_max" }?.value == 2)
         #expect(report.bounds.first { $0.name == "consecutive_authoring_faults_max" }?.value == 3)
+        #expect(report.bounds.first { $0.name == "answer_wait_minutes" }?.value == 30)
         #expect(output.lines.contains { $0.contains("no Night recorded in this Project's Journal") })
         #expect(output.lines.contains { $0.contains("no Night recorded") && $0.contains("review_rounds_max") })
     }
@@ -99,7 +100,7 @@ struct RecalibrateTests {
         let decoded = try JSONDecoder().decode(RecalibrateReport.self, from: data)
         #expect(decoded.project == "alpha")
         #expect(decoded.night == nil)
-        #expect(decoded.bounds.count == 8)
+        #expect(decoded.bounds.count == 9)
         let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(json["project"] as? String == "alpha")
         #expect(json["night"] is NSNull)

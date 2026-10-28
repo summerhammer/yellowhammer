@@ -22,6 +22,8 @@ extension JournalEvent {
         case .routeUsageLimited:
             .routeUsageLimited(route: try reader.require("route"), cli: try reader.require("cli"),
                                until: try reader.date("until"), resetHint: reader.payload?["reset_hint"])
+        case .landHoldChanged:
+            .landHoldChanged(cycleID: try reader.int64("cycle_id"), detail: try reader.require("detail"))
         case .actStarted: .actStarted
         case .actEnded: .actEnded
         case .actIdle:

@@ -53,7 +53,8 @@ enum WaitingOnYouReplies {
     /// Card's state, or the Worktree.
     private static func applyAnswer(reply: CardReplyRecord, card: CardRecord, context: ActContext) async throws {
         let journal = context.journal
-        if try journal.isCycleLanded(cycleID: card.cycleID) {
+        if try journal.isCycleLanded(cycleID: card.cycleID)
+            || journal.hasCycleHandoffBegun(cycleID: card.cycleID) || context.act == .land {
             try await bankAnswer(reply: reply, card: card, context: context)
             return
         }

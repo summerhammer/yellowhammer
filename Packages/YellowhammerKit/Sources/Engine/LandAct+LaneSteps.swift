@@ -205,6 +205,7 @@ extension LandAct {
             return (.notWired(), nil)
         }
         do {
+            try context.journal.beginCycleHandoff(cycleID: laneContext.cycleID, runID: context.runID)
             let outcome = try await push.push(laneContext)
             if outcome.pushed, let commit = outcome.commit {
                 recordPushedCommit(commit, laneContext: laneContext, context: context)

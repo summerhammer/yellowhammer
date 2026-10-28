@@ -35,6 +35,8 @@ public struct ActContext: Sendable {
     public let operatorIdentity: OperatorIdentity
     /// The `feature_base` rows the author Act's selection records with the Feature it authors (roadmap P23.2):
     /// set only on the context ``ActContext/authoring(against:)`` derives; empty everywhere else.
+    public var unansweredNightsMax: Int = 3
+    public var landHoldSchedule: LandHoldSchedule?
     public let featureBases: [FeatureBaseRecord]
 
     public init(

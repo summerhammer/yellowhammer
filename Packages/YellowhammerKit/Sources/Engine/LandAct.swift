@@ -150,7 +150,10 @@ public struct LandAct: Sendable {
     /// stays unlanded, the next land firing reads again — and replays no deferred Card state write; only
     /// the entries an earlier step already accepted are delivered. True when the Act was deferred.
     private func deferredForWantOfABoardRead(context: ActContext) async throws -> Bool {
-        guard try await !boardRead(context: context) else { return false }
+        if try await boardRead(context: context) {
+            try await WaitingOnYouReplies.apply(context: context, unansweredNightsMax: context.unansweredNightsMax)
+            return false
+        }
         try await writeBack(context: context, boardRead: false)
         return true
     }

@@ -134,7 +134,16 @@ extension ActCommand {
             work: work
         )
         invocation.isFlushFiring = isFlushFiring
+        invocation.landHoldSchedule = Self.landHoldSchedule(project, window: window)
         return invocation
+    }
+
+    private static func landHoldSchedule(_ project: ProjectConfiguration, window: NightWindow) -> LandHoldSchedule {
+        let offset = Double(project.schedule.staggerOffsetMinutes) * 60
+        return LandHoldSchedule(
+            start: window.start.addingTimeInterval(offset), end: window.end.addingTimeInterval(offset),
+            buildEveryMinutes: project.schedule.buildEveryMinutes, answerWaitMinutes: project.bounds.answerWaitMinutes
+        )
     }
 
     /// The Night `now` belongs to: `night`'s when named; the Night on the Project's staggered grid for a
@@ -159,7 +168,8 @@ extension ActCommand {
             consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
             failedAdoptionsMax: project.bounds.failedAdoptionsMax,
             consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax,
-            unmergedFeaturesMax: project.bounds.unmergedFeaturesMax
+            unmergedFeaturesMax: project.bounds.unmergedFeaturesMax,
+            answerWaitMinutes: project.bounds.answerWaitMinutes
         )
     }
 

@@ -4,9 +4,9 @@ import Journal
 
 /// One Project Bound's proximity at a Night's close: what the Bound allows (`value`), what this Night
 /// recorded against it (`observed`), and — when the Night Summary's line names what it counted — the
-/// `measure` phrase. Always in the same eight-Bound order: `review_rounds_max`, `attempts_per_work_card`,
+/// `measure` phrase. Always in the same Bound order: `review_rounds_max`, `attempts_per_work_card`,
 /// `overdue_nights_max`, `reselections_max`, `consecutive_refusals_max`, `failed_adoptions_max`,
-/// `consecutive_authoring_faults_max`, `unmerged_features_max`.
+/// `consecutive_authoring_faults_max`, `unmerged_features_max`, then `answer_wait_minutes` when a hold occurred.
 public struct BoundProximity: Sendable, Equatable {
     public let name: String
     public let value: Int
@@ -89,7 +89,7 @@ extension NightSummary {
                 name: "unmerged_features_max", value: bounds.unmergedFeaturesMax,
                 observed: try journal.unmergedFeatureStack().count, measure: "Features awaiting merge"
             )
-        ]
+        ] + [try answerWaitProximity(night: night, journal: journal)].compactMap { $0 }
     }
 
     static func authoringFaultProximity(

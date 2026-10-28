@@ -94,7 +94,7 @@ public struct RepoDraft: Equatable, Sendable {
     }
 }
 
-/// A Project's eight Bounds, as typed strings, so a garbage value (`"0"`, `"abc"`) reaches the loader
+/// A Project's nine Bounds, as typed strings, so a garbage value (`"0"`, `"abc"`) reaches the loader
 /// instead of being coerced or refused a second time here.
 public struct BoundsDraft: Equatable, Sendable {
     public var reviewRoundsMax: String
@@ -105,6 +105,7 @@ public struct BoundsDraft: Equatable, Sendable {
     public var failedAdoptionsMax: String
     public var consecutiveAuthoringFaultsMax: String
     public var unmergedFeaturesMax: String
+    public var answerWaitMinutes: String
 
     public init(
         reviewRoundsMax: String,
@@ -114,7 +115,8 @@ public struct BoundsDraft: Equatable, Sendable {
         consecutiveRefusalsMax: String,
         failedAdoptionsMax: String,
         consecutiveAuthoringFaultsMax: String = String(Bounds().consecutiveAuthoringFaultsMax),
-        unmergedFeaturesMax: String = String(Bounds().unmergedFeaturesMax)
+        unmergedFeaturesMax: String = String(Bounds().unmergedFeaturesMax),
+        answerWaitMinutes: String = String(Bounds().answerWaitMinutes)
     ) {
         self.reviewRoundsMax = reviewRoundsMax
         self.attemptsPerWorkCard = attemptsPerWorkCard
@@ -124,6 +126,7 @@ public struct BoundsDraft: Equatable, Sendable {
         self.failedAdoptionsMax = failedAdoptionsMax
         self.consecutiveAuthoringFaultsMax = consecutiveAuthoringFaultsMax
         self.unmergedFeaturesMax = unmergedFeaturesMax
+        self.answerWaitMinutes = answerWaitMinutes
     }
 
     public init(_ bounds: Bounds) {
@@ -135,7 +138,8 @@ public struct BoundsDraft: Equatable, Sendable {
             consecutiveRefusalsMax: String(bounds.consecutiveRefusalsMax),
             failedAdoptionsMax: String(bounds.failedAdoptionsMax),
             consecutiveAuthoringFaultsMax: String(bounds.consecutiveAuthoringFaultsMax),
-            unmergedFeaturesMax: String(bounds.unmergedFeaturesMax)
+            unmergedFeaturesMax: String(bounds.unmergedFeaturesMax),
+            answerWaitMinutes: String(bounds.answerWaitMinutes)
         )
     }
 }

@@ -24,10 +24,11 @@ public struct EngineInvocation: Sendable {
     /// True for the land firing at `night_end`, which completes the Night whether or not the Cycle
     /// landed. Decided by `EngineCommand` from the clock against the Project's `[schedule]`.
     public let closesNight: Bool
-    /// True for a land Act started by one of the flush firings after `night_end`: it does no Night work (see
+    /// True for a land Act started by one of the flush firings after `night_end` (see
     /// `EngineInvocation+FlushFiring.swift`). Decided by `EngineCommand` from the clock; never set for a
     /// forced or rehearsal Act.
     public var isFlushFiring = false
+    public var landHoldSchedule: LandHoldSchedule?
     public let leasePolicy: LeasePolicy
     /// The Board Port, when this invocation maintains a Night Card. The Engine never opens a Journal
     /// or imports an adapter (MB1/MB5); `EngineCommand` is the one place this is wired.
@@ -62,7 +63,7 @@ public struct EngineInvocation: Sendable {
     let actLog: @Sendable (String) -> Void
     /// Not `private`: the module-internal notification extension reads it (roadmap P12.5).
     let journal: JournalStore
-    private let work: ActWork
+    let work: ActWork
 
     public init(
         act: Act,
@@ -203,6 +204,7 @@ public struct EngineInvocation: Sendable {
         }
         _ = try? journal.append(.actStarted, act: act, runID: runID, nightID: opening.night.id)
         // Declared before the `do`: the halted path in `catch` below needs the Night Card (P12.5).
+        try endHoldAtClosingFiring(opening.night)
         var night = opening.night
         var outbox: Outbox?
         var nightCard: NightCardMaintenance?
@@ -225,20 +227,23 @@ public struct EngineInvocation: Sendable {
 
             // Evaluate the trigger predicate under the lease.
             switch try ActTriggerPredicate.evaluate(
-                act: act, trigger: trigger, journal: journal, nightID: night.id, runID: runID
+                act: act, trigger: trigger, journal: journal, nightID: night.id, runID: runID,
+                landHoldSchedule: landHoldSchedule
             ) {
             case .notMet(let reason):
                 _ = try? journal.append(.actIdle(reason: reason), act: act, runID: runID, nightID: night.id)
             case .met:
-                let context = ActContext(
+                var context = ActContext(
                     act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
                     outbox: outbox, nightCard: nightCard, board: board, mainlines: resolvedMainlines,
                     workspace: workspace, repositories: repositories, operatorIdentity: operatorIdentity
                 )
+                context.landHoldSchedule = landHoldSchedule
+                context.unansweredNightsMax = nightCardBounds.unansweredNightsMax
                 try await withLeaseHeartbeat(
                     every: leasePolicy.heartbeatDuration,
                     beat: { try journal.heartbeatActLease(runID: runID, policy: leasePolicy) },
-                    body: { try await work(context) }
+                    body: { [context] in try await work(context) }
                 )
             }
             try await maintainRollUps(night: night, outbox: outbox)

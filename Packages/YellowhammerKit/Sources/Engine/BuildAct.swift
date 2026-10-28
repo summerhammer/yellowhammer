@@ -91,6 +91,12 @@ public struct BuildAct: Sendable {
             return
         }
 
+        if try journal.hasCycleHandoffBegun(cycleID: cycleID) {
+            try journal.append(.actIdle(reason: .handoffBegun), act: context.act,
+                               runID: context.runID, nightID: context.night.id)
+            return
+        }
+        _ = try LandHold.refresh(context: context)
         let projection = try await resolveBoardProjection(context: context)
 
         _ = try await ExpiredLeaseSweep(
@@ -113,6 +119,7 @@ public struct BuildAct: Sendable {
             try await UnansweredCardClock.run(
                 cycleIDs: [cycleID], unansweredNightsMax: unansweredNightsMax, context: context
             )
+            _ = try LandHold.refresh(context: context)
             try await runLanes(
                 feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: report, context: context
             )
@@ -121,10 +128,12 @@ public struct BuildAct: Sendable {
             try await UnansweredCardClock.run(
                 cycleIDs: [cycleID], unansweredNightsMax: unansweredNightsMax, context: context
             )
+            _ = try LandHold.refresh(context: context)
             try await runLanes(
                 feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: nil, context: context
             )
         }
+        _ = try LandHold.refresh(context: context)
         try await writeBack(context: context)
     }
 

@@ -21,4 +21,6 @@ public enum ActIdleReason: String, CaseIterable, Sendable {
     /// Cycle). Checked before either Act's unfinished-Card count, so a Card returning to Todo after
     /// landing never re-opens a Repo Lane.
     case cycleAlreadyLanded = "cycle_already_landed"
+    case waitingForAnswer = "waiting_for_answer"
+    case handoffBegun = "handoff_begun"
 }

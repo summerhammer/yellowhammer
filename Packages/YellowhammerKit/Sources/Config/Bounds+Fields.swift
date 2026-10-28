@@ -1,7 +1,6 @@
 import Foundation
 
-/// How the Add Project wizard explains each of the eight per-Project Bounds. Each fires when its count
-/// exceeds its value, so the copy says "up to".
+/// How the Add Project wizard explains each of the nine per-Project Bounds.
 extension Bounds {
     /// What happens when a Bound fires: the glossary's two consequence shapes, with "stops work" split
     /// by what it stops.
@@ -9,12 +8,14 @@ extension Bounds {
         case stopsCard
         case stopsAuthoring
         case raisesToYou
+        case endsHold
 
         public var title: String {
             switch self {
             case .stopsCard: "Stops a Card\u{2019}s work"
             case .stopsAuthoring: "Stops a Night\u{2019}s authoring"
             case .raisesToYou: "Raises it to you"
+            case .endsHold: "Ends the hold on the land Act"
             }
         }
 
@@ -23,6 +24,7 @@ extension Bounds {
             case .stopsCard: "When one is reached, the work stops and says why."
             case .stopsAuthoring: "When it is reached, that Night authors no further Feature."
             case .raisesToYou: "Nothing stops. The item becomes a standing decision for you."
+            case .endsHold: "The Cycle may land once a build Act has read the board."
             }
         }
     }
@@ -46,7 +48,7 @@ extension Bounds {
         public var defaultValue: Int { Bounds()[keyPath: keyPath] }
     }
 
-    /// The eight Bounds, in the order the wizard lists them.
+    /// The nine Bounds, in the order the wizard lists them.
     public static let fields = [
         Field(
             key: "review_rounds_max", title: "Review Rounds per Attempt", unit: "round", units: "rounds",
@@ -104,6 +106,12 @@ extension Bounds {
                 + "Act authors nothing until a merge is observed.",
             sentence: ("Let up to", "await merge, then author nothing until one is merged."),
             consequence: .stopsAuthoring, keyPath: \Bounds.unmergedFeaturesMax
+        ),
+        Field(
+            key: "answer_wait_minutes", title: "Wait for an answer", unit: "minute", units: "minutes",
+            explanation: "How long the land Act waits for an answer or re-ready before handing off the Cycle.",
+            sentence: ("Wait up to", "for an answer or re-ready before landing."),
+            consequence: .endsHold, keyPath: \Bounds.answerWaitMinutes
         )
     ]
 

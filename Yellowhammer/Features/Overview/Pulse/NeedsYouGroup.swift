@@ -109,6 +109,12 @@ private struct DecisionCardRow: View {
                 Text("\(card.issueIDForDisplay ?? card.id) \u{00B7} \(card.repo)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let endsAt = card.landHoldEndsAt {
+                    Text("Keeping the land Act from firing until " +
+                        endsAt.formatted(date: .omitted, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
             PulseCountBadge(text: card.blockReason?.rawValue ?? card.state.rawValue, style: card.state.style)

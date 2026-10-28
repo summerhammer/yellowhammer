@@ -11,7 +11,8 @@ extension DeltaRead {
     func reReadyIfBlocked(
         card: inout CardRecord, boardState: BoardWorkflowState, into report: inout DeltaReadReport
     ) throws -> Bool {
-        guard acceptsReReady, card.state == .blocked, boardState.name == CardState.todo.rawValue,
+        guard try !journal.hasCycleHandoffBegun(cycleID: card.cycleID), acceptsReReady,
+              card.state == .blocked, boardState.name == CardState.todo.rawValue,
               let rawReason = card.blockReason, let reason = BlockReason(rawValue: rawReason)
         else {
             return false

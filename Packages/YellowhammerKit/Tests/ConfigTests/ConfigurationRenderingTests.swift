@@ -63,7 +63,7 @@ func projectFullRoundTrip() throws {
         bounds: Bounds(
             reviewRoundsMax: 3, attemptsPerWorkCard: 5, unansweredNightsMax: 4,
             reselectionsMax: 3, consecutiveRefusalsMax: 5, failedAdoptionsMax: 3,
-            consecutiveAuthoringFaultsMax: 7, unmergedFeaturesMax: 4
+            consecutiveAuthoringFaultsMax: 7, unmergedFeaturesMax: 4, answerWaitMinutes: 17
         ),
         schedule: Schedule(
             nightStart: try #require(TimeOfDay(hour: 23, minute: 0)),
@@ -98,6 +98,7 @@ func projectRendersExplicitDefaultBounds() throws {
     #expect(project.renderedTOML.contains("overdue_nights_max = 3"))
     #expect(project.renderedTOML.contains("consecutive_authoring_faults_max = 3"))
     #expect(project.renderedTOML.contains("unmerged_features_max = 3"))
+    #expect(project.renderedTOML.contains("answer_wait_minutes = 30"))
 }
 
 @Test("A non-default pass_timeout_minutes round-trips through renderedTOML")

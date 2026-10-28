@@ -53,7 +53,9 @@ private func insertCardsFixture(
         )
         let featureID = db.lastInsertedRowID
         try db.execute(
-            sql: "INSERT INTO cycle (feature_id, created_at) VALUES (?, ?)", arguments: [featureID, timestamp]
+            // These are historical reporting fixtures, outside the single in-flight slot.
+            sql: "INSERT INTO cycle (feature_id, created_at, archived_at) VALUES (?, ?, ?)",
+            arguments: [featureID, timestamp, timestamp]
         )
         let cycleID = db.lastInsertedRowID
         try db.execute(
