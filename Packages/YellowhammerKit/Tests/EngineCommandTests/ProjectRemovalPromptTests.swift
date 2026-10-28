@@ -72,6 +72,30 @@ struct ProjectRemovalPromptTests {
         #expect(FileManager.default.fileExists(atPath: theirs.path(percentEncoded: false)))
     }
 
+    @Test("Removal deletes the Project's saved Project instructions")
+    func removalDeletesSavedInstructions() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let home = try RemovalHomeFixture(projectID: "alpha", plists: false, logs: false)
+
+        let root = DispatchPromptStore.rootDirectory(configurationDirectory: directory.url)
+        let projectID = try #require(ProjectID(rawValue: "alpha"))
+        let instructions = ProjectInstructionsStore(rootDirectory: root, projectID: projectID)
+        guard case .saved = instructions.save("Be terse.", replacing: .absent) else {
+            Issue.record("could not save Project instructions")
+            return
+        }
+
+        let removal = makeRemoval(directory: directory, home: home)
+        let succeeded = await removal.run(id: "alpha", yes: true)
+
+        #expect(succeeded)
+        #expect(instructions.read() == .absent)
+        let file = root.appending(components: "projects", "alpha", "instructions", "current.json")
+        #expect(!FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
+    }
+
     @Test("An injected cleanup failure stops removal before TOML is deleted, without touching journaled footprint")
     func injectedCleanupFailureStopsRemoval() async throws {
         let directory = ConfigurationDirectory()
@@ -137,7 +161,8 @@ struct ProjectRemovalPromptTests {
         #expect(!succeeded)
 
         let actLogsIndex = try #require(output.lines.firstIndex(of: "- delete its 3 Act logs"))
-        let promptsIndex = try #require(output.lines.firstIndex(of: "- delete its recorded prompts"))
+        let promptsLine = "- delete its recorded prompts and saved Project instructions"
+        let promptsIndex = try #require(output.lines.firstIndex(of: promptsLine))
         #expect(promptsIndex == actLogsIndex + 1)
     }
 }

@@ -229,7 +229,7 @@ struct ProjectRemoval {
         output("This will, for Project \(id):") // glossary:ignore GL001
         output("- unload and delete its 3 LaunchAgents")
         output("- delete its 3 Act logs")
-        output("- delete its recorded prompts")
+        output("- delete its recorded prompts and saved Project instructions")
         output("- comment on its in-flight Feature Issue, if one exists")
         output("- WIP-commit, push and remove each of its held Worktrees")
         output("- close its open Night, if one exists")
