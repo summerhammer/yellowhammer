@@ -13,6 +13,9 @@ import SwiftUI
 /// runs the engine's checked selection command. Refusals are shown in the loader's or engine's own words.
 struct ProjectConfigurationView: View {
     let model: ProjectConfigurationModel
+    /// The Project's instructions editor state, owned by its pane for the same reason as `model`.
+    private let instructions: ProjectInstructionsModel?
+    private let projectName: String
     /// Called after a save wrote the file, so the window can read its configuration again: the Project's
     /// name is shown in the window's sidebar and title.
     private let onSaved: () -> Void
@@ -22,10 +25,12 @@ struct ProjectConfigurationView: View {
 
     /// `model` is owned by the Project's pane, so moving to Recalibrate and back keeps unsaved edits.
     init(
-        model: ProjectConfigurationModel, onSaved: @escaping () -> Void = {},
-        workspaceLabel: @escaping (String) -> String = { $0 }
+        model: ProjectConfigurationModel, instructions: ProjectInstructionsModel? = nil, projectName: String = "",
+        onSaved: @escaping () -> Void = {}, workspaceLabel: @escaping (String) -> String = { $0 }
     ) {
         self.model = model
+        self.instructions = instructions
+        self.projectName = projectName
         self.onSaved = onSaved
         self.workspaceLabel = workspaceLabel
     }
@@ -34,12 +39,16 @@ struct ProjectConfigurationView: View {
         content
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 model.reloadIfClean()
+                instructions?.reloadIfClean()
             }
     }
 
     @ViewBuilder private var content: some View {
         if model.draft != nil {
-            ProjectConfigurationFormView(model: model, onSaved: onSaved, workspaceLabel: workspaceLabel)
+            ProjectConfigurationFormView(
+                model: model, instructions: instructions, projectName: projectName, onSaved: onSaved,
+                workspaceLabel: workspaceLabel
+            )
                 .environment(\.routingCatalog, model.routingCatalog)
         } else {
             unavailable
@@ -56,6 +65,8 @@ struct ProjectConfigurationView: View {
 /// reload clears the draft while a field still reads it, as can happen mid-teardown.
 struct ProjectConfigurationFormView: View {
     @Bindable var model: ProjectConfigurationModel
+    let instructions: ProjectInstructionsModel?
+    let projectName: String
     @State private var modelDiscovery = RouteModelDiscoveryState()
     let onSaved: () -> Void
     let workspaceLabel: (String) -> String
@@ -77,7 +88,7 @@ struct ProjectConfigurationFormView: View {
                 nightBlock(draft)
                 boundsBlock(draft)
                 routingBlock(draft)
-                PromptCatalogBlock()
+                PromptCatalogBlock(projectInstructions: instructions, projectName: projectName)
             } footer: {
                 SettingsSaveFooter(
                     note: "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
