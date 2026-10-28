@@ -441,7 +441,12 @@ public enum JournalEvent: Equatable, Sendable {
     /// `repository` is nil for the three Feature-scoped steps.
     case landStep(step: LandStep, repository: String?, outcome: LandStepOutcome, detail: String?)
     /// The land Act landed this Cycle: once per Cycle (risks OQ8), so a later firing's trigger goes
-    /// false and no Repo Lane re-opens even if a Card returns to Todo.
+    /// false and no Repo Lane re-opens even if a Card returns to Todo. Landed means the land Act's
+    /// handoff completed — every required push succeeded, every lane's pull request opened, and
+    /// Verification's disposition applied (Feature returned or Cycle archived). It is appended after a
+    /// return too: landing is not reversed by a failed verification (spec: landing/overview;
+    /// verification/return-a-feature-with-unmet-clauses). The Feature's own verdict is `feature.state` /
+    /// `featureReturned`, never this event (issue #695).
     case cycleLanded(cycleID: Int64)
     /// A touched repository's Repo Lane produced no completed work, so its Feature Branch is at its base:
     /// never pushed, no pull request (glossary: No-Pushed-Branch Outcome; risks OQ104, OQ107). Recorded,

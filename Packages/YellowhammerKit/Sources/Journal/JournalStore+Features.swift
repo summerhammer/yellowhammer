@@ -15,6 +15,9 @@ public enum FeatureClosure: String, Equatable, Sendable {
 
 /// A Feature Issue as the Journal holds it.
 public struct FeatureRecord: Equatable, Sendable {
+    /// The Journal's `feature.state` once the land Act returned the Feature to the Operator.
+    public static let returnedState = "returned"
+
     public let id: Int64
     public let issueID: String
     /// The Feature issue's human-readable identifier (e.g. `ARC-10`), recorded for display.
@@ -84,6 +87,9 @@ public struct FeatureRecord: Equatable, Sendable {
             issueURL: issueURL
         )
     }
+
+    /// Whether this Feature was returned to the Operator.
+    public var isReturned: Bool { state == Self.returnedState }
 
     /// The Feature's display identifier (e.g. `YLH-325`), falling back to `issueID` when unknown.
     public var displayIdentifier: String {

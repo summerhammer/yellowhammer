@@ -467,6 +467,40 @@ func landedCycleNotMetForBuild() throws {
     #expect(outcome == .notMet(.cycleAlreadyLanded))
 }
 
+@Test("a landed Cycle whose Feature was returned evaluates to .featureReturned for land (issue #695)")
+func landedReturnedCycleNotMetForLand() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let cycleID = try insertFixtureCard(journal, issueID: "CARD-1", state: .done).cycleID
+    let featureID = try #require(try journal.feature(cycleID: cycleID)).id
+    let runID = RunID()
+    try claimLease(journal, runID: runID, act: .land)
+    try journal.recordFeatureReturned(featureID: featureID, runID: runID, now: epoch)
+    try journal.markCycleLanded(cycleID: cycleID, runID: runID, now: epoch)
+
+    let outcome = try evaluate(act: .land, trigger: .scheduled, journal: journal)
+
+    #expect(outcome == .notMet(.featureReturned))
+}
+
+@Test("a landed Cycle whose Feature was returned evaluates to .featureReturned for build (issue #695)")
+func landedReturnedCycleNotMetForBuild() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let cycleID = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo).cycleID
+    let featureID = try #require(try journal.feature(cycleID: cycleID)).id
+    let runID = RunID()
+    try claimLease(journal, runID: runID, act: .land)
+    try journal.recordFeatureReturned(featureID: featureID, runID: runID, now: epoch)
+    try journal.markCycleLanded(cycleID: cycleID, runID: runID, now: epoch)
+
+    let outcome = try evaluate(act: .build, trigger: .scheduled, journal: journal)
+
+    #expect(outcome == .notMet(.featureReturned))
+}
+
 // MARK: - Forced Trigger Tests
 
 @Test("forced trigger overrides false predicate for author")

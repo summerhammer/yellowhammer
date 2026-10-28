@@ -88,6 +88,7 @@ extension NightAccount {
         case .noFeatureInFlight: "no Feature is in flight"
         case .cycleHasNoUnfinishedCards: "the Cycle has nothing left to build"
         case .cycleHasUnfinishedCards: "the Cycle still has unfinished Cards"
+        case .featureReturned: "the Feature was returned to you, so nothing is left to build or land until you decide"
         case .cycleAlreadyLanded: "the Cycle has already landed"
         case .waitingForAnswer:
             "Work Cards are keeping the land Act from firing while an answer or re-ready can be used"

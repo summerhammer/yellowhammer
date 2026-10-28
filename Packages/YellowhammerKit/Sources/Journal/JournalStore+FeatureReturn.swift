@@ -23,9 +23,11 @@ extension JournalStore {
                 throw JournalError.featureUnknown(featureID: featureID)
             }
             let state: String = row["state"]
-            guard state != "returned" else { return false }
+            guard state != FeatureRecord.returnedState else { return false }
 
-            try db.execute(sql: "UPDATE feature SET state = ? WHERE id = ?", arguments: ["returned", featureID])
+            try db.execute(
+                sql: "UPDATE feature SET state = ? WHERE id = ?", arguments: [FeatureRecord.returnedState, featureID]
+            )
             return true
         }
     }

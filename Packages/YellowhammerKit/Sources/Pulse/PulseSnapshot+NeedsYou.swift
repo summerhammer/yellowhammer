@@ -41,14 +41,11 @@ extension PulseSnapshot {
         return card.state == .blocked && reason.map(reasons.contains) == true
     }
 
-    /// The Journal's Feature state once the land Act has returned the Feature to the Operator.
-    private static let returnedState = "returned"
-
     /// The in-flight Feature as a Needs you row when the land Act returned it to the Operator.
     private static func returnedFeature(
         _ journal: JournalStore, inFlight: (feature: FeatureRecord, cycleID: Int64)?
     ) throws -> ReturnedFeature? {
-        guard let inFlight, inFlight.feature.state == Self.returnedState else { return nil }
+        guard let inFlight, inFlight.feature.isReturned else { return nil }
         let feature = inFlight.feature
         let key = feature.issueIDForDisplay ?? feature.issueKey
         return ReturnedFeature(

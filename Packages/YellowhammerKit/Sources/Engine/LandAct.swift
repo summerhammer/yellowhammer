@@ -10,8 +10,8 @@ import Repositories
 /// In order:
 /// 1. No Feature in flight → `.actIdle(reason: .noFeatureInFlight)`, return (as `BuildAct` does, for
 ///    forced triggers — `EngineInvocation` only guards this when the trigger is not forced).
-/// 2. The in-flight Cycle already landed → `.actIdle(reason: .cycleAlreadyLanded)`, return: a forced
-///    land must not land the same Cycle twice.
+/// 2. The in-flight Cycle already landed → `.actIdle(reason: .cycleAlreadyLanded)` (or `.featureReturned`
+///    when the Feature was returned; issue #695), return: a forced land must not land the same Cycle twice.
 /// 3. Repo Lanes are derived from the Cycle's Cards. In a first phase each runs, sequentially, its merge
 ///    test (P10.3) and push (P10.2). `context.mode == .rehearsal` is a rehearsal boundary enforced here,
 ///    in defence in depth: the push and open-pull-request seams are never called, and those two steps
@@ -36,10 +36,12 @@ import Repositories
 ///    (P10.6) or archive the Cycle (P10.7), never both. When every touched repository has the outcome
 ///    (N = 0) no pull request opened and the Feature is not Done: an all-met verdict does not archive the
 ///    Cycle, which still lands.
-/// 7. If nothing faulted and nothing is outstanding: the Cycle is marked landed. Otherwise it stays
-///    unlanded, and the next land firing resumes the outstanding steps from the Journal's records: a
-///    recorded Verification report is reused (``FeatureVerification``), a recorded pull request is not
-///    opened again (``FeatureBranchPullRequest``), and a released Worktree is not released again.
+/// 7. If nothing faulted and nothing is outstanding: the Cycle is marked landed whichever way Verification
+///    decided — a returned Feature's Cycle still lands (it is not archived; spec: landing/overview;
+///    verification/return-a-feature-with-unmet-clauses; issue #695). Otherwise it stays unlanded, and the
+///    next land firing resumes the outstanding steps from the Journal's records: a recorded Verification
+///    report is reused (``FeatureVerification``), a recorded pull request is not opened again
+///    (``FeatureBranchPullRequest``), and a released Worktree is not released again.
 ///    Write-back always runs, fault or not: it replays any deferred Card state write left behind
 ///    (``DeferredCardStateReplay``, issue #96 — this Act dispatches no Card, so nothing else ever retries
 ///    one) and then delivers the Outbox. A fault (from any lane or the Feature sequence) is thrown after
@@ -90,12 +92,7 @@ public struct LandAct: Sendable {
             )
             return
         }
-        if try journal.isCycleLanded(cycleID: cycleID) {
-            try journal.append(
-                .actIdle(reason: .cycleAlreadyLanded), act: context.act, runID: context.runID, nightID: context.night.id
-            )
-            return
-        }
+        if try idledOnLandedCycle(feature: feature, cycleID: cycleID, context: context) { return }
 
         if try await deferredForWantOfABoardRead(context: context) { return }
 
@@ -142,6 +139,17 @@ public struct LandAct: Sendable {
         if !failures.isEmpty {
             throw LandActError.lanesFailed(failures)
         }
+    }
+
+    /// A forced land must not land the same Cycle twice: once the Cycle has landed, the Act idles, naming
+    /// a returned Feature when Verification returned it (issue #695). True when the Act idled.
+    private func idledOnLandedCycle(feature: FeatureRecord, cycleID: Int64, context: ActContext) throws -> Bool {
+        guard try context.journal.isCycleLanded(cycleID: cycleID) else { return false }
+        try context.journal.append(
+            .actIdle(reason: ActTriggerPredicate.landedCycleIdleReason(feature: feature)),
+            act: context.act, runID: context.runID, nightID: context.night.id
+        )
+        return true
     }
 
     /// The Board is reconciled before anything is derived, pushed or replayed (roadmap P22.3; spec:

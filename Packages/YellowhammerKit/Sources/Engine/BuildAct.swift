@@ -86,7 +86,8 @@ public struct BuildAct: Sendable {
         }
         if try journal.isCycleLanded(cycleID: cycleID) {
             try journal.append(
-                .actIdle(reason: .cycleAlreadyLanded), act: context.act, runID: context.runID, nightID: context.night.id
+                .actIdle(reason: ActTriggerPredicate.landedCycleIdleReason(feature: feature)),
+                act: context.act, runID: context.runID, nightID: context.night.id
             )
             return
         }

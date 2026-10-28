@@ -20,7 +20,8 @@ public enum ActTriggerPredicate {
     ///   held Todo Card (``RepoLane/heldCards(in:where:adoptedFrom:currentCard:)``, spec ruling OQ182 item 4)
     ///   counts as finished for both, so a Cycle with no runnable Card lands even while a held Card
     ///   stays Todo. Once the Cycle has landed (roadmap P10.1; risks OQ8, once per Cycle), both are
-    ///   false regardless, so no Repo Lane re-opens even if a Card returns to Todo.
+    ///   false regardless (idling with ``ActIdleReason/featureReturned`` when the Feature was returned,
+    ///   otherwise ``ActIdleReason/cycleAlreadyLanded``), so no Repo Lane re-opens even if a Card returns to Todo.
     /// - the author trigger reads dispatchable Card states from the Journal, and the dispatch-time
     ///   Readiness Check (a later phase) is what refines which of those Cards actually dispatch —
     ///   do not mistake this for the Readiness Check.
@@ -63,6 +64,12 @@ public enum ActTriggerPredicate {
         }
     }
 
+    /// Why build or land idles on a landed Cycle: the Feature's returned state when Verification returned
+    /// it, otherwise that the Cycle already landed (issue #695).
+    static func landedCycleIdleReason(feature: FeatureRecord) -> ActIdleReason {
+        feature.isReturned ? .featureReturned : .cycleAlreadyLanded
+    }
+
     /// The author trigger (shift-scheduling/fire-an-act-on-schedule): met with no unarchived Cycle and no
     /// unfinished Card, or on the Night's first author firing.
     ///
@@ -94,11 +101,11 @@ public enum ActTriggerPredicate {
     }
 
     private static func evaluateBuild(journal: JournalStore, holding: Bool) throws -> ActTriggerOutcome {
-        guard let cycleID = try journal.inFlightCycleID() else {
+        guard let (feature, cycleID) = try journal.inFlightFeature() else {
             return .notMet(.noFeatureInFlight)
         }
         if try journal.isCycleLanded(cycleID: cycleID) {
-            return .notMet(.cycleAlreadyLanded)
+            return .notMet(landedCycleIdleReason(feature: feature))
         }
         if try journal.hasCycleHandoffBegun(cycleID: cycleID) { return .notMet(.handoffBegun) }
         let count = try unfinishedUnheldCardCount(cycleID: cycleID, journal: journal)
@@ -111,11 +118,11 @@ public enum ActTriggerPredicate {
     private static func evaluateLand(
         journal: JournalStore, holding: Bool, runID: RunID, now: Date
     ) throws -> ActTriggerOutcome {
-        guard let cycleID = try journal.inFlightCycleID() else {
+        guard let (feature, cycleID) = try journal.inFlightFeature() else {
             return .notMet(.noFeatureInFlight)
         }
         if try journal.isCycleLanded(cycleID: cycleID) {
-            return .notMet(.cycleAlreadyLanded)
+            return .notMet(landedCycleIdleReason(feature: feature))
         }
         if try journal.hasCycleHandoffBegun(cycleID: cycleID) { return .met }
         let count = try unfinishedUnheldCardCount(cycleID: cycleID, journal: journal)
