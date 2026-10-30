@@ -21,10 +21,14 @@ public struct VerifierCheckouts: Equatable, Sendable {
     public let byRepository: [String: VerifierCheckout]
     /// The directory every fresh checkout was made under; nil when none was made.
     public let freshRoot: URL?
+    /// Each held Worktree whose HEAD was not its repository's recorded commit when the checkouts were made, sorted
+    /// by repository: reported as not published once Verification is recorded (OQ191 items 2 and 5).
+    public let unpublishedHeads: [UnpublishedHead]
 
-    public init(byRepository: [String: VerifierCheckout], freshRoot: URL?) {
+    public init(byRepository: [String: VerifierCheckout], freshRoot: URL?, unpublishedHeads: [UnpublishedHead] = []) {
         self.byRepository = byRepository
         self.freshRoot = freshRoot
+        self.unpublishedHeads = unpublishedHeads
     }
 
     /// The judged checkouts the Verification record names, sorted by repository.

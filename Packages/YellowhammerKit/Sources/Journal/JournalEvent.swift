@@ -469,6 +469,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// Before opening `repository`'s pull request, the land Act could not read the remote Feature Branch: a failed
     /// publication, retried by the next land firing (OQ191 item 4).
     case remoteTipUnreadable(repository: String, reason: String)
+    /// When Verification ran (a new judgement, not a reused record), a held Worktree's HEAD was not its
+    /// repository's recorded commit, so that HEAD is not published (OQ191 items 2 and 5;
+    /// landing/open-one-pull-request-per-repository `#unpublished-commits-pin`). A note, never a failure; nothing
+    /// is pinned yet.
+    case unpublishedCommitsReported(cycleID: Int64, unpublished: UnpublishedHead)
+    /// Before releasing a held Worktree whose HEAD was not its repository's recorded commit, the land Act pinned
+    /// that HEAD at `pinRef`, a local ref outside `refs/heads/` that is never pushed (OQ191 items 6 and 9). A note,
+    /// never a failure.
+    case unpublishedCommitsPinned(cycleID: Int64, unpublished: UnpublishedHead, pinRef: String)
     /// The land Act opened `featureIssueID`'s pull request in `repository` against a predecessor's Feature
     /// Branch, because `effective_base(R)` computed at landing from the Unmerged Feature Stack U was that
     /// predecessor (spec: landing/open-one-pull-request-per-repository `#stack-notice`; OQ177). Appended

@@ -72,10 +72,8 @@ struct OQ191JudgedCheckoutTests {
         let retry = try await faultedThenMoved()
         let (shortB1, shortB2) = (oq191Short(retry.commitB1), oq191Short(retry.commitB2))
 
-        await withKnownIssue("OQ191 item 2: a moved held Worktree is not reported as not published") {
-            let reports = try #require(try await retry.world.unpublishedReports("mobile"))
-            #expect(reports.contains { $0.contains(shortB1) && $0.contains(shortB2) })
-        }
+        let reports = try #require(try await retry.world.unpublishedReports("mobile"))
+        #expect(reports.contains { $0.contains(shortB1) && $0.contains(shortB2) })
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout

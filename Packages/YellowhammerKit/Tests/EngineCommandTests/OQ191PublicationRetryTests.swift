@@ -118,10 +118,8 @@ struct OQ191PublicationRetryTests {
         let retry = try await movedBranchRetry()
         let (shortB1, shortB2) = (oq191Short(retry.commitB1), oq191Short(retry.commitB2))
 
-        await withKnownIssue("OQ191 items 1, 9: commits after the Pushed Tip are not reported as not published") {
-            let reports = try #require(try await retry.world.unpublishedReports("mobile"))
-            #expect(reports.contains { $0.contains(shortB1) && $0.contains(shortB2) })
-        }
+        let reports = try #require(try await retry.world.unpublishedReports("mobile"))
+        #expect(reports.contains { $0.contains(shortB1) && $0.contains(shortB2) })
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#publication-retry

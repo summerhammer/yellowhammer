@@ -117,6 +117,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case pullRequestStacked = "PullRequestStacked"
     case remoteTipMismatch = "RemoteTipMismatch"
     case remoteTipUnreadable = "RemoteTipUnreadable"
+    case unpublishedCommitsReported = "UnpublishedCommitsReported"
+    case unpublishedCommitsPinned = "UnpublishedCommitsPinned"
     case featureVerified = "FeatureVerified"
     case featureReturned = "FeatureReturned"
     case cycleArchived = "CycleArchived"

@@ -24,10 +24,15 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
     /// which every read-only pass is denied (issue #546), so the verifier can read what is made here.
     public let directory: URL
     let git: JudgedCheckoutGit
+    /// Compares each held Worktree's HEAD with its recorded commit, for the "not published" report.
+    let heads: UnpublishedHeadPin
 
-    public init(directory: URL, git: JudgedCheckoutGit = JudgedCheckoutGit()) {
+    public init(
+        directory: URL, git: JudgedCheckoutGit = JudgedCheckoutGit(), heads: UnpublishedHeadPin = UnpublishedHeadPin()
+    ) {
         self.directory = directory
         self.git = git
+        self.heads = heads
     }
 
     /// `<home>/.cache/yellowhammer/verification/<project id>`: disposable, Yellowhammer-owned, never a
@@ -57,6 +62,7 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
         }
         let recorded = try recordedCommits(names, context: context)
         pruneStaleRoots()
+        let unpublished = await unpublishedHeads(targets, recorded: recorded)
 
         if await heldWorktreesAreExactAndClean(targets, recorded: recorded) {
             return VerifierCheckouts(
@@ -64,10 +70,14 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
                     let judged = recorded[target.name]?.judged(kind: .heldWorktree)
                     return (target.name, VerifierCheckout(directory: target.heldWorktree ?? "", judged: judged))
                 }),
-                freshRoot: nil
+                freshRoot: nil,
+                unpublishedHeads: unpublished
             )
         }
-        return try await freshCheckouts(targets, recorded: recorded, cycleID: context.cycleID)
+        let fresh = try await freshCheckouts(targets, recorded: recorded, cycleID: context.cycleID)
+        return VerifierCheckouts(
+            byRepository: fresh.byRepository, freshRoot: fresh.freshRoot, unpublishedHeads: unpublished
+        )
     }
 
     public func release(_ checkouts: VerifierCheckouts) {
@@ -131,6 +141,23 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
     }
 
     // MARK: - Checkouts
+
+    /// Each held Worktree whose HEAD is not its recorded commit, descendant or not (OQ191 items 2, 5 and 9). A
+    /// HEAD git cannot read is not reported: nothing is pinned here, and release reads it again.
+    private func unpublishedHeads(
+        _ targets: [Target], recorded: [String: RecordedCommit]
+    ) async -> [UnpublishedHead] {
+        var unpublished: [UnpublishedHead] = []
+        for target in targets.sorted(by: { $0.name < $1.name }) {
+            guard let worktree = target.heldWorktree, let commit = recorded[target.name] else { continue }
+            let relation = await heads.headRelation(worktreePath: worktree, recordedCommit: commit.commit)
+            UnpublishedHead(
+                relation, repository: target.name, recordedCommit: commit.commit,
+                noPushedBranch: commit.noPushedBranch
+            ).map { unpublished.append($0) }
+        }
+        return unpublished
+    }
 
     /// True when every repository has a held Worktree that is exact and clean at its recorded commit.
     private func heldWorktreesAreExactAndClean(

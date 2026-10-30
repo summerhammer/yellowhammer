@@ -8,8 +8,9 @@ import Journal
 extension NightSummary {
     /// Per repository, the pull requests recorded with `night_id` = this Night, flagged `Partial
     /// Landing` when their Feature's Cycle has lane holes; on a rehearsal Night, an
-    /// `.openPullRequest`/`.rehearsalBoundary` `landStep` renders "not opened — rehearsal". Empty when
-    /// neither happened this Night.
+    /// `.openPullRequest`/`.rehearsalBoundary` `landStep` renders "not opened — rehearsal". Then each
+    /// "not published" report made this Night (OQ191; ``UnpublishedCommitsReport``), at Verification time
+    /// or at release, once each: a note, never a failure. Empty when none of these happened this Night.
     public static func pullRequestLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         var lines: [String] = []
         for pullRequest in try journal.pullRequests(nightID: night.id) {
@@ -24,6 +25,11 @@ extension NightSummary {
                 step == .openPullRequest, outcome == .rehearsalBoundary, let repository
             else { continue }
             lines.append("`\(repository)`: not opened — rehearsal.")
+        }
+        for record in events {
+            if let report = UnpublishedCommitsReport.text(of: record.event), !lines.contains(report) {
+                lines.append(report)
+            }
         }
         return lines
     }

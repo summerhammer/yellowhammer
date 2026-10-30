@@ -101,10 +101,8 @@ struct OQ191NoPushedBranchTests {
         try requireNoPushedBranchOutcome(world)
         let (shortBase, shortW1) = (oq191Short(world["mobile"].base), oq191Short(worktreeW1))
 
-        await withKnownIssue("OQ191 item 5: commits past the recorded base are not reported as not published") {
-            let reports = try #require(try await world.unpublishedReports("mobile"))
-            #expect(reports.contains { $0.contains(shortBase) && $0.contains(shortW1) })
-        }
+        let reports = try #require(try await world.unpublishedReports("mobile"))
+        #expect(reports.contains { $0.contains(shortBase) && $0.contains(shortW1) })
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout

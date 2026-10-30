@@ -509,6 +509,8 @@ extension JournalEvent {
             .verifiedFeatureMergeObserved, .completedFeatureMergeObserved, .noPushedBranchOutcome, .landedPinFailed,
             .pullRequestStacked, .remoteTipMismatch, .remoteTipUnreadable:
             landActPayload
+        case .unpublishedCommitsReported, .unpublishedCommitsPinned:
+            unpublishedCommitsPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared, .authoringHaltRepair:
             authoringStopPayload

@@ -114,7 +114,7 @@ main ← feat/708-publish-what-was-pushed   (Track A + C; one commit per step)
   - **Other lanes** still publish.
   - **Harness.** R1–R4 and E14–E21 turn green. E13 stays green.
   - **Spec issue.** File OQ194 as built.
-- [ ] **A5 — At release, a HEAD that is not the Pushed Tip is pinned and reported as not
+- [x] **A5 — At release, a HEAD that is not the Pushed Tip is pinned and reported as not
   published.** The pin is a ref outside `refs/heads/` and is never pushed. The report is also made
   at Verification time. Items 1, 2, 5, 6 and 9.
   - **Harness.** R7–R10, E5, E24, E27–E30 and E44 turn green. E32, E33 and E45 stay green.

@@ -72,7 +72,13 @@ enum OQ191Probe {
     static func unpublishedCommitsReports(
         _ journal: JournalStore, board: FakeWritingBoard, repository: String
     ) async throws -> [String]? {
-        nil
+        // The Feature Card's comments: both reports are posted there, in the order made.
+        let featureIssue = try #require(try journal.inFlightFeature()).feature.issueID
+        let reports = await board.comments
+            .filter { $0.issue.rawValue == featureIssue && $0.body.hasPrefix("Not published: ") }
+            .map(\.body)
+            .filter { $0.contains(" in \(repository) ") || $0.contains(" in \(repository), ") }
+        return reports.isEmpty ? nil : reports
     }
 
     /// Item 4; `landing/stories/open-one-pull-request-per-repository.md#remote-tip-check`: the failure the remote

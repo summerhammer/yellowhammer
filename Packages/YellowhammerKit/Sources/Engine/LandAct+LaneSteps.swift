@@ -160,11 +160,14 @@ extension LandAct {
             return LandLaneSecondPhase(fault: nil, outstanding: prResult.detail ?? "the pull request was not opened")
         }
 
-        let releaseResult = await runReleaseWorktree(
-            feature: laneContext.feature, lane: lane, pushOutcome: progress.pushOutcome, context: context
-        )
+        let releaseResult = await runReleaseWorktree(laneContext, pushOutcome: progress.pushOutcome, context: context)
         record(releaseResult, step: .releaseWorktree, repository: lane.repository, context: context)
-        return LandLaneSecondPhase(fault: releaseResult.fault, outstanding: nil)
+        // A release that failed without a fault (a pin that could not be written) leaves the Worktree held: the
+        // Cycle stays unlanded and the next land firing retries.
+        let outstanding = releaseResult.outcome == .failed && releaseResult.fault == nil
+            ? releaseResult.detail ?? "the Worktree was not released"
+            : nil
+        return LandLaneSecondPhase(fault: releaseResult.fault, outstanding: outstanding)
     }
 
     private func runMergeTest(_ laneContext: LandActLaneContext) async -> (LandStepResult, MergeTestOutcome?) {
@@ -255,10 +258,14 @@ extension LandAct {
     /// Releases the lane's held Worktree, once its push reported pushed or safely skipped with no
     /// completed work (``JournalStore/releaseWorktree(id:runID:now:)``'s own refusal is defence in
     /// depth, not relied on here). Never throws for an unsafe push outcome — that is recorded skipped,
-    /// and the Worktree stays held.
+    /// and the Worktree stays held. A HEAD that is not the recorded commit is pinned first, on a lane with
+    /// no completed work too (``pinUnpublishedHead(held:laneContext:pushOutcome:context:)``); a pin that
+    /// cannot be written fails the step and keeps the Worktree held.
     private func runReleaseWorktree(
-        feature: FeatureRecord, lane: RepoLane, pushOutcome: LanePushOutcome?, context: ActContext
+        _ laneContext: LandActLaneContext, pushOutcome: LanePushOutcome?, context: ActContext
     ) async -> LandStepResult {
+        let feature = laneContext.feature
+        let lane = laneContext.lane
         guard
             let held = try? context.journal.heldWorktree(featureID: feature.id, repository: lane.repository),
             held.isHeld
@@ -271,12 +278,22 @@ extension LandAct {
         guard let workspace = context.workspace else {
             return .skipped("no Workspace bound")
         }
+        let pinned: String?
+        let pin = await pinUnpublishedHead(
+            held: held, laneContext: laneContext, pushOutcome: pushOutcome, context: context
+        )
+        switch pin {
+        case .keepHeld(let reason):
+            return .failed(reason)
+        case .release(let detail):
+            pinned = detail
+        }
         let allocator = WorktreeAllocator(workspace: workspace, journal: context.journal, runID: context.runID)
         do {
             _ = try await allocator.release(
                 featureID: feature.id, repository: lane.repository, discardingUnpushedWork: !pushOutcome.pushed
             )
-            return .completed()
+            return .completed(detail: pinned)
         } catch {
             return .faulted(String(describing: error))
         }

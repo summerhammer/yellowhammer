@@ -60,7 +60,12 @@ enum OQ191Probe {
     /// Items 6 and 9; `landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin`: how the
     /// held Worktree's HEAD stands against `recordedCommit` (the Pushed Tip or the recorded base commit).
     static func headRelation(worktreePath: String, recordedCommit: String) async -> OQ191HeadRelation? {
-        nil
+        switch await UnpublishedHeadPin().headRelation(worktreePath: worktreePath, recordedCommit: recordedCommit) {
+        case .atRecordedCommit: .atRecordedCommit
+        case .after(let commits, let head): .after(commits: commits, head: head)
+        case .differs(let head): .differs(head: head)
+        case .unreadable: nil
+        }
     }
 
     /// Item 6; `open-one-pull-request-per-repository.md#unpublished-commits-pin`: pins the held Worktree's HEAD
@@ -69,6 +74,13 @@ enum OQ191Probe {
     static func pinUnpublishedHead(
         worktreePath: String, recordedCommit: String, branch: FeatureBranch
     ) async -> OQ191PinResult? {
-        nil
+        let result = await UnpublishedHeadPin().pinUnpublishedHead(
+            worktreePath: worktreePath, recordedCommit: recordedCommit, branch: branch
+        )
+        switch result {
+        case .pinned(let ref, _): return .pinned(ref: ref)
+        case .notNeeded: return .notNeeded
+        case .failed: return nil
+        }
     }
 }

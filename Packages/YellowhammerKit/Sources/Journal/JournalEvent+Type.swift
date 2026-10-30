@@ -234,6 +234,10 @@ extension JournalEvent {
             .remoteTipMismatch
         case .remoteTipUnreadable:
             .remoteTipUnreadable
+        case .unpublishedCommitsReported:
+            .unpublishedCommitsReported
+        case .unpublishedCommitsPinned:
+            .unpublishedCommitsPinned
         case .featureVerified:
             .featureVerified
         case .featureReturned:

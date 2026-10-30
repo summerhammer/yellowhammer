@@ -106,8 +106,32 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
             ),
             act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
         )
+        await reportUnpublishedHeads(prepared.unpublishedHeads, context: context)
         try queueReport(recorded, context: context)
         return verdict
+    }
+
+    /// Reports each held Worktree whose HEAD was not its recorded commit as not published (OQ191 items 2 and 5;
+    /// landing/open-one-pull-request-per-repository `#unpublished-commits-pin`), once this Verification is
+    /// recorded, so the report names what it judged. A note, never a failure: it never throws and never blocks
+    /// the Cycle. A reused record reports nothing again.
+    private func reportUnpublishedHeads(_ unpublished: [UnpublishedHead], context: LandActFeatureContext) async {
+        guard !unpublished.isEmpty else { return }
+        let act = context.act
+        let lanes = (try? act.journal.cards(cycleID: context.cycleID)).map { RepoLane.derive(from: $0) } ?? []
+        for head in unpublished {
+            _ = try? act.journal.append(
+                .unpublishedCommitsReported(cycleID: context.cycleID, unpublished: head),
+                act: act.act, runID: act.runID, nightID: act.night.id
+            )
+            let placement = UnpublishedCommitsReport.Placement(
+                cycleID: context.cycleID, repository: head.repository, featureIssueID: context.feature.issueID,
+                laneCards: lanes.first { $0.repository == head.repository }?.cards ?? []
+            )
+            await UnpublishedCommitsReport.post(
+                UnpublishedCommitsReport.atVerification(head), kind: .verification, at: placement, outbox: act.outbox
+            )
+        }
     }
 
     /// The land Act's two-way verdict from a recorded Verification: all clauses met only when every clause

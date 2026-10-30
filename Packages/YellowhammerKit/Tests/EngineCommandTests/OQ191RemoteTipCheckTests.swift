@@ -10,7 +10,7 @@ import Testing
 // commits (an absent branch is named absent). A remote that cannot be read is a failed publication, retried on
 // the next firing. A bare remote's `post-receive` hook moves, deletes or hides the branch right after the push
 // succeeds. Only the affected lane is asserted: that the other lanes still publish is the Operator's OQ194
-// decision as built (`OQ191RemoteTipOtherLanesTests`). Spec at yellowhammer-spec f33bccf.
+// decision as built (`RemoteTipOtherLanesTests`). Spec at yellowhammer-spec f33bccf.
 
 /// What a bare remote's `post-receive` hook does to the Feature Branch right after the push.
 private enum RemoteAfterPush {
