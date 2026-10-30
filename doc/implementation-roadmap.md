@@ -2911,6 +2911,12 @@ the outstanding checks. #627 may close when #632 merges; #636 remains open for l
 
 ---
 
+## Verification delivery (#708, #698)
+
+OQ191 (a Cycle judges and publishes what it pushed), OQ197 and OQ190 (merge detection by pull request read) are planned and tracked in [the Verification delivery roadmap](verification-delivery-roadmap.md) (A1–A7, B1–B8, C1).
+
+---
+
 ## Traceability: story → steps
 
 | Story ID | Steps |
