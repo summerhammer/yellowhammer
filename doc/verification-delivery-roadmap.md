@@ -161,7 +161,7 @@ Steps are ordered by dependency:
   - The merge test's second rung: the pull request is merged, and its merge commit is in
     mainline.
   - A failed read falls through to the content test, plus a `PullRequestReadFailed` event.
-- [ ] **B4 #717 — Store the last observed pull request state per (Feature, repository).**
+- [x] **B4 #717 — Store the last observed pull request state per (Feature, repository).**
   - The state is `open`, `merged` or `closed without merge`, with when it was observed.
   - A failed read leaves the last state in place.
 - [ ] **B5 #714 — Night Summary notes:**

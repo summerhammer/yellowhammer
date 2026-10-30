@@ -22,8 +22,8 @@ extension PredecessorAncestryGate {
     }
 
     /// What one pass's merge tests share: the Feature, the Project's `Repo`s under test, the tip tested per
-    /// repository, the branch each repository's landed pin was written under, the Act's context and the running
-    /// git's version, read once per gate pass.
+    /// repository, the branch each repository's landed pin was written under, the Act's context, the running
+    /// git's version, read once per gate pass, and what the pass's pull request read found per repository.
     struct TestScope {
         let feature: FeatureRecord
         let repos: [Repo]
@@ -31,6 +31,7 @@ extension PredecessorAncestryGate {
         let pinBranches: [String: FeatureBranch]
         let context: ActContext
         let gitVersion: PassGitVersion
+        let pullRequestReads: [String: PullRequestReading]
     }
 
     /// Tests the repositories with no Observed Merge yet: ancestry first, then the pull request test and the content
@@ -40,7 +41,8 @@ extension PredecessorAncestryGate {
     /// ancestor but whose landing commit git could not read goes on to the content test, as any test that cannot
     /// run does (OQ190 item 22). Empty input skips git entirely.
     func testUntestedRepositories(
-        _ toTest: [String], feature: FeatureRecord, context: ActContext, gitVersion: PassGitVersion
+        _ toTest: [String], feature: FeatureRecord, context: ActContext, gitVersion: PassGitVersion,
+        pullRequestReads: [String: PullRequestReading]
     ) async throws -> AncestryTestResult {
         guard !toTest.isEmpty else { return AncestryTestResult() }
         let tips = try testedTips(for: toTest, feature: feature, journal: context.journal)
@@ -49,7 +51,7 @@ extension PredecessorAncestryGate {
         let pinBranches = try context.journal.resolvedFeatureBranches(feature: feature, repositories: toTest)
         let scope = TestScope(
             feature: feature, repos: repos, tips: tips, pinBranches: pinBranches, context: context,
-            gitVersion: gitVersion
+            gitVersion: gitVersion, pullRequestReads: pullRequestReads
         )
         let ancestryReport = await ancestryTester.evaluateAncestry(
             tips: tips, repos: repos, mainlines: context.mainlines

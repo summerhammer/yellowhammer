@@ -373,7 +373,7 @@ struct PredecessorAncestryGatePullRequestTests {
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
     }
 
-    @Test("Where ancestry holds, no pull request is read")
+    @Test("Where ancestry holds, the evidence is ancestry; the pull request is still read, for its state (item 16)")
     func ancestryFirst() async throws {
         let repo = GateGitFixture(name: "pr-ancestry-first")
         let tip = try await populateLandedFeature(repo)
@@ -388,8 +388,8 @@ struct PredecessorAncestryGatePullRequestTests {
 
         #expect(outcome == .open)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .ancestry])
-        #expect(await read.queries.isEmpty)
-        #expect(try readFailures(journal).isEmpty)
+        #expect(await read.queries.count == 1)
+        #expect(try readFailures(journal) == [.pullRequestReadFailed(repository: "backend", reason: .unreachable)])
     }
 
     @Test("A repository whose origin is not on GitHub is not read, and records no failure")
