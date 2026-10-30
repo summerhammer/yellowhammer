@@ -84,7 +84,7 @@ main ← feat/708-publish-what-was-pushed   (Track A + C; one commit per step)
 
 ## Track A — #708, OQ191 and OQ197
 
-- [ ] **A1 — The Pushed Tip is written once per (Cycle, repository), and a retry never re-pushes.**
+- [x] **A1 — The Pushed Tip is written once per (Cycle, repository), and a retry never re-pushes.**
   Items 1 and 2.
   - **Journal.** Add `pushed_tip` and drop `landed_commit`. Move every reader to the new API:
     `testedTips`, `ReleaseGate` (B), the landed-pin release, `AuthoringBases` / `EffectiveBase`,

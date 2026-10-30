@@ -162,7 +162,7 @@ public enum AuthoringBases {
                 repository: repo.name, branch: base.branch.name, featureIssueID: base.featureIssueID
             ))
         }
-        if let recorded = base.landedCommit, recorded != commit {
+        if let recorded = base.pushedTip, recorded != commit {
             return .failure(.commitMismatch(
                 repository: repo.name, branch: base.branch.name, featureIssueID: base.featureIssueID,
                 resolved: commit, recorded: recorded

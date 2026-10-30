@@ -49,13 +49,13 @@ enum OQ191Probe {
     static func recordPushedTip(
         _ journal: JournalStore, cycleID: Int64, repository: String, commit: String, runID: RunID
     ) throws {
-        throw OQ191NotBuilt(item: "item 2 (Pushed Tip per Cycle and repository)")
+        try journal.recordPushedTip(cycleID: cycleID, repository: repository, commit: commit, runID: runID)
     }
 
     /// Item 2; `select-the-next-feature.md#pushed-tip`: the Pushed Tip recorded for (`cycleID`, `repository`);
     /// nil when none is recorded.
     static func pushedTip(_ journal: JournalStore, cycleID: Int64, repository: String) throws -> String? {
-        nil
+        try journal.pushedTip(cycleID: cycleID, repository: repository)
     }
 
     /// Items 3, 5 and 7; `verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout`: records

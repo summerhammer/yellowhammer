@@ -66,12 +66,9 @@ struct OQ191PublicationRetryTests {
     func movedBranchIsNotPushedAgain() async throws {
         let retry = try await movedBranchRetry()
 
-        withKnownIssue("OQ191 item 1: a retry pushes a successfully pushed branch again") {
-            #expect(retry.world.pushCalls("mobile") == 1)
-        }
-        await withKnownIssue("OQ191 item 1: a retry pushes a successfully pushed branch again") {
-            #expect(await retry.world["mobile"].remoteTip() == retry.commitB1)
-        }
+        #expect(retry.world.pushCalls("mobile") == 1)
+        let remoteTip = await retry.world["mobile"].remoteTip()
+        #expect(remoteTip == retry.commitB1)
     }
 
     // feature-authoring/stories/select-the-next-feature.md#pushed-tip
@@ -82,11 +79,9 @@ struct OQ191PublicationRetryTests {
     func movedBranchKeepsThePushedTip() async throws {
         let retry = try await movedBranchRetry()
 
-        withKnownIssue("OQ191 item 2: the Pushed Tip is not recorded write-once per (Cycle, repository)") {
-            let world = retry.world
-            let tip = try OQ191Probe.pushedTip(world.env.journal, cycleID: world.cycleID, repository: "mobile")
-            #expect(tip == retry.commitB1)
-        }
+        let world = retry.world
+        let tip = try OQ191Probe.pushedTip(world.env.journal, cycleID: world.cycleID, repository: "mobile")
+        #expect(tip == retry.commitB1)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#publication-retry
@@ -110,10 +105,8 @@ struct OQ191PublicationRetryTests {
     func movedBranchPullRequestOpensAtThePushedTip() async throws {
         let retry = try await movedBranchRetry()
 
-        await withKnownIssue("OQ191 item 1: the retry pushes B2 before the pull request opens") {
-            let opened = await retry.world.publication.opened("mobile")
-            #expect(opened == [OQ191Publication.Opened(repository: "mobile", remoteTip: retry.commitB1)])
-        }
+        let opened = await retry.world.publication.opened("mobile")
+        #expect(opened == [OQ191Publication.Opened(repository: "mobile", remoteTip: retry.commitB1)])
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -151,10 +144,8 @@ struct OQ191PublicationRetryTests {
     func unchangedRetryDoesNotPushAgain() async throws {
         let world = try await unchangedRetry().world
 
-        withKnownIssue("OQ191 item 1: a retry pushes a successfully pushed branch again") {
-            #expect(world.pushCalls("backend") == 1)
-            #expect(world.pushCalls("mobile") == 1)
-        }
+        #expect(world.pushCalls("backend") == 1)
+        #expect(world.pushCalls("mobile") == 1)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#publication-retry

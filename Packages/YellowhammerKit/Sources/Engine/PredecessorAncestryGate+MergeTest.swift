@@ -68,7 +68,7 @@ extension PredecessorAncestryGate {
         return result
     }
 
-    /// The tip to test per repository: the commit the land Act recorded, else the recorded Feature Branch
+    /// The tip to test per repository: the Pushed Tip, else the recorded Feature Branch
     /// (#tested-tip). A repository with no recorded Feature Branch is a Journal fault whether or not a commit
     /// was recorded, so it throws before any git runs. The Feature's Worktree name is deliberately not read
     /// here, or it would stand in for a record that is missing.
@@ -76,14 +76,14 @@ extension PredecessorAncestryGate {
         for repositories: [String], feature: FeatureRecord, journal: JournalStore
     ) throws -> [String: TestedTip] {
         let recordedBranches = try journal.featureBranches(featureID: feature.id)
-        let landedCommits = try journal.landedCommits(featureID: feature.id)
+        let pushedTips = try journal.pushedTips(featureID: feature.id)
         var tips: [String: TestedTip] = [:]
         for repository in repositories {
             guard recordedBranches[repository] != nil else {
                 throw PredecessorAncestryGateError.predecessorBranchMissing(featureIssueID: feature.issueID)
             }
             tips[repository] = TestedTip(
-                branch: recordedBranches[repository], recordedCommit: landedCommits[repository]
+                branch: recordedBranches[repository], recordedCommit: pushedTips[repository]
             )
         }
         return tips

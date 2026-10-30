@@ -13,9 +13,9 @@ public struct UnmergedFeature: Equatable, Sendable {
     /// The Feature Branch per pushed repository, from `feature_repository.branch`; a repository with none
     /// recorded is omitted.
     public let branches: [String: FeatureBranch]
-    /// The commit the land Act last pushed per pushed repository (`feature_repository.landed_commit`);
-    /// a repository with none recorded is omitted.
-    public let landedCommits: [String: String]
+    /// The Pushed Tip per pushed repository (`pushed_tip`, the latest Cycle's); a repository with none
+    /// recorded is omitted.
+    public let pushedTips: [String: String]
     /// The pushed repositories with a recorded Observed Merge (`feature_landing`), sorted.
     public let mergedRepositories: [String]
     /// The pushed repositories with no recorded Observed Merge, sorted — never empty here.
@@ -29,8 +29,8 @@ public struct EffectiveBase: Equatable, Sendable {
     public let featureID: Int64
     public let featureIssueID: String
     public let branch: FeatureBranch
-    /// The commit the land Act last pushed for this Feature in the repository; nil when none is recorded.
-    public let landedCommit: String?
+    /// This Feature's Pushed Tip in the repository; nil when none is recorded.
+    public let pushedTip: String?
 }
 
 /// One row of `feature_base`: the base a Feature was authored against in one repository, recorded at

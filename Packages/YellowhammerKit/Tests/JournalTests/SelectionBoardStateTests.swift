@@ -172,12 +172,16 @@ private func seedUnmergedFeature(
             sql: "INSERT INTO cycle (feature_id, created_at, archived_at, landed_at) VALUES (?, ?, ?, ?)",
             arguments: [featureID, stamp, stamp, stamp]
         )
+        let cycleID = db.lastInsertedRowID
+        try db.execute(
+            sql: "INSERT INTO feature_repository (feature_id, repository, branch) VALUES (?, 'repo-a', ?)",
+            arguments: [featureID, "yh-\(issueID)"]
+        )
         try db.execute(
             sql: """
-            INSERT INTO feature_repository (feature_id, repository, branch, landed_commit)
-            VALUES (?, 'repo-a', ?, 'c1')
+            INSERT INTO pushed_tip (cycle_id, repository, "commit", run_id, pushed_at) VALUES (?, ?, ?, ?, ?)
             """,
-            arguments: [featureID, "yh-\(issueID)"]
+            arguments: [cycleID, "repo-a", "c1", RunID().rawValue, stamp]
         )
     }
     if landed {

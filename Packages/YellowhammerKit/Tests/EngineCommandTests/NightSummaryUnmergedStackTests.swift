@@ -35,10 +35,14 @@ private func seedUnmerged(
         let cycleID = db.lastInsertedRowID
         for repository in repositories {
             try db.execute(
+                sql: "INSERT INTO feature_repository (feature_id, repository, branch) VALUES (?, ?, ?)",
+                arguments: [featureID, repository, "yh/\(issueID.lowercased())"]
+            )
+            try db.execute(
                 sql: """
-                INSERT INTO feature_repository (feature_id, repository, branch, landed_commit) VALUES (?, ?, ?, ?)
+                INSERT INTO pushed_tip (cycle_id, repository, "commit", run_id, pushed_at) VALUES (?, ?, ?, ?, ?)
                 """,
-                arguments: [featureID, repository, "yh/\(issueID.lowercased())", "commit-\(issueID)"]
+                arguments: [cycleID, repository, "commit-\(issueID)", RunID().rawValue, stamp]
             )
         }
         return SeededFeature(featureID: featureID, cycleID: cycleID)

@@ -179,7 +179,7 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
             "operator_abort_request",
             "outbox",
             "project_state",
-            "pull_request",
+            "pull_request", "pushed_tip",
             "refusal",
             "round",
             "route_exclusion",

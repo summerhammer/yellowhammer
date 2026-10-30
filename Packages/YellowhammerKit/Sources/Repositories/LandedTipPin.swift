@@ -12,7 +12,7 @@ public enum LandedPinResult: Equatable, Sendable {
 /// Pins the commit the land Act pushed for a Feature Branch under `refs/yellowhammer/landed/<branch>`, in the
 /// repository's MAIN clone, so the commit survives Orca ADE, GitHub or an Operator fetch deleting every
 /// branch ref, and `git gc` (feature-authoring/select-the-next-feature, OQ164). The predecessor gate tests
-/// that commit; the Journal records it (`JournalStore.recordLandedCommit`).
+/// that commit; the Journal records it as the Pushed Tip (`JournalStore.recordPushedTip`).
 ///
 /// Branch names may carry an Orca ADE prefix containing `/`, so the ref is always fully qualified. Every call
 /// runs against the main repository path from the Project's `Repo`, never a Worktree. Local git, not behind a

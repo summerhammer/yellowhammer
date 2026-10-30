@@ -45,23 +45,22 @@ extension JournalStore {
         _ db: Database, feature: FeatureRecord, pushed: [String], unmerged: [String]
     ) throws -> UnmergedFeature {
         var branches: [String: FeatureBranch] = [:]
-        var landedCommits: [String: String] = [:]
         for row in try Row.fetchAll(
             db,
-            sql: "SELECT repository, branch, landed_commit FROM feature_repository WHERE feature_id = ?",
+            sql: "SELECT repository, branch FROM feature_repository WHERE feature_id = ?",
             arguments: [feature.id]
         ) {
             let repository: String = row["repository"]
             guard pushed.contains(repository) else { continue }
             if let branch: String = row["branch"] { branches[repository] = FeatureBranch(rawValue: branch) }
-            if let commit: String = row["landed_commit"] { landedCommits[repository] = commit }
         }
+        let pushedTips = try Self.pushedTips(db, featureID: feature.id).filter { pushed.contains($0.key) }
         return UnmergedFeature(
             feature: feature,
             touchedRepositories: try touchedRepositories(db, featureID: feature.id),
             pushedRepositories: pushed,
             branches: branches,
-            landedCommits: landedCommits,
+            pushedTips: pushedTips,
             mergedRepositories: pushed.filter { !unmerged.contains($0) },
             unmergedRepositories: unmerged
         )
@@ -80,7 +79,7 @@ extension JournalStore {
             }
             return EffectiveBase(
                 featureID: member.feature.id, featureIssueID: member.feature.issueID, branch: branch,
-                landedCommit: member.landedCommits[repository]
+                pushedTip: member.pushedTips[repository]
             )
         }
         return nil

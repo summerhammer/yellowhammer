@@ -42,7 +42,7 @@ struct StackedLandWorld {
         await env.board.seed(issue: "BACK-1", description: nil)
         let predecessorID = try insertGateFeature(
             env.journal, issueID: "FEAT-0", branch: "b1", repositories: ["backend"], landed: true,
-            landedCommits: ["backend": tip]
+            pushedTips: ["backend": tip]
         )
         try env.journal.write { db in
             try db.execute(sql: "UPDATE feature SET issue_key = 'YLH-1' WHERE id = ?", arguments: [predecessorID])

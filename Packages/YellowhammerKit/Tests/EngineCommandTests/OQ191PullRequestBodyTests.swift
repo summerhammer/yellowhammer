@@ -81,7 +81,7 @@ struct OQ191PullRequestBodyTests {
         let firing = await world.fire()
         try #require(firing.error == nil)
         let backend = world["backend"]
-        let landed = try world.env.journal.landedCommit(featureID: world.feature.id, repository: "backend")
+        let landed = try world.env.journal.pushedTip(cycleID: world.cycleID, repository: "backend")
         try #require(landed == backend.tip)
 
         #expect(try await !body(world, "backend").contains(oq191Short(backend.tip)))

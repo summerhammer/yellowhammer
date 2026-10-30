@@ -25,7 +25,7 @@ private let stackRepositories = ProjectRepositories(
 private func seedAddLoginInU(_ journal: JournalStore, runID: RunID) throws {
     let featureID = try insertGateFeature(
         journal, issueID: "FEAT-1", branch: "yh-f1", repositories: ["backend"], landed: true,
-        landedCommits: ["backend": "c1"]
+        pushedTips: ["backend": "c1"]
     )
     try journal.append(
         .featureAuthored(FeatureAuthoredPayload(

@@ -107,7 +107,7 @@ public struct ObservedReleaseGate: ReleaseGate {
             return true
         }
         let branch = try journal.featureBranches(featureID: feature.id)[producer.name]
-        let recorded = try journal.landedCommits(featureID: feature.id)[producer.name]
+        let recorded = try journal.pushedTips(featureID: feature.id)[producer.name]
         guard branch != nil || recorded != nil else { return false }
         let release = ResolvedMainline(
             repository: producer.name, defaultBranch: producer.defaultBranch ?? "main",

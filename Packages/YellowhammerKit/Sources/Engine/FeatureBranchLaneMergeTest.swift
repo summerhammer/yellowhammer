@@ -72,7 +72,12 @@ public struct FeatureBranchLaneMergeTest: LaneMergeTesting, Sendable {
             )
         }
 
-        let result = await tester.testMerge(branch: branch, in: repository, mainline: mainline)
+        // The Pushed Tip, once this Cycle recorded one: a retry tests what it publishes, never a Feature Branch
+        // that moved after its push (OQ191 item 1). Before the first push, the branch.
+        let pushedTip = try context.act.journal.pushedTip(cycleID: context.cycleID, repository: repository.name)
+        let result = await tester.testMerge(
+            branch: branch.name, recordedCommit: pushedTip, in: repository, mainline: mainline
+        )
         return try record(result, repository: repository, mainline: mainline, context: context)
     }
 

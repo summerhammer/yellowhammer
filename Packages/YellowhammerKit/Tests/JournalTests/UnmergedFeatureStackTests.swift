@@ -30,8 +30,8 @@ private struct JournalFixture: ~Copyable {
 
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
-/// Seeds a Feature with a Cycle and `feature_repository` rows (`pushing`, each with a branch and a landed
-/// commit). `archived` archives the Cycle, `closedBy` sets the closure, `cycleLanded` sets `landed_at`.
+/// Seeds a Feature with a Cycle and `feature_repository` rows (`pushing`, each with a branch and a Pushed
+/// Tip). `archived` archives the Cycle, `closedBy` sets the closure, `cycleLanded` sets `landed_at`.
 @discardableResult
 private func seedFeature(
     _ journal: JournalStore, issueID: String, pushing repositories: [String], archived: Bool = true,
@@ -49,12 +49,17 @@ private func seedFeature(
             sql: "INSERT INTO cycle (feature_id, created_at, archived_at, landed_at) VALUES (?, ?, ?, ?)",
             arguments: [featureID, stamp, archived ? stamp : nil, cycleLanded ? stamp : nil]
         )
+        let cycleID = db.lastInsertedRowID
         for repository in repositories {
             try db.execute(
+                sql: "INSERT INTO feature_repository (feature_id, repository, branch) VALUES (?, ?, ?)",
+                arguments: [featureID, repository, "yh/\(issueID.lowercased())"]
+            )
+            try db.execute(
                 sql: """
-                INSERT INTO feature_repository (feature_id, repository, branch, landed_commit) VALUES (?, ?, ?, ?)
+                INSERT INTO pushed_tip (cycle_id, repository, "commit", run_id, pushed_at) VALUES (?, ?, ?, ?, ?)
                 """,
-                arguments: [featureID, repository, "yh/\(issueID.lowercased())", "commit-\(issueID)-\(repository)"]
+                arguments: [cycleID, repository, "commit-\(issueID)-\(repository)", RunID().rawValue, stamp]
             )
         }
         return featureID
@@ -89,7 +94,7 @@ struct UnmergedFeatureStackTests {
         #expect(member.touchedRepositories == ["backend"])
         #expect(member.pushedRepositories == ["backend"])
         #expect(member.branches == ["backend": "yh/f-1"])
-        #expect(member.landedCommits == ["backend": "commit-F-1-backend"])
+        #expect(member.pushedTips == ["backend": "commit-F-1-backend"])
         #expect(member.mergedRepositories.isEmpty)
         #expect(member.unmergedRepositories == ["backend"])
     }
@@ -164,7 +169,7 @@ struct UnmergedFeatureStackTests {
         #expect(backend.featureID == second)
         #expect(backend.featureIssueID == "F-2")
         #expect(backend.branch == "yh/f-2")
-        #expect(backend.landedCommit == "commit-F-2-backend")
+        #expect(backend.pushedTip == "commit-F-2-backend")
         #expect(try journal.effectiveBase(repository: "mobile")?.featureID == first)
         #expect(try journal.effectiveBase(repository: "web") == nil)
         #expect(try journal.effectiveBase(repository: "backend", excludingFeatureID: second)?.featureID == first)

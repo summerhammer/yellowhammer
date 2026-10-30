@@ -45,7 +45,7 @@ enum OQ191Probe {
     /// Item 2; `feature-authoring/stories/select-the-next-feature.md#pushed-tip`: the Pushed Tip the land Act
     /// recorded for (`cycleID`, `repository`); nil when none is recorded.
     static func pushedTip(_ journal: JournalStore, cycleID: Int64, repository: String) throws -> String? {
-        nil
+        try journal.pushedTip(cycleID: cycleID, repository: repository)
     }
 
     /// Items 3, 5 and 7; `verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout`: the judged

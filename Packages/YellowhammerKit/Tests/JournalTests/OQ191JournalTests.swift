@@ -99,15 +99,14 @@ struct OQ191JournalTests {
         let journal = try fixture.open()
         let world = try makeWorld(journal, projectID: fixture.projectID)
 
-        withKnownIssue("OQ191 item 2: the Pushed Tip is not recorded per (Cycle, repository)") {
-            try OQ191Probe.recordPushedTip(
-                journal, cycleID: world.cycleID, repository: "backend", commit: commitB1, runID: world.runID
-            )
-            try? OQ191Probe.recordPushedTip(
-                journal, cycleID: world.cycleID, repository: "backend", commit: commitB2, runID: world.runID
-            )
-            #expect(try OQ191Probe.pushedTip(journal, cycleID: world.cycleID, repository: "backend") == commitB1)
-        }
+        try OQ191Probe.recordPushedTip(
+            journal, cycleID: world.cycleID, repository: "backend", commit: commitB1, runID: world.runID
+        )
+        try? OQ191Probe.recordPushedTip(
+            journal, cycleID: world.cycleID, repository: "backend", commit: commitB2, runID: world.runID
+        )
+        let tip = try OQ191Probe.pushedTip(journal, cycleID: world.cycleID, repository: "backend")
+        #expect(tip == commitB1)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -203,10 +202,10 @@ struct OQ191JournalTests {
         let fixture = try OQ191JournalFixture()
         let journal = try fixture.open()
         let world = try makeWorld(journal, projectID: fixture.projectID)
-        try journal.recordLandedCommit(
-            featureID: world.featureID, repository: "backend", commit: commitB2, runID: world.runID
+        try journal.recordPushedTip(
+            cycleID: world.cycleID, repository: "backend", commit: commitB2, runID: world.runID
         )
-        #expect(try journal.landedCommit(featureID: world.featureID, repository: "backend") == commitB2)
+        #expect(try journal.pushedTip(cycleID: world.cycleID, repository: "backend") == commitB2)
         // Written through today's API, which records no judged checkout: a record from before this rule.
         #expect(try journal.recordFeatureVerification(verification(world)))
 

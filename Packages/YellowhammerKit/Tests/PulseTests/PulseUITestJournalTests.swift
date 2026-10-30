@@ -135,8 +135,8 @@ private func seedStackedFeature(_ journal: JournalStore, nightID: Int64, runID: 
     try journal.recordFeatureBranch(
         featureID: feature.featureID, repository: uiTestJournalRepo, branch: FeatureBranch(rawValue: "yh/arc-9")
     )
-    try journal.recordLandedCommit(
-        featureID: feature.featureID, repository: uiTestJournalRepo, commit: "arc9tip", runID: runID, now: seededAt
+    try journal.recordPushedTip(
+        cycleID: feature.cycleID, repository: uiTestJournalRepo, commit: "arc9tip", runID: runID, now: seededAt
     )
     try journal.recordPullRequest(
         featureID: feature.featureID, repository: uiTestJournalRepo,

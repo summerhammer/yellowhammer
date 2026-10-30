@@ -11,14 +11,14 @@ import Testing
 
 @Suite("Settle a Feature: landed pins")
 struct FeatureSettleLandedPinTests {
-    /// Records `commit` as landed for the world's Feature in `repository`, under a throwaway Act lease.
+    /// Records `commit` as the Pushed Tip of the world's Cycle in `repository`, under a throwaway Act lease.
     private func recordLanded(_ world: SettleWorld, repository: String, commit: String) throws {
         let runID = RunID()
         guard case .claimed = try world.journal.claimActLease(act: .land, runID: runID, mode: .real) else {
             throw JournalError.actLeaseLost(runID: runID, holder: nil)
         }
-        try world.journal.recordLandedCommit(
-            featureID: world.featureID, repository: repository, commit: commit, runID: runID
+        try world.journal.recordPushedTip(
+            cycleID: world.cycleID, repository: repository, commit: commit, runID: runID
         )
         try world.journal.releaseActLease(runID: runID)
     }
@@ -54,7 +54,7 @@ struct FeatureSettleLandedPinTests {
         #expect(try settleFeatureRow(world.journal, featureID: world.featureID).abandonedAt != nil)
         #expect(await backend.revParse(ref) == nil)
         #expect(try landedPinFailures(world.journal).isEmpty)
-        #expect(try world.journal.landedCommit(featureID: world.featureID, repository: "backend") == commit)
+        #expect(try world.journal.pushedTip(cycleID: world.cycleID, repository: "backend") == commit)
     }
 
     @Test("a pin that cannot be deleted is reported in the Journal and the abandon still happens")

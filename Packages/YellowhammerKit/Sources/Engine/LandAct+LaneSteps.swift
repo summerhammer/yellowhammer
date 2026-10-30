@@ -194,7 +194,11 @@ extension LandAct {
     }
 
     /// Never called in rehearsal mode (a rehearsal boundary, defence in depth against dispatching a
-    /// real push from a Rehearsal Night).
+    /// real push from a Rehearsal Night). A repository whose Pushed Tip this Cycle already recorded is never
+    /// pushed again (landing/open-one-pull-request-per-repository, `#publication-retry`; OQ191 item 1): the
+    /// push seam is not called, nothing is recorded or pinned again, and the lane carries on as pushed at the
+    /// recorded commit, however its local Feature Branch has moved since. A refused push recorded nothing, so
+    /// the next firing pushes it again.
     private func runPush(
         _ laneContext: LandActLaneContext, context: ActContext
     ) async -> (LandStepResult, LanePushOutcome?) {
@@ -206,6 +210,14 @@ extension LandAct {
         }
         do {
             try context.journal.beginCycleHandoff(cycleID: laneContext.cycleID, runID: context.runID)
+            if let recorded = try context.journal.pushedTip(
+                cycleID: laneContext.cycleID, repository: laneContext.lane.repository
+            ) {
+                return (
+                    .completed(detail: "already pushed at \(recorded.prefix(7))"),
+                    LanePushOutcome(kind: .pushed(commit: recorded))
+                )
+            }
             let outcome = try await push.push(laneContext)
             if outcome.pushed, let commit = outcome.commit {
                 recordPushedCommit(commit, laneContext: laneContext, context: context)

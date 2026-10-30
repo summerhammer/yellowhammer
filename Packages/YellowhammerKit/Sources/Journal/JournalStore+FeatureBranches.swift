@@ -100,58 +100,73 @@ extension JournalStore {
         }
     }
 
-    /// The commit the land Act last pushed for `featureID`'s `repository`, nil when it has not pushed
-    /// there (or pushed before the Journal recorded landed commits). The tip the predecessor gate tests,
-    /// pinned in the main clone at `refs/yellowhammer/landed/<branch>`.
-    public func landedCommit(featureID: Int64, repository: String) throws -> String? {
+    /// The Pushed Tip of (`cycleID`, `repository`): the commit the land Act pushed for that Cycle there,
+    /// pinned in the main clone at `refs/yellowhammer/landed/<branch>`. Nil when the Cycle has not pushed there.
+    public func pushedTip(cycleID: Int64, repository: String) throws -> String? {
         try read { db in
             try String.fetchOne(
                 db,
-                sql: "SELECT landed_commit FROM feature_repository WHERE feature_id = ? AND repository = ?",
-                arguments: [featureID, repository]
+                sql: "SELECT \"commit\" FROM pushed_tip WHERE cycle_id = ? AND repository = ?",
+                arguments: [cycleID, repository]
             )
         }
     }
 
-    /// ``landedCommit(featureID:repository:)`` for every repository of `featureID` that has one, from one
-    /// read. A repository with no landed commit is omitted.
-    public func landedCommits(featureID: Int64) throws -> [String: String] {
-        try read { db in
-            let rows = try Row.fetchAll(
-                db,
-                sql: "SELECT repository, landed_commit FROM feature_repository "
-                    + "WHERE feature_id = ? AND landed_commit IS NOT NULL",
-                arguments: [featureID]
-            )
-            var commits: [String: String] = [:]
-            for row in rows {
-                let repository: String = row["repository"]
-                let commit: String = row["landed_commit"]
-                commits[repository] = commit
-            }
-            return commits
-        }
+    /// The Pushed Tip per repository of `featureID`, from one read: the tip the predecessor gate, the release
+    /// gate and a stacked Feature's base test. Per repository the latest Cycle's tip wins (whether a Feature can
+    /// have a later Cycle is OQ193). A repository with no Pushed Tip is omitted.
+    public func pushedTips(featureID: Int64) throws -> [String: String] {
+        try read { db in try Self.pushedTips(db, featureID: featureID) }
     }
 
-    /// Records the commit the land Act just pushed for `featureID`'s `repository`. One write transaction,
-    /// revalidating the Act-scoped lease first. A later push overwrites: the latest pushed tip is the one
-    /// the pull request carries. A pushed repository is by definition one the Feature touches, so the
-    /// pair's row is created when it does not exist yet (its `branch` stays NULL until allocation records
-    /// it); an unknown Feature throws ``JournalError/featureUnknown(featureID:)``.
-    public func recordLandedCommit(
-        featureID: Int64, repository: String, commit: String, runID: RunID, now: Date = Date()
-    ) throws {
+    /// ``pushedTips(featureID:)`` inside a caller's read.
+    static func pushedTips(_ db: Database, featureID: Int64) throws -> [String: String] {
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+            SELECT pushed_tip.repository, pushed_tip."commit" FROM pushed_tip
+            JOIN cycle ON cycle.id = pushed_tip.cycle_id
+            WHERE cycle.feature_id = ?
+            ORDER BY pushed_tip.cycle_id
+            """,
+            arguments: [featureID]
+        )
+        var tips: [String: String] = [:]
+        for row in rows {
+            let repository: String = row["repository"]
+            let commit: String = row["commit"]
+            tips[repository] = commit
+        }
+        return tips
+    }
+
+    /// Records `commit` as the Pushed Tip of (`cycleID`, `repository`), once: the first write wins and a later
+    /// one is ignored (feature-authoring/select-the-next-feature, `#pushed-tip`; OQ191 item 2). Returns whether
+    /// this call recorded it. One write transaction, revalidating the Act-scoped lease first. A pushed
+    /// repository is by definition one the Feature touches, so the Cycle's Feature gets its `feature_repository`
+    /// row when it has none yet (its `branch` stays NULL until allocation records it); an unknown Cycle throws
+    /// ``JournalError/cycleUnknown(cycleID:)``.
+    @discardableResult
+    public func recordPushedTip(
+        cycleID: Int64, repository: String, commit: String, runID: RunID, now: Date = Date()
+    ) throws -> Bool {
         try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
 
-            guard try Int.fetchOne(db, sql: "SELECT 1 FROM feature WHERE id = ?", arguments: [featureID]) != nil else {
-                throw JournalError.featureUnknown(featureID: featureID)
+            guard let featureID = try Int64.fetchOne(
+                db, sql: "SELECT feature_id FROM cycle WHERE id = ?", arguments: [cycleID]
+            ) else {
+                throw JournalError.cycleUnknown(cycleID: cycleID)
             }
             try Self.insertFeatureRepositories(db, featureID: featureID, repositories: [repository])
             try db.execute(
-                sql: "UPDATE feature_repository SET landed_commit = ? WHERE feature_id = ? AND repository = ?",
-                arguments: [commit, featureID, repository]
+                sql: """
+                INSERT OR IGNORE INTO pushed_tip (cycle_id, repository, "commit", run_id, pushed_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                arguments: [cycleID, repository, commit, runID.rawValue, Self.timestamp(now)]
             )
+            return db.changesCount == 1
         }
     }
 

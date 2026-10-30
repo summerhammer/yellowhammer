@@ -69,12 +69,12 @@ final class ScriptedPostMergeClosure: PostMergeClosure, @unchecked Sendable {
 /// ever picks up an archived (not in-flight) Cycle's Feature. `repositories` is recorded directly into
 /// `feature_repository` (roadmap P9.9), the gate's own source of touched repositories — never derived
 /// from Cards. `branch` is the Feature's Worktree name and, unless `recordBranch` is false, also the Feature
-/// Branch recorded for each repository; `landedCommits` records the commit the land Act pushed per repository.
+/// Branch recorded for each repository; `pushedTips` records the Feature's Pushed Tip per repository.
 @discardableResult
 func insertGateFeature(
     _ journal: JournalStore, issueID: String, branch: String?, repositories: [String] = [],
     inFlight: Bool = false, landed: Bool = false, released: Bool = false, recordBranch: Bool = true,
-    landedCommits: [String: String] = [:]
+    pushedTips: [String: String] = [:]
 ) throws -> Int64 {
     try journal.write { db in
         try db.execute(
@@ -95,12 +95,18 @@ func insertGateFeature(
                 landed ? JournalStore.timestamp(outboxEpoch) : nil
             ]
         )
+        let cycleID = db.lastInsertedRowID
         for repository in repositories {
             try db.execute(
+                sql: "INSERT INTO feature_repository (feature_id, repository, branch) VALUES (?, ?, ?)",
+                arguments: [featureID, repository, recordBranch ? branch : nil]
+            )
+            guard let tip = pushedTips[repository] else { continue }
+            try db.execute(
                 sql: """
-                INSERT INTO feature_repository (feature_id, repository, branch, landed_commit) VALUES (?, ?, ?, ?)
+                INSERT INTO pushed_tip (cycle_id, repository, "commit", run_id, pushed_at) VALUES (?, ?, ?, ?, ?)
                 """,
-                arguments: [featureID, repository, recordBranch ? branch : nil, landedCommits[repository]]
+                arguments: [cycleID, repository, tip, RunID().rawValue, JournalStore.timestamp(outboxEpoch)]
             )
         }
         return featureID
