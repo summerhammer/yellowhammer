@@ -19,8 +19,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     private let projectID: String
     /// The same scrub the Outbox applies (OQ146/OQ147, R23), applied above the Publication Port.
     private let scrub: @Sendable () -> NarrativeScrub
-    /// Reads the remote Feature Branch before every open. Defaults to `git ls-remote` against `origin` with no
-    /// credential; the land Act's binding passes the push's credential.
+    /// Reads the remote Feature Branch before every open. Required, so no caller runs a real `git ls-remote`
+    /// by omission; the land Act's binding passes the push's credential.
     let remoteTip: RemoteFeatureBranchRead
 
     public init(
@@ -31,7 +31,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         changeType: ChangeType = .feat,
         projectID: String = "",
         scrub: @escaping @Sendable () -> NarrativeScrub = { .none },
-        remoteTip: RemoteFeatureBranchRead = .git(credential: { nil })
+        remoteTip: RemoteFeatureBranchRead
     ) {
         self.scrub = scrub
         self.remoteTip = remoteTip

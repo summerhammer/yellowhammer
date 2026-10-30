@@ -68,15 +68,19 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
             throw VerificationFault(reason: "the Cycle has no Definition of Done clause to verify")
         }
         // OQ191 items 2, 5, 7 and 8: what was pushed is judged, in checkouts removed when Verification ends.
-        let prepared = try await checkouts.prepare(context, repositories: try verifiedRepositories(context))
-        defer { checkouts.release(prepared) }
+        // The judged commits are resolved every time; the checkouts are made only if a clause is dispatched.
+        let plan = try await checkouts.plan(context, repositories: try verifiedRepositories(context))
+        var prepared: VerifierCheckouts?
+        defer { prepared.map { checkouts.release($0) } }
 
         var judged = try await decideByEngine(candidates, context: context)
         let pending = candidates.filter { judged[$0.key] == nil }
 
         var route: Route?
         if !pending.isEmpty {
-            let (routeUsed, verdicts) = try await dispatchVerifier(pending, checkouts: prepared, context: context)
+            let made = try await checkouts.materialise(plan, context: context)
+            prepared = made
+            let (routeUsed, verdicts) = try await dispatchVerifier(pending, checkouts: made, context: context)
             route = routeUsed
             for candidate in pending {
                 guard let verified = verdicts[candidate.key] else { continue }
@@ -91,7 +95,7 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         try journal.recordFeatureVerification(NewFeatureVerification(
             featureID: context.feature.id, cycleID: context.cycleID, route: route?.description,
             nightID: context.act.night.id, runID: context.act.runID, clauses: records,
-            judgedCheckouts: prepared.judgedCheckouts
+            judgedCheckouts: plan.judgedCheckouts
         ))
         guard let recorded = try journal.featureVerification(cycleID: context.cycleID) else {
             throw VerificationFault(reason: "the Verification just recorded cannot be read back")
@@ -106,7 +110,7 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
             ),
             act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
         )
-        await reportUnpublishedHeads(prepared.unpublishedHeads, context: context)
+        await reportUnpublishedHeads(plan.unpublishedHeads, context: context)
         try queueReport(recorded, context: context)
         return verdict
     }

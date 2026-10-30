@@ -21,19 +21,30 @@ public struct VerifierCheckouts: Equatable, Sendable {
     public let byRepository: [String: VerifierCheckout]
     /// The directory every fresh checkout was made under; nil when none was made.
     public let freshRoot: URL?
-    /// Each held Worktree whose HEAD was not its repository's recorded commit when the checkouts were made, sorted
-    /// by repository: reported as not published once Verification is recorded (OQ191 items 2 and 5).
-    public let unpublishedHeads: [UnpublishedHead]
 
-    public init(byRepository: [String: VerifierCheckout], freshRoot: URL?, unpublishedHeads: [UnpublishedHead] = []) {
+    public init(byRepository: [String: VerifierCheckout], freshRoot: URL?) {
         self.byRepository = byRepository
         self.freshRoot = freshRoot
-        self.unpublishedHeads = unpublishedHeads
     }
+}
 
-    /// The judged checkouts the Verification record names, sorted by repository.
-    public var judgedCheckouts: [JudgedCheckout] {
-        byRepository.values.compactMap(\.judged).sorted { $0.repository < $1.repository }
+/// What Verification decides about its checkouts before it makes any: the commit each repository is judged at
+/// and the held Worktrees whose HEAD is not that commit. Cheap to resolve, so it is resolved on every
+/// Verification; the checkouts themselves are made only when a clause goes to the verifier.
+public struct VerifierCheckoutPlan: Equatable, Sendable {
+    /// The repositories to hand the verifier a checkout of (sorted names).
+    public let repositories: [String]
+    /// The judged checkouts the Verification record names, sorted by repository; empty where nothing was pushed by
+    /// design (a Rehearsal Night).
+    public let judgedCheckouts: [JudgedCheckout]
+    /// Each held Worktree whose HEAD was not its repository's recorded commit, sorted by repository: reported as
+    /// not published once Verification is recorded (OQ191 items 2 and 5).
+    public let unpublishedHeads: [UnpublishedHead]
+
+    public init(repositories: [String], judgedCheckouts: [JudgedCheckout], unpublishedHeads: [UnpublishedHead] = []) {
+        self.repositories = repositories
+        self.judgedCheckouts = judgedCheckouts
+        self.unpublishedHeads = unpublishedHeads
     }
 }
 
@@ -41,11 +52,14 @@ public struct VerifierCheckouts: Equatable, Sendable {
 /// verification/verify-a-feature-clause-by-clause, `#judged-checkout`; OQ191 items 2, 5, 7 and 8). The engine's
 /// own is ``JudgedCheckoutPreparation``; a test hands another in.
 public protocol VerifierCheckoutPreparing: Sendable {
-    /// The checkout of every repository in `repositories` (sorted names) for `context`'s Cycle. Throws
-    /// ``VerificationFault`` when a repository has nothing recorded to judge or a checkout cannot be made, having
-    /// removed whatever it made.
-    func prepare(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckouts
+    /// Resolves the plan for `repositories` (sorted names) for `context`'s Cycle, making no checkout. Throws
+    /// ``VerificationFault`` when a repository has nothing recorded to judge.
+    func plan(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckoutPlan
 
-    /// Removes what ``prepare(_:repositories:)`` made, whatever Verification came to. Never throws.
+    /// Makes the checkouts `plan` describes. Throws ``VerificationFault`` when a checkout cannot be made, having
+    /// removed whatever it made.
+    func materialise(_ plan: VerifierCheckoutPlan, context: LandActFeatureContext) async throws -> VerifierCheckouts
+
+    /// Removes what ``materialise(_:context:)`` made, whatever Verification came to. Never throws.
     func release(_ checkouts: VerifierCheckouts)
 }

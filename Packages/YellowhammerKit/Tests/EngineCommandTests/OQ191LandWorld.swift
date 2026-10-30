@@ -144,8 +144,12 @@ struct OQ191LoggedPush: LanePushing {
 struct OQ191KeptCheckouts: VerifierCheckoutPreparing {
     let inner: JudgedCheckoutPreparation
 
-    func prepare(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckouts {
-        try await inner.prepare(context, repositories: repositories)
+    func plan(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckoutPlan {
+        try await inner.plan(context, repositories: repositories)
+    }
+
+    func materialise(_ plan: VerifierCheckoutPlan, context: LandActFeatureContext) async throws -> VerifierCheckouts {
+        try await inner.materialise(plan, context: context)
     }
 
     func release(_ checkouts: VerifierCheckouts) {}

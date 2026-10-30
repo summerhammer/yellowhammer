@@ -48,10 +48,31 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
         directory.appending(component: "cycle-\(cycleID)", directoryHint: .isDirectory)
     }
 
-    public func prepare(
+    public func plan(
         _ context: LandActFeatureContext, repositories names: [String]
-    ) async throws -> VerifierCheckouts {
+    ) async throws -> VerifierCheckoutPlan {
         let targets = try names.map { try target(named: $0, context: context) }
+        if context.act.mode == .rehearsal {
+            return VerifierCheckoutPlan(repositories: names, judgedCheckouts: [])
+        }
+        let recorded = try recordedCommits(names, context: context)
+        pruneStaleRoots()
+        let unpublished = await unpublishedHeads(targets, recorded: recorded)
+        let kind: JudgedCheckout.Kind = await heldWorktreesAreExactAndClean(targets, recorded: recorded)
+            ? .heldWorktree
+            : .freshCheckout
+        return VerifierCheckoutPlan(
+            repositories: names,
+            judgedCheckouts: names.compactMap { recorded[$0]?.judged(kind: kind) }
+                .sorted { $0.repository < $1.repository },
+            unpublishedHeads: unpublished
+        )
+    }
+
+    public func materialise(
+        _ plan: VerifierCheckoutPlan, context: LandActFeatureContext
+    ) async throws -> VerifierCheckouts {
+        let targets = try plan.repositories.map { try target(named: $0, context: context) }
         if context.act.mode == .rehearsal {
             return VerifierCheckouts(
                 byRepository: Dictionary(uniqueKeysWithValues: targets.map {
@@ -60,24 +81,22 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
                 freshRoot: nil
             )
         }
-        let recorded = try recordedCommits(names, context: context)
-        pruneStaleRoots()
-        let unpublished = await unpublishedHeads(targets, recorded: recorded)
-
-        if await heldWorktreesAreExactAndClean(targets, recorded: recorded) {
+        let recorded = Dictionary(uniqueKeysWithValues: plan.judgedCheckouts.map {
+            (
+                $0.repository,
+                RecordedCommit(repository: $0.repository, commit: $0.commit, noPushedBranch: $0.noPushedBranch)
+            )
+        })
+        if plan.judgedCheckouts.allSatisfy({ $0.kind == .heldWorktree }) {
             return VerifierCheckouts(
                 byRepository: Dictionary(uniqueKeysWithValues: targets.map { target in
                     let judged = recorded[target.name]?.judged(kind: .heldWorktree)
                     return (target.name, VerifierCheckout(directory: target.heldWorktree ?? "", judged: judged))
                 }),
-                freshRoot: nil,
-                unpublishedHeads: unpublished
+                freshRoot: nil
             )
         }
-        let fresh = try await freshCheckouts(targets, recorded: recorded, cycleID: context.cycleID)
-        return VerifierCheckouts(
-            byRepository: fresh.byRepository, freshRoot: fresh.freshRoot, unpublishedHeads: unpublished
-        )
+        return try await freshCheckouts(targets, recorded: recorded, cycleID: context.cycleID)
     }
 
     public func release(_ checkouts: VerifierCheckouts) {

@@ -138,7 +138,9 @@ final class OQ191LandWorld {
             mergeTest: StubMergeTest(log: log),
             push: OQ191LoggedPush(inner: FeatureBranchLanePush(credential: { nil }), log: log),
             openPullRequest: FeatureBranchPullRequest(
-                publication: publication, slugResolver: slugResolver, clock: { landEpoch }
+                publication: publication, slugResolver: slugResolver, clock: { landEpoch },
+                // The real read: each clone's `origin` is its local bare remote.
+                remoteTip: .git(credential: { nil })
             ),
             verification: FeatureVerification(
                 resolver: verificationResolver(primary: routeOther), dispatch: dispatch,

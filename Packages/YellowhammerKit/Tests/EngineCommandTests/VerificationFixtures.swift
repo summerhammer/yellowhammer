@@ -177,9 +177,13 @@ final class VerificationWorld {
 /// is judged: it hands each held Worktree (else the repository's configured path), makes nothing, and names no
 /// judged commit. What Verification judges is the OQ191 harness's (`OQ191*Tests`), on real git.
 struct UnrecordedCheckouts: VerifierCheckoutPreparing {
-    func prepare(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckouts {
+    func plan(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckoutPlan {
+        VerifierCheckoutPlan(repositories: repositories, judgedCheckouts: [])
+    }
+
+    func materialise(_ plan: VerifierCheckoutPlan, context: LandActFeatureContext) async throws -> VerifierCheckouts {
         var byRepository: [String: VerifierCheckout] = [:]
-        for name in repositories {
+        for name in plan.repositories {
             guard let repo = context.act.repositories?.workingRepo(named: name) else {
                 throw VerificationFault(reason: "the Feature touched repository \"\(name)\", which is not configured")
             }
