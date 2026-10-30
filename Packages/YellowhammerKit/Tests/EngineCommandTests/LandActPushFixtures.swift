@@ -105,7 +105,10 @@ final class LandPushTestEnvironment {
         self.context = context
     }
 
-    static func make(repos: [Repo], workspace: ReconcilerFakeWorkspace? = nil) async throws -> LandPushTestEnvironment {
+    /// `specSource`, when given, is the Project's specification source, for a test that runs real Verification.
+    static func make(
+        repos: [Repo], workspace: ReconcilerFakeWorkspace? = nil, specSource: SpecSource? = nil
+    ) async throws -> LandPushTestEnvironment {
         let directory = FileManager.default.temporaryDirectory
             .appending(component: "yh-land-push-\(UUID().uuidString)", directoryHint: .isDirectory)
         let projectID = try #require(ProjectID(rawValue: "fixture"))
@@ -118,7 +121,7 @@ final class LandPushTestEnvironment {
         let context = ActContext(
             act: .land, mode: .real, trigger: .scheduled, runID: runID, journal: journal, night: night,
             outbox: outbox, mainlines: ResolvedMainlines(), workspace: workspace,
-            repositories: ProjectRepositories(workingRepos: repos)
+            repositories: ProjectRepositories(workingRepos: repos, specSource: specSource)
         )
         return LandPushTestEnvironment(
             directory: directory, journal: journal, board: board, runID: runID, workspace: workspace, context: context
