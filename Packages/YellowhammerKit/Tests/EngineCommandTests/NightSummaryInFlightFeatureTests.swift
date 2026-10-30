@@ -227,6 +227,9 @@ struct NightSummaryInFlightFeatureTests {
         #expect(withNotes.contains("0 of 1 Feature Branches merged"))
         #expect(withNotes.contains("a.txt"))
         #expect(withNotes.hasSuffix(") [no pull request: docs] [no pull request: frontend]"))
+        // A Partial Landing holding flight is not in U: its line gives no route out (#716).
+        #expect(!withNotes.contains("by any method"))
+        #expect(!withNotes.contains("git merge -s ours"))
     }
 
     @Test("At N = 0 the line still says 0 of 0 and carries a note for every repository with the outcome (P19.7)")

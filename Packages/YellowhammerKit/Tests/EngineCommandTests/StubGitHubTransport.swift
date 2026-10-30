@@ -28,6 +28,9 @@ final class StubGitHubTransport: Sendable {
             Reply(200, body: #"{"private":\#(isPrivate),"permissions":{"push":\#(push)}}"#)
         }
 
+        /// `GET /repos/{owner}/{repo}/pulls?head=…`: no pull request has the head branch asked about.
+        static let noPullRequests = Reply(200, body: "[]")
+
         static let unauthorized = Reply(401, body: #"{"message":"Bad credentials"}"#)
         static let notFound = Reply(404, body: #"{"message":"Not Found"}"#)
     }
@@ -37,7 +40,8 @@ final class StubGitHubTransport: Sendable {
     private let acceptedTokens: Set<String>?
     private let log = Mutex<[URLRequest]>([])
 
-    /// `routes` maps a URL path (`/user`, `/repos/acme/backend`) to its reply; any other path gets `fallback`.
+    /// `routes` maps a URL path (`/user`, `/repos/acme/backend`) to its reply; any other path gets `fallback`,
+    /// except a pull request list (`…/pulls`), which reads as empty.
     /// With `acceptedTokens`, a request bearing any other token gets 401, as GitHub answers a wrong token.
     init(routes: [String: Reply] = [:], fallback: Reply = .notFound, acceptedTokens: Set<String>? = nil) {
         self.routes = routes
@@ -67,7 +71,7 @@ final class StubGitHubTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         log.withLock { $0.append(request) }
         let path = request.url?.path(percentEncoded: false) ?? ""
-        var reply = routes[path] ?? fallback
+        var reply = routes[path] ?? (path.hasSuffix("/pulls") ? .noPullRequests : fallback)
         if let acceptedTokens {
             let token = request.value(forHTTPHeaderField: "Authorization")?
                 .replacingOccurrences(of: "Bearer ", with: "") ?? ""

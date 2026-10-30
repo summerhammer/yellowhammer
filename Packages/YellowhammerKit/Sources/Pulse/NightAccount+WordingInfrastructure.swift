@@ -7,8 +7,8 @@ import Journal
 // never the bare event name (app/land-on-the-sidebar-and-pulse#failure-line).
 
 extension NightWording {
-    /// Board write groups, Managed Blocks, Worktree loss and reconciliation, mainline conflicts and usage
-    /// limits.
+    /// Board write groups, Managed Blocks, Worktree loss and reconciliation, mainline conflicts, usage limits and
+    /// the pull request read's notes.
     func infrastructureFailures(_ event: JournalEvent) -> NightWords? {
         switch event {
         case .outboxGroupRolledBack(let groupID, let reason):
@@ -46,7 +46,23 @@ extension NightWording {
                 headline: "\(repository): conflicts with mainline", detail: paths.isEmpty ? nil : shown + rest
             )
         default:
-            return nil
+            return pullRequestRead(event)
+        }
+    }
+
+    /// A pull request read that could not be made, worded as a failed mainline fetch is, and a Feature Branch the read
+    /// found more than one pull request for (#714).
+    private func pullRequestRead(_ event: JournalEvent) -> NightWords? {
+        switch event {
+        case .pullRequestReadFailed(let repository, let reason):
+            NightWords(headline: "Could not read the pull request in \(repository)", detail: reason.words)
+        case .multiplePullRequestsObserved(let repository, let branch, let numbers):
+            NightWords(
+                headline: "More than one pull request for \(branch) in \(repository)",
+                detail: numbers.map { "#\($0)" }.joined(separator: ", ")
+            )
+        default:
+            nil
         }
     }
 }

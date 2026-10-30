@@ -4,9 +4,12 @@ import Journal
 import Repositories
 
 // The predecessor gate's merge test (spec: feature-authoring/select-the-next-feature, #merge-test,
-// #net-zero-branch, #tested-tip): per repository in N with no Observed Merge, ancestry first and — only
-// where that fails — the content test, both against the commit the land Act recorded. Local git reads only;
-// GitHub is never asked. Split out of PredecessorAncestryGate.swift for the file and type length limits.
+// #net-zero-branch, #tested-tip): per repository in N with no Observed Merge, ancestry first, then the pull request
+// test, then the content test, each only where the ones before it did not hold and all against the commit the land
+// Act recorded (OQ190 item 22). Each Observed Merge records its landing commit, where the change entered mainline
+// (OQ190 item 26). Ancestry and content are local git reads; the pull request test reads Code Hosting through the
+// Publication Port and checks its merge commit locally (PredecessorAncestryGate+PullRequestTest.swift). Split out
+// of PredecessorAncestryGate.swift for the file and type length limits.
 
 extension PredecessorAncestryGate {
     /// One pass's repositories, split by what this pass found: freshly merged (an Observed Merge was just
@@ -19,28 +22,37 @@ extension PredecessorAncestryGate {
     }
 
     /// What one pass's merge tests share: the Feature, the Project's `Repo`s under test, the tip tested per
-    /// repository, the branch each repository's landed pin was written under, and the Act's context.
+    /// repository, the branch each repository's landed pin was written under, the Act's context, the running
+    /// git's version, read once per gate pass, and what the pass's pull request read found per repository.
     struct TestScope {
         let feature: FeatureRecord
         let repos: [Repo]
         let tips: [String: TestedTip]
         let pinBranches: [String: FeatureBranch]
         let context: ActContext
+        let gitVersion: PassGitVersion
+        let pullRequestReads: [String: PullRequestReading]
     }
 
-    /// Tests the repositories with no Observed Merge yet: ancestry first, then the content test for each
-    /// repository where ancestry failed. An Observed Merge is recorded for each that passed (with the
-    /// evidence that found it) and its landed pin deleted; a Mainline Conflict is reported for each
-    /// unmerged repository whose merge was conflicting. Empty input skips git entirely.
+    /// Tests the repositories with no Observed Merge yet: ancestry first, then the pull request test and the content
+    /// test, in that order, for each repository where ancestry failed. An Observed Merge is recorded for each that passed (with the
+    /// evidence that found it and its landing commit) and its landed pin deleted; a Mainline Conflict is
+    /// reported for each unmerged repository whose merge into mainline's head was conflicting. A tip that is an
+    /// ancestor but whose landing commit git could not read goes on to the content test, as any test that cannot
+    /// run does (OQ190 item 22). Empty input skips git entirely.
     func testUntestedRepositories(
-        _ toTest: [String], feature: FeatureRecord, context: ActContext
+        _ toTest: [String], feature: FeatureRecord, context: ActContext, gitVersion: PassGitVersion,
+        pullRequestReads: [String: PullRequestReading]
     ) async throws -> AncestryTestResult {
         guard !toTest.isEmpty else { return AncestryTestResult() }
         let tips = try testedTips(for: toTest, feature: feature, journal: context.journal)
         let repos = try Self.resolveRepos(featureIssueID: feature.issueID, names: toTest, in: context.repositories)
         // The land Act pinned under the resolved branch, Worktree-name fallback included; only the pin reads it.
         let pinBranches = try context.journal.resolvedFeatureBranches(feature: feature, repositories: toTest)
-        let scope = TestScope(feature: feature, repos: repos, tips: tips, pinBranches: pinBranches, context: context)
+        let scope = TestScope(
+            feature: feature, repos: repos, tips: tips, pinBranches: pinBranches, context: context,
+            gitVersion: gitVersion, pullRequestReads: pullRequestReads
+        )
         let ancestryReport = await ancestryTester.evaluateAncestry(
             tips: tips, repos: repos, mainlines: context.mainlines
         )
@@ -48,11 +60,12 @@ extension PredecessorAncestryGate {
         var result = AncestryTestResult()
         var notAncestors: [RepoAncestryResult] = []
         for repoResult in ancestryReport.results {
-            if repoResult.isAncestor, let mainlineCommit = repoResult.mainlineCommit {
+            if repoResult.isAncestor, let mainlineCommit = repoResult.mainlineCommit,
+               let landingCommit = repoResult.landingCommit {
                 try await recordObservedMerge(
                     ObservedMerge(
-                        repository: repoResult.repository, mainlineCommit: mainlineCommit,
-                        tipCommit: repoResult.branchCommit, evidence: .ancestry
+                        repository: repoResult.repository, landingCommit: landingCommit,
+                        mainlineCommit: mainlineCommit, tipCommit: repoResult.branchCommit, evidence: .ancestry
                     ),
                     scope: scope
                 )
@@ -64,7 +77,8 @@ extension PredecessorAncestryGate {
             }
         }
 
-        try await testContent(of: notAncestors, scope: scope, into: &result)
+        let notByPullRequest = try await testPullRequests(of: notAncestors, scope: scope, into: &result)
+        try await testContent(of: notByPullRequest, scope: scope, into: &result)
         return result
     }
 
@@ -89,31 +103,35 @@ extension PredecessorAncestryGate {
         return tips
     }
 
-    /// The content test for the repositories whose tip is not an ancestor of mainline. One `git merge-tree`
-    /// read per repository yields both the content verdict and the Mainline Conflict re-test, so it is never
-    /// run twice. The very commit ancestry resolved is the one tested.
+    /// The content test for the repositories whose tip is not an ancestor of mainline: a search of mainline's
+    /// first-parent history for the commit where the change entered it (OQ190 item 24), anchored for a stacked
+    /// Feature on the lower Feature's landing commit and not run before it (OQ190 item 25; see
+    /// ``contentTestPlan(for:scope:)``). The Mainline Conflict re-test stays a read of mainline's head, which the
+    /// same pass returns. The very commit ancestry resolved is the one tested.
     private func testContent(
         of notAncestors: [RepoAncestryResult], scope: TestScope, into result: inout AncestryTestResult
     ) async throws {
         guard !notAncestors.isEmpty else { return }
         let context = scope.context
-        var contentTips: [String: TestedTip] = [:]
-        for notAncestor in notAncestors {
-            contentTips[notAncestor.repository] = TestedTip(
-                branch: scope.tips[notAncestor.repository]?.branch, recordedCommit: notAncestor.branchCommit
+        var mergeResults: [RepoMergeResult] = []
+        for repo in scope.repos {
+            guard let notAncestor = notAncestors.first(where: { $0.repository == repo.name }) else { continue }
+            let tip = TestedTip(branch: scope.tips[repo.name]?.branch, recordedCommit: notAncestor.branchCommit)
+            mergeResults.append(
+                await contentResult(
+                    of: tip, in: repo, plan: try await contentTestPlan(for: repo.name, scope: scope),
+                    mainline: context.mainlines[repo.name]
+                )
             )
         }
-        let mergeReport = await mergeTester.evaluateMerge(
-            tips: contentTips, repos: scope.repos.filter { contentTips[$0.name] != nil },
-            mainlines: context.mainlines
-        )
 
-        for mergeResult in mergeReport.results {
-            if mergeResult.isContentMerged, let mainlineCommit = mergeResult.mainlineCommit {
+        for mergeResult in mergeResults {
+            if mergeResult.isContentMerged, let mainlineCommit = mergeResult.mainlineCommit,
+               let landingCommit = mergeResult.landingCommit {
                 try await recordObservedMerge(
                     ObservedMerge(
-                        repository: mergeResult.repository, mainlineCommit: mainlineCommit,
-                        tipCommit: mergeResult.branchCommit, evidence: .content
+                        repository: mergeResult.repository, landingCommit: landingCommit,
+                        mainlineCommit: mainlineCommit, tipCommit: mergeResult.branchCommit, evidence: .content
                     ),
                     scope: scope
                 )
@@ -137,6 +155,9 @@ extension PredecessorAncestryGate {
     /// One repository's Observed Merge, as found by this pass.
     struct ObservedMerge {
         let repository: String
+        /// Where the change entered mainline.
+        let landingCommit: String
+        /// Mainline's commit at this observation.
         let mainlineCommit: String
         let tipCommit: String?
         let evidence: ObservedMergeEvidence
@@ -149,14 +170,14 @@ extension PredecessorAncestryGate {
     /// A pin that cannot be deleted is reported by a Journal-only
     /// ``JournalEvent/landedPinFailed(featureIssueID:repository:branch:commit:operation:reason:)`` and never
     /// changes the gate's outcome. An Observed Merge recorded by an earlier pass already had its pin handled.
-    private func recordObservedMerge(
+    func recordObservedMerge(
         _ merge: ObservedMerge, scope: TestScope
     ) async throws {
         let context = scope.context
         let feature = scope.feature
         let recorded = try context.journal.recordLanding(
-            featureID: feature.id, repository: merge.repository, mainlineCommit: merge.mainlineCommit,
-            evidence: merge.evidence
+            featureID: feature.id, repository: merge.repository, landingCommit: merge.landingCommit,
+            mainlineCommit: merge.mainlineCommit, evidence: merge.evidence
         )
         guard
             recorded,

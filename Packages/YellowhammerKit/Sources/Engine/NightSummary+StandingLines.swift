@@ -47,6 +47,15 @@ extension NightSummary {
         if !noPullRequest.isEmpty {
             line += " " + FeatureRollUp.noPullRequestNotes(noPullRequest)
         }
+        // The pull request read covers an in-flight Partial Landing too (#714); every Feature in U is below it.
+        let landings = try journal.landings(featureID: inFlight.feature.id)
+        let readNotes = try pullRequestReadNotes(
+            featureID: inFlight.feature.id,
+            unmergedRepositories: inFlight.pushedRepositories.filter { landings[$0] == nil },
+            pushedTips: try journal.pushedTips(featureID: inFlight.feature.id),
+            lowerBranches: lowerFeatureBranches(try journal.unmergedFeatureStack()), journal: journal
+        )
+        if !readNotes.isEmpty { line += " " + readNotes.joined(separator: " ") }
         lines.append(line)
         return lines
     }

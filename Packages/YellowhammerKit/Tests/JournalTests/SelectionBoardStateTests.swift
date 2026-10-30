@@ -189,7 +189,8 @@ private func seedUnmergedFeature(
             try Int64.fetchOne(db, sql: "SELECT id FROM feature WHERE issue_id = ?", arguments: [issueID])
         })
         try journal.recordLanding(
-            featureID: featureID, repository: "repo-a", mainlineCommit: "main-a", evidence: .ancestry
+            featureID: featureID, repository: "repo-a", landingCommit: "main-a",
+            mainlineCommit: "main-a", evidence: .ancestry
         )
     }
     try journal.append(.featureAuthored(FeatureAuthoredPayload(

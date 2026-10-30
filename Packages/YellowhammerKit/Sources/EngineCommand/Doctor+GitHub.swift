@@ -11,7 +11,11 @@ extension Doctor {
     /// An unreferenced connection (no Project names it) is reported as context (info).
     ///
     /// If the connection resolves, the push check runs per Project and per working Repo (spec-role Repos
-    /// are skipped; unverifiable fine-grained tokens are reported as unverified passes).
+    /// are skipped; unverifiable fine-grained tokens are reported as unverified passes). Each GitHub Repo's push
+    /// row is followed by its pull request read row (Merge Detection Ruling item 5): a pass when the connection
+    /// can read pull requests, a warning when it cannot, and a warning saying "unverified" when GitHub gave no
+    /// verdict — as the push row warns on a Repo it could not check. Never a failure, and merge settings are
+    /// never read (OQ164 §7).
     ///
     /// A Project naming a connection not in the registry fails ([FAIL]) for that Project, naming the Project
     /// and the missing name.
@@ -73,10 +77,12 @@ extension Doctor {
         case .keychain(let reference):
             return await gitHub.report(
                 reference: reference, secret: credentials.gitHubSecret(for: reference), repos: repos,
-                connectionName: connection.name
+                connectionName: connection.name, readsPullRequests: true
             )
         case .githubCLI(let executable):
-            return await gitHub.reportGitHubCLI(executable: executable, repos: repos, connectionName: connection.name)
+            return await gitHub.reportGitHubCLI(
+                executable: executable, repos: repos, connectionName: connection.name, readsPullRequests: true
+            )
         }
     }
 
@@ -105,12 +111,19 @@ extension Doctor {
                     continue
                 }
                 let repoPrefix = Self.repoPrefix(project.id, connection: connection.name)
+                let repoScope = DoctorCodeHostingScope(name: connection.name, projects: [project.id])
                 findings.append(finding(
                     .github, subject: "repo \(repo.name)", repoSeverity(result.status),
                     repoPrefix + result.message,
                     project: project.id,
-                    codeHosting: DoctorCodeHostingScope(name: connection.name, projects: [project.id])
+                    codeHosting: repoScope
                 ))
+                if let read = result.pullRequestRead {
+                    findings.append(finding(
+                        .github, subject: "pull request read \(repo.name)", readSeverity(read.status),
+                        repoPrefix + read.message, project: project.id, codeHosting: repoScope
+                    ))
+                }
             }
         }
         return findings
@@ -214,6 +227,15 @@ extension Doctor {
         let home = homeDirectory.path(percentEncoded: false)
         return project.repos.filter { $0.role != .spec }.map {
             (name: $0.name, path: Doctor.expandTilde($0.path, homeDirectory: home))
+        }
+    }
+
+    /// Being unable to read pull requests is a warning, not a failure; an unverified read warns as the push
+    /// row does for a Repo it could not check.
+    private func readSeverity(_ status: GitHubCredentialReport.PullRequestReadStatus) -> DoctorSeverity {
+        switch status {
+        case .canRead: .pass
+        case .cannotRead, .unverified: .warning
         }
     }
 

@@ -52,9 +52,12 @@ struct GitHubCredentialValidation: Sendable {
     /// Pass only **working** Repos: the caller filters out a Repo whose role is ``RepoRole/spec`` (and a
     /// Project's Spec Source) because the Spec Source is read-only — nothing is ever pushed to it, so its
     /// access is not the credential's business.
+    ///
+    /// With `readsPullRequests` (`yh doctor`'s Check 5 only), each GitHub Repo also gets a pull request read
+    /// check: one real read through the Publication Port's read, with the same transport and token.
     func report(
         reference: CredentialReference, secret: SecretLookup, repos: [(name: String, path: String)],
-        connectionName: String? = nil
+        connectionName: String? = nil, readsPullRequests: Bool = false
     ) async -> GitHubCredentialReport {
         let name = connectionName ?? Self.account(of: reference)
         let token: String
@@ -71,7 +74,8 @@ struct GitHubCredentialValidation: Sendable {
             token = value
         }
 
-        let check = GitHubCredentialCheck(transport: ClosureTransport(exchange: send))
+        let transport = ClosureTransport(exchange: send)
+        let check = GitHubCredentialCheck(transport: transport)
         switch await check.authenticate(token: token) {
         case .rejected:
             return Self.unusable(
@@ -84,9 +88,11 @@ struct GitHubCredentialValidation: Sendable {
                 reference, .unreachable, "The token in \(reference.rawValue) could not be checked: \(detail)."
             )
         case .authenticated(let login, let scopes):
+            let reader = readsPullRequests ? GitHubAdapter(transport: transport, token: { token }) : nil
             var results: [GitHubCredentialReport.Repo] = []
             for repo in repos {
-                results.append(await repoResult(repo, token: token, holder: .token, scopes: scopes, check: check))
+                let asker = Asker(token: token, holder: .token, scopes: scopes, check: check, reader: reader)
+                results.append(await repoResult(repo, asker: asker))
             }
             return GitHubCredentialReport(
                 reference: reference.rawValue, state: .resolves, login: login,
@@ -103,22 +109,24 @@ struct GitHubCredentialValidation: Sendable {
     /// never runs anything that changes `gh`'s state.
     ///
     /// `executable` is the connection's declared `gh` path, or nil to look it up now. As for ``report``, pass
-    /// only **working** Repos.
+    /// only **working** Repos; `readsPullRequests` adds the same pull request read check, over `gh api`.
     func reportGitHubCLI(
-        executable: String?, repos: [(name: String, path: String)], connectionName: String? = nil
+        executable: String?, repos: [(name: String, path: String)], connectionName: String? = nil,
+        readsPullRequests: Bool = false
     ) async -> GitHubCredentialReport {
         guard let path = resolveGitHubCLI(executable) else {
             return Self.gitHubCLIReport(.missing, GitHubCLIExecutable.notFoundMessage)
         }
         let cliFailure = Mutex<GHCLITransportError?>(nil)
-        let check = GitHubCredentialCheck(transport: ClosureTransport { request in
+        let transport = ClosureTransport { request in
             do {
                 return try await sendViaGitHubCLI(path, request)
             } catch let error as GHCLITransportError {
                 cliFailure.withLock { $0 = error }
                 throw error
             }
-        })
+        }
+        let check = GitHubCredentialCheck(transport: transport)
         switch await check.authenticate(token: nil) {
         case .rejected:
             let failure = cliFailure.withLock { $0 }
@@ -127,9 +135,11 @@ struct GitHubCredentialValidation: Sendable {
             let reason = cliFailure.withLock { $0 }.map { String(describing: $0) } ?? detail
             return Self.gitHubCLIReport(.unreachable, "gh could not reach GitHub: \(reason).")
         case .authenticated(let login, let scopes):
+            let reader = readsPullRequests ? GitHubAdapter(transport: transport, token: { nil }) : nil
             var results: [GitHubCredentialReport.Repo] = []
             for repo in repos {
-                results.append(await repoResult(repo, token: nil, holder: .githubCLI, scopes: scopes, check: check))
+                let asker = Asker(token: nil, holder: .githubCLI, scopes: scopes, check: check, reader: reader)
+                results.append(await repoResult(repo, asker: asker))
             }
             return GitHubCredentialReport(
                 reference: Self.gitHubCLIReference, state: .resolves, login: login,
@@ -173,10 +183,21 @@ struct GitHubCredentialValidation: Sendable {
         var instrument: String { self == .token ? "this token" : "gh's active account" }
     }
 
+    /// What asks GitHub about each Repo once the credential authenticated.
+    private struct Asker {
+        /// Nil when the transport authenticates (`gh`).
+        let token: String?
+        let holder: Holder
+        let scopes: [String]?
+        let check: GitHubCredentialCheck
+        /// The Publication Port's read over the same transport and token; nil when no read check is asked.
+        let reader: GitHubAdapter?
+    }
+
     private func repoResult(
-        _ repo: (name: String, path: String), token: String?, holder: Holder, scopes: [String]?,
-        check: GitHubCredentialCheck
+        _ repo: (name: String, path: String), asker: Asker
     ) async -> GitHubCredentialReport.Repo {
+        let holder = asker.holder
         guard let slug = await resolveSlug(repo.path) else {
             return GitHubCredentialReport.Repo(
                 name: repo.name, path: repo.path, status: .notGitHub,
@@ -185,8 +206,8 @@ struct GitHubCredentialValidation: Sendable {
             )
         }
         let name = "\(slug.owner)/\(slug.repository)"
-        let access = await check.access(
-            token: token, owner: slug.owner, repository: slug.repository, scopes: scopes
+        let access = await asker.check.access(
+            token: asker.token, owner: slug.owner, repository: slug.repository, scopes: asker.scopes
         )
         let label = "Repo \(repo.name) (\(name))"
         let (status, message): (GitHubCredentialReport.RepoStatus, String) = switch access {
@@ -206,9 +227,49 @@ struct GitHubCredentialValidation: Sendable {
         case .unavailable(let detail):
             (.unreachable, "\(label): could not be checked: \(detail).")
         }
+        let read = if let reader = asker.reader {
+            await Self.pullRequestRead(slug, label: label, holder: holder, reader: reader)
+        } else {
+            GitHubCredentialReport.PullRequestRead?.none
+        }
         return GitHubCredentialReport.Repo(
-            name: repo.name, path: repo.path, slug: name, status: status, message: message
+            name: repo.name, path: repo.path, slug: name, status: status, message: message, pullRequestRead: read
         )
+    }
+
+    /// The head branch the pull request read check lists pull requests for. No Feature Branch is named so
+    /// (theirs start `yh-`), so the read answers an empty list; listing it still needs read access to the
+    /// repository's pull requests, which is what is checked — never inferred from the token's scopes.
+    static let readCheckBranch = "yellowhammer/doctor-read-check"
+
+    /// One pull request read through the Publication Port's read (OQ190 item 29: the same credential, adapter
+    /// and transport as the push). GitHub refusing it (no access, or the credential refused) is "cannot read";
+    /// GitHub giving no verdict (unreachable, rate limited, an unreadable answer) is "unverified".
+    private static func pullRequestRead(
+        _ slug: GitHubRepositorySlug, label: String, holder: Holder, reader: GitHubAdapter
+    ) async -> GitHubCredentialReport.PullRequestRead {
+        let query = PullRequestQuery(
+            owner: slug.owner, repository: slug.repository, selector: .headBranch(readCheckBranch)
+        )
+        do throws(PullRequestReadFailure) {
+            _ = try await reader.readPullRequests(query)
+            return .init(status: .canRead, message: "\(label): \(holder.subject) can read pull requests.")
+        } catch {
+            switch error.reason {
+            case .noAccess, .credentialRefused:
+                return .init(
+                    status: .cannotRead,
+                    message: "\(label): \(holder.subject) cannot read pull requests (\(error.detail)), so a merge "
+                        + "is observed only by ancestry or content."
+                )
+            case .unreachable, .rateLimited, .unreadableAnswer:
+                return .init(
+                    status: .unverified,
+                    message: "\(label): whether \(holder.subject) can read pull requests is unverified: "
+                        + "\(error.reason.words) (\(error.detail))."
+                )
+            }
+        }
     }
 
     private static func unusable(

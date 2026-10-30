@@ -17,13 +17,21 @@ public struct RepoMergeResult: Equatable, Sendable {
     /// The ref the verdict was read against, e.g. "refs/remotes/origin/main".
     public let mainlineRef: String?
     public let mainlineCommit: String?
-    /// The tree OID `git merge-tree --write-tree` printed for a clean merge; nil for any other verdict.
+    /// The tree OID `git merge-tree --write-tree` printed for a clean merge into `mainlineCommit`; nil for any
+    /// other verdict.
     public let mergedTree: String?
-    /// The tree of `mainlineCommit`; read only for a clean merge.
-    public let mainlineTree: String?
-    /// Whether the tip's tree differs from the tree of `git merge-base <mainline> <tip>` — the branch has a
-    /// net change at all. Read only for a clean merge; nil when it could not be read.
+    /// Whether the tip's tree differs from the tree of `git merge-base <mainline> <tip>` (the fork point), or for
+    /// a stacked Feature from its recorded base's — the branch has a net change at all (#net-zero-branch). Read only
+    /// by the content test (``MergeTester/testContent(branch:recordedCommit:in:mainline:)``,
+    /// ``MergeTester/testStackedContent(branch:recordedCommit:in:anchor:mainline:)``); nil otherwise, or when it
+    /// could not be read.
     public let tipHasNetChange: Bool?
+    /// The content test's landing commit: the oldest commit C on mainline's first-parent chain after the fork
+    /// point (for a stacked Feature, from the lower Feature's landing commit, with the recorded base as the merge
+    /// base) such that `git merge-tree --write-tree C <tip>` exits clean and writes C's own tree — merging the
+    /// tip into C changes nothing, so C is where the branch's change entered mainline. Searched only by the
+    /// content test, and only for a tip with a net change; nil when no such commit exists.
+    public let landingCommit: String?
 
     /// Whether this result is a Mainline Conflict: a Feature Branch that will not merge cleanly.
     public var isMainlineConflict: Bool {
@@ -37,14 +45,13 @@ public struct RepoMergeResult: Equatable, Sendable {
         return []
     }
 
-    /// Whether mainline still shows the tip's net changes although the tip is not an ancestor of it — a
-    /// Squash and merge or Rebase and merge (feature-authoring/select-the-next-feature, #merge-test). All
-    /// three hold: the tip has a net change; the merge is clean; and it produces exactly mainline's tree, so
-    /// merging would add nothing. A branch with no net change (a commit and its revert) is never merged,
-    /// though the other two would hold for it.
+    /// Whether mainline's history shows the tip's net change although the tip is not an ancestor of it — a
+    /// Squash and merge or Rebase and merge (feature-authoring/select-the-next-feature, #merge-test): the tip
+    /// has a net change, and the content test found the commit where it entered mainline. That commit need not
+    /// be mainline's head, so a later edit to the same lines does not hide the merge (OQ190 item 24). A branch
+    /// with no net change (a commit and its revert) is never merged, though some commit would absorb it.
     public var isContentMerged: Bool {
-        guard tipHasNetChange == true, case .clean = verdict, let mergedTree else { return false }
-        return mergedTree == mainlineTree
+        tipHasNetChange == true && landingCommit != nil
     }
 
     public init(
@@ -55,8 +62,8 @@ public struct RepoMergeResult: Equatable, Sendable {
         mainlineRef: String? = nil,
         mainlineCommit: String? = nil,
         mergedTree: String? = nil,
-        mainlineTree: String? = nil,
-        tipHasNetChange: Bool? = nil
+        tipHasNetChange: Bool? = nil,
+        landingCommit: String? = nil
     ) {
         self.repository = repository
         self.branch = branch
@@ -65,8 +72,8 @@ public struct RepoMergeResult: Equatable, Sendable {
         self.mainlineRef = mainlineRef
         self.mainlineCommit = mainlineCommit
         self.mergedTree = mergedTree
-        self.mainlineTree = mainlineTree
         self.tipHasNetChange = tipHasNetChange
+        self.landingCommit = landingCommit
     }
 }
 
@@ -142,27 +149,6 @@ public struct MergeTester: Sendable {
         return FeatureMergeReport(branches: branches, results: results)
     }
 
-    /// Evaluates the merge test across `repos`, each against its own ``TestedTip``: the recorded commit alone
-    /// when one was recorded, else the Feature Branch (#tested-tip). A repository absent from `tips`, or whose
-    /// tip resolves to no commit (including a recorded commit the repository lost), is untestable.
-    public func evaluateMerge(
-        tips: [String: TestedTip],
-        repos: [Repo],
-        mainlines: ResolvedMainlines? = nil
-    ) async -> FeatureMergeReport {
-        var results: [RepoMergeResult] = []
-        for repo in repos {
-            let tip = tips[repo.name] ?? TestedTip(branch: nil)
-            results.append(
-                await testMerge(
-                    branch: tip.branchName, recordedCommit: tip.recordedCommit, in: repo,
-                    mainline: mainlines?[repo.name]
-                )
-            )
-        }
-        return FeatureMergeReport(branches: tips.compactMapValues(\.branch), results: results)
-    }
-
     /// Test-merges a Feature Branch against a single repository's Mainline.
     public func testMerge(
         branch: FeatureBranch,
@@ -184,87 +170,38 @@ public struct MergeTester: Sendable {
     /// Test-merges `recordedCommit` — or, only when no commit was recorded, the branch name — against a single
     /// repository's Mainline (feature-authoring/select-the-next-feature, #tested-tip). A recorded commit the
     /// repository no longer has is untestable and the branch is never consulted, so commits added to the pull
-    /// request on GitHub are not part of the test. One `git merge-tree` read gives both the Mainline Conflict
-    /// verdict and the content test's merged tree.
+    /// request on GitHub are not part of the test. One `git merge-tree` read of mainline's head gives the
+    /// Mainline Conflict verdict; the content test is
+    /// ``testContent(branch:recordedCommit:in:mainline:)``.
     public func testMerge(
         branch: String,
         recordedCommit: String?,
         in repo: Repo,
         mainline: ResolvedMainline? = nil
     ) async -> RepoMergeResult {
-        let path = (repo.path as NSString).expandingTildeInPath
-        guard FileManager.default.fileExists(atPath: path) else {
-            return RepoMergeResult(
-                repository: repo.name,
-                branch: branch,
-                verdict: .untestable(reason: "repository path does not exist: \(repo.path)")
-            )
+        let read: ResolvedMergeRead
+        switch await resolveMergeRead(branch: branch, recordedCommit: recordedCommit, in: repo, mainline: mainline) {
+        case .resolved(let resolved): read = resolved
+        case .untestable(let result): return result
         }
 
-        // 1. Resolve the tested commit in the repository: the recorded one alone when there is one, else the branch
-        let tested = await resolveTestedCommit(branch: branch, recordedCommit: recordedCommit, in: path)
-        guard let branchCommit = tested.commit else {
-            return RepoMergeResult(
-                repository: repo.name,
-                branch: branch,
-                verdict: .untestable(reason: tested.unresolvedReason)
-            )
-        }
-
-        // 2. Resolve mainline ref and commit SHA
-        let mainlineRef: String?
-        let mainlineCommit: String?
-        if let mainline {
-            mainlineRef = mainline.ref
-            mainlineCommit = mainline.commit
-        } else {
-            let refresher = MainlineRefresher(git: git)
-            let defaultBranch = await refresher.resolveDefaultBranch(for: repo, in: path)
-            (mainlineRef, mainlineCommit) = await resolveMainlineCommit(defaultBranch: defaultBranch, in: path)
-        }
-
-        guard let targetMainlineCommit = mainlineCommit, !targetMainlineCommit.isEmpty else {
-            return RepoMergeResult(
-                repository: repo.name,
-                branch: branch,
-                verdict: .untestable(reason: "could not resolve mainline"),
-                branchCommit: branchCommit
-            )
-        }
-
-        // 3. Test-merge with `git merge-tree`: writes tree objects only, never a commit or ref,
-        // and never touches the working tree.
-        let merge = await mergeTree(mainlineCommit: targetMainlineCommit, branchCommit: branchCommit, in: path)
-
-        // 4. The content test's other two reads (see MergeTester+ContentTest.swift), only for a clean merge.
-        let content = await contentReads(
-            verdict: merge.verdict, tip: branchCommit, mainline: targetMainlineCommit, in: path
-        )
-
-        return RepoMergeResult(
-            repository: repo.name,
-            branch: branch,
-            verdict: merge.verdict,
-            branchCommit: branchCommit,
-            mainlineRef: mainlineRef,
-            mainlineCommit: targetMainlineCommit,
-            mergedTree: merge.tree,
-            mainlineTree: content.mainlineTree,
-            tipHasNetChange: content.tipHasNetChange
-        )
+        // Test-merge with `git merge-tree`: writes tree objects only, never a commit or ref, and never touches
+        // the working tree.
+        let merge = await mergeTree(mainlineCommit: read.mainlineCommit, branchCommit: read.branchCommit, in: read.path)
+        return read.result(verdict: merge.verdict, mergedTree: merge.tree)
     }
 
-    private func mergeTree(
-        mainlineCommit: String, branchCommit: String, in path: String
+    /// `git merge-tree --write-tree --name-only <into> <tip>`: the verdict, and the merged tree for a clean merge.
+    /// With `mergeBase`, `--merge-base=<mergeBase>` makes that commit the three-way merge's base in place of the
+    /// two commits' merge base (git 2.40 or later; see ``GitVersion/mergeTreeTakesMergeBase``).
+    func mergeTree(
+        mainlineCommit: String, branchCommit: String, mergeBase: String? = nil, in path: String
     ) async -> (verdict: MergeVerdict, tree: String?) {
-        let result = await git.run([
-            "-C", path,
-            "merge-tree",
-            "--write-tree",
-            "--name-only",
-            mainlineCommit,
-            branchCommit
-        ])
+        let result = await git.run(
+            ["-C", path, "merge-tree", "--write-tree", "--name-only"]
+                + (mergeBase.map { ["--merge-base=\($0)"] } ?? [])
+                + [mainlineCommit, branchCommit]
+        )
 
         switch result.exitCode {
         case 0:
@@ -311,90 +248,5 @@ public struct MergeTester: Sendable {
         }
 
         return Array(Set(paths)).sorted()
-    }
-
-    /// The commit under test (#tested-tip): `recordedCommit` when one was recorded — nil if the repository no
-    /// longer has it, and the branch is then never read — else the commit the branch name resolves to. The
-    /// reason says which of the two could not be resolved.
-    private func resolveTestedCommit(
-        branch: String, recordedCommit: String?, in path: String
-    ) async -> (commit: String?, unresolvedReason: String) {
-        if let recordedCommit {
-            return (
-                await git.existingCommit(recordedCommit, in: path),
-                "recorded commit \(recordedCommit) is not in the repository"
-            )
-        }
-        return (await resolveTipBranch(branch, in: path), "could not resolve branch \(branch)")
-    }
-
-    /// The commit a branch name resolves to; nil for the empty name a tip with no Feature Branch carries.
-    private func resolveTipBranch(_ branch: String, in path: String) async -> String? {
-        guard !branch.isEmpty else { return nil }
-        return await resolveCommit(forRef: branch, in: path)
-    }
-
-    private func resolveCommit(forRef ref: String, in path: String) async -> String? {
-        // Try direct ref / commit SHA
-        let probeDirect = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"
-        ])
-        if probeDirect.isSuccess {
-            let sha = probeDirect.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sha.isEmpty { return sha }
-        }
-
-        // Try local branch refs/heads/<ref>
-        let probeHeads = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "refs/heads/\(ref)^{commit}"
-        ])
-        if probeHeads.isSuccess {
-            let sha = probeHeads.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sha.isEmpty { return sha }
-        }
-
-        // Try remote-tracking ref refs/remotes/origin/<ref>
-        let probeRemotes = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/\(ref)^{commit}"
-        ])
-        if probeRemotes.isSuccess {
-            let sha = probeRemotes.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sha.isEmpty { return sha }
-        }
-
-        return nil
-    }
-
-    private func resolveMainlineCommit(
-        defaultBranch: String,
-        in path: String
-    ) async -> (ref: String?, commit: String?) {
-        let remoteRef = "refs/remotes/origin/\(defaultBranch)"
-        let probeRemote = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "\(remoteRef)^{commit}"
-        ])
-        if probeRemote.isSuccess {
-            let sha = probeRemote.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sha.isEmpty { return (remoteRef, sha) }
-        }
-
-        let localRef = "refs/heads/\(defaultBranch)"
-        let probeLocal = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "\(localRef)^{commit}"
-        ])
-        if probeLocal.isSuccess {
-            let sha = probeLocal.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sha.isEmpty { return (localRef, sha) }
-        }
-
-        let probeHead = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"
-        ])
-        if probeHead.isSuccess {
-            let sha = probeHead.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sha.isEmpty { return ("HEAD", sha) }
-        }
-
-        return (nil, nil)
     }
 }

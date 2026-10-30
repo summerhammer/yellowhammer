@@ -69,8 +69,12 @@ public struct AwaitingMergeRepository: Identifiable, Equatable, Sendable {
     public var merged: Bool
     /// The Feature Branch recorded for this repository, when one is.
     public var branch: String?
-    /// The pull request's chip, from the recorded pull request URL; nil when none is recorded.
+    /// The pull request's chip, from the recorded pull request URL or the number its read recorded; nil when
+    /// neither is.
     public var pullRequest: PullRequestChip?
+    /// The pull request's last observed state, shown beside ``merged`` and never instead of it; nil when no state was
+    /// ever observed.
+    public var pullRequestObservation: PullRequestObservation?
     /// The display identifier of the Feature whose landed tip is this Feature's recorded base in this repository;
     /// nil when the base is mainline.
     public var stackedOn: String?
@@ -82,12 +86,14 @@ public struct AwaitingMergeRepository: Identifiable, Equatable, Sendable {
         merged: Bool,
         branch: String? = nil,
         pullRequest: PullRequestChip? = nil,
+        pullRequestObservation: PullRequestObservation? = nil,
         stackedOn: String? = nil
     ) {
         self.repo = repo
         self.merged = merged
         self.branch = branch
         self.pullRequest = pullRequest
+        self.pullRequestObservation = pullRequestObservation
         self.stackedOn = stackedOn
     }
 }

@@ -156,8 +156,6 @@ struct LaneCardList: View {
 }
 
 extension PullRequestChip {
-    /// `#42 open`, or just `#42` while the pull request's own state is unknown (it lives in GitHub).
-    var label: String {
-        ["#\(number)", state?.rawValue].compactMap { $0 }.joined(separator: " ")
-    }
+    /// `#42`. The last observed state is the entry's, shown beside it (``PullRequestObservationLabel``).
+    var label: String { "#\(number)" }
 }

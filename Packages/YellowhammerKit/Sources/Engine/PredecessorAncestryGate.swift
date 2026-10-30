@@ -43,8 +43,11 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 }
 
 /// The real predecessor-ancestry gate (roadmap P9.2, P9.9, P23.5; spec: feature-authoring/
-/// select-the-next-feature, `#unmerged-feature-stack`, `#merge-test`; glossary "Mainline Conflict"). Pure local
-/// git, run strictly before authoring: allocates no Worktree, dispatches nothing, records no Attempt.
+/// select-the-next-feature, `#unmerged-feature-stack`, `#merge-test`, `#pull-request-read`; glossary "Mainline
+/// Conflict"). Local git, plus one read of Code Hosting per pushed repository through the Publication Port: the
+/// pull request read (OQ190), which records each pull request's last observed state until it reads merged. Run
+/// strictly before authoring: allocates no Worktree, dispatches nothing, records no
+/// Attempt, and never writes to Code Hosting.
 ///
 /// Every author Act runs the merge pass over every Feature in the Unmerged Feature Stack U, oldest first,
 /// whether or not a Feature is in flight: F1's Observed Merge is recorded while F2 builds, because the land Act
@@ -54,11 +57,13 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 /// otherwise an unreadable tip anywhere in U is ``PredecessorGateOutcome/indeterminate(predecessorIssueID:repositories:)``,
 /// and |U| at or above `unmerged_features_max` after the pass is ``PredecessorGateOutcome/stackFull(features:)``.
 ///
-/// A repository already recorded landed (an Observed Merge) reads no git at all; a repository with no recorded
+/// A repository already recorded landed (an Observed Merge) is never merge-tested again: only its pull request is
+/// read, for its state, which never changes the recorded merge (OQ190 item 16). A repository with no recorded
 /// Feature Branch only throws when it still needs a fresh test. The merge test per repository is ancestry first,
-/// then — only where that fails — the content test, so a Feature merged with Squash and merge or Rebase and
-/// merge leaves U too. The tested tip is the commit the land Act recorded, not a branch ref (see
-/// ``TestedTip``). The test itself is in `PredecessorAncestryGate+MergeTest.swift`.
+/// then the pull request test, then the content test, each only where the ones before it did not hold (OQ190 item
+/// 22), so a Feature merged with Squash and merge or Rebase and merge leaves U too. The tested tip is the commit the
+/// land Act recorded, not a branch ref (see ``TestedTip``). The test itself is in
+/// `PredecessorAncestryGate+MergeTest.swift`, its pull request rung in `PredecessorAncestryGate+PullRequestTest.swift`.
 ///
 /// The pass runs over N (``JournalStore/pushedRepositories(featureID:)``), never over a repository with a
 /// No-Pushed-Branch Outcome: its Feature Branch sits at its base and is trivially an ancestor of
@@ -71,27 +76,45 @@ public struct PredecessorAncestryGate: PredecessorGate {
     public let closure: (any PostMergeClosure)?
     /// Deletes a repository's `refs/yellowhammer/landed/<branch>` pin once its Observed Merge is recorded.
     public let landedTipPin: LandedTipPin
+    /// The running git's version, read at most once per pass: a stacked Feature's content test needs git 2.40 or
+    /// later (``GitVersion/mergeTreeTakesMergeBase``) and does not run on an older one. A test injects a fixed one.
+    public let gitVersion: GitVersionReader
+    /// The Publication Port's pull request read, for the merge test's second rung. Built with the Project's selected
+    /// Code Hosting Connection, which it resolves only when it reads. Nil runs no pull request test at all.
+    public let publication: (any Publication)?
+    /// Finds each repository's GitHub owner and name from its `origin` remote, as the land Act does when it opens
+    /// the pull request.
+    public let slugResolver: GitHubRepositorySlugResolver
 
     public init(
         ancestryTester: AncestryTester = AncestryTester(),
         mergeTester: MergeTester = MergeTester(),
         closure: (any PostMergeClosure)? = nil,
-        landedTipPin: LandedTipPin = LandedTipPin()
+        landedTipPin: LandedTipPin = LandedTipPin(),
+        gitVersion: GitVersionReader = GitVersionReader(),
+        publication: (any Publication)? = nil,
+        slugResolver: GitHubRepositorySlugResolver = GitHubRepositorySlugResolver()
     ) {
         self.ancestryTester = ancestryTester
         self.mergeTester = mergeTester
         self.closure = closure
         self.landedTipPin = landedTipPin
+        self.gitVersion = gitVersion
+        self.publication = publication
+        self.slugResolver = slugResolver
     }
 
     public func check(_ context: ActContext, unmergedFeaturesMax: Int) async throws -> PredecessorGateOutcome {
         let journal = context.journal
 
-        // Oldest first, so a Feature merged below another is recorded before the one above it is tested.
+        // Oldest first, so a Feature merged below another is recorded before the one above it is tested: a stacked
+        // Feature's content test is anchored on that record (#stacked-content-test).
+        let passGitVersion = PassGitVersion(reader: gitVersion)
         var indeterminate: PredecessorGateOutcome?
         for member in try journal.unmergedFeatureStack() {
             let pass = try await runAncestryPass(
-                feature: member.feature, pushedRepositories: member.pushedRepositories, context: context
+                feature: member.feature, pushedRepositories: member.pushedRepositories, context: context,
+                gitVersion: passGitVersion
             )
             if indeterminate == nil, !pass.indeterminate.isEmpty {
                 indeterminate = .indeterminate(
@@ -106,7 +129,8 @@ public struct PredecessorAncestryGate: PredecessorGate {
         if try journal.inFlightFeature() != nil {
             if let inFlight = try journal.inFlightLandedFeature(), !inFlight.pushedRepositories.isEmpty {
                 _ = try await runAncestryPass(
-                    feature: inFlight.feature, pushedRepositories: inFlight.pushedRepositories, context: context
+                    feature: inFlight.feature, pushedRepositories: inFlight.pushedRepositories, context: context,
+                    gitVersion: passGitVersion
                 )
             }
             return .open
@@ -141,18 +165,25 @@ public struct PredecessorAncestryGate: PredecessorGate {
         )
     }
 
-    /// One pass over one Feature's pushed repositories (N): repositories with an Observed Merge are
-    /// counted merged with no git read at all; the rest are merge-tested (ancestry, then the content test),
+    /// One pass over one Feature's pushed repositories (N): the pull request of each is read and its last observed
+    /// state recorded (`#pull-request-read`); repositories with an Observed Merge are
+    /// counted merged with no merge test at all; the rest are merge-tested (ancestry, the pull request, content),
     /// an Observed Merge recorded for each that passed, and a Mainline Conflict reported for each that did
     /// not. Records `predecessorAncestryObserved` every time it runs, and fires the closure seam the first
     /// pass that finds every repository in N merged. Returns what the pass found, every list sorted.
     private func runAncestryPass(
-        feature: FeatureRecord, pushedRepositories: [String], context: ActContext
+        feature: FeatureRecord, pushedRepositories: [String], context: ActContext, gitVersion: PassGitVersion
     ) async throws -> AncestryTestResult {
         let recordedLandings = try context.journal.landings(featureID: feature.id)
         let toTest = pushedRepositories.filter { recordedLandings[$0] == nil }
 
-        let tested = try await testUntestedRepositories(toTest, feature: feature, context: context)
+        // Every pushed repository's pull request, merged ones included, read once for the record and the test alike.
+        let pullRequestReads = try await readPullRequests(
+            feature: feature, pushedRepositories: pushedRepositories, context: context
+        )
+        let tested = try await testUntestedRepositories(
+            toTest, feature: feature, context: context, gitVersion: gitVersion, pullRequestReads: pullRequestReads
+        )
         let pass = AncestryTestResult(
             merged: (pushedRepositories.filter { recordedLandings[$0] != nil } + tested.merged).sorted(),
             unmerged: tested.unmerged.sorted(), indeterminate: tested.indeterminate.sorted()

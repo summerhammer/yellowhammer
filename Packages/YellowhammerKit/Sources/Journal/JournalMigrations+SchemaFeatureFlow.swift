@@ -226,10 +226,16 @@ extension JournalMigrations {
             table.column("feature_id", .integer).notNull()
                 .references("feature", column: "id", onDelete: .cascade)
             table.column("repository", .text).notNull()
+            // Where the change entered mainline (OQ190 item 26): for `ancestry`, the oldest commit on
+            // mainline's first-parent chain that contains the tested tip; for `pull_request`, the pull request's
+            // merge commit; for `content`, the commit the content test found. The release gate's test (A) reads it.
+            table.column("landing_commit", .text).notNull()
+            // Mainline's commit when the merge was first observed.
             table.column("mainline_commit", .text).notNull()
             table.column("observed_at", .text).notNull()
-            // How the merge was observed: `ancestry` (the tested tip is an ancestor of mainline) or
-            // `content` (a squash or rebase merge, found by the content test). Journal-only.
+            // How the merge was observed: `ancestry` (the tested tip is an ancestor of mainline),
+            // `pull_request` (the merged pull request's merge commit is in mainline) or `content` (a squash or
+            // rebase merge, found by the content test). Journal-only.
             table.column("evidence", .text).notNull()
             table.primaryKey(["feature_id", "repository"])
         }
@@ -249,25 +255,6 @@ extension JournalMigrations {
         }
 
         try createFeatureBaseTable(db)
-    }
-
-    /// Records a Repo Lane's opened pull request, once (roadmap P10.4): `url` is nullable because
-    /// GitHub reporting `.alreadyOpen` carries no URL — this Port never reads pull request state.
-    /// Unique on `(feature_id, repository)` so a first write wins and a pull request is never
-    /// duplicated for the same Feature's repository.
-    static func createPullRequestTable(_ db: Database) throws {
-        try db.create(table: "pull_request") { table in
-            table.autoIncrementedPrimaryKey("id")
-            table.column("feature_id", .integer).notNull()
-                .references("feature", column: "id", onDelete: .cascade)
-            table.column("repository", .text).notNull()
-            table.column("url", .text)
-            table.column("night_id", .integer).notNull()
-                .references("night", column: "id")
-            table.column("run_id", .text).notNull()
-            table.column("opened_at", .text).notNull()
-            table.uniqueKey(["feature_id", "repository"])
-        }
     }
 
     /// Records a Cycle's Verification once (roadmap P10.5; spec: verification/verify-a-feature-clause-by-clause).

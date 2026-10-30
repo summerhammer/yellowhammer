@@ -206,6 +206,24 @@ struct NightAccountFailureWordingTests {
         }
     }
 
+    @Test("A failed pull request read names the repository and its reason, as a failed mainline fetch does (#714)")
+    func pullRequestReadFailed() {
+        let words = failureEntry(.pullRequestReadFailed(repository: "backend", reason: .rateLimited))
+        #expect(words.headline == "Could not read the pull request in backend")
+        #expect(words.detail == "rate limited")
+        #expect(words.isProblem == failureEntry(.mainlineFetchFailed(repository: "backend", reason: "x")).isProblem)
+    }
+
+    @Test("A Feature Branch with more than one pull request names the branch and its pull requests (#714)")
+    func multiplePullRequestsObserved() {
+        let words = failureEntry(
+            .multiplePullRequestsObserved(repository: "backend", branch: "yh/feat-1", numbers: [4, 7])
+        )
+        #expect(words.headline == "More than one pull request for yh/feat-1 in backend")
+        #expect(words.detail == "#4, #7")
+        #expect(!words.isProblem)
+    }
+
     @Test("The seven problem types that were already marked still are")
     func existingProblemTypes() throws {
         let nightStart = try #require(NightStart(rawValue: "2026-10-11"))

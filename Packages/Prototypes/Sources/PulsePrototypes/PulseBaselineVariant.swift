@@ -160,12 +160,11 @@ struct PulseBaselineVariant: View {
                     Text(lane.repo)
                     Text("\(lane.cardsDone)/\(lane.cardsTotal) · \(lane.state.rawValue)").foregroundStyle(.secondary)
                     if let pullRequest = lane.pullRequest {
-                        let title = ["#\(pullRequest.number)", pullRequest.state?.rawValue]
-                            .compactMap { $0 }.joined(separator: " ")
-                        Button(title) {
-                            openDestination(.pullRequest(pullRequest.url))
+                        Button("#\(pullRequest.number)") {
+                            pullRequest.url.map { openDestination(.pullRequest($0)) }
                         }
                         .controlSize(.small)
+                        .disabled(pullRequest.url == nil)
                     }
                 }
             }
@@ -182,6 +181,7 @@ struct PulseBaselineVariant: View {
                 ForEach(awaiting.repositories) { repository in
                     Text([
                         repository.repo, repository.merged ? "in mainline" : "not in mainline",
+                        repository.pullRequestObservation.map(PulseStackText.observation),
                         repository.stackedOn.map { "stacked on \($0)" }
                     ].compactMap { $0 }.joined(separator: " · "))
                     .foregroundStyle(.secondary)

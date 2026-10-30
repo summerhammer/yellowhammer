@@ -8,8 +8,9 @@ extension PulseSnapshot {
     /// The read is HANDED a store and never opens one, so it structurally cannot reach a sibling
     /// Project's Journal (ADR-002): every value below comes from this one store. It only reads.
     ///
-    /// What the Journal cannot say stays nil: `now.nextAct`, the Feature's title, a
-    /// pull request's state, an Attempt's status line, and the full Night Summary.
+    /// What the Journal cannot say stays nil: `now.nextAct`, the Feature's title, an Attempt's status
+    /// line, and the full Night Summary. A pull request's state is the last one the engine's read
+    /// recorded; the app never reads Code Hosting.
     ///
     /// `status` is handed in as the launchd fallback. An unexpired Journal lease is the authoritative
     /// running Act when readable; launchd remains useful when the Journal is absent or unreadable.
@@ -237,14 +238,14 @@ extension PulseSnapshot {
         return repos
     }
 
-    /// The pull request's number is the last path component of its URL; nil when there is no URL, it is
-    /// not an `https` or `http` URL, or it does not end in a number.
+    /// The pull request's number is the one the pull request read recorded, else the last path component of its
+    /// URL. Its URL is the recorded one when it is an `https` or `http` URL; a pull request whose land Act recorded
+    /// none (Code Hosting answered that one already existed) still has a chip once a read names its number, and that
+    /// chip opens nothing. Nil when no number is known.
     static func chip(_ record: PullRequestRecord) -> PullRequestChip? {
-        guard
-            let text = record.url, let url = LinearIssueLink.webURL(text),
-            let number = Int(text.split(separator: "/").last ?? "")
-        else { return nil }
-        return PullRequestChip(number: number, url: url, state: nil)
+        let url = record.url.flatMap(LinearIssueLink.webURL)
+        guard let number = record.number ?? url.flatMap({ Int($0.lastPathComponent) }) else { return nil }
+        return PullRequestChip(number: number, url: url)
     }
 
     // MARK: Night

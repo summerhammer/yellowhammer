@@ -95,14 +95,15 @@ public struct ObservedReleaseGate: ReleaseGate {
         return false
     }
 
-    /// Whether `tag` contains the Feature's work in `producer`: (A) the commit its Observed Merge was recorded
-    /// at is an ancestor of the tag, or (B) the recorded tested tip is, or its content is merged into the tag
-    /// (a squash or rebase merge): the merge test read against the tag instead of mainline.
+    /// Whether `tag` contains the Feature's work in `producer`: (A) the landing commit of its Observed Merge —
+    /// where the change entered mainline — is an ancestor of the tag (OQ190 item 26), or (B) the Pushed Tip is,
+    /// or the content test finds it in the tag's history (a squash or rebase merge): the merge test's ancestry
+    /// and content tests read against the tag instead of mainline.
     private func contains(
         _ feature: FeatureRecord, producer: Repo, tag: (name: String, commit: String), journal: JournalStore
     ) async throws -> Bool {
         let path = (producer.path as NSString).expandingTildeInPath
-        if let landing = try journal.landings(featureID: feature.id)[producer.name],
+        if let landing = try journal.landingCommits(featureID: feature.id)[producer.name],
            await tags.contains(landing, tag: tag.commit, in: path) {
             return true
         }
@@ -113,7 +114,7 @@ public struct ObservedReleaseGate: ReleaseGate {
             repository: producer.name, defaultBranch: producer.defaultBranch ?? "main",
             ref: "refs/tags/\(tag.name)", commit: tag.commit
         )
-        let result = await mergeTester.testMerge(
+        let result = await mergeTester.testContent(
             branch: branch?.name ?? "", recordedCommit: recorded, in: producer, mainline: release
         )
         if let tip = result.branchCommit, await tags.contains(tip, tag: tag.commit, in: path) { return true }

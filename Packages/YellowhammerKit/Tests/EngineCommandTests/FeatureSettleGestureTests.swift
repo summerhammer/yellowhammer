@@ -382,7 +382,8 @@ struct FeatureSettleGestureTests {
     func cancelledOnAPartialLanding() async throws {
         let world = try await makeSettleWorld(landed: true)
         try world.journal.recordLanding(
-            featureID: world.featureID, repository: "backend", mainlineCommit: "c1", evidence: .ancestry
+            featureID: world.featureID, repository: "backend", landingCommit: "c1",
+            mainlineCommit: "c1", evidence: .ancestry
         )
         try world.journal.recordPullRequest(
             featureID: world.featureID, repository: "mobile", url: nil, nightID: world.previousNightID, runID: RunID()

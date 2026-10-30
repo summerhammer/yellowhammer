@@ -30,27 +30,10 @@ extension JournalStore {
         try read { db in
             let rows = try Row.fetchAll(
                 db,
-                sql: """
-                SELECT feature_id, repository, url, night_id, run_id, opened_at
-                FROM pull_request WHERE night_id = ? ORDER BY repository ASC
-                """,
+                sql: "SELECT \(Self.pullRequestColumns) FROM pull_request WHERE night_id = ? ORDER BY repository ASC",
                 arguments: [nightID]
             )
-            return try rows.map { row -> PullRequestRecord in
-                let featureID: Int64 = row["feature_id"]
-                let openedAt = try JournalStore.date(row["opened_at"]) {
-                    JournalError.pullRequestUnreadable(featureID: featureID)
-                }
-                let runIDText: String = row["run_id"]
-                return PullRequestRecord(
-                    featureID: featureID,
-                    repository: row["repository"],
-                    url: row["url"],
-                    nightID: row["night_id"],
-                    runID: RunID(rawValue: runIDText) ?? RunID(),
-                    openedAt: openedAt
-                )
-            }
+            return try rows.map(Self.pullRequestRecord(from:))
         }
     }
 }

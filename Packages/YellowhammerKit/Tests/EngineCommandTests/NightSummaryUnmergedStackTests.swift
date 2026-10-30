@@ -97,7 +97,8 @@ struct NightSummaryUnmergedStackTests {
         let night2 = try await openNight(journal, "2026-09-16")
         _ = try seedUnmerged(journal, issueID: "FEAT-2", pushing: ["repo-a"], landedIn: night2)
         try journal.recordLanding(
-            featureID: first.featureID, repository: "repo-b", mainlineCommit: "m", evidence: .ancestry
+            featureID: first.featureID, repository: "repo-b", landingCommit: "m",
+            mainlineCommit: "m", evidence: .ancestry
         )
         try journal.append(
             .pullRequestStacked(
@@ -124,7 +125,6 @@ struct NightSummaryUnmergedStackTests {
         #expect(one.hasPrefix("`FEAT-1` — awaiting merge for 2 Nights; 1 of 2 Feature Branches merged"))
         #expect(one.contains("`FEAT-2` is stacked on it"))
         #expect(one.contains("[conflict: repo-a] (a.swift, b.swift)"))
-        #expect(one.contains(MergeCommitRecommendation.shared))
         let two = lines[1]
         #expect(two.hasPrefix("`FEAT-2` — awaiting merge for 1 Night; 0 of 1 Feature Branches merged"))
         #expect(two.contains("stacked on #41"))
@@ -133,6 +133,32 @@ struct NightSummaryUnmergedStackTests {
                 + "resolve that Feature first, and the next pass re-tests this one (own paths: c.swift)"
         ))
         #expect(!two.contains("same conflict"))
+    }
+
+    @Test("Every entry in U, with or without a conflict, ends with the any-method sentence and the route out (#716)")
+    func everyEntryGivesTheRouteOut() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let night = try await openNight(journal, "2026-09-15")
+        _ = try seedUnmerged(journal, issueID: "FEAT-1", pushing: ["repo-a"], landedIn: night)
+        _ = try seedUnmerged(journal, issueID: "FEAT-2", pushing: ["repo-b"], landedIn: night)
+        try journal.append(
+            .mainlineConflictDetected(featureIssueID: "FEAT-2", repository: "repo-b", paths: ["a.swift"]),
+            act: .author, runID: RunID(), nightID: night.id
+        )
+
+        let lines = try NightSummary.inFlightFeatureLines(night: night, journal: journal)
+
+        let routeOut = " Merging the pull request by any method releases the next Feature. If the pull request is "
+            + "already merged and the Feature is still waiting, a content-free merge of the Feature Branch into "
+            + "mainline with a merge commit (`git merge -s ours`) opens the gate."
+        #expect(lines.count == 2)
+        for line in lines {
+            #expect(line.hasSuffix(routeOut))
+            #expect(line.components(separatedBy: "by any method").count == 2)
+            #expect(!line.contains("Create a merge commit"))
+        }
+        #expect(lines[1].contains("[conflict: repo-b] (a.swift)"))
     }
 
     @Test("Every entry, the stacking note and the conflict attribution show identifiers, never issue ids")

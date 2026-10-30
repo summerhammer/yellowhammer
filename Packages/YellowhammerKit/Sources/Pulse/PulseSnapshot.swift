@@ -306,23 +306,45 @@ public struct LaneCard: Identifiable, Equatable, Sendable {
     }
 }
 
+/// A recorded pull request as a link: its number, and its URL when one is recorded. Its last observed state is the
+/// entry's, not the chip's (``AwaitingMergeRepository/pullRequestObservation``).
 public struct PullRequestChip: Equatable, Sendable {
     public var number: Int
-    /// The pull request's web URL, as GitHub gave it. A chip is only built from a URL.
-    public var url: URL
-    /// Nil from a Journal read: a pull request's state lives in GitHub.
-    public var state: PullRequestState?
+    /// The pull request's web URL, as GitHub gave it. Nil when the land Act recorded none (Code Hosting answered that
+    /// a pull request already existed) and only the pull request read named its number: the chip then opens nothing.
+    public var url: URL?
 
-    public init(number: Int, url: URL, state: PullRequestState?) {
+    public init(number: Int, url: URL?) {
         self.number = number
         self.url = url
-        self.state = state
     }
 }
 
-public enum PullRequestState: String, CaseIterable, Sendable {
-    case open
-    case draft
-    case merged
-    case closed
+/// A pull request's last observed state, with the time it was observed, as the engine's pull request read recorded
+/// it in the Journal (app/land-on-the-sidebar-and-pulse `#pull-request-state`; OQ190 items 17 and 18). The app never
+/// reads Code Hosting, so this is as fresh as the last pass, and its time says so. Display only: it changes neither
+/// U nor the gate, and it never stands in for "in mainline".
+public struct PullRequestObservation: Equatable, Sendable {
+    public var state: ObservedPullRequestState
+    public var observedAt: Date
+    /// Whether the latest read for this repository failed after `observedAt`. The state and its time stay as they
+    /// were: a known state is never blanked.
+    public var latestReadFailed: Bool
+
+    public init(state: ObservedPullRequestState, observedAt: Date, latestReadFailed: Bool) {
+        self.state = state
+        self.observedAt = observedAt
+        self.latestReadFailed = latestReadFailed
+    }
+}
+
+extension ObservedPullRequestState {
+    /// The spec's words for the state: `open`, `merged`, `closed without merge`. Never the Journal's literal.
+    public var words: String {
+        switch self {
+        case .open: "open"
+        case .merged: "merged"
+        case .closedWithoutMerge: "closed without merge"
+        }
+    }
 }

@@ -3,9 +3,9 @@ import Pulse
 import SwiftUI
 
 /// The Feature group's "Awaiting merge" part: the Unmerged Feature Stack U, bottom of the stack first, each
-/// Feature with its per-repository merge state (proposed amendment, yellowhammer-spec#132). A row opens the
-/// Feature in the Inspector and a pull request chip opens GitHub; merging itself happens in GitHub, so there
-/// is no merge CTA here.
+/// Feature with its per-repository merge state and pull request's last observed state
+/// (app/land-on-the-sidebar-and-pulse `#awaiting-merge`, `#pull-request-state`). A row opens the Feature in the
+/// Inspector and a pull request chip opens GitHub; merging itself happens in GitHub, so there is no merge CTA here.
 struct AwaitingMergeSection: View {
     let stack: UnmergedFeatureStack
     let inspected: PulseSelection?
@@ -60,8 +60,8 @@ private struct AwaitingMergeHeader: View {
     }
 }
 
-/// One pushed repository of a Feature in U: the repo, whether it is in mainline, what it is stacked on, and
-/// its pull request chip.
+/// One pushed repository of a Feature in U: the repo, whether it is in mainline, its pull request's last observed
+/// state beside that (never instead of it), what it is stacked on, and its pull request chip.
 private struct AwaitingMergeRepositoryLine: View {
     let featureID: String
     let repository: AwaitingMergeRepository
@@ -78,6 +78,12 @@ private struct AwaitingMergeRepositoryLine: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+            if let observation = repository.pullRequestObservation {
+                PullRequestObservationLabel(
+                    observation: observation,
+                    identifier: "feature-awaiting-merge-\(featureID)-\(repository.repo)-pull-request-state"
+                )
+            }
             if let stackedOn = repository.stackedOn {
                 Text("stacked on \(stackedOn)").font(.caption).foregroundStyle(.secondary)
             }

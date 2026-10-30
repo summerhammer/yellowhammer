@@ -123,6 +123,10 @@ actor OQ191Publication: Publication {
         return .opened(url: "https://github.com/summerhammer/\(draft.repository)/pull/1")
     }
 
+    func readPullRequests(_ query: PullRequestQuery) async throws(PullRequestReadFailure) -> [ObservedPullRequest] {
+        []
+    }
+
     func opened(_ repository: String) -> [Opened] {
         opened.filter { $0.repository == repository }
     }

@@ -84,10 +84,7 @@ struct FeatureDetailView: View {
                     }
                     if let pullRequest = lane.pullRequest {
                         LabeledContent("Pull request") {
-                            Button(pullRequest.label) {
-                                openDestination(.pullRequest(pullRequest.url))
-                            }
-                            .buttonStyle(.link)
+                            PullRequestLink(pullRequest: pullRequest, openDestination: openDestination)
                         }
                     }
                     LaneCardList(cards: lane.cards, decisionCardIDs: decisionCardIDs)

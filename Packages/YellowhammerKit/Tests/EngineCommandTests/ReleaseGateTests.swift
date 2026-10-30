@@ -69,7 +69,8 @@ private func seedFeature(_ journal: JournalStore, world: borrowing ProducerWorld
     )
     if landed {
         try journal.recordLanding(
-            featureID: featureID, repository: "contracts", mainlineCommit: world.merge, evidence: .ancestry
+            featureID: featureID, repository: "contracts", landingCommit: world.merge,
+            mainlineCommit: world.merge, evidence: .ancestry
         )
     }
     return featureID
@@ -130,6 +131,75 @@ struct ReleaseGateTests {
         #expect(try await heldConsumers(journal, producerPath: world.repo.path) == held())
     }
 
+    // OQ190 item 26: test (A) reads the landing commit, not the mainline commit the merge was first observed at.
+    // The recorded Pushed Tip is one the repository lacks, so test (B) cannot pass and (A) alone decides.
+    @Test("Test (A): a tag cut after the landing commit opens, though the merge was observed at a later commit")
+    func tagAfterTheLandingCommitOpens() async throws {
+        let world = try await ProducerWorld.make()
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-K", branch: "yh-feat", repositories: ["contracts"],
+            pushedTips: ["contracts": String(repeating: "ab", count: 20)]
+        )
+        await world.repo.run(["tag", "v1.0.0", world.after])
+        let observedAt = try await world.repo.commit(filename: "later.txt", message: "after the tag")
+        try journal.recordLanding(
+            featureID: featureID, repository: "contracts", landingCommit: world.merge, mainlineCommit: observedAt,
+            evidence: .ancestry
+        )
+
+        #expect(try await heldConsumers(journal, producerPath: world.repo.path).isEmpty)
+        #expect(try journal.releases(featureID: featureID)["contracts"]?.tagName == "v1.0.0")
+    }
+
+    @Test("Test (A): a tag cut before the landing commit does not open")
+    func tagBeforeTheLandingCommitDoesNotOpen() async throws {
+        let world = try await ProducerWorld.make()
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-K", branch: "yh-feat", repositories: ["contracts"],
+            pushedTips: ["contracts": String(repeating: "ab", count: 20)]
+        )
+        await world.repo.run(["tag", "v0.9.0", world.base])
+        try journal.recordLanding(
+            featureID: featureID, repository: "contracts", landingCommit: world.merge, mainlineCommit: world.after,
+            evidence: .ancestry
+        )
+
+        #expect(try await heldConsumers(journal, producerPath: world.repo.path) == held())
+        #expect(try journal.releases(featureID: featureID).isEmpty)
+    }
+
+    @Test("Test (B): a squash found in the tag's history opens, though the tag's head changed the same lines")
+    func squashInTheTagHistoryOpens() async throws {
+        let repo = GateGitFixture(name: "contracts-squash-history")
+        await repo.initRepo(defaultBranch: "main")
+        try await repo.commit(filename: "feature.txt", content: "base\n", message: "base")
+        await repo.run(["checkout", "-b", "yh-feat"])
+        let tip = try await repo.commit(filename: "feature.txt", content: "the feature\n", message: "feature")
+        await repo.run(["checkout", "main"])
+        await repo.run(["merge", "--squash", "yh-feat"])
+        await repo.run(["commit", "-m", "feature (squashed)"])
+        let release = try await repo.commit(filename: "feature.txt", content: "rewritten\n", message: "rewrite")
+        await repo.run(["tag", "v1.0.0", release])
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-K", branch: "yh-feat", repositories: ["contracts"],
+            pushedTips: ["contracts": tip]
+        )
+        // Observed past the tag, so test (A) cannot pass and (B) alone decides.
+        let later = try await repo.commit(filename: "later.txt", message: "after the tag")
+        try journal.recordLanding(
+            featureID: featureID, repository: "contracts", landingCommit: later, mainlineCommit: later,
+            evidence: .content
+        )
+
+        #expect(try await heldConsumers(journal, producerPath: repo.path).isEmpty)
+    }
+
     @Test("A pre-release tag is not a release")
     func preReleaseTagDoesNotOpen() async throws {
         let world = try await ProducerWorld.make()
@@ -176,7 +246,8 @@ struct ReleaseGateTests {
         // Feature with no Observed Merge holds its consumers on the merge, before any release is looked for).
         let later = try await world.repo.commit(filename: "later.txt", message: "after the tag")
         try journal.recordLanding(
-            featureID: featureID, repository: "contracts", mainlineCommit: later, evidence: .content
+            featureID: featureID, repository: "contracts", landingCommit: later,
+            mainlineCommit: later, evidence: .content
         )
 
         #expect(try await heldConsumers(journal, producerPath: world.repo.path).isEmpty)
@@ -202,7 +273,8 @@ struct ReleaseGateTests {
         )
         let later = try await repo.commit(filename: "later.txt", message: "after the tag")
         try journal.recordLanding(
-            featureID: featureID, repository: "contracts", mainlineCommit: later, evidence: .content
+            featureID: featureID, repository: "contracts", landingCommit: later,
+            mainlineCommit: later, evidence: .content
         )
 
         #expect(try await heldConsumers(journal, producerPath: repo.path).isEmpty)
@@ -225,7 +297,8 @@ struct ReleaseGateTests {
         )])
 
         try journal.recordLanding(
-            featureID: featureID, repository: "contracts", mainlineCommit: world.merge, evidence: .ancestry
+            featureID: featureID, repository: "contracts", landingCommit: world.merge,
+            mainlineCommit: world.merge, evidence: .ancestry
         )
         #expect(try await ObservedReleaseGate().heldConsumers(context).isEmpty)
     }

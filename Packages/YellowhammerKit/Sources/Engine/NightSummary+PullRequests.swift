@@ -10,12 +10,14 @@ extension NightSummary {
     /// Landing` when their Feature's Cycle has lane holes; on a rehearsal Night, an
     /// `.openPullRequest`/`.rehearsalBoundary` `landStep` renders "not opened — rehearsal". Then each
     /// "not published" report made this Night (OQ191; ``UnpublishedCommitsReport``), at Verification time
-    /// or at release, once each: a note, never a failure. Empty when none of these happened this Night.
+    /// or at release, once each: a note, never a failure. Then each Feature Branch the pull request read found more
+    /// than one pull request for this Night, once each (``multiplePullRequestLine(_:)``). Empty when none of these
+    /// happened this Night.
     public static func pullRequestLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         var lines: [String] = []
         for pullRequest in try journal.pullRequests(nightID: night.id) {
             let partial = try isPartialLanding(featureID: pullRequest.featureID, journal: journal)
-            let target = pullRequest.url ?? "no url recorded"
+            let target = pullRequest.url ?? pullRequest.number.map { "#\($0)" } ?? "no url recorded"
             let flag = partial ? " (Partial Landing)" : ""
             lines.append("`\(pullRequest.repository)`: \(target)\(flag)")
         }
@@ -31,7 +33,21 @@ extension NightSummary {
                 lines.append(report)
             }
         }
+        for record in events {
+            if let line = multiplePullRequestLine(record.event), !lines.contains(line) {
+                lines.append(line)
+            }
+        }
         return lines
+    }
+
+    /// The note for a Feature Branch with more than one pull request (spec: morning-report/write-the-night-summary
+    /// `#pull-request-read-notes`, OQ190 item 13): the branch and its pull requests. Reported, never a gate input;
+    /// nil for any other event.
+    static func multiplePullRequestLine(_ event: JournalEvent) -> String? {
+        guard case .multiplePullRequestsObserved(let repository, let branch, let numbers) = event else { return nil }
+        let named = numbers.map { "#\($0)" }.joined(separator: ", ")
+        return "`\(repository)`: Feature Branch `\(branch)` has more than one pull request: \(named)."
     }
 
     private static func isPartialLanding(featureID: Int64, journal: JournalStore) throws -> Bool {

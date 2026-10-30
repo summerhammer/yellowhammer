@@ -5,7 +5,8 @@ import Journal
 // The standing line's entries for the Unmerged Feature Stack U (roadmap P23.6; spec:
 // morning-report/write-the-night-summary, the standing line and `#stacked-conflicts`): each verified,
 // landed Feature awaiting merge, oldest first, with how many Nights it has awaited merge, `k of N`, its
-// conflicts, its place in the stack and its notes. Derived from the Journal at read time; reported only.
+// conflicts, its place in the stack and its notes, the pull request read's among them (#714), then the route out
+// (#716). Derived from the Journal at read time; reported only.
 
 extension NightSummary {
     /// One entry per Feature in U, in `journal.unmergedFeatureStack()`'s order (Feature id ascending).
@@ -14,6 +15,7 @@ extension NightSummary {
         guard !stack.isEmpty else { return [] }
         let stackings = try stackings(journal: journal)
         var conflictsBelow: [(identifier: String, conflicts: [String: [String]])] = []
+        var below: [UnmergedFeature] = []
         var lines: [String] = []
         for member in stack {
             let issueID = member.feature.issueID
@@ -37,15 +39,22 @@ extension NightSummary {
                         below: isStacked ? conflictsBelow : []
                     )
                 }
-                line += "; " + named.joined(separator: "; ") + " " + MergeCommitRecommendation.shared
+                line += "; " + named.joined(separator: "; ")
             }
             let noPullRequest = try journal.noPushedBranchRepositories(featureID: member.feature.id)
             if !noPullRequest.isEmpty { line += " " + FeatureRollUp.noPullRequestNotes(noPullRequest) }
+            let readNotes = try pullRequestReadNotes(
+                featureID: member.feature.id, unmergedRepositories: member.unmergedRepositories,
+                pushedTips: member.pushedTips, lowerBranches: lowerFeatureBranches(below), journal: journal
+            )
+            if !readNotes.isEmpty { line += " " + readNotes.joined(separator: " ") }
             line += try FeatureCancellationAnnotation.suffix(
                 featureID: member.feature.id, issueID: issueID, journal: journal
             )
+            line += " " + MergeRouteOut.nightCard
             lines.append(line)
             conflictsBelow.append((identifier, conflicts))
+            below.append(member)
         }
         return lines
     }

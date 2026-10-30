@@ -19,22 +19,43 @@ extension JournalStore {
 
     /// Records that `repository`'s mainline has merged `featureID`'s Feature Branch (an Observed Merge),
     /// first-observation wins: a later pass that finds the same repository still merged never overwrites
-    /// the commit or the evidence a first pass recorded. Returns whether this call inserted a new row.
+    /// the commits or the evidence a first pass recorded. `landingCommit` is where the change entered mainline,
+    /// `mainlineCommit` mainline's commit when it was observed (feature-authoring/select-the-next-feature,
+    /// OQ190 item 26). Returns whether this call inserted a new row.
     @discardableResult
     public func recordLanding(
-        featureID: Int64, repository: String, mainlineCommit: String, evidence: ObservedMergeEvidence,
-        now: Date = Date()
+        featureID: Int64, repository: String, landingCommit: String, mainlineCommit: String,
+        evidence: ObservedMergeEvidence, now: Date = Date()
     ) throws -> Bool {
         try write { db in
             let timestamp = JournalStore.timestamp(JournalStore.stored(now))
             try db.execute(
                 sql: """
-                INSERT OR IGNORE INTO feature_landing (feature_id, repository, mainline_commit, observed_at, evidence)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT OR IGNORE INTO feature_landing
+                    (feature_id, repository, landing_commit, mainline_commit, observed_at, evidence)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                arguments: [featureID, repository, mainlineCommit, timestamp, evidence.rawValue]
+                arguments: [featureID, repository, landingCommit, mainlineCommit, timestamp, evidence.rawValue]
             )
             return db.changesCount == 1
+        }
+    }
+
+    /// The landing commit of each Observed Merge of `featureID` — where its change entered mainline — keyed by
+    /// repository name. The release gate's test (A) asks whether a tag contains it.
+    public func landingCommits(featureID: Int64) throws -> [String: String] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db, sql: "SELECT repository, landing_commit FROM feature_landing WHERE feature_id = ?",
+                arguments: [featureID]
+            )
+            var result: [String: String] = [:]
+            for row in rows {
+                let repository: String = row["repository"]
+                let landingCommit: String = row["landing_commit"]
+                result[repository] = landingCommit
+            }
+            return result
         }
     }
 

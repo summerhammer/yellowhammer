@@ -41,6 +41,21 @@ struct GitHubCredentialReportTests {
             """)
     }
 
+    @Test("A Repo's pull request read encodes beside its push status, and round-trips")
+    func pullRequestRead() {
+        var repo = GitHubCredentialReport.Repo(
+            name: "backend", path: "/p", slug: "acme/backend", status: .ok, message: "push"
+        )
+        repo.pullRequestRead = GitHubCredentialReport.PullRequestRead(status: .cannotRead, message: "read")
+        let report = Self.report(repos: [repo])
+
+        #expect(report.encodeLine().contains(#""pullRequestRead":{"message":"read","status":"cannotRead"}"#))
+        #expect(GitHubCredentialReport.decodeLastLine([report.encodeLine()]) == report)
+        #expect(report.isValid, "a pull request read never fails the push verdict")
+        #expect(GitHubCredentialReport.PullRequestReadStatus.allCasesForTest.map(\.rawValue)
+            == ["canRead", "cannotRead", "unverified"])
+    }
+
     @Test("Optional fields are omitted when nil")
     func omitsNil() {
         let report = GitHubCredentialReport(reference: "keychain:github", state: .missing, message: "m")
@@ -93,4 +108,8 @@ private extension GitHubCredentialReport.RepoStatus {
     static let allCasesForTest: [Self] = [
         .ok, .okUnverified, .noPushPermission, .missingScope, .notFound, .notGitHub, .unreachable, .rejected
     ]
+}
+
+private extension GitHubCredentialReport.PullRequestReadStatus {
+    static let allCasesForTest: [Self] = [.canRead, .cannotRead, .unverified]
 }

@@ -168,22 +168,40 @@ extension View {
     }
 }
 
+/// A pull request's chip. Where no URL is recorded it shows the number and opens nothing.
 struct PulsePullRequestButton: View {
     let chip: PullRequestChip
-    let action: () -> Void
-    @Environment(\.pulsePalette) private var palette
+    let open: (URL) -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button { chip.url.map(open) } label: {
             HStack(spacing: 4) {
-                Image(systemName: "arrow.triangle.pull").foregroundStyle(palette.color(for: chip.state))
-                Text(["#\(chip.number)", chip.state?.rawValue].compactMap { $0 }.joined(separator: " "))
-                    .monospacedDigit()
+                Image(systemName: "arrow.triangle.pull")
+                Text("#\(chip.number)").monospacedDigit()
             }
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .help("Open pull request #\(chip.number) on GitHub")
+        .disabled(chip.url == nil)
+        .help(chip.url == nil ? "No link to #\(chip.number) is recorded" : "Open #\(chip.number) on GitHub")
+    }
+}
+
+/// A pull request's last observed state with its time, beside "in mainline", and that the latest read failed.
+struct PulsePullRequestObservationText: View {
+    let observation: PullRequestObservation
+    @Environment(\.pulsePalette) private var palette
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.triangle.pull").foregroundStyle(palette.color(for: observation.state))
+            Text(PulseStackText.observation(observation))
+            if observation.latestReadFailed {
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(palette.needsYou)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -247,9 +265,7 @@ struct PulseLaneRow: View {
             Text("\(lane.cardsDone)/\(lane.cardsTotal)").font(.caption).monospacedDigit().foregroundStyle(.secondary)
             PulseBadge(text: lane.state.rawValue, color: palette.color(for: lane.state))
             if let chip = lane.pullRequest {
-                PulsePullRequestButton(chip: chip) {
-                    context.actions.open(.pullRequest(chip.url))
-                }
+                PulsePullRequestButton(chip: chip) { context.actions.open(.pullRequest($0)) }
             }
         }
         .pulseRowHighlight(context.actions.inspected == .repo(lane.repo), tint: palette.accent)

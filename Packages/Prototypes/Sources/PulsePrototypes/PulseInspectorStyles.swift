@@ -147,7 +147,7 @@ struct PulseInspectorView: View {
             })
         ]
         if !pullRequests.isEmpty {
-            related.append(.init(title: "Pull requests", items: pullRequests.map { repo, chip in
+            related.append(.init(title: "Pull requests", items: pullRequests.compactMap { repo, chip in
                 pullRequestItem(repo: repo, chip: chip)
             }))
         }
@@ -235,8 +235,8 @@ struct PulseInspectorView: View {
         if !cards.isEmpty {
             related.append(.init(title: "Needs you", items: cards.map(cardItem)))
         }
-        if let chip = lane?.pullRequest {
-            related.append(.init(title: "Pull request", items: [pullRequestItem(repo: repo, chip: chip)]))
+        if let chip = lane?.pullRequest, let item = pullRequestItem(repo: repo, chip: chip) {
+            related.append(.init(title: "Pull request", items: [item]))
         }
         return PulseInspectorModel(
             kind: "Repo",
@@ -250,14 +250,14 @@ struct PulseInspectorView: View {
                 ("Cards done", lane.map { "\($0.cardsDone) of \($0.cardsTotal)" } ?? "—"),
                 (
                     "Pull request",
-                    lane?.pullRequest.map { "#\($0.number)" + ($0.state.map { " \($0.rawValue)" } ?? "") } ?? "none yet"
+                    lane?.pullRequest.map { "#\($0.number)" } ?? "none yet"
                 ),
                 ("Attempt", attempt?.route ?? "none running"),
                 ("Needs you", cards.isEmpty ? "nothing" : "\(cards.count)")
             ],
             related: related,
-            primary: lane?.pullRequest.map { chip in
-                ("Open #\(chip.number) on GitHub", .pullRequest(chip.url))
+            primary: lane?.pullRequest.flatMap { chip in
+                chip.url.map { ("Open #\(chip.number) on GitHub", .pullRequest($0)) }
             }
         )
     }
@@ -279,13 +279,14 @@ struct PulseInspectorView: View {
         )
     }
 
-    private func pullRequestItem(repo: String, chip: PullRequestChip) -> PulseInspectorModel.Item {
-        .init(
-            id: "\(repo)#\(chip.number)", title: "\(repo) #\(chip.number)",
-            subtitle: chip.state?.rawValue ?? "state unknown",
-            systemImage: "arrow.triangle.pull", tint: palette.color(for: chip.state),
-            action: .open(.pullRequest(chip.url))
-        )
+    /// Nil where no URL is recorded: an item opens something.
+    private func pullRequestItem(repo: String, chip: PullRequestChip) -> PulseInspectorModel.Item? {
+        chip.url.map { url in
+            .init(
+                id: "\(repo)#\(chip.number)", title: "\(repo) #\(chip.number)", subtitle: nil,
+                systemImage: "arrow.triangle.pull", tint: .secondary, action: .open(.pullRequest(url))
+            )
+        }
     }
 }
 

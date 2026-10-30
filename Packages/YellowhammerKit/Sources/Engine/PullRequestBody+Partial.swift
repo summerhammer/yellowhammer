@@ -50,12 +50,13 @@ extension PullRequestBody {
                 + "archives its Cycle; merging fewer than \(input.pushedRepositoryCount) closes nothing "
                 + "and releases nothing."
         )
+        // The shared sentence, outside the fixed opening lines, recommending no merge method (spec:
+        // landing/announce-a-partial-landing; OQ190 item 3).
         lines.append(
-            "Merging satisfies the landing gate for the repositories it reached: it clears this Feature's slot "
-                + "in the unmerged Feature stack (`unmerged_features_max`) and releases any downstream Features "
-                + "waiting on it. Leaving it open costs tomorrow night."
+            MergeRouteOut.anyMethod + " It satisfies the landing gate for the repositories it reached, clears this "
+                + "Feature's slot in the unmerged Feature stack (`unmerged_features_max`) and releases any downstream "
+                + "Features waiting on it. Leaving it open costs tomorrow night."
         )
-        lines.append(MergeCommitRecommendation.pullRequestBody)
         lines.append("")
         lines.append(cardListSection(title: "Cards in this repository", cards: input.laneCards))
         lines.append("")

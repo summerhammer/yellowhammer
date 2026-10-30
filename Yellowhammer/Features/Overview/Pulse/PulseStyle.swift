@@ -90,13 +90,14 @@ extension NightMoment.ActState {
     }
 }
 
-extension PullRequestState {
+extension ObservedPullRequestState {
+    /// Closed without merge is `attention`, not `error`: the Operator closed it, and the standing line names it as
+    /// something to act on.
     var style: some ShapeStyle {
         let style: ThemeShapeStyle<Color> = switch self {
         case .open: .active
-        case .draft: .neutral
         case .merged: .success
-        case .closed: .error
+        case .closedWithoutMerge: .attention
         }
         return style
     }

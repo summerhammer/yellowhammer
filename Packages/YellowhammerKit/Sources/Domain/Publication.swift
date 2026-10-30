@@ -1,16 +1,23 @@
 import Foundation
 
 /// The Publication Port (ADR-001): how Yellowhammer opens a pull request for a Repo Lane's Feature
-/// Branch. GitHub is the vendor behind it.
+/// Branch, and reads whether the Operator merged it. GitHub is the vendor behind it.
 ///
-/// Write-only, and open-only: this Port never reads pull request state (no poll, no webhook — the
-/// spec's R17), and never updates, closes, reopens or merges one. Yellowhammer never merges — the
-/// Operator's merge on GitHub is the only closure gesture, and this Port has no way to perform it.
+/// Two operations, one credential: the Project's selected Code Hosting Connection, the one the push uses
+/// (OQ190 item 29). It opens a pull request and reads pull requests; it never updates, closes, reopens,
+/// retargets or merges one, and never reads reviews, comments, approvals or checks (OQ190 item 20).
+/// Yellowhammer never merges — the Operator's merge on GitHub is the only closure gesture, and this Port
+/// has no way to perform it.
 public protocol Publication: Sendable {
     /// Opens one pull request from `draft`. GitHub reporting that a pull request already exists for
-    /// this head is not an error: it is `.alreadyOpen`, because this Port never reads and so cannot
-    /// have known ahead of the call.
+    /// this head is not an error: it is `.alreadyOpen`, and carries no URL.
     func openPullRequest(_ draft: PullRequestDraft) async throws(PublicationError) -> PullRequestReceipt
+
+    /// Reads the pull requests `query` names (feature-authoring/select-the-next-feature, `#pull-request-read`):
+    /// one by its number, or every pull request whose head is a branch, in any state. Finding none is an empty
+    /// answer, never an error: the pull request test then does not apply. A read that cannot be made throws
+    /// one of the five ``PullRequestReadFailure/Reason``s (OQ190 item 28).
+    func readPullRequests(_ query: PullRequestQuery) async throws(PullRequestReadFailure) -> [ObservedPullRequest]
 }
 
 /// A pull request to open. `owner`/`repository` are the opaque slug halves a Port may carry across it
@@ -41,8 +48,8 @@ public struct PullRequestDraft: Equatable, Sendable {
 public enum PullRequestReceipt: Equatable, Sendable {
     /// GitHub created the pull request at `url`.
     case opened(url: String)
-    /// GitHub reports a pull request already exists for this head. No URL: this Port never reads, so
-    /// it has no way to have learned one.
+    /// GitHub reports a pull request already exists for this head. No URL: GitHub's refusal names none. The
+    /// predecessor gate finds that pull request later by its head branch (OQ190 item 27).
     case alreadyOpen
 }
 

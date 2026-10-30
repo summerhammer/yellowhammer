@@ -305,4 +305,8 @@ actor StubPublicationAdapter: Publication {
             throw error
         }
     }
+
+    func readPullRequests(_ query: PullRequestQuery) async throws(PullRequestReadFailure) -> [ObservedPullRequest] {
+        []
+    }
 }

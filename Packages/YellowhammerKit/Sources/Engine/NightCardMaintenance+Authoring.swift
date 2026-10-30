@@ -268,10 +268,10 @@ extension NightCardMaintenance {
 
     /// The quiet skip of a full Unmerged Feature Stack (roadmap P23.5; spec: morning-report/write-the-night-summary,
     /// issue #448, OQ164, OQ177): names every Feature in U and each branch the gate did not find in mainline, from
-    /// the event's own payload, recommends a merge commit with the reason (``MergeCommitRecommendation/shared``),
-    /// and says how to open the gate when mainline already has the changes. At `unmerged_features_max = 1` with
-    /// one Feature in U it reads as the predecessor line. It never claims a squash or rebase merge happened, and
-    /// never says one stalls the next Feature for good: the engine cannot tell an open pull request from a merged one.
+    /// the event's own payload, says that merging the pull request by any method releases the next Feature and
+    /// recommends no merge method, then gives the route out for a merge the gate cannot see (``MergeRouteOut``;
+    /// OQ190 items 3 and 6, `#stack-full-skip`). At `unmerged_features_max = 1` with one Feature in U it reads as the
+    /// predecessor line. It never claims a squash or rebase merge happened.
     private static func unmergedStackFullLine(
         features: [UnmergedStackEntry], unmergedFeaturesMax: Int, journal: JournalStore?
     ) -> String {
@@ -294,9 +294,7 @@ extension NightCardMaintenance {
         }
         let branchSentence = notFound.isEmpty ? "" : " Not found in mainline: \(notFound.joined(separator: ", "))."
         return "Authoring was skipped: \(reason)." + branchSentence
-            + " \(MergeCommitRecommendation.shared)"
-            + " If mainline already has the changes, a content-free merge of the Feature Branch "
-            + "(`git merge -s ours`) with a merge commit opens this gate. A quiet Night, not a failure."
+            + " \(MergeRouteOut.nightCard) A quiet Night, not a failure."
     }
 
     /// A Feature of U as a Markdown link when the Journal has its issue URL, else its display identifier.

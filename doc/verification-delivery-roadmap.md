@@ -145,38 +145,38 @@ Steps are ordered by dependency:
 - #716 edits the same standing line as #714, so it comes after it.
 - #718 needs #717's stored state.
 
-- [ ] **B1 #713 — Record the Observed Merge's landing commit.**
+- [x] **B1 #713 — Record the Observed Merge's landing commit.**
   - **Ancestry.** The landing commit is the oldest first-parent commit that contains the tip.
   - **Content.** The landing commit is the first first-parent commit C where
     `merge-tree --write-tree C <tip>` writes `C^{tree}`. This scan replaces the test against
     mainline's head (OQ190 item 24).
   - **Release gate.** (A) tests the tag against the landing commit.
-- [ ] **B2 #712 — A stacked Feature is tested by content only after the Feature below it has its
+- [x] **B2 #712 — A stacked Feature is tested by content only after the Feature below it has its
   Observed Merge.**
   - The scan starts at that Feature's landing commit.
   - The recorded base is the base of the three-way merge and of the net-change check.
   - $U$ is tested oldest first.
-- [ ] **B3 #698 — Read the pull request.**
+- [x] **B3 #698 — Read the pull request.**
   - Add a second Publication Port operation and a GitHub adapter GET.
   - The merge test's second rung: the pull request is merged, and its merge commit is in
     mainline.
   - A failed read falls through to the content test, plus a `PullRequestReadFailed` event.
-- [ ] **B4 #717 — Store the last observed pull request state per (Feature, repository).**
+- [x] **B4 #717 — Store the last observed pull request state per (Feature, repository).**
   - The state is `open`, `merged` or `closed without merge`, with when it was observed.
   - A failed read leaves the last state in place.
-- [ ] **B5 #714 — Night Summary notes:**
+- [x] **B5 #714 — Night Summary notes:**
   - `pull_request_read_failed`;
   - `[closed without merge: <repo>]`;
   - `[merged into <branch>, waiting for it: <repo>]`;
   - a Feature Branch with more than one pull request.
-- [ ] **B6 #716 — Recommend no merge method.**
+- [x] **B6 #716 — Recommend no merge method.**
   - Copy: "Merging the pull request by any method releases the next Feature."
   - The Night Card lines carry the route out (`git merge -s ours`).
   - `MergeCommitRecommendation` goes.
-- [ ] **B7 #715 — `yh doctor` Check 5 reports whether the connection can read pull requests.**
+- [x] **B7 #715 — `yh doctor` Check 5 reports whether the connection can read pull requests.**
   - A connection that cannot read them is a warning.
   - A read that cannot be verified is unverified.
-- [ ] **B8 #718 — The Pulse shows each repository's last observed pull request state.**
+- [x] **B8 #718 — The Pulse shows each repository's last observed pull request state.**
   - It shows the time observed.
   - It marks when the latest read failed.
   - It shows nothing when no state was ever observed.

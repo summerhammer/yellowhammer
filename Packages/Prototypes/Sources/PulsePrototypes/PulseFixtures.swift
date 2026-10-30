@@ -117,9 +117,10 @@ enum PulseFixtures {
         LinearIssueLink(identifier: identifier, url: url("https://linear.app/acme/issue/\(identifier)"))
     }
 
-    /// A pull request chip whose URL is the one GitHub would give.
-    static func pullRequest(repo: String, number: Int, state: PullRequestState?) -> PullRequestChip {
-        PullRequestChip(number: number, url: url("https://github.com/acme/\(repo)/pull/\(number)"), state: state)
+    /// A pull request chip whose URL is the one GitHub would give; with `linked` false, the number alone, as for a
+    /// pull request the land Act recorded no URL for.
+    static func pullRequest(repo: String, number: Int, linked: Bool = true) -> PullRequestChip {
+        PullRequestChip(number: number, url: linked ? url("https://github.com/acme/\(repo)/pull/\(number)") : nil)
     }
 
     /// 07:30 local on 2026-09-29: the morning after a Night.
@@ -209,7 +210,7 @@ enum PulseFixtures {
                 state: index == 0 ? laneState : .running,
                 cardsDone: index + 1,
                 cardsTotal: index + 4,
-                pullRequest: rollup == .verified ? pullRequest(repo: repo, number: 210 + index, state: .merged) : nil
+                pullRequest: rollup == .verified ? pullRequest(repo: repo, number: 210 + index) : nil
             )
         }
         return FeatureInFlight(
@@ -231,11 +232,11 @@ enum PulseFixtures {
         lanes: [
             RepoLaneSnapshot(
                 repo: "yellowhammer", state: .landed, cardsDone: 5, cardsTotal: 5,
-                pullRequest: pullRequest(repo: "yellowhammer", number: 214, state: .open)
+                pullRequest: pullRequest(repo: "yellowhammer", number: 214)
             ),
             RepoLaneSnapshot(
                 repo: "yellowhammer-site", state: .blocked, cardsDone: 1, cardsTotal: 3,
-                pullRequest: pullRequest(repo: "yellowhammer-site", number: 88, state: .draft)
+                pullRequest: pullRequest(repo: "yellowhammer-site", number: 88)
             )
         ],
         link: issueLink("YH-120")

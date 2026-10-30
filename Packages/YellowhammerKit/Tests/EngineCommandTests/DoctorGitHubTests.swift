@@ -42,8 +42,10 @@ private let machineWithMoreConnections = ConfigurationDirectory.machineFile + ""
     type = "gh"
     """
 
+/// The GitHub check's connection and push rows: the pull request read rows are left to
+/// `DoctorGitHubPullRequestReadTests`, so these tests show the push check unchanged by them.
 private func gitHubFindings(_ findings: [DoctorFinding]) -> [DoctorFinding] {
-    findings.filter { $0.check == .github }
+    findings.filter { $0.check == .github && !$0.subject.hasPrefix("pull request read ") }
 }
 
 private func projectID(_ raw: String) -> ProjectID {
@@ -77,7 +79,10 @@ struct DoctorGitHubTests {
             "Code Hosting Connection github (type \"keychain\"; login \"octocat\"; Projects alpha): "
         ))
         #expect(findings[1].message.contains("Repo backend (acme/alpha-backend)"))
-        #expect(transport.paths == ["/user", "/repos/acme/alpha-backend", "/repos/acme/alpha-mobile"])
+        #expect(transport.paths == [
+            "/user", "/repos/acme/alpha-backend", "/repos/acme/alpha-backend/pulls",
+            "/repos/acme/alpha-mobile", "/repos/acme/alpha-mobile/pulls"
+        ])
     }
 
     @Test("A missing Keychain item fails, naming the connection, Projects, and both repair paths")
@@ -442,7 +447,7 @@ struct DoctorGitHubTests {
         let rows = try #require(DoctorFindingRow.decodeLastLine([DoctorCommand.encodeFindingsJSON(findings)]))
 
         let github = rows.filter { $0.check == "github" }
-        #expect(github.count == 2)
+        #expect(github.map(\.subject) == ["credential", "repo backend", "pull request read backend"])
         #expect(github.allSatisfy { $0.projects == ["alpha"] })
         #expect(github.allSatisfy { $0.connection == "github" })
         let others = rows.filter { $0.check != "github" }

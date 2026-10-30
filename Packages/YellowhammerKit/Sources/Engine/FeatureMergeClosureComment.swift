@@ -107,7 +107,7 @@ public struct FeatureMergeClosureComment: Equatable, Sendable {
 
         lines.append("")
         lines.append(
-            "Observed on Night \(observingNightStart) from mainline ancestry; Yellowhammer never reads GitHub, "
+            "Observed on Night \(observingNightStart) by the merge test, which runs only when an Act runs, "
                 + "so this can lag the merge."
         )
 
