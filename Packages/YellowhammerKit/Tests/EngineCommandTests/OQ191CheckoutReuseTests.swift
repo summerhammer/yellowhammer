@@ -46,7 +46,7 @@ private func worldWithIgnoredFiles() async throws -> OQ191LandWorld {
     return world
 }
 
-@Suite("OQ191 checkout reuse: all held Worktrees or none", .tags(.oq191))
+@Suite("OQ191 checkout reuse: all held Worktrees or none", .serialized, .tags(.oq191))
 struct OQ191CheckoutReuseTests {
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
     @Test(

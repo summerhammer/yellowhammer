@@ -56,7 +56,7 @@ private func unchangedRetry() async throws -> UnchangedRetry {
     return UnchangedRetry(world: world, first: first, second: second)
 }
 
-@Suite("OQ191 publication retry: the retry publishes what was pushed", .tags(.oq191))
+@Suite("OQ191 publication retry: the retry publishes what was pushed", .serialized, .tags(.oq191))
 struct OQ191PublicationRetryTests {
     // landing/stories/open-one-pull-request-per-repository.md#publication-retry
     @Test(

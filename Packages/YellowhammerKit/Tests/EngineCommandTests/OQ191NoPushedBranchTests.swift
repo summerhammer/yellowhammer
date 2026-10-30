@@ -39,7 +39,7 @@ private func requireNoPushedBranchOutcome(_ world: OQ191LandWorld) throws {
     #expect(try world.env.journal.pushedRepositories(featureID: world.feature.id) == ["backend"])
 }
 
-@Suite("OQ191 No-Pushed-Branch repository: judged at its recorded base commit", .tags(.oq191))
+@Suite("OQ191 No-Pushed-Branch repository: judged at its recorded base commit", .serialized, .tags(.oq191))
 struct OQ191NoPushedBranchTests {
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
     @Test(

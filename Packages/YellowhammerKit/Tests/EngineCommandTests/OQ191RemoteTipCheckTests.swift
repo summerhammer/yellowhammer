@@ -49,7 +49,7 @@ private func openPullRequestOutcome(_ world: OQ191LandWorld) throws -> LandStepO
     try recordedLandSteps(world.env.journal, .openPullRequest, repository: "backend").last?.outcome
 }
 
-@Suite("OQ191 remote tip check: before every pull request open", .tags(.oq191))
+@Suite("OQ191 remote tip check: before every pull request open", .serialized, .tags(.oq191))
 struct OQ191RemoteTipCheckTests {
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
     @Test(

@@ -266,7 +266,9 @@ struct ExpiredLeaseSweepRealKillTests {
         journal: JournalStore, killSwitch: KillSwitch, killedTask: Task<Void, Error>, deadRunID: RunID, cardID: Int64
     ) async throws {
         let childPID: pid_t
-        switch await waitForDispatchOrGiveUp(gate: killSwitch, firstTask: killedTask, timeout: .seconds(30)) {
+        // Two minutes: on a loaded CI runner the first invocation had not reached the worker dispatch after
+        // 30 seconds (PR #721). This bound only stops a hang; a larger one never slows a passing run.
+        switch await waitForDispatchOrGiveUp(gate: killSwitch, firstTask: killedTask, timeout: .seconds(120)) {
         case .ready(let pid):
             childPID = pid
         case .firstTaskFinishedEarly(let result):

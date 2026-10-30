@@ -32,7 +32,7 @@ private func recordVerificationBeforeTheRule(_ world: OQ191LandWorld) throws {
     )))
 }
 
-@Suite("OQ191 pull request body: the judged commit per repository", .tags(.oq191))
+@Suite("OQ191 pull request body: the judged commit per repository", .serialized, .tags(.oq191))
 struct OQ191PullRequestBodyTests {
     // landing/stories/open-one-pull-request-per-repository.md#judged-commit-in-body
     @Test(

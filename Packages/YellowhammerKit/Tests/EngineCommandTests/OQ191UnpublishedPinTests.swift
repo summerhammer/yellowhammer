@@ -44,7 +44,7 @@ private func releasedWithMovedHead(descending: Bool) async throws -> (world: OQ1
     return (world, head)
 }
 
-@Suite("OQ191 unpublished commits: pinned before release, never published", .tags(.oq191))
+@Suite("OQ191 unpublished commits: pinned before release, never published", .serialized, .tags(.oq191))
 struct OQ191UnpublishedPinTests {
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
     @Test(

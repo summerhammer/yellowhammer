@@ -35,7 +35,7 @@ private func faultedThenMoved() async throws -> FaultedThenMoved {
     return FaultedThenMoved(world: world, commitB1: mobile.tip, commitB2: commitB2, second: second)
 }
 
-@Suite("OQ191 judged checkout: Verification judges what was pushed", .tags(.oq191))
+@Suite("OQ191 judged checkout: Verification judges what was pushed", .serialized, .tags(.oq191))
 struct OQ191JudgedCheckoutTests {
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
     @Test(
