@@ -184,12 +184,17 @@ extension LandAct {
     /// ``JournalStore/releaseWorktree(id:runID:now:)`` and ``WorktreeAllocator/release(featureID:repository:)``
     /// check, so a push seam's own report of "pushed" must land here before release is attempted.
     /// Best-effort — a lane with no held Worktree recorded has nothing to update.
-    private func recordPushedCommit(_ commit: String, laneContext: LandActLaneContext, context: ActContext) {
+    /// A Worktree already recorded at `commit` is left alone, and with `onlyIfUnset` so is one recorded at any commit.
+    private func recordPushedCommit(
+        _ commit: String, laneContext: LandActLaneContext, context: ActContext, onlyIfUnset: Bool = false
+    ) {
         guard
             let held = try? context.journal.heldWorktree(
                 featureID: laneContext.feature.id, repository: laneContext.lane.repository
             ),
-            held.isHeld
+            held.isHeld,
+            held.pushedCommit != commit,
+            !onlyIfUnset || held.pushedCommit == nil
         else {
             return
         }
@@ -216,6 +221,10 @@ extension LandAct {
             if let recorded = try context.journal.pushedTip(
                 cycleID: laneContext.cycleID, repository: laneContext.lane.repository
             ) {
+                // Repairs what the firing that recorded the Pushed Tip may have failed to write beside it: the
+                // held Worktree's release gate and the landed pin.
+                recordPushedCommit(recorded, laneContext: laneContext, context: context, onlyIfUnset: true)
+                await ensureLandedPin(commit: recorded, laneContext: laneContext, context: context)
                 return (
                     .completed(detail: "already pushed at \(recorded.prefix(7))"),
                     LanePushOutcome(kind: .pushed(commit: recorded))

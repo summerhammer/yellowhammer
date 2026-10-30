@@ -15,14 +15,30 @@ extension LandAct {
     /// replaced, and then nothing is pinned again. A pin that cannot be written never throws and never changes
     /// the push: it is reported by a Journal-only ``JournalEvent/landedPinFailed(featureIssueID:repository:branch:commit:operation:reason:)``.
     func recordLandedTip(commit: String, laneContext: LandActLaneContext, context: ActContext) async throws {
-        let feature = laneContext.feature
-        let repository = laneContext.lane.repository
         let recorded = try context.journal.recordPushedTip(
-            cycleID: laneContext.cycleID, repository: repository, commit: commit, runID: context.runID
+            cycleID: laneContext.cycleID, repository: laneContext.lane.repository, commit: commit, runID: context.runID
         )
         guard recorded else { return }
 
-        guard let failure = await pinLandedTip(commit, feature: feature, repository: repository, context: context)
+        await pinLandedTipReporting(commit, laneContext: laneContext, context: context, onlyIfMissing: false)
+    }
+
+    /// Writes the landed pin again when a firing after the one that recorded the Pushed Tip finds it missing or
+    /// pointing elsewhere; a pin already at `commit` is left alone. A failure is reported as in
+    /// ``recordLandedTip(commit:laneContext:context:)``.
+    func ensureLandedPin(commit: String, laneContext: LandActLaneContext, context: ActContext) async {
+        await pinLandedTipReporting(commit, laneContext: laneContext, context: context, onlyIfMissing: true)
+    }
+
+    private func pinLandedTipReporting(
+        _ commit: String, laneContext: LandActLaneContext, context: ActContext, onlyIfMissing: Bool
+    ) async {
+        let feature = laneContext.feature
+        let repository = laneContext.lane.repository
+        guard
+            let failure = await pinLandedTip(
+                commit, feature: feature, repository: repository, context: context, onlyIfMissing: onlyIfMissing
+            )
         else {
             return
         }
@@ -37,7 +53,7 @@ extension LandAct {
 
     /// Writes the pin in the repository's main clone; nil when git accepted it, else the branch and why not.
     private func pinLandedTip(
-        _ commit: String, feature: FeatureRecord, repository: String, context: ActContext
+        _ commit: String, feature: FeatureRecord, repository: String, context: ActContext, onlyIfMissing: Bool
     ) async -> (branch: String, reason: String)? {
         guard
             let branch = try? context.journal.resolvedFeatureBranch(feature: feature, repository: repository),
@@ -46,7 +62,11 @@ extension LandAct {
             return ("", "no Feature Branch or repository is configured to pin in")
         }
         let path = (repo.path as NSString).expandingTildeInPath
-        guard case .failed(let reason) = await LandedTipPin().pin(commit: commit, branch: branch, repositoryPath: path)
+        let landedPin = LandedTipPin()
+        if onlyIfMissing, await landedPin.pinnedCommit(branch: branch, repositoryPath: path) == commit {
+            return nil
+        }
+        guard case .failed(let reason) = await landedPin.pin(commit: commit, branch: branch, repositoryPath: path)
         else {
             return nil
         }

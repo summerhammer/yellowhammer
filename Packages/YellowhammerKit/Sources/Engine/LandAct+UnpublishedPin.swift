@@ -9,7 +9,10 @@ import Repositories
 // clone, outside `refs/heads/`, which Orca ADE does not delete. The pin is never pushed or published and does not
 // block the Cycle from landing; it is reported as not published, naming the pin and the commits. A pin that cannot
 // be written keeps the Worktree held: the release step fails and the next land firing retries, so no commit is
-// lost to Orca ADE's removal (the lead's decision; not ruled). Uncommitted changes are not covered (OQ196).
+// lost to Orca ADE's removal (the lead's decision; not ruled). A directory that is no longer a git work tree has no
+// HEAD to read, so it is released like a missing one, saying nothing was pinned; any other unreadable HEAD keeps the
+// Worktree held. A pin an earlier firing already wrote at the same HEAD is neither reported nor posted again.
+// Uncommitted changes are not covered (OQ196).
 
 /// What the pin before release decided.
 enum UnpublishedPinStep {
@@ -34,6 +37,11 @@ extension LandAct {
         }
         let path = (held.path as NSString).expandingTildeInPath
         guard FileManager.default.fileExists(atPath: path) else { return .release(detail: nil) }
+        guard FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(".git")) else {
+            return .release(
+                detail: "HEAD in \(repository) could not be read (not a git work tree); nothing was pinned"
+            )
+        }
 
         let pin = UnpublishedHeadPin()
         let feature = laneContext.feature
@@ -50,6 +58,8 @@ extension LandAct {
         switch await pin.pinUnpublishedHead(worktreePath: path, recordedCommit: recordedCommit, branch: branch) {
         case .notNeeded:
             return .release(detail: nil)
+        case .alreadyPinned(let ref):
+            return .release(detail: "already pinned at \(ref)")
         case .failed(let reason):
             return .keepHeld(
                 "the Worktree's HEAD in \(repository) could not be pinned before release (\(reason)); the Worktree "

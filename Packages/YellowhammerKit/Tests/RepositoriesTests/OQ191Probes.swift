@@ -78,7 +78,7 @@ enum OQ191Probe {
             worktreePath: worktreePath, recordedCommit: recordedCommit, branch: branch
         )
         switch result {
-        case .pinned(let ref, _): return .pinned(ref: ref)
+        case .pinned(let ref, _), .alreadyPinned(let ref): return .pinned(ref: ref)
         case .notNeeded: return .notNeeded
         case .failed: return nil
         }

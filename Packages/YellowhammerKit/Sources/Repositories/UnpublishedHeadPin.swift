@@ -21,6 +21,8 @@ public enum UnpublishedHeadPinResult: Equatable, Sendable {
     case pinned(ref: String, relation: WorktreeHeadRelation)
     /// HEAD is the recorded commit: nothing to pin.
     case notNeeded
+    /// HEAD was already pinned at `ref` by an earlier firing: nothing was written this time.
+    case alreadyPinned(ref: String)
     /// HEAD could not be read, or the pin could not be written; the reason says why.
     case failed(reason: String)
 }
@@ -75,7 +77,7 @@ public struct UnpublishedHeadPin: Sendable {
     }
 
     /// Pins the HEAD of the Worktree at `worktreePath` at ``ref(for:)`` when it is not `recordedCommit`, whether
-    /// or not it descends from it. Never pushes. A HEAD at `recordedCommit` writes nothing.
+    /// or not it descends from it. Never pushes. A HEAD at `recordedCommit` writes nothing, and nor does one the pin already points at.
     public func pinUnpublishedHead(
         worktreePath: String, recordedCommit: String, branch: FeatureBranch
     ) async -> UnpublishedHeadPinResult {
@@ -90,6 +92,10 @@ public struct UnpublishedHeadPin: Sendable {
             head = moved
         }
         let ref = Self.ref(for: branch)
+        let existing = await git.run(["-C", worktreePath, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"])
+        if existing.isSuccess, existing.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == head {
+            return .alreadyPinned(ref: ref)
+        }
         let written = await git.run(["-C", worktreePath, "update-ref", ref, head])
         guard written.isSuccess else {
             return .failed(reason: Self.reason(of: written, fallback: "git update-ref exited \(written.exitCode)"))
