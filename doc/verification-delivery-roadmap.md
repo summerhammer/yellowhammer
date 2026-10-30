@@ -120,7 +120,7 @@ main ← feat/708-publish-what-was-pushed   (Track A + C; one commit per step)
   - **Harness.** R7–R10, E5, E24, E27–E30 and E44 turn green. E32, E33 and E45 stay green.
     Hand-check E31.
   - **Spec issue.** File a pin failure keeping the Worktree held (lead draft).
-- [ ] **A6 — The pull request body shows each repository's short judged commit.** Item 3.
+- [x] **A6 — The pull request body shows each repository's short judged commit.** Item 3.
   - **Harness.** E34 and E35 turn green. Hand-check E36.
 - [ ] **A7 — OQ197: the separate-Checks sentence is added to the limitation.** It applies when
   `touched_repos` has 2 or more repositories, on both the Feature Card and the pull request body.

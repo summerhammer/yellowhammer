@@ -20,13 +20,17 @@ public struct VerificationReport: Equatable, Sendable {
 
     /// The clauses, Feature-level first and then Cards in authored order, as recorded.
     public let clauses: [ClauseVerificationRecord]
+    /// Per repository, the checkout the Verification judged, as recorded (OQ191 item 3). Empty for a record
+    /// written before that rule: the report then says "judged commit not recorded" and names no commit.
+    public let judgedCheckouts: [JudgedCheckout]
 
-    public init(clauses: [ClauseVerificationRecord]) {
+    public init(clauses: [ClauseVerificationRecord], judgedCheckouts: [JudgedCheckout] = []) {
         self.clauses = clauses
+        self.judgedCheckouts = judgedCheckouts
     }
 
     public init(record: FeatureVerificationRecord) {
-        self.init(clauses: record.clauses)
+        self.init(clauses: record.clauses, judgedCheckouts: record.judgedCheckouts)
     }
 
     /// The clauses that are `unmet` or `unresolved`: what the Feature is returned holding.
@@ -81,12 +85,26 @@ public struct VerificationReport: Equatable, Sendable {
 
     // MARK: - Pull request body
 
-    /// The pull request body variant: a Markdown section, the limitation beneath it.
+    /// The pull request body variant: a Markdown section, the judged commits first, the limitation beneath it.
     public func markdownSection() -> String {
-        var lines = ["## Verification, clause by clause", ""]
+        var lines = ["## Verification, clause by clause", "", judgedCommitsLine(), ""]
         lines += clauses.map { "- " + Self.line(for: $0) }
         lines.append("")
         lines.append(Self.limitation)
         return lines.joined(separator: "\n")
+    }
+
+    /// One line naming, per repository, the short commit the Verification judged, a No-Pushed-Branch
+    /// repository marked "no pushed branch" (spec: landing/open-one-pull-request-per-repository,
+    /// `#judged-commit-in-body`; OQ191 items 3 and 5). It states the judged commit only: it is never compared
+    /// with the pull request head. A record written before that rule says "judged commit not recorded", and
+    /// no commit is taken from anywhere else in its place.
+    public func judgedCommitsLine() -> String {
+        guard !judgedCheckouts.isEmpty else { return "Judged commits: judged commit not recorded" }
+        let entries = judgedCheckouts.map { checkout in
+            let entry = "\(checkout.repository) `\(checkout.commit.prefix(7))`"
+            return checkout.noPushedBranch ? entry + " (no pushed branch)" : entry
+        }
+        return "Judged commits: " + entries.joined(separator: " · ")
     }
 }

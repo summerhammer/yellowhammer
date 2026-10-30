@@ -8,7 +8,7 @@ import Testing
 // repository, in short form; a record written before this rule shows "judged commit not recorded" and is never
 // filled in from the Feature Branch record (`landed_commit`). These go through the real-git land world, so the
 // body is the one the real pull request seam renders, and no remote read can reach a GitHub URL. Spec at
-// yellowhammer-spec f33bccf. Red cases are known issues until their behaviour lands.
+// yellowhammer-spec f33bccf.
 
 /// The body of the pull request opened for `repository`.
 private func body(_ world: OQ191LandWorld, _ repository: String) async throws -> String {
@@ -45,10 +45,8 @@ struct OQ191PullRequestBodyTests {
         try #require(firing.error == nil)
         let lines = try await body(world, "backend").split(separator: "\n")
 
-        withKnownIssue("OQ191 item 3: the pull request body shows no judged commit") {
-            for repository in world.repositories {
-                #expect(lines.contains { $0.contains(repository.name) && $0.contains(oq191Short(repository.tip)) })
-            }
+        for repository in world.repositories {
+            #expect(lines.contains { $0.contains(repository.name) && $0.contains(oq191Short(repository.tip)) })
         }
     }
 
@@ -65,9 +63,7 @@ struct OQ191PullRequestBodyTests {
         try #require(firing.dispatch.requests.isEmpty)
         let text = try await body(world, "backend")
 
-        withKnownIssue("OQ191 item 3: the pull request body shows no judged commit") {
-            #expect(text.contains("judged commit not recorded"))
-        }
+        #expect(text.contains("judged commit not recorded"))
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#judged-commit-in-body
