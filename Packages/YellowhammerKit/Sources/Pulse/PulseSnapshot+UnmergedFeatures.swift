@@ -9,6 +9,7 @@ extension PulseSnapshot {
     /// U, bottom of the stack first, as `JournalStore.unmergedFeatureStack()` orders it. `night` is the Night the
     /// Pulse shows: a Feature is `landedTonight` when its Cycle's `cycleLanded` event is stamped with it.
     static func unmergedFeatures(_ journal: JournalStore, night: NightRecord?) throws -> UnmergedFeatureStack {
+        let lastReadFailures = try lastPullRequestReadFailures(journal)
         let features = try journal.unmergedFeatureStack().map { member in
             let record = member.feature
             let pullRequests = try journal.pullRequests(featureID: record.id)
@@ -20,6 +21,9 @@ extension PulseSnapshot {
                     merged: member.mergedRepositories.contains(repo),
                     branch: member.branches[repo]?.rawValue,
                     pullRequest: pullRequests[repo].flatMap(chip),
+                    pullRequestObservation: pullRequests[repo].flatMap { record in
+                        observation(record, lastReadFailure: lastReadFailures[repo])
+                    },
                     stackedOn: try stackedOnIdentifier(
                         journal, base: bases.first { $0.repository == repo }
                     )
@@ -34,6 +38,29 @@ extension PulseSnapshot {
             )
         }
         return UnmergedFeatureStack(features: features)
+    }
+
+    /// The pull request's last observed state and its time (app/land-on-the-sidebar-and-pulse `#pull-request-state`;
+    /// OQ190 items 17 and 18); nil when no read has succeeded, a failed one included: a state never observed shows
+    /// none. The latest read failed when a `PullRequestReadFailed` for the repository comes after the observation.
+    /// A pull request last observed merged is not read again, so no later failure is its own.
+    ///
+    /// `PullRequestReadFailed` names a repository, not a Feature, and is recorded once per pass: where two Features
+    /// in U share a repository and only one's read failed in a pass, both read as failed until the next good read.
+    static func observation(_ record: PullRequestRecord, lastReadFailure: Date?) -> PullRequestObservation? {
+        guard let state = record.observedState, let observedAt = record.observedAt else { return nil }
+        let failed = state != .merged && lastReadFailure.map { $0 > observedAt } == true
+        return PullRequestObservation(state: state, observedAt: observedAt, latestReadFailed: failed)
+    }
+
+    /// When each repository's pull request read last failed, from every Night: a Feature can wait in U for many.
+    private static func lastPullRequestReadFailures(_ journal: JournalStore) throws -> [String: Date] {
+        var result: [String: Date] = [:]
+        for record in try journal.events(ofType: .pullRequestReadFailed) {
+            guard case .pullRequestReadFailed(let repository, _) = record.event else { continue }
+            result[repository] = max(result[repository] ?? record.occurredAt, record.occurredAt)
+        }
+        return result
     }
 
     /// Per repository, the display identifier of the Feature in U that `featureID`'s recorded base stacks on;

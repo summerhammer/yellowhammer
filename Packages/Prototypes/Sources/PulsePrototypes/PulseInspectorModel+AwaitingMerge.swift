@@ -21,18 +21,19 @@ extension PulseInspectorModel {
                 repository.merged ? "in mainline" : "not in mainline",
                 repository.branch,
                 repository.stackedOn.map { "stacked on \($0)" },
-                repository.pullRequest.map { "#\($0.number)" + ($0.state.map { " \($0.rawValue)" } ?? "") }
+                repository.pullRequest.map { "#\($0.number)" },
+                repository.pullRequestObservation.map(PulseStackText.observation)
             ]
             facts.append((repository.repo, parts.compactMap { $0 }.joined(separator: " · ")))
         }
-        let pullRequests = feature.repositories.compactMap { repository in
-            repository.pullRequest.map { chip in
-                Item(
-                    id: "\(repository.repo)#\(chip.number)", title: "\(repository.repo) #\(chip.number)",
-                    subtitle: chip.state?.rawValue ?? "state unknown", systemImage: "arrow.triangle.pull",
-                    tint: palette.color(for: chip.state), action: .open(.pullRequest(chip.url))
-                )
-            }
+        let pullRequests = feature.repositories.compactMap { repository -> Item? in
+            guard let chip = repository.pullRequest, let url = chip.url else { return nil }
+            let observation = repository.pullRequestObservation
+            return Item(
+                id: "\(repository.repo)#\(chip.number)", title: "\(repository.repo) #\(chip.number)",
+                subtitle: observation.map(PulseStackText.observation), systemImage: "arrow.triangle.pull",
+                tint: observation.map { palette.color(for: $0.state) } ?? .secondary, action: .open(.pullRequest(url))
+            )
         }
         return PulseInspectorModel(
             kind: "Feature",
@@ -45,7 +46,7 @@ extension PulseInspectorModel {
             facts: facts,
             related: pullRequests.isEmpty ? [] : [Related(title: "Pull requests", items: pullRequests)],
             primary: feature.link.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
-            note: "Merge happens in GitHub, not here."
+            note: "Merge happens in GitHub, not here. Each pull request shows the state Yellowhammer last read."
         )
     }
 }

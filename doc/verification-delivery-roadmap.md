@@ -176,7 +176,7 @@ Steps are ordered by dependency:
 - [x] **B7 #715 — `yh doctor` Check 5 reports whether the connection can read pull requests.**
   - A connection that cannot read them is a warning.
   - A read that cannot be verified is unverified.
-- [ ] **B8 #718 — The Pulse shows each repository's last observed pull request state.**
+- [x] **B8 #718 — The Pulse shows each repository's last observed pull request state.**
   - It shows the time observed.
   - It marks when the latest read failed.
   - It shows nothing when no state was ever observed.

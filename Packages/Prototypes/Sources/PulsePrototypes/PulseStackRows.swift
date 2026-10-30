@@ -22,6 +22,16 @@ extension EnvironmentValues {
 /// The wording that depends on U.
 enum PulseStackText {
     /// What the Feature group says when no Feature is in flight. Never "No Feature in flight" above a landed Feature.
+    /// `pull request open · 30 Oct 2026 at 02:10`, then `· latest read failed` where it did.
+    static func observation(_ observation: PullRequestObservation) -> String {
+        var parts = [
+            "pull request \(observation.state.words)",
+            observation.observedAt.formatted(date: .abbreviated, time: .shortened)
+        ]
+        if observation.latestReadFailed { parts.append("latest read failed") }
+        return parts.joined(separator: " · ")
+    }
+
     static func absence(_ stack: UnmergedFeatureStack) -> String {
         if stack.isEmpty { return "No Feature in flight" }
         if stack.isFull {
@@ -117,12 +127,15 @@ struct PulseAwaitingRow: View {
                     Text(repository.repo).lineLimit(1).truncationMode(.middle)
                     Text(repository.merged ? "in mainline" : "not in mainline")
                         .font(.caption).foregroundStyle(.secondary)
+                    if let observation = repository.pullRequestObservation {
+                        PulsePullRequestObservationText(observation: observation)
+                    }
                     if showsStackedOn, let base = repository.stackedOn {
                         Text("stacked on \(base)").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 8)
                     if let chip = repository.pullRequest {
-                        PulsePullRequestButton(chip: chip) { context.actions.open(.pullRequest(chip.url)) }
+                        PulsePullRequestButton(chip: chip) { context.actions.open(.pullRequest($0)) }
                     }
                 }
                 .font(.callout)

@@ -27,7 +27,7 @@ private struct JournalFixture: ~Copyable {
 }
 
 private func pullRequestChip42() throws -> PullRequestChip {
-    PullRequestChip(number: 42, url: try #require(URL(string: "https://github.com/o/r/pull/42")), state: nil)
+    PullRequestChip(number: 42, url: try #require(URL(string: "https://github.com/o/r/pull/42")))
 }
 
 @Test("An empty Journal yields an idle Pulse with nothing else")

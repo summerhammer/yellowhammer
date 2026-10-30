@@ -21,8 +21,8 @@ struct RepoDetailView: View {
             style: lane.map { AnyShapeStyle($0.state.style) } ?? AnyShapeStyle(.neutral),
             title: repo,
             titleIdentifier: "repo-detail-name",
-            wayOut: lane?.pullRequest.map {
-                ("Open #\($0.number) on GitHub", .pullRequest($0.url))
+            wayOut: lane?.pullRequest.flatMap { chip in
+                chip.url.map { ("Open #\(chip.number) on GitHub", .pullRequest($0)) }
             },
             note: nil,
             identifier: "repo-detail"

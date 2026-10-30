@@ -108,14 +108,12 @@ extension PulsePalette {
         }
     }
 
-    /// A nil pull request state (it lives in GitHub) has no colour of its own.
-    func color(for state: PullRequestState?) -> Color {
-        guard let state else { return .secondary }
-        return switch state {
+    /// A pull request's last observed state. Closed without merge asks the Operator to act, so it is `needsYou`.
+    func color(for state: ObservedPullRequestState) -> Color {
+        switch state {
         case .open: working
-        case .draft: .secondary
         case .merged: landed
-        case .closed: blocked
+        case .closedWithoutMerge: needsYou
         }
     }
 

@@ -54,7 +54,7 @@ private struct SeededCard {
 /// and the pull request number, so a change here is a change there.
 ///
 /// - Feature `ARC-9`, in the Unmerged Feature Stack: its Cycle landed and archived in the seeded Night, pushed
-///   to `archive` with pull request #41, no Observed Merge.
+///   to `archive` with pull request #41, no Observed Merge, and #41 last observed `open` a minute after `seededAt`.
 /// - Feature `ARC-10`, in flight, with one Repo Lane, `archive`, and pull request #42 on it, and its base in
 ///   `archive` stacked on `ARC-9`.
 /// - `ARC-11` Blocked (route failure), with one ended Attempt and a failed Check.
@@ -141,6 +141,14 @@ private func seedStackedFeature(_ journal: JournalStore, nightID: Int64, runID: 
     try journal.recordPullRequest(
         featureID: feature.featureID, repository: uiTestJournalRepo,
         url: "https://github.com/acme/archive/pull/41", nightID: nightID, runID: runID, now: seededAt
+    )
+    try journal.recordObservedPullRequest(
+        featureID: feature.featureID, repository: uiTestJournalRepo,
+        observed: ObservedPullRequest(
+            number: 41, url: "https://github.com/acme/archive/pull/41", state: .open, mergeCommit: nil,
+            headCommit: "arc9tip", headBranch: "yh/arc-9", baseBranch: "main"
+        ),
+        runID: runID, now: seededAt.addingTimeInterval(60)
     )
     try journal.append(
         .cycleLanded(cycleID: feature.cycleID), act: .land, runID: runID, nightID: nightID, now: seededAt
@@ -269,6 +277,7 @@ func uiTestJournalHoldsCurrentSeed() throws {
     #expect(stack.first?.pushedCount == 1)
     #expect(stack.first?.repositories.first?.repo == uiTestJournalRepo)
     #expect(stack.first?.repositories.first?.pullRequest?.number == 41)
+    #expect(stack.first?.repositories.first?.pullRequestObservation?.state == .open)
     #expect(fresh.feature?.stackedOn == [uiTestJournalRepo: "ARC-9"])
     #expect(fresh.night?.state == .running)
     #expect(fresh.night?.nightCard?.identifier == "ARC-20")

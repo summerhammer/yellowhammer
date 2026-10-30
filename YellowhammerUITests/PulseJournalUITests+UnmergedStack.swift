@@ -3,7 +3,7 @@ import XCTest
 
 /// The Unmerged Feature Stack in the Feature group (issue #626; proposed amendment, yellowhammer-spec#132), read
 /// from the seeded Journal: `ARC-9` landed during the seeded Night and awaits merge in `archive`, with pull
-/// request #41, and the in-flight `ARC-10` is stacked on it there.
+/// request #41 last observed open, and the in-flight `ARC-10` is stacked on it there.
 extension PulseJournalUITests {
     /// The in-flight Feature keeps its header and lanes; the Feature awaiting merge is listed beside it, never as
     /// the Feature in flight, with its `k of N`, its landed-tonight mark and its pull request.
@@ -16,6 +16,10 @@ extension PulseJournalUITests {
         XCTAssertTrue(row.contains("landed tonight"), "feature-awaiting-merge row is \u{201C}\(row)\u{201D}")
         XCTAssertTrue(element("feature-awaiting-merge").exists, "the Awaiting merge heading is missing")
         XCTAssertTrue(element("feature-awaiting-merge-\(issueID(9))-archive-pull-request").exists)
+        // app/land-on-the-sidebar-and-pulse #pull-request-state: the last observed state, beside "in mainline".
+        let state = text(of: "feature-awaiting-merge-\(issueID(9))-archive-pull-request-state")
+        XCTAssertTrue(state.contains("pull request open"), "the pull request state is \u{201C}\(state)\u{201D}")
+        XCTAssertFalse(state.contains("latest read failed"), "the pull request state is \u{201C}\(state)\u{201D}")
 
         XCTAssertTrue(element("feature-title").exists, "the in-flight Feature is no longer shown")
         let stackedOn = text(of: "feature-stacked-on")
@@ -30,6 +34,8 @@ extension PulseJournalUITests {
         click("feature-awaiting-merge-\(issueID(9))")
         let detail = element("awaiting-merge-detail-repo-archive")
         XCTAssertTrue(detail.waitForExistence(timeout: 5), "the awaiting-merge detail pane never opened")
+        let state = text(of: "awaiting-merge-detail-archive-pull-request-state")
+        XCTAssertTrue(state.contains("pull request open"), "the detail's state is \u{201C}\(state)\u{201D}")
         XCTAssertFalse(element("feature-detail-lane-archive").exists, "the in-flight Feature's detail opened instead")
     }
 }
