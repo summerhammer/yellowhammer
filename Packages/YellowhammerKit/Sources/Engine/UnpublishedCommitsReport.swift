@@ -21,18 +21,20 @@ enum UnpublishedCommitsReport {
     /// What differs: the commits after the recorded commit, or a HEAD that does not descend from it.
     static func whatDiffers(_ unpublished: UnpublishedHead) -> String {
         let recorded = unpublished.noPushedBranch ? "recorded base commit" : "Pushed Tip"
+        let recordedCommit = GitCommit.short(unpublished.recordedCommit)
+        let head = GitCommit.short(unpublished.head)
         guard let commits = unpublished.commitsAfter else {
-            return "the Worktree's HEAD in \(unpublished.repository), \(short(unpublished.head)), differs from the "
-                + "\(recorded) \(short(unpublished.recordedCommit))"
+            return "the Worktree's HEAD in \(unpublished.repository), \(head), differs from the "
+                + "\(recorded) \(recordedCommit)"
         }
         let counted = commits == 1 ? "1 commit" : "\(commits) commits"
-        return "\(counted) in \(unpublished.repository) after the \(recorded) \(short(unpublished.recordedCommit)), "
-            + "up to \(short(unpublished.head))"
+        return "\(counted) in \(unpublished.repository) after the \(recorded) \(recordedCommit), up to \(head)"
     }
 
     /// The report made when Verification runs: it names no pin and no pull request.
     static func atVerification(_ unpublished: UnpublishedHead) -> String {
-        "Not published: \(whatDiffers(unpublished)). Verification judged \(short(unpublished.recordedCommit))."
+        let judged = GitCommit.short(unpublished.recordedCommit)
+        return "Not published: \(whatDiffers(unpublished)). Verification judged \(judged)."
     }
 
     /// The report made at release, naming the pin.
@@ -41,7 +43,7 @@ enum UnpublishedCommitsReport {
         if unpublished.noPushedBranch {
             return "\(pinned) \(unpublished.repository) has no pushed branch and no pull request."
         }
-        return "\(pinned) The pull request is at \(short(unpublished.recordedCommit))."
+        return "\(pinned) The pull request is at \(GitCommit.short(unpublished.recordedCommit))."
     }
 
     /// The report a Journal event records; nil for any other event.
@@ -56,35 +58,9 @@ enum UnpublishedCommitsReport {
         }
     }
 
-    /// Where a repository's report is posted: the Feature Card and each Work Card of the lane that is Done and
-    /// still on the board, where a refused push is reported.
-    struct Placement {
-        let cycleID: Int64
-        let repository: String
-        let issues: [String]
-
-        init(cycleID: Int64, repository: String, featureIssueID: String, laneCards: [CardRecord]) {
-            self.cycleID = cycleID
-            self.repository = repository
-            issues = [featureIssueID]
-                + laneCards.filter { $0.state == .done && !$0.isRemovedFromBoard }.map(\.issueID)
-        }
-    }
-
     /// Posts `body` at `placement`. One key per Cycle, repository and kind: a later firing posts nothing again.
-    static func post(_ body: String, kind: Kind, at placement: Placement, outbox: Outbox?) async {
-        guard let outbox else { return }
-        let prefix = "land:\(placement.cycleID):\(placement.repository):unpublished-\(kind.rawValue)"
-        for issue in placement.issues {
-            let write = OutboxWrite(
-                key: "\(prefix):\(issue)", write: .createComment(issue: BoardObjectID(rawValue: issue), body: body)
-            )
-            _ = try? await outbox.post(write)
-        }
-    }
-
-    private static func short(_ commit: String) -> String {
-        String(commit.prefix(7))
+    static func post(_ body: String, kind: Kind, at placement: LandCommentPlacement, outbox: Outbox?) async {
+        await placement.post(body, keySuffix: "unpublished-\(kind.rawValue)", outbox: outbox)
     }
 }
 

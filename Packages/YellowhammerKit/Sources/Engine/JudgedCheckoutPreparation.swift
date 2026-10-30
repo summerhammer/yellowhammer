@@ -57,8 +57,10 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
         }
         let recorded = try recordedCommits(names, context: context)
         pruneStaleRoots()
-        let unpublished = await unpublishedHeads(targets, recorded: recorded)
-        let kind: JudgedCheckout.Kind = await heldWorktreesAreExactAndClean(targets, recorded: recorded)
+        // Each held Worktree's HEAD is read once; both the report and the reuse decision derive from it.
+        let relations = await headRelations(targets, recorded: recorded)
+        let unpublished = unpublishedHeads(targets, recorded: recorded, relations: relations)
+        let kind: JudgedCheckout.Kind = await heldWorktreesAreExactAndClean(targets, relations: relations)
             ? .heldWorktree
             : .freshCheckout
         return VerifierCheckoutPlan(
@@ -161,30 +163,41 @@ public struct JudgedCheckoutPreparation: VerifierCheckoutPreparing {
 
     // MARK: - Checkouts
 
+    /// How each held Worktree's HEAD stands against its recorded commit, by repository; a repository with no held
+    /// Worktree has none.
+    private func headRelations(
+        _ targets: [Target], recorded: [String: RecordedCommit]
+    ) async -> [String: WorktreeHeadRelation] {
+        var relations: [String: WorktreeHeadRelation] = [:]
+        for target in targets {
+            guard let worktree = target.heldWorktree, let commit = recorded[target.name] else { continue }
+            relations[target.name] = await heads.headRelation(worktreePath: worktree, recordedCommit: commit.commit)
+        }
+        return relations
+    }
+
     /// Each held Worktree whose HEAD is not its recorded commit, descendant or not (OQ191 items 2, 5 and 9). A
     /// HEAD git cannot read is not reported: nothing is pinned here, and release reads it again.
     private func unpublishedHeads(
-        _ targets: [Target], recorded: [String: RecordedCommit]
-    ) async -> [UnpublishedHead] {
-        var unpublished: [UnpublishedHead] = []
-        for target in targets.sorted(by: { $0.name < $1.name }) {
-            guard let worktree = target.heldWorktree, let commit = recorded[target.name] else { continue }
-            let relation = await heads.headRelation(worktreePath: worktree, recordedCommit: commit.commit)
-            UnpublishedHead(
+        _ targets: [Target], recorded: [String: RecordedCommit], relations: [String: WorktreeHeadRelation]
+    ) -> [UnpublishedHead] {
+        targets.sorted(by: { $0.name < $1.name }).compactMap { target in
+            guard let relation = relations[target.name], let commit = recorded[target.name] else { return nil }
+            return UnpublishedHead(
                 relation, repository: target.name, recordedCommit: commit.commit,
                 noPushedBranch: commit.noPushedBranch
-            ).map { unpublished.append($0) }
+            )
         }
-        return unpublished
     }
 
-    /// True when every repository has a held Worktree that is exact and clean at its recorded commit.
+    /// True when every repository has a held Worktree whose HEAD is its recorded commit and whose `git status`
+    /// reports nothing.
     private func heldWorktreesAreExactAndClean(
-        _ targets: [Target], recorded: [String: RecordedCommit]
+        _ targets: [Target], relations: [String: WorktreeHeadRelation]
     ) async -> Bool {
         for target in targets {
-            guard let worktree = target.heldWorktree, let commit = recorded[target.name]?.commit else { return false }
-            guard await git.isExactAndClean(worktreePath: worktree, recordedCommit: commit) else { return false }
+            guard let worktree = target.heldWorktree, relations[target.name] == .atRecordedCommit else { return false }
+            guard await git.isClean(worktreePath: worktree) else { return false }
         }
         return true
     }

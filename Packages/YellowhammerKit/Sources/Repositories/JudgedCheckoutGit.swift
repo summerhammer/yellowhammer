@@ -29,6 +29,12 @@ public struct JudgedCheckoutGit: Sendable {
         guard head.isSuccess, head.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == recordedCommit else {
             return false
         }
+        return await isClean(worktreePath: worktreePath)
+    }
+
+    /// Whether `git status` in the Worktree at `worktreePath` reports nothing (ignored files allowed); false when
+    /// git cannot read it. For a caller that already knows HEAD is the recorded commit.
+    public func isClean(worktreePath: String) async -> Bool {
         let status = await git.run(["-C", worktreePath, "status", "--porcelain"])
         return status.isSuccess && status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -43,18 +49,13 @@ public struct JudgedCheckoutGit: Sendable {
         }
         let clone = await git.run(["clone", "--quiet", "--shared", "--no-checkout", "--", mainClonePath, destination])
         guard clone.isSuccess else {
-            throw FreshCheckoutError(reason: Self.reason(of: clone, fallback: "git clone exited \(clone.exitCode)"))
+            throw FreshCheckoutError(reason: clone.failureReason(fallback: "git clone exited \(clone.exitCode)"))
         }
         let checkout = await git.run(["-C", destination, "checkout", "--quiet", "--detach", commit])
         guard checkout.isSuccess else {
             throw FreshCheckoutError(
-                reason: Self.reason(of: checkout, fallback: "git checkout exited \(checkout.exitCode)")
+                reason: checkout.failureReason(fallback: "git checkout exited \(checkout.exitCode)")
             )
         }
-    }
-
-    private static func reason(of result: GitCommandResult, fallback: String) -> String {
-        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        return stderr.isEmpty ? fallback : stderr
     }
 }

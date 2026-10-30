@@ -17,7 +17,7 @@ public enum TranscriptionRangeError: Error, Equatable, Sendable, CustomStringCon
     public var description: String {
         switch self {
         case .emptyFile(let repository, let path, let commit):
-            return "\(path) is empty at \(Self.short(commit)) in \(repository), so it has no line range"
+            return "\(path) is empty at \(GitCommit.short(commit)) in \(repository), so it has no line range"
         case .startsBeforeFirstLine(let repository, let path, let range):
             return "\(path) \(LineRange.displayText([range])) starts at line \(range.start) in \(repository); "
                 + "lines are numbered from 1"
@@ -26,12 +26,10 @@ public enum TranscriptionRangeError: Error, Equatable, Sendable, CustomStringCon
                 + "it ends before it starts"
         case .outOfBounds(let repository, let path, let range, let lineCount, let commit):
             let noun = lineCount == 1 ? "line" : "lines"
-            return "\(path) \(LineRange.displayText([range])) is out of bounds at \(Self.short(commit)): "
+            return "\(path) \(LineRange.displayText([range])) is out of bounds at \(GitCommit.short(commit)): "
                 + "the file has \(lineCount) \(noun) in \(repository)"
         }
     }
-
-    private static func short(_ commit: String) -> String { String(commit.prefix(7)) }
 }
 
 extension TranscriptionRangeError {

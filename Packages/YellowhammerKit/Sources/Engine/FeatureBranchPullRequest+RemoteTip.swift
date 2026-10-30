@@ -60,15 +60,16 @@ extension FeatureBranchPullRequest {
             return nil
         case .at(let commit):
             failure = RemoteTipFailure(
-                text: "Not landed: the remote branch `\(branch.name)` in \(repository) is at \(Self.short(commit)), "
-                    + "not at the Pushed Tip \(Self.short(pushedTip)). No pull request was opened for \(repository).",
+                text: "Not landed: the remote branch `\(branch.name)` in \(repository) is at "
+                    + "\(GitCommit.short(commit)), not at the Pushed Tip \(GitCommit.short(pushedTip)). "
+                    + "No pull request was opened for \(repository).",
                 event: .remoteTipMismatch(repository: repository, pushedTip: pushedTip, remoteCommit: commit),
                 key: "remote-tip-mismatch:\(commit)"
             )
         case .absent:
             failure = RemoteTipFailure(
                 text: "Not landed: the remote branch `\(branch.name)` in \(repository) is absent; the Pushed Tip is "
-                    + "\(Self.short(pushedTip)). No pull request was opened for \(repository).",
+                    + "\(GitCommit.short(pushedTip)). No pull request was opened for \(repository).",
                 event: .remoteTipMismatch(repository: repository, pushedTip: pushedTip, remoteCommit: nil),
                 key: "remote-tip-mismatch:absent"
             )
@@ -87,23 +88,14 @@ extension FeatureBranchPullRequest {
         return PullRequestOutcome(opened: false, detail: failure.text)
     }
 
-    /// The failure on the Feature Card and on each Work Card of the lane, where a refused push is reported. One
-    /// key per Cycle, repository and remote state: a firing that finds the same state posts nothing again.
+    /// The failure on the Feature Card and on each Work Card of the lane. One key per Cycle, repository and remote
+    /// state: a firing that finds the same state posts nothing again.
     private func postRemoteTipFailure(_ body: String, keySuffix: String, laneContext: LandActLaneContext) async {
-        guard let outbox = laneContext.act.outbox else { return }
-        let prefix = "land:\(laneContext.cycleID):\(laneContext.lane.repository):\(keySuffix)"
-        let issues = [laneContext.feature.issueID]
-            + laneContext.lane.cards.filter { $0.state == .done && !$0.isRemovedFromBoard }.map(\.issueID)
-        for issue in issues {
-            let write = OutboxWrite(
-                key: "\(prefix):\(issue)", write: .createComment(issue: BoardObjectID(rawValue: issue), body: body)
-            )
-            _ = try? await outbox.post(write)
-        }
-    }
-
-    private static func short(_ commit: String) -> String {
-        String(commit.prefix(7))
+        let placement = LandCommentPlacement(
+            cycleID: laneContext.cycleID, repository: laneContext.lane.repository,
+            featureIssueID: laneContext.feature.issueID, laneCards: laneContext.lane.cards
+        )
+        await placement.post(body, keySuffix: keySuffix, outbox: laneContext.act.outbox)
     }
 }
 

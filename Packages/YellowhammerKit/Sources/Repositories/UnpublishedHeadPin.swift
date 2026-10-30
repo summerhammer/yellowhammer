@@ -54,7 +54,7 @@ public struct UnpublishedHeadPin: Sendable {
         let resolved = await git.run(["-C", worktreePath, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"])
         let head = resolved.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         guard resolved.isSuccess, !head.isEmpty else {
-            return .unreadable(reason: Self.reason(of: resolved, fallback: "HEAD of \(worktreePath) does not resolve"))
+            return .unreadable(reason: resolved.failureReason(fallback: "HEAD of \(worktreePath) does not resolve"))
         }
         if head == recordedCommit { return .atRecordedCommit }
 
@@ -64,14 +64,14 @@ public struct UnpublishedHeadPin: Sendable {
             let count = await git.run(["-C", worktreePath, "rev-list", "--count", "\(recordedCommit)..\(head)"])
             guard count.isSuccess, let commits = Int(count.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
             else {
-                return .unreadable(reason: Self.reason(of: count, fallback: "git rev-list exited \(count.exitCode)"))
+                return .unreadable(reason: count.failureReason(fallback: "git rev-list exited \(count.exitCode)"))
             }
             return .after(commits: commits, head: head)
         case 1:
             return .differs(head: head)
         default:
             return .unreadable(
-                reason: Self.reason(of: ancestry, fallback: "git merge-base exited \(ancestry.exitCode)")
+                reason: ancestry.failureReason(fallback: "git merge-base exited \(ancestry.exitCode)")
             )
         }
     }
@@ -98,13 +98,8 @@ public struct UnpublishedHeadPin: Sendable {
         }
         let written = await git.run(["-C", worktreePath, "update-ref", ref, head])
         guard written.isSuccess else {
-            return .failed(reason: Self.reason(of: written, fallback: "git update-ref exited \(written.exitCode)"))
+            return .failed(reason: written.failureReason(fallback: "git update-ref exited \(written.exitCode)"))
         }
         return .pinned(ref: ref, relation: relation)
-    }
-
-    private static func reason(of result: GitCommandResult, fallback: String) -> String {
-        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        return stderr.isEmpty ? fallback : stderr
     }
 }

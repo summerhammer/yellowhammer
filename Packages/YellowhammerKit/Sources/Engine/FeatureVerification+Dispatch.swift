@@ -13,11 +13,12 @@ extension FeatureVerification {
     /// Night's account keeps each Route's own account. A usage-limited Route is deferred, not excluded, and
     /// records none. A Crashed-Unknown run, or an exhausted table, throws ``VerificationDispatchFault``.
     func dispatchVerifier(
-        _ pending: [VerificationCandidate], checkouts: VerifierCheckouts, context: LandActFeatureContext
+        _ pending: [VerificationCandidate], repositories: [String], checkouts: VerifierCheckouts,
+        context: LandActFeatureContext
     ) async throws -> (Route, [String: VerifiedClause]) {
         let act = context.act
         let writers = try act.journal.attemptRoutes(cycleID: context.cycleID)
-        let base = try instructionBase(pending, checkouts: checkouts, context: context)
+        let base = try instructionBase(pending, repositories: repositories, checkouts: checkouts, context: context)
         var tried: Set<Route> = Set(writers)
         var lastFailure: String?
         var ordinal: Int64 = 0
@@ -224,9 +225,9 @@ extension FeatureVerification {
 
     /// Every repository the verifier is handed, sorted: the Feature's `touched_repos`, not N, and the repository
     /// of every live Card of the Cycle.
-    func verifiedRepositories(_ context: LandActFeatureContext) throws -> [String] {
+    func verifiedRepositories(_ context: LandActFeatureContext, touched: [String]) throws -> [String] {
         let journal = context.act.journal
-        var names = Set(try journal.touchedRepositories(featureID: context.feature.id))
+        var names = Set(touched)
         let cards = try journal.cards(cycleID: context.cycleID)
         for card in cards where card.state != .shelved && !card.isRemovedFromBoard {
             names.insert(card.repository)
@@ -235,7 +236,8 @@ extension FeatureVerification {
     }
 
     private func instructionBase(
-        _ pending: [VerificationCandidate], checkouts: VerifierCheckouts, context: LandActFeatureContext
+        _ pending: [VerificationCandidate], repositories verified: [String], checkouts: VerifierCheckouts,
+        context: LandActFeatureContext
     ) throws -> InstructionBase {
         let act = context.act
         guard let repositories = act.repositories, case .resolved(let source) = repositories.specificationSourceLookup
@@ -243,7 +245,7 @@ extension FeatureVerification {
             throw VerificationFault(reason: "this Project has no single specification source to verify against")
         }
         let noCheckRepositories = Set(try act.journal.repositoriesDeclaringNoCheck(cycleID: context.cycleID))
-        let touched = try verifiedRepositories(context).map { name -> VerificationRepository in
+        let touched = try verified.map { name -> VerificationRepository in
             guard let checkout = checkouts.byRepository[name] else {
                 throw VerificationFault(reason: "no checkout was made of repository \"\(name)\" for the verifier")
             }

@@ -97,7 +97,7 @@ extension LandAct {
             .unpublishedCommitsPinned(cycleID: laneContext.cycleID, unpublished: unpublished, pinRef: pinRef),
             act: context.act, runID: context.runID, nightID: context.night.id
         )
-        let placement = UnpublishedCommitsReport.Placement(
+        let placement = LandCommentPlacement(
             cycleID: laneContext.cycleID, repository: unpublished.repository,
             featureIssueID: laneContext.feature.issueID, laneCards: laneContext.lane.cards
         )

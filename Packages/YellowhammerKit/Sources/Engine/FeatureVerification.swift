@@ -57,9 +57,10 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
 
     public func verify(_ context: LandActFeatureContext) async throws -> VerificationVerdict {
         let journal = context.act.journal
+        let touched = try journal.touchedRepositories(featureID: context.feature.id)
         if let existing = try journal.featureVerification(cycleID: context.cycleID) {
             // Judged once per Cycle: a retried land Act reuses the record, and only re-queues the write.
-            try queueReport(existing, context: context)
+            try queueReport(existing, touchedRepositoryCount: touched.count, context: context)
             return Self.verdict(of: existing)
         }
 
@@ -68,8 +69,9 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
             throw VerificationFault(reason: "the Cycle has no Definition of Done clause to verify")
         }
         // OQ191 items 2, 5, 7 and 8: what was pushed is judged, in checkouts removed when Verification ends.
+        let names = try verifiedRepositories(context, touched: touched)
         // The judged commits are resolved every time; the checkouts are made only if a clause is dispatched.
-        let plan = try await checkouts.plan(context, repositories: try verifiedRepositories(context))
+        let plan = try await checkouts.plan(context, repositories: names)
         var prepared: VerifierCheckouts?
         defer { prepared.map { checkouts.release($0) } }
 
@@ -80,7 +82,9 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         if !pending.isEmpty {
             let made = try await checkouts.materialise(plan, context: context)
             prepared = made
-            let (routeUsed, verdicts) = try await dispatchVerifier(pending, checkouts: made, context: context)
+            let (routeUsed, verdicts) = try await dispatchVerifier(
+                pending, repositories: names, checkouts: made, context: context
+            )
             route = routeUsed
             for candidate in pending {
                 guard let verified = verdicts[candidate.key] else { continue }
@@ -101,7 +105,14 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
             throw VerificationFault(reason: "the Verification just recorded cannot be read back")
         }
         let verdict = Self.verdict(of: recorded)
-        try journal.append(
+        try appendVerified(recorded, context: context)
+        await reportUnpublishedHeads(plan.unpublishedHeads, context: context)
+        try queueReport(recorded, touchedRepositoryCount: touched.count, context: context)
+        return verdict
+    }
+
+    private func appendVerified(_ recorded: FeatureVerificationRecord, context: LandActFeatureContext) throws {
+        try context.act.journal.append(
             .featureVerified(
                 cycleID: context.cycleID, met: recorded.clauses.filter { $0.verdict == .met }.count,
                 unmet: recorded.clauses.filter { $0.verdict == .unmet }.count,
@@ -110,9 +121,6 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
             ),
             act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
         )
-        await reportUnpublishedHeads(plan.unpublishedHeads, context: context)
-        try queueReport(recorded, context: context)
-        return verdict
     }
 
     /// Reports each held Worktree whose HEAD was not its recorded commit as not published (OQ191 items 2 and 5;
@@ -128,7 +136,7 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
                 .unpublishedCommitsReported(cycleID: context.cycleID, unpublished: head),
                 act: act.act, runID: act.runID, nightID: act.night.id
             )
-            let placement = UnpublishedCommitsReport.Placement(
+            let placement = LandCommentPlacement(
                 cycleID: context.cycleID, repository: head.repository, featureIssueID: context.feature.issueID,
                 laneCards: lanes.first { $0.repository == head.repository }?.cards ?? []
             )
@@ -152,15 +160,17 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
 
     /// Queues the report onto the Feature Issue's Managed Block, under a deterministic key. Every line of
     /// the report starts with one prefix, so a replay replaces the whole report and nothing else.
-    private func queueReport(_ record: FeatureVerificationRecord, context: LandActFeatureContext) throws {
+    private func queueReport(
+        _ record: FeatureVerificationRecord, touchedRepositoryCount: Int, context: LandActFeatureContext
+    ) throws {
         guard let outbox = context.act.outbox else { return }
-        let touched = try context.act.journal.touchedRepositories(featureID: context.feature.id).count
         let write = OutboxWrite(
             key: "land:\(context.cycleID):verification:\(context.feature.issueID)",
             write: .updateManagedBlockLine(
                 issue: BoardObjectID(rawValue: context.feature.issueID),
                 prefix: VerificationReport.managedBlockPrefix,
-                line: VerificationReport(record: record, touchedRepositoryCount: touched).managedBlockLines()
+                line: VerificationReport(record: record, touchedRepositoryCount: touchedRepositoryCount)
+                    .managedBlockLines()
             )
         )
         _ = try outbox.accept(write)
