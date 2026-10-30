@@ -71,10 +71,8 @@ struct OQ191NoPushedBranchTests {
             repository: "mobile", commit: world["mobile"].base, kind: .heldWorktree, noPushedBranch: true
         )
 
-        withKnownIssue("OQ191 item 5: the record names no judged commit for a No-Pushed-Branch repository") {
-            let judged = try #require(try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID))
-            #expect(judged.first { $0.repository == "mobile" } == expected)
-        }
+        let judged = try #require(try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID))
+        #expect(judged.first { $0.repository == "mobile" } == expected)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -89,9 +87,7 @@ struct OQ191NoPushedBranchTests {
         try requireNoPushedBranchOutcome(world)
         let directory = try #require(firing.verifiedDirectories["mobile"])
 
-        await withKnownIssue("OQ191 item 5: the verifier is handed the held Worktree as it stands") {
-            #expect(await oq191RevParse(directory) == world["mobile"].base)
-        }
+        #expect(await oq191RevParse(directory) == world["mobile"].base)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -105,10 +101,8 @@ struct OQ191NoPushedBranchTests {
         try requireNoPushedBranchOutcome(world)
         let (shortBase, shortW1) = (oq191Short(world["mobile"].base), oq191Short(worktreeW1))
 
-        await withKnownIssue("OQ191 item 5: commits past the recorded base are not reported as not published") {
-            let reports = try #require(try await world.unpublishedReports("mobile"))
-            #expect(reports.contains { $0.contains(shortBase) && $0.contains(shortW1) })
-        }
+        let reports = try #require(try await world.unpublishedReports("mobile"))
+        #expect(reports.contains { $0.contains(shortBase) && $0.contains(shortW1) })
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout

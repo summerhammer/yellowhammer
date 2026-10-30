@@ -9,8 +9,8 @@ import Testing
 // opens. At another commit, or absent, it does not open, the Cycle stays unlanded and the failure names both
 // commits (an absent branch is named absent). A remote that cannot be read is a failed publication, retried on
 // the next firing. A bare remote's `post-receive` hook moves, deletes or hides the branch right after the push
-// succeeds. Only the affected lane is asserted: whether the other lanes publish is OQ194, open. Spec at
-// yellowhammer-spec f33bccf. Red cases are known issues until their behaviour lands.
+// succeeds. Only the affected lane is asserted: that the other lanes still publish is the Operator's OQ194
+// decision as built (`RemoteTipOtherLanesTests`). Spec at yellowhammer-spec f33bccf.
 
 /// What a bare remote's `post-receive` hook does to the Feature Branch right after the push.
 private enum RemoteAfterPush {
@@ -76,9 +76,7 @@ struct OQ191RemoteTipCheckTests {
         let world = try await firstFiring(.movedToBase)
         try #require(await world["backend"].remoteTip() == world["backend"].base)
 
-        await withKnownIssue("OQ191 item 4: no remote tip check runs before the pull request opens") {
-            #expect(await world.publication.calls.isEmpty)
-        }
+        #expect(await world.publication.calls.isEmpty)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -90,10 +88,8 @@ struct OQ191RemoteTipCheckTests {
         let world = try await firstFiring(.movedToBase)
         try #require(await world["backend"].remoteTip() == world["backend"].base)
 
-        withKnownIssue("OQ191 item 4: no remote tip check runs before the pull request opens") {
-            let landed = try world.isCycleLanded
-            #expect(!landed)
-        }
+        let landed = try world.isCycleLanded
+        #expect(!landed)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -106,10 +102,8 @@ struct OQ191RemoteTipCheckTests {
         let backend = world["backend"]
         try #require(await backend.remoteTip() == backend.base)
 
-        await withKnownIssue("OQ191 item 4: no remote tip check runs before the pull request opens") {
-            let failures = try #require(try await world.remoteTipFailures("backend"))
-            #expect(failures.contains { $0.contains(oq191Short(backend.tip)) && $0.contains(oq191Short(backend.base)) })
-        }
+        let failures = try #require(try await world.remoteTipFailures("backend"))
+        #expect(failures.contains { $0.contains(oq191Short(backend.tip)) && $0.contains(oq191Short(backend.base)) })
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -122,13 +116,11 @@ struct OQ191RemoteTipCheckTests {
         let backend = world["backend"]
         try #require(await backend.remoteTip() == nil)
 
-        await withKnownIssue("OQ191 item 4: no remote tip check runs before the pull request opens") {
-            #expect(await world.publication.calls.isEmpty)
-            let landed = try world.isCycleLanded
-            #expect(!landed)
-            let failures = try #require(try await world.remoteTipFailures("backend"))
-            #expect(failures.contains { $0.contains("absent") && $0.contains(oq191Short(backend.tip)) })
-        }
+        #expect(await world.publication.calls.isEmpty)
+        let landed = try world.isCycleLanded
+        #expect(!landed)
+        let failures = try #require(try await world.remoteTipFailures("backend"))
+        #expect(failures.contains { $0.contains("absent") && $0.contains(oq191Short(backend.tip)) })
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -142,13 +134,11 @@ struct OQ191RemoteTipCheckTests {
         defer { restoreRemote(backend) }
         try #require(!FileManager.default.fileExists(atPath: backend.remote.path))
 
-        await withKnownIssue("OQ191 item 4: no remote tip check runs before the pull request opens") {
-            #expect(await world.publication.calls.isEmpty)
-            let outcome = try openPullRequestOutcome(world)
-            #expect(outcome == .failed)
-            let landed = try world.isCycleLanded
-            #expect(!landed)
-        }
+        #expect(await world.publication.calls.isEmpty)
+        let outcome = try openPullRequestOutcome(world)
+        #expect(outcome == .failed)
+        let landed = try world.isCycleLanded
+        #expect(!landed)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -165,10 +155,8 @@ struct OQ191RemoteTipCheckTests {
 
         let second = await world.fire()
 
-        await withKnownIssue("OQ191 item 4: no remote tip check runs before the pull request opens") {
-            #expect(callsAfterFirst == 0)
-            #expect(await world.publication.opened("backend") == [.init(repository: "backend", remoteTip: backend.tip)])
-        }
+        #expect(callsAfterFirst == 0)
+        #expect(await world.publication.opened("backend") == [.init(repository: "backend", remoteTip: backend.tip)])
         #expect(second.error == nil)
         #expect(try world.isCycleLanded)
     }
@@ -189,13 +177,11 @@ struct OQ191RemoteTipCheckTests {
 
         _ = await world.fire()
 
-        await withKnownIssue("OQ191 item 4: no remote tip check runs before the pull request opens on a retry") {
-            #expect(await world.publication.opened("backend").isEmpty)
-            let landed = try world.isCycleLanded
-            #expect(!landed)
-            let failures = try #require(try await world.remoteTipFailures("backend"))
-            #expect(failures.contains { $0.contains(oq191Short(backend.tip)) && $0.contains(oq191Short(backend.base)) })
-        }
+        #expect(await world.publication.opened("backend").isEmpty)
+        let landed = try world.isCycleLanded
+        #expect(!landed)
+        let failures = try #require(try await world.remoteTipFailures("backend"))
+        #expect(failures.contains { $0.contains(oq191Short(backend.tip)) && $0.contains(oq191Short(backend.base)) })
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -213,14 +199,15 @@ struct OQ191RemoteTipCheckTests {
 
         _ = await world.fire()
 
-        withKnownIssue("OQ191 item 4: an unreadable remote is not a failed publication") {
-            let outcome = try openPullRequestOutcome(world)
-            #expect(outcome == .failed)
-        }
-        #expect(try !world.isCycleLanded)
+        // Since the retry no longer pushes again (A1), only the remote tip check keeps this Cycle unlanded.
+        let outcome = try openPullRequestOutcome(world)
+        #expect(outcome == .failed)
+        let landed = try world.isCycleLanded
+        #expect(!landed)
         restoreRemote(backend)
         _ = await world.fire()
-        #expect(await world.publication.opened("backend") == [.init(repository: "backend", remoteTip: backend.tip)])
+        let opened = await world.publication.opened("backend")
+        #expect(opened == [.init(repository: "backend", remoteTip: backend.tip)])
         #expect(try world.isCycleLanded)
     }
 }

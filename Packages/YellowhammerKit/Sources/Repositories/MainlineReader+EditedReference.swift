@@ -19,14 +19,12 @@ public enum EditedReferenceError: Error, Equatable, Sendable, CustomStringConver
         case .noCommit:
             return "it names no commit"
         case .notOnMainline(let repository, let commit, let mainlineCommit):
-            return "commit \(Self.short(commit)) is not on \(repository)'s mainline "
-                + "(mainline at \(Self.short(mainlineCommit)))"
+            return "commit \(GitCommit.short(commit)) is not on \(repository)'s mainline "
+                + "(mainline at \(GitCommit.short(mainlineCommit)))"
         case .ancestryUntestable(let repository, let reason):
             return "whether the commit is on \(repository)'s mainline could not be tested: \(reason)"
         }
     }
-
-    private static func short(_ commit: String) -> String { String(commit.prefix(7)) }
 }
 
 extension MainlineReader {

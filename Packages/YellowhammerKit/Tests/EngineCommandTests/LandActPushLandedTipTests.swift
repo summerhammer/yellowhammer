@@ -5,9 +5,10 @@ import Foundation
 import Repositories
 import Testing
 
-// feature-authoring/select-the-next-feature, OQ164: the land Act records the commit it pushed per (Feature,
-// repository) in the Journal and pins it at refs/yellowhammer/landed/<branch> in the main clone. A pin that
-// cannot be written is reported in the Journal only.
+// feature-authoring/select-the-next-feature, `#pushed-tip` (OQ164, OQ191 item 2): the land Act records the
+// commit it pushed as the Pushed Tip, once per (Cycle, repository), and pins it at
+// refs/yellowhammer/landed/<branch> in the main clone. A pin that cannot be written is reported in the Journal
+// only.
 
 @Suite("Land Act push: landed tip")
 struct LandActPushLandedTipTests {
@@ -58,7 +59,7 @@ struct LandActPushLandedTipTests {
         #expect(try await runLane(world) == nil)
 
         let journal = world.env.journal
-        #expect(try journal.landedCommit(featureID: world.feature.id, repository: "backend") == world.featureSHA)
+        #expect(try journal.pushedTip(cycleID: world.cycleID, repository: "backend") == world.featureSHA)
         await #expect(world.local.revParse("refs/yellowhammer/landed/rozd/yh-proj-feat") == world.featureSHA)
         #expect(try world.env.journal.events(ofType: .landedPinFailed).isEmpty)
 
@@ -83,7 +84,7 @@ struct LandActPushLandedTipTests {
         #expect(step.detail == world.featureSHA)
         await #expect(world.remote.revParse("refs/heads/\(landBranch.name)") == world.featureSHA)
         let journal = world.env.journal
-        #expect(try journal.landedCommit(featureID: world.feature.id, repository: "backend") == world.featureSHA)
+        #expect(try journal.pushedTip(cycleID: world.cycleID, repository: "backend") == world.featureSHA)
 
         let failures = try world.env.journal.events(ofType: .landedPinFailed)
         #expect(failures.count == 1)
@@ -107,16 +108,22 @@ struct LandActPushLandedTipTests {
         #expect(NightCardMaintenance.authoringLine(for: failures[0].event, journal: world.env.journal) == nil)
     }
 
-    @Test("a later push of the same Feature overwrites the recorded commit and moves the pin")
-    func laterPushMovesTheRecordAndThePin() async throws {
+    // feature-authoring/stories/select-the-next-feature.md#pushed-tip
+    @Test("a later firing of the same Cycle neither pushes again nor moves the record or the pin")
+    func laterFiringKeepsTheRecordAndThePin() async throws {
         let world = try await makePushWorld(name: "landed-tip-repush", branch: landBranch)
         #expect(try await runLane(world) == nil)
 
-        let second = try await world.local.commit(filename: "more.txt", content: "more", message: "more work")
+        let moved = try await world.local.commit(filename: "more.txt", content: "more", message: "more work")
         #expect(try await runLane(world) == nil)
 
-        #expect(try world.env.journal.landedCommit(featureID: world.feature.id, repository: "backend") == second)
-        await #expect(world.local.revParse("refs/yellowhammer/landed/\(landBranch.name)") == second)
+        #expect(try world.env.journal.pushedTip(cycleID: world.cycleID, repository: "backend") == world.featureSHA)
+        await #expect(world.local.revParse("refs/yellowhammer/landed/\(landBranch.name)") == world.featureSHA)
+        await #expect(world.remote.revParse("refs/heads/\(landBranch.name)") == world.featureSHA)
+        let step = try #require(world.env.pushStep(repository: "backend"))
+        #expect(step.outcome == .completed)
+        #expect(step.detail == "already pushed at \(world.featureSHA.prefix(7))")
+        #expect(moved != world.featureSHA)
     }
 
     @Test("a lane with no completed work records no commit and writes no pin")
@@ -137,7 +144,7 @@ struct LandActPushLandedTipTests {
         )
 
         #expect(failure == nil)
-        #expect(try env.journal.landedCommit(featureID: feature.id, repository: "backend") == nil)
+        #expect(try env.journal.pushedTip(cycleID: cycleID, repository: "backend") == nil)
         await #expect(local.revParse("refs/yellowhammer/landed/\(landBranch.name)") == nil)
     }
 }

@@ -76,10 +76,8 @@ struct OQ191CheckoutReuseTests {
             OQ191JudgedCheckout(repository: $0.name, commit: $0.tip, kind: .heldWorktree, noPushedBranch: false)
         }
 
-        withKnownIssue("OQ191 item 7: the Verification record names no checkout kind") {
-            let judged = try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID)
-            #expect(judged == expected)
-        }
+        let judged = try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID)
+        #expect(judged == expected)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -101,17 +99,15 @@ struct OQ191CheckoutReuseTests {
         let directories = firing.verifiedDirectories
         let heldLayout = oq191RelativePath(from: backend.worktree, to: mobile.worktree)
 
-        await withKnownIssue("OQ191 item 8: the verifier is handed the held Worktrees as they stand") {
-            for repository in world.repositories {
-                let directory = try #require(directories[repository.name])
-                #expect(oq191Resolved(directory) != oq191Resolved(repository.worktree))
-                #expect(await oq191RevParse(directory) == repository.tip)
-                #expect(await oq191Git(directory, ["status", "--porcelain"]).stdout.isEmpty)
-            }
-            let freshBackend = try #require(directories["backend"])
-            let freshMobile = try #require(directories["mobile"])
-            #expect(oq191RelativePath(from: freshBackend, to: freshMobile) == heldLayout)
+        for repository in world.repositories {
+            let directory = try #require(directories[repository.name])
+            #expect(oq191Resolved(directory) != oq191Resolved(repository.worktree))
+            #expect(await oq191RevParse(directory) == repository.tip)
+            #expect(await oq191Git(directory, ["status", "--porcelain"]).stdout.isEmpty)
         }
+        let freshBackend = try #require(directories["backend"])
+        let freshMobile = try #require(directories["mobile"])
+        #expect(oq191RelativePath(from: freshBackend, to: freshMobile) == heldLayout)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -128,9 +124,7 @@ struct OQ191CheckoutReuseTests {
             OQ191JudgedCheckout(repository: $0.name, commit: $0.tip, kind: .freshCheckout, noPushedBranch: false)
         }
 
-        withKnownIssue("OQ191 item 7: the Verification record names no checkout kind") {
-            let judged = try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID)
-            #expect(judged == expected)
-        }
+        let judged = try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID)
+        #expect(judged == expected)
     }
 }

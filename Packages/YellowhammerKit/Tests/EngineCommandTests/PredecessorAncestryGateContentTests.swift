@@ -58,7 +58,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-SQ", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-SQ", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let closure = ScriptedPostMergeClosure()
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
@@ -88,7 +88,7 @@ struct PredecessorAncestryGateContentTests {
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
             journal, issueID: "FEAT-RB", branch: gateBranch, repositories: ["backend"],
-            landedCommits: ["backend": tip]
+            pushedTips: ["backend": tip]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 
@@ -107,7 +107,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-MC", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-MC", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 
@@ -148,7 +148,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-UN", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-UN", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 
@@ -172,7 +172,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-NZ", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-NZ", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let closure = ScriptedPostMergeClosure()
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
@@ -197,7 +197,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-LP", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-LP", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 
@@ -219,7 +219,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-RC", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-RC", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let closure = ScriptedPostMergeClosure()
         let gate = PredecessorAncestryGate(closure: closure)
@@ -255,7 +255,7 @@ struct PredecessorAncestryGateContentTests {
         let recordedJournal = try recordedFixture.open()
         let recordedID = try insertGateFeature(
             recordedJournal, issueID: "FEAT-LC", branch: gateBranch, repositories: ["backend"],
-            landedCommits: ["backend": tip]
+            pushedTips: ["backend": tip]
         )
         let (recordedContext, _) = try makeGateContext(recordedJournal, repositories: repositories(repo))
         #expect(try await PredecessorAncestryGate().check(recordedContext, unmergedFeaturesMax: 1) == .open)
@@ -283,7 +283,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-DR", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-DR", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let gate = PredecessorAncestryGate()
         let (context1, _) = try makeGateContext(journal, repositories: repositories(repo))
@@ -310,7 +310,7 @@ struct PredecessorAncestryGateContentTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-UF", branch: gateBranch, repositories: ["backend"], landedCommits: ["backend": tip]
+            journal, issueID: "FEAT-UF", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
         )
         let gate = PredecessorAncestryGate(landedTipPin: LandedTipPin(git: GitRunner(executablePath: "/usr/bin/false")))
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
@@ -342,7 +342,7 @@ struct PredecessorAncestryGateContentTests {
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
             journal, issueID: "FEAT-IF", branch: gateBranch, repositories: ["backend"], inFlight: true,
-            landedCommits: ["backend": tip]
+            pushedTips: ["backend": tip]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 
@@ -368,7 +368,7 @@ struct PredecessorAncestryGateUnresolvedTests {
         let journal = try fixture.open()
         _ = try insertGateFeature(
             journal, issueID: "FEAT-IN", branch: gateBranch, repositories: ["backend"],
-            landedCommits: ["backend": neverPushed]
+            pushedTips: ["backend": neverPushed]
         )
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
         let invocation = EngineInvocation(
@@ -401,7 +401,7 @@ struct PredecessorAncestryGateUnresolvedTests {
         // recorded for the repository.
         _ = try insertGateFeature(
             journal, issueID: "FEAT-LN", branch: gateBranch, repositories: ["backend"], recordBranch: false,
-            landedCommits: ["backend": lost]
+            pushedTips: ["backend": lost]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 
@@ -423,7 +423,7 @@ struct PredecessorAncestryGateUnresolvedTests {
         // recorded, so the branch (which may carry commits added on GitHub) is never consulted.
         let featureID = try insertGateFeature(
             journal, issueID: "FEAT-LB", branch: gateBranch, repositories: ["backend"],
-            landedCommits: ["backend": lost]
+            pushedTips: ["backend": lost]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 

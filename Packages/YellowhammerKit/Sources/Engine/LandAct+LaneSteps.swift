@@ -160,11 +160,14 @@ extension LandAct {
             return LandLaneSecondPhase(fault: nil, outstanding: prResult.detail ?? "the pull request was not opened")
         }
 
-        let releaseResult = await runReleaseWorktree(
-            feature: laneContext.feature, lane: lane, pushOutcome: progress.pushOutcome, context: context
-        )
+        let releaseResult = await runReleaseWorktree(laneContext, pushOutcome: progress.pushOutcome, context: context)
         record(releaseResult, step: .releaseWorktree, repository: lane.repository, context: context)
-        return LandLaneSecondPhase(fault: releaseResult.fault, outstanding: nil)
+        // A release that failed without a fault (a pin that could not be written) leaves the Worktree held: the
+        // Cycle stays unlanded and the next land firing retries.
+        let outstanding = releaseResult.outcome == .failed && releaseResult.fault == nil
+            ? releaseResult.detail ?? "the Worktree was not released"
+            : nil
+        return LandLaneSecondPhase(fault: releaseResult.fault, outstanding: outstanding)
     }
 
     private func runMergeTest(_ laneContext: LandActLaneContext) async -> (LandStepResult, MergeTestOutcome?) {
@@ -181,12 +184,17 @@ extension LandAct {
     /// ``JournalStore/releaseWorktree(id:runID:now:)`` and ``WorktreeAllocator/release(featureID:repository:)``
     /// check, so a push seam's own report of "pushed" must land here before release is attempted.
     /// Best-effort — a lane with no held Worktree recorded has nothing to update.
-    private func recordPushedCommit(_ commit: String, laneContext: LandActLaneContext, context: ActContext) {
+    /// A Worktree already recorded at `commit` is left alone, and with `onlyIfUnset` so is one recorded at any commit.
+    private func recordPushedCommit(
+        _ commit: String, laneContext: LandActLaneContext, context: ActContext, onlyIfUnset: Bool = false
+    ) {
         guard
             let held = try? context.journal.heldWorktree(
                 featureID: laneContext.feature.id, repository: laneContext.lane.repository
             ),
-            held.isHeld
+            held.isHeld,
+            held.pushedCommit != commit,
+            !onlyIfUnset || held.pushedCommit == nil
         else {
             return
         }
@@ -194,7 +202,11 @@ extension LandAct {
     }
 
     /// Never called in rehearsal mode (a rehearsal boundary, defence in depth against dispatching a
-    /// real push from a Rehearsal Night).
+    /// real push from a Rehearsal Night). A repository whose Pushed Tip this Cycle already recorded is never
+    /// pushed again (landing/open-one-pull-request-per-repository, `#publication-retry`; OQ191 item 1): the
+    /// push seam is not called, nothing is recorded or pinned again, and the lane carries on as pushed at the
+    /// recorded commit, however its local Feature Branch has moved since. A refused push recorded nothing, so
+    /// the next firing pushes it again.
     private func runPush(
         _ laneContext: LandActLaneContext, context: ActContext
     ) async -> (LandStepResult, LanePushOutcome?) {
@@ -206,6 +218,18 @@ extension LandAct {
         }
         do {
             try context.journal.beginCycleHandoff(cycleID: laneContext.cycleID, runID: context.runID)
+            if let recorded = try context.journal.pushedTip(
+                cycleID: laneContext.cycleID, repository: laneContext.lane.repository
+            ) {
+                // Repairs what the firing that recorded the Pushed Tip may have failed to write beside it: the
+                // held Worktree's release gate and the landed pin.
+                recordPushedCommit(recorded, laneContext: laneContext, context: context, onlyIfUnset: true)
+                await ensureLandedPin(commit: recorded, laneContext: laneContext, context: context)
+                return (
+                    .completed(detail: "already pushed at \(recorded.prefix(7))"),
+                    LanePushOutcome(kind: .pushed(commit: recorded))
+                )
+            }
             let outcome = try await push.push(laneContext)
             if outcome.pushed, let commit = outcome.commit {
                 recordPushedCommit(commit, laneContext: laneContext, context: context)
@@ -243,10 +267,14 @@ extension LandAct {
     /// Releases the lane's held Worktree, once its push reported pushed or safely skipped with no
     /// completed work (``JournalStore/releaseWorktree(id:runID:now:)``'s own refusal is defence in
     /// depth, not relied on here). Never throws for an unsafe push outcome — that is recorded skipped,
-    /// and the Worktree stays held.
+    /// and the Worktree stays held. A HEAD that is not the recorded commit is pinned first, on a lane with
+    /// no completed work too (``pinUnpublishedHead(held:laneContext:pushOutcome:context:)``); a pin that
+    /// cannot be written fails the step and keeps the Worktree held.
     private func runReleaseWorktree(
-        feature: FeatureRecord, lane: RepoLane, pushOutcome: LanePushOutcome?, context: ActContext
+        _ laneContext: LandActLaneContext, pushOutcome: LanePushOutcome?, context: ActContext
     ) async -> LandStepResult {
+        let feature = laneContext.feature
+        let lane = laneContext.lane
         guard
             let held = try? context.journal.heldWorktree(featureID: feature.id, repository: lane.repository),
             held.isHeld
@@ -259,12 +287,22 @@ extension LandAct {
         guard let workspace = context.workspace else {
             return .skipped("no Workspace bound")
         }
+        let pinned: String?
+        let pin = await pinUnpublishedHead(
+            held: held, laneContext: laneContext, pushOutcome: pushOutcome, context: context
+        )
+        switch pin {
+        case .keepHeld(let reason):
+            return .failed(reason)
+        case .release(let detail):
+            pinned = detail
+        }
         let allocator = WorktreeAllocator(workspace: workspace, journal: context.journal, runID: context.runID)
         do {
             _ = try await allocator.release(
                 featureID: feature.id, repository: lane.repository, discardingUnpushedWork: !pushOutcome.pushed
             )
-            return .completed()
+            return .completed(detail: pinned)
         } catch {
             return .faulted(String(describing: error))
         }

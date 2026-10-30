@@ -73,7 +73,8 @@ public struct FeatureReturn: FeatureReturning, Sendable {
             pullRequests: pullRequests,
             feature: context.feature,
             cards: cards,
-            noCheckRepositories: try context.act.journal.repositoriesDeclaringNoCheck(cycleID: context.cycleID)
+            noCheckRepositories: try context.act.journal.repositoriesDeclaringNoCheck(cycleID: context.cycleID),
+            touchedRepositoryCount: try context.act.journal.touchedRepositories(featureID: context.feature.id).count
         ).body()
         let key = "land:\(context.cycleID):return:\(context.feature.issueID)"
         let issue = BoardObjectID(rawValue: context.feature.issueID)

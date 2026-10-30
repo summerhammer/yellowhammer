@@ -56,6 +56,33 @@ extension JournalEvent {
         featureVerifiedPayload ?? featureReturnedPayload ?? cycleArchivedPayload ?? featureClosedByMergePayload
             ?? verifiedFeatureMergeObservedPayload ?? completedFeatureMergeObservedPayload
             ?? noPushedBranchOutcomePayload ?? landedPinFailedPayload ?? pullRequestStackedPayload
+            ?? remoteTipPayload
+    }
+
+    /// Decodes the remote tip check's `remoteTipUnreadable`, or else `remoteTipMismatch`, event.
+    static func decodeRemoteTip(_ type: JournalEventType, _ reader: PayloadReader) throws -> JournalEvent {
+        if type == .remoteTipUnreadable {
+            return .remoteTipUnreadable(
+                repository: try reader.require("repository"), reason: try reader.require("reason")
+            )
+        }
+        let remoteCommit = try reader.require("remote_commit")
+        return .remoteTipMismatch(
+            repository: try reader.require("repository"), pushedTip: try reader.require("pushed_tip"),
+            remoteCommit: remoteCommit == "absent" ? nil : remoteCommit
+        )
+    }
+
+    /// The `remoteTipMismatch` and `remoteTipUnreadable` events' payloads; an absent remote branch is `absent`.
+    var remoteTipPayload: [String: String]? {
+        switch self {
+        case .remoteTipMismatch(let repository, let pushedTip, let remoteCommit):
+            ["repository": repository, "pushed_tip": pushedTip, "remote_commit": remoteCommit ?? "absent"]
+        case .remoteTipUnreadable(let repository, let reason):
+            ["repository": repository, "reason": reason]
+        default:
+            nil
+        }
     }
 
     /// The `pullRequestStacked` event's payload; `predecessor_pull_request_url` is absent when nil.

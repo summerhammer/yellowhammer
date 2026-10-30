@@ -65,7 +65,7 @@ private func held(_ issueID: String = "FEAT-K") -> [HeldConsumer] {
 private func seedFeature(_ journal: JournalStore, world: borrowing ProducerWorld, landed: Bool = true) throws -> Int64 {
     let featureID = try insertGateFeature(
         journal, issueID: "FEAT-K", branch: "yh-feat", repositories: ["contracts"],
-        landedCommits: ["contracts": world.tip]
+        pushedTips: ["contracts": world.tip]
     )
     if landed {
         try journal.recordLanding(
@@ -198,7 +198,7 @@ struct ReleaseGateTests {
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
             journal, issueID: "FEAT-K", branch: "yh-feat", repositories: ["contracts"],
-            landedCommits: ["contracts": tip]
+            pushedTips: ["contracts": tip]
         )
         let later = try await repo.commit(filename: "later.txt", message: "after the tag")
         try journal.recordLanding(

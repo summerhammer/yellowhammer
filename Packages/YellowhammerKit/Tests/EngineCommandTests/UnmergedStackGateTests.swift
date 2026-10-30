@@ -45,7 +45,7 @@ private func insertLandedFeature(
     _ = await repo.run(["update-ref", "refs/yellowhammer/landed/\(branch)", commit])
     return try insertGateFeature(
         journal, issueID: issueID, branch: branch, repositories: ["backend"], landed: true,
-        landedCommits: ["backend": commit]
+        pushedTips: ["backend": commit]
     )
 }
 

@@ -59,13 +59,21 @@ struct FeatureVerificationCheckEvidenceTests {
             route: routeOther, featureTitle: "Feature", clauses: [],
             specificationSource: .specSource(SpecSource(path: "/spec")),
             repositories: [VerificationRepository(
-                name: "backend", directory: "/backend", featureBranch: "feature",
+                name: "backend", directory: "/backend", featureBranch: "feature", judgedCommit: "pushed-tip",
                 checkResults: [VerificationCheckResult(command: nil, judgedCommit: nil, exitStatus: 0)]
-            ), VerificationRepository(name: "other", directory: "/other", featureBranch: "feature")]
+            ), VerificationRepository(
+                name: "other", directory: "/other", featureBranch: "feature", judgedCommit: "base-commit",
+                noPushedBranch: true
+            )]
         )
         let rendered = instruction.render()
         #expect(rendered.contains("judge clauses they cover, on any Route"))
-        #expect(rendered.contains("name the stale record beside the clause"))
+        // OQ191 item 2 (#recorded-check-results, reworded 2026-10-29): a record decides a clause only at the
+        // commit judged — the Pushed Tip, or the recorded base commit — never at the Feature Branch's head.
+        #expect(!rendered.contains("Resolve the head"))
+        #expect(rendered.contains("does not decide a clause: name that record beside the clause"))
+        #expect(rendered.contains("Feature Branch: feature\n  Checkout at: pushed-tip (the Pushed Tip)"))
+        #expect(rendered.contains("Checkout at: base-commit (no pushed branch: the recorded base commit)"))
         #expect(rendered.contains("naming the command it would need"))
         #expect(rendered.contains("otherwise report `not checked`"))
         #expect(rendered.contains("Command: not recorded\n    Judged commit: not recorded\n    Exit status: 0"))

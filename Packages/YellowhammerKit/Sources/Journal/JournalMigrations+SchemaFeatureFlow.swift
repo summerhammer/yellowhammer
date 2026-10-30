@@ -217,13 +217,10 @@ extension JournalMigrations {
             // `refs/yellowhammer/recovery/<branch>`. NULL except between that purge and the
             // re-allocation that verifies the re-created branch (OQ123).
             table.column("recovery_commit", .text)
-            // The commit the land Act last pushed for this Feature in this repository, pinned in the main
-            // clone at `refs/yellowhammer/landed/<branch>`. NULL until the first push, and for a Feature
-            // pushed before this column existed; a later push overwrites it, since the latest pushed tip
-            // is the one the pull request carries.
-            table.column("landed_commit", .text)
             table.primaryKey(["feature_id", "repository"])
         }
+
+        try createPushedTipTable(db)
 
         try db.create(table: "feature_landing") { table in
             table.column("feature_id", .integer).notNull()
@@ -314,6 +311,7 @@ extension JournalMigrations {
             table.column("position", .integer).notNull()
             table.primaryKey(["verification_id", "issue_id", "cid"])
         }
+        try createJudgedCheckoutTable(db)
     }
 
     /// The Card Question table (roadmap P11.1; spec: bounds/escalate-a-question-to-the-operator): a

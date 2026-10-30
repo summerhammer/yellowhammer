@@ -303,6 +303,10 @@ extension JournalEvent {
             .verifiedFeatureMergeObserved, .completedFeatureMergeObserved, .noPushedBranchOutcome, .landedPinFailed,
             .pullRequestStacked:
             try Self.decodeLandAct(type, reader)
+        case .remoteTipMismatch, .remoteTipUnreadable:
+            try Self.decodeRemoteTip(type, reader)
+        case .unpublishedCommitsReported, .unpublishedCommitsPinned:
+            try Self.decodeUnpublishedCommits(type, reader)
         case .cycleLanded: .cycleLanded(cycleID: try reader.int64("cycle_id"))
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared, .authoringHaltRepair:

@@ -16,7 +16,7 @@ struct FeatureBranchPullRequestStackTests {
         let stub = StubPublicationAdapter(
             result: .success(.opened(url: "https://github.com/summerhammer/backend/pull/8"))
         )
-        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch })
+        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch }, remoteTip: .at("deadbeef"))
         let outcome = try await seam.open(
             try world.laneContext(), push: LanePushOutcome(pushed: true, commit: "deadbeef"), mergeOutcome: nil
         )
@@ -121,7 +121,7 @@ struct FeatureBranchPullRequestStackTests {
         try world.recordPredecessorPullRequest()
 
         let stub = StubPublicationAdapter(result: .success(.alreadyOpen))
-        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch })
+        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch }, remoteTip: .at("deadbeef"))
         let outcome = try await seam.open(
             try world.laneContext(), push: LanePushOutcome(pushed: true, commit: "deadbeef"), mergeOutcome: nil
         )

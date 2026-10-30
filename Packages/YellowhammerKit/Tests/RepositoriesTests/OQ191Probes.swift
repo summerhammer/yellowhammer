@@ -4,10 +4,10 @@ import Testing
 
 @testable import Repositories
 
-// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): the local git
-// operations the land Act needs and `main` does not have yet. Each probe names the ruling item and the spec
-// anchor it serves. Today each one returns nil; the implementation PRs replace the bodies with real calls and
-// keep the signatures, so the tests do not change. Production code is untouched.
+// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): thin adapters
+// from the harness's own types to the production local git operations the land Act uses. Each probe names the
+// ruling item and the spec anchor it serves, and calls the production code that builds it; the harness was
+// written before that code, so its tests speak in these types rather than the production ones.
 
 extension Tag {
     /// The OQ191 harness. Declared once per test target: each target is its own module.
@@ -43,20 +43,29 @@ enum OQ191Probe {
     /// at on the `origin` remote of the main clone at `repositoryPath`; `.absent` when the remote has no such
     /// branch; `.unreadable` when the remote cannot be read.
     static func remoteTip(branch: FeatureBranch, repositoryPath: String) async -> OQ191RemoteTip? {
-        nil
+        switch await RemoteFeatureBranchReader().read(branch: branch, in: repositoryPath, credential: nil) {
+        case .at(let commit): .at(commit)
+        case .absent: .absent
+        case .unreadable: .unreadable
+        }
     }
 
     /// Items 7 and 8; `verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout`: whether the
     /// held Worktree at `worktreePath` is exact (HEAD at `recordedCommit`) and clean (`git status` reports
     /// nothing; ignored files are allowed).
     static func isExactAndClean(worktreePath: String, recordedCommit: String) async -> Bool? {
-        nil
+        await JudgedCheckoutGit().isExactAndClean(worktreePath: worktreePath, recordedCommit: recordedCommit)
     }
 
     /// Items 6 and 9; `landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin`: how the
     /// held Worktree's HEAD stands against `recordedCommit` (the Pushed Tip or the recorded base commit).
     static func headRelation(worktreePath: String, recordedCommit: String) async -> OQ191HeadRelation? {
-        nil
+        switch await UnpublishedHeadPin().headRelation(worktreePath: worktreePath, recordedCommit: recordedCommit) {
+        case .atRecordedCommit: .atRecordedCommit
+        case .after(let commits, let head): .after(commits: commits, head: head)
+        case .differs(let head): .differs(head: head)
+        case .unreadable: nil
+        }
     }
 
     /// Item 6; `open-one-pull-request-per-repository.md#unpublished-commits-pin`: pins the held Worktree's HEAD
@@ -65,6 +74,13 @@ enum OQ191Probe {
     static func pinUnpublishedHead(
         worktreePath: String, recordedCommit: String, branch: FeatureBranch
     ) async -> OQ191PinResult? {
-        nil
+        let result = await UnpublishedHeadPin().pinUnpublishedHead(
+            worktreePath: worktreePath, recordedCommit: recordedCommit, branch: branch
+        )
+        switch result {
+        case .pinned(let ref, _), .alreadyPinned(let ref): return .pinned(ref: ref)
+        case .notNeeded: return .notNeeded
+        case .failed: return nil
+        }
     }
 }

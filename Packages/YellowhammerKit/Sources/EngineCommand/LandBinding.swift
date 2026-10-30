@@ -6,7 +6,8 @@ import Ledger
 import GitHubAdapter
 import Repositories
 
-/// Wires the land Act's Repo Lane push (P10.2), pull request open (P10.4) and Verification (P10.5). The only place a GitHub
+/// Wires the land Act's Repo Lane push (P10.2), pull request open (P10.4) with its remote tip check (OQ191 item 4,
+/// read with the push's credential) and Verification (P10.5). The only place a GitHub
 /// credential is resolved for landing (Engine never imports Config, ADR-001): the Project's Code Hosting
 /// Connection is resolved through ``MachineConfiguration/codeHostingCredential(for:)``, and a refusal (a
 /// connection absent from the registry) is thrown from the closure like a Keychain failure. A Keychain token
@@ -14,9 +15,9 @@ import Repositories
 /// CLI connection holds no token: `gh` is found at the time of use (its declared path, else `PATH`), the push
 /// uses `gh auth git-credential` as git's credential helper, and pull requests go through `gh api`; a `gh` that
 /// is not found throws, which leaves the Cycle unlanded through the credentials-missing path.
-/// The returned push and pull request closures resolve lazily, on each call, so a Rehearsal Night — which never
-/// calls either seam — never touches the Keychain or `gh` for them (its mainline fetch resolves the connection
-/// separately, through ``MainlineBinding``).
+/// The returned push, pull request and remote tip closures resolve lazily, on each call, so a Rehearsal Night —
+/// which never calls either seam, nor reads a remote — never touches the Keychain or `gh` for them (its mainline
+/// fetch resolves the connection separately, through ``MainlineBinding``).
 enum LandBinding {
     static func push(
         configuration: Configuration,
@@ -79,15 +80,21 @@ enum LandBinding {
                 try token(configuration: configuration, project: project, credentials: store, gitHubCLI: gitHubCLI)
             }
         )
+        // The remote tip check reads the remote with the push's own credential, resolved lazily on each read.
+        let remoteTip = RemoteFeatureBranchRead.git {
+            try pushCredential(configuration: configuration, project: project, credentials: store, gitHubCLI: gitHubCLI)
+        }
         return FeatureBranchPullRequest(
             publication: adapter, titleTemplate: project.pullRequestTitle, changeType: project.changeType,
-            projectID: project.id.rawValue, scrub: scrub
+            projectID: project.id.rawValue, scrub: scrub, remoteTip: remoteTip
         )
     }
 
     /// Verification (P10.5): the same ``RoutingBinding`` resolver and Dispatch choice as the author Act —
     /// ``RehearsalDispatch`` in a rehearsal Night, ``CLIAdapterDispatch`` otherwise — with
-    /// ``MainlineReader`` resolving each clause's Spec Citation.
+    /// ``MainlineReader`` resolving each clause's Spec Citation, and fresh checkouts for the verifier made under
+    /// the Project's ``JudgedCheckoutPreparation/directory(homeDirectory:projectID:)``, outside the
+    /// configuration directory every read-only pass is denied.
     static func verification(
         mode: NightMode,
         configuration: Configuration,
@@ -103,7 +110,12 @@ enum LandBinding {
                 mode: mode, configuration: configuration, project: project,
                 configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
             ),
-            citations: MainlineReader(refresher: refresher)
+            citations: MainlineReader(refresher: refresher),
+            checkouts: JudgedCheckoutPreparation(
+                directory: JudgedCheckoutPreparation.directory(
+                    homeDirectory: FileManager.default.homeDirectoryForCurrentUser, projectID: project.id
+                )
+            )
         )
     }
 }

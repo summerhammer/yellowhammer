@@ -29,24 +29,33 @@ public struct VerificationCheckResult: Equatable, Sendable {
     }
 }
 
-/// A repository the Feature touched: where its finished code is, and the Feature Branch holding it.
+/// A repository the Feature touched: where its finished code is, the Feature Branch holding it, and the commit
+/// the verifier judges there (spec: verification/verify-a-feature-clause-by-clause, `#judged-checkout`).
 public struct VerificationRepository: Equatable, Sendable {
     public let name: String
-    /// The directory holding the finished code: the held Worktree when one is held, else the repository.
+    /// The directory holding the finished code: a checkout at ``judgedCommit`` — the held Worktree when every
+    /// touched repository's is exact and clean, else a fresh checkout.
     public let directory: String
     public let featureBranch: String
+    /// The commit judged: the Pushed Tip, or the recorded base commit when ``noPushedBranch``. Nil only where
+    /// nothing was pushed by design (a Rehearsal Night).
+    public let judgedCommit: String?
+    /// The repository has the No-Pushed-Branch Outcome: ``judgedCommit`` is its recorded base commit.
+    public let noPushedBranch: Bool
     /// The Journal's Check results for this Feature and repository, in append order.
     public let checkResults: [VerificationCheckResult]
     /// The Repo's configuration declares `check = none`: the Engine ran no Check here, and none is recorded.
     public let checkDeclaredNone: Bool
 
     public init(
-        name: String, directory: String, featureBranch: String, checkResults: [VerificationCheckResult] = [],
-        checkDeclaredNone: Bool = false
+        name: String, directory: String, featureBranch: String, judgedCommit: String? = nil,
+        noPushedBranch: Bool = false, checkResults: [VerificationCheckResult] = [], checkDeclaredNone: Bool = false
     ) {
         self.name = name
         self.directory = directory
         self.featureBranch = featureBranch
+        self.judgedCommit = judgedCommit
+        self.noPushedBranch = noPushedBranch
         self.checkResults = checkResults
         self.checkDeclaredNone = checkDeclaredNone
     }
@@ -121,10 +130,12 @@ public struct VerificationInstruction: Equatable, Sendable {
         clause needs in your environment, naming in `what_was_checked` the capability that was missing: \
         network access, a writable directory, or a tool. Report every clause listed, and no other.
 
-        Use the recorded Check results below to judge clauses they cover, on any Route. Resolve the head \
-        of each Feature Branch you judge. A record whose judged commit is not that head cannot decide a \
-        clause: name the stale record beside the clause in `what_was_checked`. A record with an \
-        unavailable command, judged commit or exit status cannot establish what ran successfully at that head.
+        Each repository below is checked out at the commit you judge, named on its `Checkout at` line: its \
+        Pushed Tip or, marked no pushed branch, its recorded base commit. Use the recorded Check results \
+        below to judge clauses they cover, on any Route. A record whose judged commit is not the commit you \
+        judge does not decide a clause: name that record beside the clause in `what_was_checked`. A record \
+        with an unavailable command, judged commit or exit status cannot establish what ran successfully at \
+        that commit.
 
         Report every build or test clause no recorded Check covers, naming the command it would need in \
         `what_was_checked`, so the Operator sees the gap in the Repo's Check command. Judge it when your \
@@ -155,6 +166,7 @@ public struct VerificationInstruction: Equatable, Sendable {
             lines.append("  Finished code: \(repository.directory)")
             lines.append("  Feature Branch: \(repository.featureBranch)")
             if repository.checkDeclaredNone { lines.append("  Check: none (declared `check = none`)") }
+            lines.append("  Checkout at: \(repository.judgedCommitLine)")
             if repository.checkResults.isEmpty {
                 lines.append("  Recorded Check results: none")
             } else {
@@ -180,5 +192,15 @@ public struct VerificationInstruction: Equatable, Sendable {
         `cid`, `verdict` (`met`, `unmet` or `not checked`), `what_was_checked` and `interpretation`; `failed` carries \
         `reason`. Ending without a final structured response is treated as a crash.
         """
+    }
+}
+
+extension VerificationRepository {
+    /// The commit the checkout is at, as the instruction names it.
+    fileprivate var judgedCommitLine: String {
+        guard let judgedCommit else { return "not recorded (nothing was pushed)" }
+        return noPushedBranch
+            ? "\(judgedCommit) (no pushed branch: the recorded base commit)"
+            : "\(judgedCommit) (the Pushed Tip)"
     }
 }

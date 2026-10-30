@@ -53,7 +53,9 @@ struct LandActStackedLaneTests {
         let stub = StubPublicationAdapter(result: .success(.opened(url: "https://github.com/o/backend/pull/9")))
         let land = LandAct(
             push: FeatureBranchLanePush(credential: { nil }),
-            openPullRequest: FeatureBranchPullRequest(publication: stub, clock: { landEpoch })
+            openPullRequest: FeatureBranchPullRequest(
+                publication: stub, clock: { landEpoch }, remoteTip: .at("deadbeef")
+            )
         )
         let failure = await land.run(
             lane: try world.lane, feature: world.feature, cycleID: world.cycleID, context: world.env.context

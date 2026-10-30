@@ -97,6 +97,69 @@ struct VerificationReportTests {
     }
 }
 
+// OQ191 item 3 (landing/open-one-pull-request-per-repository#judged-commit-in-body): the pull request body's
+// report names, per repository, the short commit the Verification judged.
+
+private let backendCommit = "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567"
+private let mobileCommit = "fedcba9876543210fedcba9876543210fedcba98"
+
+@Suite("Verification report: the judged commit per repository (OQ191 item 3)")
+struct VerificationReportJudgedCommitTests {
+    @Test("One repository: its name and short commit, one line, under the section header")
+    func oneRepository() {
+        let report = VerificationReport(clauses: [clause()], judgedCheckouts: [
+            JudgedCheckout(repository: "backend", commit: backendCommit, kind: .heldWorktree, noPushedBranch: false)
+        ])
+        #expect(report.judgedCommitsLine() == "Judged commits: backend `0a1b2c3`")
+        let lines = report.markdownSection().split(separator: "\n", omittingEmptySubsequences: false)
+        #expect(lines.prefix(3) == ["## Verification, clause by clause", "", "Judged commits: backend `0a1b2c3`"])
+        #expect(!report.markdownSection().contains(backendCommit))
+    }
+
+    @Test("Two repositories in recorded order, the No-Pushed-Branch one marked, the checkout kind not shown")
+    func twoRepositoriesOneWithNoPushedBranch() {
+        let report = VerificationReport(clauses: [clause()], judgedCheckouts: [
+            JudgedCheckout(repository: "backend", commit: backendCommit, kind: .freshCheckout, noPushedBranch: false),
+            JudgedCheckout(repository: "mobile", commit: mobileCommit, kind: .freshCheckout, noPushedBranch: true)
+        ])
+        #expect(
+            report.judgedCommitsLine() == "Judged commits: backend `0a1b2c3` · mobile `fedcba9` (no pushed branch)"
+        )
+        #expect(report.markdownSection().contains(report.judgedCommitsLine()))
+        #expect(!report.markdownSection().contains("fresh"))
+    }
+
+    @Test("A record written before the rule shows judged commit not recorded, and no commit")
+    func recordBeforeTheRule() {
+        let record = FeatureVerificationRecord(
+            id: 1, featureID: 1, cycleID: 1, route: nil, nightID: 1, runID: RunID(),
+            verifiedAt: Date(timeIntervalSince1970: 0), clauses: [clause()], judgedCheckouts: []
+        )
+        let section = VerificationReport(record: record).markdownSection()
+        #expect(section.contains("Judged commits: judged commit not recorded"))
+    }
+
+    @Test("The record's judged checkouts reach the body, Complete and Partial Landing alike")
+    func bodyCarriesTheLine() {
+        let report = VerificationReport(clauses: [clause()], judgedCheckouts: [
+            JudgedCheckout(repository: "backend", commit: backendCommit, kind: .heldWorktree, noPushedBranch: false)
+        ])
+        for cards in [[doneCard], [doneCard, blockedCard]] {
+            let body = PullRequestBody.render(bodyInput(cards: cards, report: report))
+            #expect(body.contains(report.judgedCommitsLine()))
+        }
+    }
+
+    @Test("The Feature Card's Managed Block does not carry the judged commits")
+    func managedBlockUnchanged() {
+        let report = VerificationReport(clauses: [clause()], judgedCheckouts: [
+            JudgedCheckout(repository: "backend", commit: backendCommit, kind: .heldWorktree, noPushedBranch: false)
+        ])
+        #expect(report.managedBlockLines() == VerificationReport(clauses: [clause()]).managedBlockLines())
+        #expect(!report.managedBlockLines().contains("0a1b2c3"))
+    }
+}
+
 // MARK: - Pull request body
 
 private func bodyInput(

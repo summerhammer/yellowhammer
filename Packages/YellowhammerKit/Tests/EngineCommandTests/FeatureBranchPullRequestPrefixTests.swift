@@ -32,7 +32,8 @@ struct FeatureBranchPullRequestPrefixTests {
         )
         let seam = FeatureBranchPullRequest(
             publication: stub, clock: { landEpoch },
-            titleTemplate: try MessageTemplate("{branch}", kind: .pullRequestTitle), projectID: "proj"
+            titleTemplate: try MessageTemplate("{branch}", kind: .pullRequestTitle), projectID: "proj",
+            remoteTip: .at("deadbeef")
         )
         let laneContext = LandActLaneContext(
             act: env.context, feature: feature, cycleID: cycleID,

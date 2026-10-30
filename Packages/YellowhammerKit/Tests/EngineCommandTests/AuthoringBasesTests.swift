@@ -65,12 +65,12 @@ private struct StackedWorld: ~Copyable {
     }
 }
 
-/// Seeds F1 in U: archived, verified, pushed in `repo-a` on `yh-f1` at `landedCommit`, no Observed Merge.
+/// Seeds F1 in U: archived, verified, pushed in `repo-a` on `yh-f1` at `pushedTip`, no Observed Merge.
 @discardableResult
-private func seedF1(_ journal: JournalStore, landedCommit: String?) throws -> Int64 {
+private func seedF1(_ journal: JournalStore, pushedTip: String?) throws -> Int64 {
     try insertGateFeature(
         journal, issueID: "FEAT-1", branch: "yh-f1", repositories: ["repo-a"], landed: true,
-        landedCommits: landedCommit.map { ["repo-a": $0] } ?? [:]
+        pushedTips: pushedTip.map { ["repo-a": $0] } ?? [:]
     )
 }
 
@@ -90,7 +90,7 @@ struct AuthoringBasesTests {
         let world = try await StackedWorld.make()
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let f1 = try seedF1(journal, landedCommit: world.tip)
+        let f1 = try seedF1(journal, pushedTip: world.tip)
         let context = try authorContext(journal, world: world)
 
         let bases = try await AuthoringBases.fromStack(context: context)
@@ -117,7 +117,7 @@ struct AuthoringBasesTests {
         let world = try await StackedWorld.make(pin: false, originBranch: true)
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let f1 = try seedF1(journal, landedCommit: world.tip)
+        let f1 = try seedF1(journal, pushedTip: world.tip)
 
         let bases = try await AuthoringBases.fromStack(context: try authorContext(journal, world: world))
 
@@ -138,7 +138,7 @@ struct AuthoringBasesTests {
         let world = try await StackedWorld.make()
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        try seedF1(journal, landedCommit: world.mainline)
+        try seedF1(journal, pushedTip: world.mainline)
 
         let bases = try await AuthoringBases.fromStack(context: try authorContext(journal, world: world))
 
@@ -154,7 +154,7 @@ struct AuthoringBasesTests {
         let world = try await StackedWorld.make(pin: false)
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        try seedF1(journal, landedCommit: world.tip)
+        try seedF1(journal, pushedTip: world.tip)
 
         let bases = try await AuthoringBases.fromStack(context: try authorContext(journal, world: world))
 
@@ -180,7 +180,7 @@ struct AuthoringBasesTests {
         let world = try await StackedWorld.make()
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        try seedF1(journal, landedCommit: world.tip)
+        try seedF1(journal, pushedTip: world.tip)
         let context = try authorContext(journal, world: world)
         let stacked = try await AuthoringBases.fromStack(context: context)
         let f2 = try insertGateFeature(
@@ -200,7 +200,7 @@ struct AuthoringBasesTests {
         let world = try await StackedWorld.make()
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        try seedF1(journal, landedCommit: world.tip)
+        try seedF1(journal, pushedTip: world.tip)
         let context = try authorContext(journal, world: world)
         let bases = try await AuthoringBases.fromStack(context: context)
         let reader = MainlineReader(refresher: MainlineRefresher())
@@ -250,7 +250,7 @@ struct AuthorActEffectiveBaseTests {
         let world = try await StackedWorld.make()
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let f1 = try seedF1(journal, landedCommit: world.tip)
+        let f1 = try seedF1(journal, pushedTip: world.tip)
         let capture = ContextCapture()
 
         let act = AuthorAct(predecessorGate: capture, authoring: capture)
@@ -270,7 +270,7 @@ struct AuthorActEffectiveBaseTests {
         let world = try await StackedWorld.make(pin: false)
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        try seedF1(journal, landedCommit: world.tip)
+        try seedF1(journal, pushedTip: world.tip)
         let capture = ContextCapture()
 
         let act = AuthorAct(predecessorGate: capture, authoring: capture)

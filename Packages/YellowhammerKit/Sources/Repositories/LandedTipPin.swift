@@ -12,7 +12,7 @@ public enum LandedPinResult: Equatable, Sendable {
 /// Pins the commit the land Act pushed for a Feature Branch under `refs/yellowhammer/landed/<branch>`, in the
 /// repository's MAIN clone, so the commit survives Orca ADE, GitHub or an Operator fetch deleting every
 /// branch ref, and `git gc` (feature-authoring/select-the-next-feature, OQ164). The predecessor gate tests
-/// that commit; the Journal records it (`JournalStore.recordLandedCommit`).
+/// that commit; the Journal records it as the Pushed Tip (`JournalStore.recordPushedTip`).
 ///
 /// Branch names may carry an Orca ADE prefix containing `/`, so the ref is always fully qualified. Every call
 /// runs against the main repository path from the Project's `Repo`, never a Worktree. Local git, not behind a
@@ -41,7 +41,7 @@ public struct LandedTipPin: Sendable {
     public func unpin(branch: FeatureBranch, repositoryPath: String) async -> LandedPinResult {
         let repository = await git.run(["-C", repositoryPath, "rev-parse", "--git-dir"])
         guard repository.isSuccess else {
-            return .failed(Self.reason(of: repository, fallback: "\(repositoryPath) is not a git repository"))
+            return .failed(repository.failureReason(fallback: "\(repositoryPath) is not a git repository"))
         }
 
         let ref = Self.ref(for: branch)
@@ -65,11 +65,6 @@ public struct LandedTipPin: Sendable {
     }
 
     private static func outcome(of result: GitCommandResult) -> LandedPinResult {
-        result.isSuccess ? .done : .failed(reason(of: result, fallback: "git update-ref exited \(result.exitCode)"))
-    }
-
-    private static func reason(of result: GitCommandResult, fallback: String) -> String {
-        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        return stderr.isEmpty ? fallback : stderr
+        result.isSuccess ? .done : .failed(result.failureReason(fallback: "git update-ref exited \(result.exitCode)"))
     }
 }

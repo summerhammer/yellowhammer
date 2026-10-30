@@ -78,9 +78,7 @@ struct OQ191GitOperationsTests {
         let world = try await OQ191GitWorld.make()
         try #require(await world.pushBranch())
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.tip))
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.tip))
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -93,9 +91,7 @@ struct OQ191GitOperationsTests {
         try #require(await world.pushBranch())
         try #require(await world.remote.run(["update-ref", "refs/heads/\(branch.name)", world.base]).isSuccess)
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.base))
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.base))
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -107,9 +103,7 @@ struct OQ191GitOperationsTests {
         let world = try await OQ191GitWorld.make()
         try #require(await world.remote.revParse("refs/heads/\(branch.name)") == nil)
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .absent)
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .absent)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -123,9 +117,7 @@ struct OQ191GitOperationsTests {
         try #require(await world.clone.run(["remote", "set-url", "origin", "\(world.remote.path)missing"]).isSuccess)
         try #require(await !world.clone.run(["ls-remote", "origin"]).isSuccess)
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .unreadable)
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .unreadable)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -140,9 +132,7 @@ struct OQ191GitOperationsTests {
         try "output".write(toFile: "\(world.worktree)/build/output.o", atomically: true, encoding: .utf8)
         try #require(await world.git(["status", "--porcelain"]).stdout.isEmpty)
 
-        await withKnownIssue("OQ191 item 7: held Worktrees are not checked before reuse") {
-            #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == true)
-        }
+        #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == true)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -162,9 +152,7 @@ struct OQ191GitOperationsTests {
             _ = await world.git(["checkout", "--quiet", "--detach", world.base])
         }
 
-        await withKnownIssue("OQ191 item 7: held Worktrees are not checked before reuse") {
-            #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == false)
-        }
+        #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == false)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -182,11 +170,9 @@ struct OQ191GitOperationsTests {
         let rewritten = try await world.commitInWorktree("rewritten.txt")
         let differs = await OQ191Probe.headRelation(worktreePath: world.worktree, recordedCommit: world.tip)
 
-        withKnownIssue("OQ191 items 6, 9: a Worktree's HEAD is not compared with the recorded commit") {
-            #expect(atTip == .atRecordedCommit)
-            #expect(twoAfter == .after(commits: 2, head: after))
-            #expect(differs == .differs(head: rewritten))
-        }
+        #expect(atTip == .atRecordedCommit)
+        #expect(twoAfter == .after(commits: 2, head: after))
+        #expect(differs == .differs(head: rewritten))
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -203,16 +189,14 @@ struct OQ191GitOperationsTests {
             worktreePath: world.worktree, recordedCommit: world.tip, branch: branch
         )
 
-        await withKnownIssue("OQ191 item 6: unpublished commits are not pinned") {
-            guard case .pinned(let ref) = result else {
-                Issue.record("expected a pin, got \(String(describing: result))")
-                return
-            }
-            #expect(!ref.hasPrefix("refs/heads/"))
-            #expect(await world.clone.revParse(ref) == head)
-            #expect(await world.remote.revParse(ref) == nil)
-            #expect(await !world.remote.run(["cat-file", "-e", "\(head)^{commit}"]).isSuccess)
+        guard case .pinned(let ref) = result else {
+            Issue.record("expected a pin, got \(String(describing: result))")
+            return
         }
+        #expect(!ref.hasPrefix("refs/heads/"))
+        #expect(await world.clone.revParse(ref) == head)
+        #expect(await world.remote.revParse(ref) == nil)
+        #expect(await !world.remote.run(["cat-file", "-e", "\(head)^{commit}"]).isSuccess)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -229,13 +213,11 @@ struct OQ191GitOperationsTests {
             worktreePath: world.worktree, recordedCommit: world.tip, branch: branch
         )
 
-        await withKnownIssue("OQ191 item 9: a rewritten Worktree HEAD is not pinned") {
-            guard case .pinned(let ref) = result else {
-                Issue.record("expected a pin, got \(String(describing: result))")
-                return
-            }
-            #expect(await world.clone.revParse(ref) == head)
+        guard case .pinned(let ref) = result else {
+            Issue.record("expected a pin, got \(String(describing: result))")
+            return
         }
+        #expect(await world.clone.revParse(ref) == head)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -251,9 +233,7 @@ struct OQ191GitOperationsTests {
             worktreePath: world.worktree, recordedCommit: world.tip, branch: branch
         )
 
-        await withKnownIssue("OQ191 item 6: unpublished commits are not pinned") {
-            #expect(result == .notNeeded)
-        }
+        #expect(result == .notNeeded)
         #expect(await world.clone.run(["for-each-ref", "--format=%(refname)"]).stdout == refsBefore)
     }
 }

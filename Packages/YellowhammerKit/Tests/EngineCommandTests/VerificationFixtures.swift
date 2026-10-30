@@ -167,6 +167,33 @@ final class VerificationWorld {
         resolver: RouteResolver, dispatch: any AgentDispatch,
         citations: any CitationResolving = FakeCitationResolver()
     ) -> FeatureVerification {
-        FeatureVerification(resolver: resolver, dispatch: dispatch, citations: citations)
+        FeatureVerification(
+            resolver: resolver, dispatch: dispatch, citations: citations, checkouts: UnrecordedCheckouts()
+        )
     }
+}
+
+/// A ``VerifierCheckoutPreparing`` for tests about routing, verdicts and the land Act's sequence, not about what
+/// is judged: it hands each held Worktree (else the repository's configured path), makes nothing, and names no
+/// judged commit. What Verification judges is the OQ191 harness's (`OQ191*Tests`), on real git.
+struct UnrecordedCheckouts: VerifierCheckoutPreparing {
+    func plan(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckoutPlan {
+        VerifierCheckoutPlan(repositories: repositories, judgedCheckouts: [])
+    }
+
+    func materialise(_ plan: VerifierCheckoutPlan, context: LandActFeatureContext) async throws -> VerifierCheckouts {
+        var byRepository: [String: VerifierCheckout] = [:]
+        for name in plan.repositories {
+            guard let repo = context.act.repositories?.workingRepo(named: name) else {
+                throw VerificationFault(reason: "the Feature touched repository \"\(name)\", which is not configured")
+            }
+            let held = try context.act.journal.heldWorktree(featureID: context.feature.id, repository: name)
+            byRepository[name] = VerifierCheckout(
+                directory: (held?.isHeld == true ? held?.path : nil) ?? repo.path, judged: nil
+            )
+        }
+        return VerifierCheckouts(byRepository: byRepository, freshRoot: nil)
+    }
+
+    func release(_ checkouts: VerifierCheckouts) {}
 }

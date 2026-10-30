@@ -31,8 +31,9 @@ func removalDeletesTheLandedPin() async throws {
         Issue.record("Could not claim the Act lease")
         return
     }
-    try journal.recordLandedCommit(
-        featureID: seeded.featureID, repository: "backend", commit: commit, runID: runID, now: removalEpoch
+    try journal.recordPushedTip(
+        cycleID: try seededCycleID(journal, seeded), repository: "backend", commit: commit, runID: runID,
+        now: removalEpoch
     )
     try journal.releaseActLease(runID: runID)
 
@@ -47,7 +48,7 @@ func removalDeletesTheLandedPin() async throws {
 
     #expect(await repo.revParse(ref) == nil)
     #expect(try journal.events(ofType: .landedPinFailed).isEmpty)
-    #expect(try journal.landedCommit(featureID: seeded.featureID, repository: "backend") == commit)
+    #expect(try journal.pushedTips(featureID: seeded.featureID) == ["backend": commit])
 }
 
 @Test("A landed pin whose clone is gone is not a failure, and removal still completes")
@@ -71,8 +72,9 @@ func removalToleratesAGoneClone() async throws {
         Issue.record("Could not claim the Act lease")
         return
     }
-    try journal.recordLandedCommit(
-        featureID: seeded.featureID, repository: "backend", commit: commit, runID: runID, now: removalEpoch
+    try journal.recordPushedTip(
+        cycleID: try seededCycleID(journal, seeded), repository: "backend", commit: commit, runID: runID,
+        now: removalEpoch
     )
     try journal.releaseActLease(runID: runID)
     try FileManager.default.removeItem(at: repo.url)
@@ -83,4 +85,11 @@ func removalToleratesAGoneClone() async throws {
 
     #expect(await removal.run(id: "alpha", yes: true))
     #expect(try journal.events(ofType: .landedPinFailed).isEmpty)
+}
+
+/// The Cycle ``seedRemovableProject(_:mode:repo:pushedCommit:)`` opened for its Feature.
+private func seededCycleID(_ journal: JournalStore, _ seeded: SeededRemovableProject) throws -> Int64 {
+    try #require(try journal.read { db in
+        try Int64.fetchOne(db, sql: "SELECT id FROM cycle WHERE feature_id = ?", arguments: [seeded.featureID])
+    })
 }

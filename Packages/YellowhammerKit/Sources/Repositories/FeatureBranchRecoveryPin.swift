@@ -47,7 +47,7 @@ public struct FeatureBranchRecoveryPin: Sendable {
     public func tip(of branch: FeatureBranch, repositoryPath: String) async -> FeatureBranchTipLookup {
         let repository = await git.run(["-C", repositoryPath, "rev-parse", "--git-dir"])
         guard repository.isSuccess else {
-            return .failed(Self.reason(of: repository, fallback: "\(repositoryPath) is not a git repository"))
+            return .failed(repository.failureReason(fallback: "\(repositoryPath) is not a git repository"))
         }
 
         let result = await git.run([
@@ -60,7 +60,7 @@ public struct FeatureBranchRecoveryPin: Sendable {
         if result.exitCode == 1, sha.isEmpty {
             return .absent
         }
-        return .failed(Self.reason(of: result, fallback: "git rev-parse exited \(result.exitCode)"))
+        return .failed(result.failureReason(fallback: "git rev-parse exited \(result.exitCode)"))
     }
 
     /// Whether the commit `sha` is still in the object store of the repository at `repositoryPath`,
@@ -70,7 +70,7 @@ public struct FeatureBranchRecoveryPin: Sendable {
     public func commitExists(_ sha: String, repositoryPath: String) async -> CommitObjectLookup {
         let repository = await git.run(["-C", repositoryPath, "rev-parse", "--git-dir"])
         guard repository.isSuccess else {
-            return .failed(Self.reason(of: repository, fallback: "\(repositoryPath) is not a git repository"))
+            return .failed(repository.failureReason(fallback: "\(repositoryPath) is not a git repository"))
         }
 
         let result = await git.run(["-C", repositoryPath, "rev-parse", "--verify", "--quiet", "\(sha)^{commit}"])
@@ -80,7 +80,7 @@ public struct FeatureBranchRecoveryPin: Sendable {
         if result.exitCode == 1, result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .absent
         }
-        return .failed(Self.reason(of: result, fallback: "git rev-parse exited \(result.exitCode)"))
+        return .failed(result.failureReason(fallback: "git rev-parse exited \(result.exitCode)"))
     }
 
     /// Writes the pin for `branch` at `commit`. True when git accepted it.
@@ -132,10 +132,5 @@ public struct FeatureBranchRecoveryPin: Sendable {
                 return false
             }
         }
-    }
-
-    private static func reason(of result: GitCommandResult, fallback: String) -> String {
-        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        return stderr.isEmpty ? fallback : stderr
     }
 }

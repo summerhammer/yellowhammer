@@ -54,9 +54,7 @@ struct OQ191UnpublishedPinTests {
     func descendantHeadIsPinned() async throws {
         let (world, head) = try await releasedWithMovedHead(descending: true)
 
-        await withKnownIssue("OQ191 item 6: a Worktree HEAD past the Pushed Tip is not pinned before release") {
-            #expect(await !pins(at: head, in: world["backend"].clone.path).isEmpty)
-        }
+        #expect(await !pins(at: head, in: world["backend"].clone.path).isEmpty)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -68,13 +66,11 @@ struct OQ191UnpublishedPinTests {
         let (world, head) = try await releasedWithMovedHead(descending: true)
         let backend = world["backend"]
 
-        await withKnownIssue("OQ191 item 6: unpublished commits are not pinned or reported at release") {
-            let pin = try #require(await pins(at: head, in: backend.clone.path).first)
-            let reports = try #require(try await world.unpublishedReports("backend"))
-            #expect(reports.contains {
-                $0.contains(pin) && $0.contains(oq191Short(backend.tip)) && $0.contains(oq191Short(head))
-            })
-        }
+        let pin = try #require(await pins(at: head, in: backend.clone.path).first)
+        let reports = try #require(try await world.unpublishedReports("backend"))
+        #expect(reports.contains {
+            $0.contains(pin) && $0.contains(oq191Short(backend.tip)) && $0.contains(oq191Short(head))
+        })
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -88,9 +84,7 @@ struct OQ191UnpublishedPinTests {
             "merge-base", "--is-ancestor", world["backend"].tip, head
         ]).isSuccess == false)
 
-        await withKnownIssue("OQ191 item 9: a rewritten Worktree HEAD is not pinned before release") {
-            #expect(await !pins(at: head, in: world["backend"].clone.path).isEmpty)
-        }
+        #expect(await !pins(at: head, in: world["backend"].clone.path).isEmpty)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -102,12 +96,10 @@ struct OQ191UnpublishedPinTests {
         let (world, head) = try await releasedWithMovedHead(descending: false)
         let tip = world["backend"].tip
 
-        await withKnownIssue("OQ191 item 9: a rewritten Worktree HEAD is not reported") {
-            let reports = try #require(try await world.unpublishedReports("backend"))
-            #expect(reports.contains {
-                $0.contains("differs") && $0.contains(oq191Short(tip)) && $0.contains(oq191Short(head))
-            })
-        }
+        let reports = try #require(try await world.unpublishedReports("backend"))
+        #expect(reports.contains {
+            $0.contains("differs") && $0.contains(oq191Short(tip)) && $0.contains(oq191Short(head))
+        })
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin

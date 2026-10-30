@@ -17,7 +17,7 @@ struct FeatureBranchPullRequestHeldTests {
         let stub = StubPublicationAdapter(
             result: .success(.opened(url: "https://github.com/summerhammer/backend/pull/1"))
         )
-        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch })
+        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch }, remoteTip: .at("deadbeef"))
         let laneContext = LandActLaneContext(
             act: env.context, feature: feature, cycleID: cycleID,
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID))

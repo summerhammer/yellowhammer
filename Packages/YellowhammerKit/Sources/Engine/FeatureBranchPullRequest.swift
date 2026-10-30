@@ -8,7 +8,8 @@ import Repositories
 /// outcome and calls nothing — never updates, duplicates or reopens one. The title is the Project's
 /// `pull_request_title` Message Template, rendered once with the body and never revised. The `base` is
 /// computed at landing from the Unmerged Feature Stack U as it then stands (``stackedBase(context:defaultBranch:)``):
-/// a predecessor's Feature Branch when stacked, else the default branch.
+/// a predecessor's Feature Branch when stacked, else the default branch. Before it opens one, it checks that the
+/// remote Feature Branch is at the Pushed Tip (``checkRemoteTip(_:branch:repositoryPath:push:)``, OQ191 item 4).
 public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     private let publication: any Publication
     private let slugResolver: GitHubRepositorySlugResolver
@@ -18,6 +19,9 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     private let projectID: String
     /// The same scrub the Outbox applies (OQ146/OQ147, R23), applied above the Publication Port.
     private let scrub: @Sendable () -> NarrativeScrub
+    /// Reads the remote Feature Branch before every open. Required, so no caller runs a real `git ls-remote`
+    /// by omission; the land Act's binding passes the push's credential.
+    let remoteTip: RemoteFeatureBranchRead
 
     public init(
         publication: any Publication,
@@ -26,9 +30,11 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         titleTemplate: MessageTemplate = .default(.pullRequestTitle),
         changeType: ChangeType = .feat,
         projectID: String = "",
-        scrub: @escaping @Sendable () -> NarrativeScrub = { .none }
+        scrub: @escaping @Sendable () -> NarrativeScrub = { .none },
+        remoteTip: RemoteFeatureBranchRead
     ) {
         self.scrub = scrub
+        self.remoteTip = remoteTip
         self.publication = publication
         self.slugResolver = slugResolver
         self.clock = clock
@@ -57,6 +63,9 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             return await fail("the Feature has no recorded Feature Branch for \"\(repository)\"", laneContext: context)
         }
         let path = (repo.path as NSString).expandingTildeInPath
+        if let refused = await checkRemoteTip(context, branch: branch, repositoryPath: path, push: push) {
+            return refused
+        }
         guard let slug = await slugResolver.resolve(path: path) else {
             return await fail(
                 "the repository's origin remote could not be resolved to a GitHub owner/repository",
@@ -153,37 +162,6 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         }
     }
 
-    private func fail(_ detail: String, laneContext: LandActLaneContext) async -> PullRequestOutcome {
-        let repository = laneContext.lane.repository
-        let body = "Opening a pull request for repository `\(repository)` did not complete: \(detail)."
-        await postFailureComment(body: body, laneContext: laneContext)
-        return PullRequestOutcome(opened: false, detail: detail)
-    }
-
-    private func failPublication(
-        _ error: any Error, laneContext: LandActLaneContext
-    ) async -> PullRequestOutcome {
-        let repository = laneContext.lane.repository
-        let detail: String
-        if case .credentialsMissingOrInsufficient? = error as? PublicationError {
-            detail = "GitHub credentials are missing or insufficient to open a pull request for `\(repository)`."
-        } else {
-            detail = "Opening a pull request for `\(repository)` did not complete: \(error)."
-        }
-        await postFailureComment(body: detail, laneContext: laneContext)
-        return PullRequestOutcome(opened: false, detail: detail)
-    }
-
-    private func postFailureComment(body: String, laneContext: LandActLaneContext) async {
-        guard let outbox = laneContext.act.outbox else { return }
-        let key = "land:\(laneContext.cycleID):\(laneContext.lane.repository):pull-request-failed"
-        let write = OutboxWrite(
-            key: key,
-            write: .createComment(issue: BoardObjectID(rawValue: laneContext.feature.issueID), body: body)
-        )
-        _ = try? await outbox.post(write)
-    }
-
     // MARK: - Body assembly
 
     private func renderBody(
@@ -220,7 +198,10 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         // titles (VerificationReport carries no Card), so the renderer is handed this Cycle's own
         // issue id → display name lookup to resolve them (issue #161; spec:
         // landing/announce-a-partial-landing).
-        let report = try journal.featureVerification(cycleID: context.cycleID).map(VerificationReport.init(record:))
+        // The limitation names separate Checks when the Feature touches more than one repository (OQ197).
+        let touched = try journal.touchedRepositories(featureID: context.feature.id).count
+        let report = try journal.featureVerification(cycleID: context.cycleID)
+            .map { VerificationReport(record: $0, touchedRepositoryCount: touched) }
         var workCardTitles = Dictionary(uniqueKeysWithValues: cards.map { ($0.issueID, $0.displayTitle) })
         workCardTitles[context.feature.issueID] = featureTitle
 
@@ -308,6 +289,41 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             }
         }
         return unmetClauses
+    }
+}
+
+// MARK: - Failures
+
+extension FeatureBranchPullRequest {
+    func fail(_ detail: String, laneContext: LandActLaneContext) async -> PullRequestOutcome {
+        let repository = laneContext.lane.repository
+        let body = "Opening a pull request for repository `\(repository)` did not complete: \(detail)."
+        await postFailureComment(body: body, laneContext: laneContext)
+        return PullRequestOutcome(opened: false, detail: detail)
+    }
+
+    private func failPublication(
+        _ error: any Error, laneContext: LandActLaneContext
+    ) async -> PullRequestOutcome {
+        let repository = laneContext.lane.repository
+        let detail: String
+        if case .credentialsMissingOrInsufficient? = error as? PublicationError {
+            detail = "GitHub credentials are missing or insufficient to open a pull request for `\(repository)`."
+        } else {
+            detail = "Opening a pull request for `\(repository)` did not complete: \(error)."
+        }
+        await postFailureComment(body: detail, laneContext: laneContext)
+        return PullRequestOutcome(opened: false, detail: detail)
+    }
+
+    private func postFailureComment(body: String, laneContext: LandActLaneContext) async {
+        guard let outbox = laneContext.act.outbox else { return }
+        let key = "land:\(laneContext.cycleID):\(laneContext.lane.repository):pull-request-failed"
+        let write = OutboxWrite(
+            key: key,
+            write: .createComment(issue: BoardObjectID(rawValue: laneContext.feature.issueID), body: body)
+        )
+        _ = try? await outbox.post(write)
     }
 }
 

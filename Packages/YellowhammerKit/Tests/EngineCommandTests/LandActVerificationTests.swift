@@ -142,8 +142,12 @@ struct LandActVerificationTests {
         let world = try await world(mode: .rehearsal)
         let log = LandCallLog()
         let rehearsal = RehearsalDispatch()
+        let checkouts = JudgedCheckoutPreparation(directory: FileManager.default.temporaryDirectory.appending(
+            component: "yh-rehearsal-checkouts-\(UUID().uuidString)", directoryHint: .isDirectory
+        ))
         let verification = FeatureVerification(
-            resolver: verificationResolver(primary: routeOther), dispatch: rehearsal, citations: FakeCitationResolver()
+            resolver: verificationResolver(primary: routeOther), dispatch: rehearsal, citations: FakeCitationResolver(),
+            checkouts: checkouts
         )
         let act = LandAct(
             mergeTest: StubMergeTest(log: log), push: StubPush(log: log),
@@ -159,6 +163,11 @@ struct LandActVerificationTests {
         #expect(boundaries == [.rehearsalBoundary, .rehearsalBoundary])
         let recorded = try #require(try world.journal.featureVerification(cycleID: world.cycleID))
         #expect(recorded.clauses.map(\.verdict) == [.met, .met])
+        // A Rehearsal Night pushes nothing: the held Worktrees are handed as they are, no checkout is made, and
+        // the record names no judged commit (OQ191 items 2 and 3 judge only what was pushed).
+        #expect(rehearsal.answered.first?.additionalReadableDirectories == ["/tmp/backend", "/tmp/mobile"])
+        #expect(recorded.judgedCheckouts.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: checkouts.directory.path(percentEncoded: false)))
         let dispatched = try world.journal.events(ofType: .authoringDispatched).map(\.event)
         #expect(dispatched == [
             .authoringDispatched(
@@ -172,7 +181,8 @@ struct LandActVerificationTests {
         let world = try await world(mode: .rehearsal)
         let verification = FeatureVerification(
             resolver: verificationResolver(primary: routeOther),
-            dispatch: RehearsalDispatch(script: [.verifier: .verifierFailed]), citations: FakeCitationResolver()
+            dispatch: RehearsalDispatch(script: [.verifier: .verifierFailed]), citations: FakeCitationResolver(),
+            checkouts: UnrecordedCheckouts()
         )
         let act = LandAct(verification: verification)
 

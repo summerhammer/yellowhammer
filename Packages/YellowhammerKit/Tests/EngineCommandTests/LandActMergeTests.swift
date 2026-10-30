@@ -28,9 +28,13 @@ extension LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
         let workspace = ReconcilerFakeWorkspace()
         let context = mergeContext(env, commit: mainSHA, workspace: workspace)
+        // The merge test reads the main clone only. The held Worktree's directory is gone, so release compares no
+        // HEAD with the stub push's commit, which is no commit of this repository, and pins nothing.
+        let absentWorktree = FileManager.default.temporaryDirectory
+            .appending(component: "merge-wt-\(UUID().uuidString)").path(percentEncoded: false)
         try env.journal.recordWorktree(
             featureID: feature.id, repository: "backend", worktreeID: "merge-wt",
-            path: local.path, runID: env.runID
+            path: absentWorktree, runID: env.runID
         )
         let statusBefore = await local.run(["status", "--porcelain"]).stdout
         let refsBefore = await local.run(["for-each-ref"]).stdout

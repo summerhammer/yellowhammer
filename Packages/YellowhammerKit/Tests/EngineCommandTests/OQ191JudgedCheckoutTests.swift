@@ -46,9 +46,7 @@ struct OQ191JudgedCheckoutTests {
         let retry = try await faultedThenMoved()
         let directory = try #require(retry.second.verifiedDirectories["mobile"])
 
-        await withKnownIssue("OQ191 item 2: the verifier is handed the held Worktree as it stands") {
-            #expect(await oq191RevParse(directory) == retry.commitB1)
-        }
+        #expect(await oq191RevParse(directory) == retry.commitB1)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -60,11 +58,9 @@ struct OQ191JudgedCheckoutTests {
         let retry = try await faultedThenMoved()
         try #require(try retry.world.env.journal.featureVerification(cycleID: retry.world.cycleID) != nil)
 
-        withKnownIssue("OQ191 item 3: the Verification record names no judged commit") {
-            let world = retry.world
-            let judged = try #require(try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID))
-            #expect(judged.first { $0.repository == "mobile" }?.commit == retry.commitB1)
-        }
+        let world = retry.world
+        let judged = try #require(try OQ191Probe.judgedCheckouts(world.env.journal, cycleID: world.cycleID))
+        #expect(judged.first { $0.repository == "mobile" }?.commit == retry.commitB1)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
@@ -76,10 +72,8 @@ struct OQ191JudgedCheckoutTests {
         let retry = try await faultedThenMoved()
         let (shortB1, shortB2) = (oq191Short(retry.commitB1), oq191Short(retry.commitB2))
 
-        await withKnownIssue("OQ191 item 2: a moved held Worktree is not reported as not published") {
-            let reports = try #require(try await retry.world.unpublishedReports("mobile"))
-            #expect(reports.contains { $0.contains(shortB1) && $0.contains(shortB2) })
-        }
+        let reports = try #require(try await retry.world.unpublishedReports("mobile"))
+        #expect(reports.contains { $0.contains(shortB1) && $0.contains(shortB2) })
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -103,12 +97,8 @@ struct OQ191JudgedCheckoutTests {
         let retry = try await faultedThenMoved()
         let rendered = try #require(retry.second.instruction?.render())
 
-        withKnownIssue("OQ191 item 2: the verifier instruction does not name the Pushed Tip") {
-            #expect(rendered.contains(oq191Short(retry.commitB1)))
-            #expect(!rendered.contains(oq191Short(retry.commitB2)))
-        }
-        withKnownIssue("OQ191 item 2: the verifier instruction still judges Check results against the branch head") {
-            #expect(!rendered.contains("Resolve the head of each Feature Branch"))
-        }
+        #expect(rendered.contains(oq191Short(retry.commitB1)))
+        #expect(!rendered.contains(oq191Short(retry.commitB2)))
+        #expect(!rendered.contains("Resolve the head of each Feature Branch"))
     }
 }
