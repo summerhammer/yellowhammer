@@ -109,7 +109,10 @@ struct FeatureCancellationTests {
         #expect(lines.count == 1 && lines[0].contains(FeatureCancellationAnnotation.note))
         #expect(lines[0].contains("0 of 2 Feature Branches merged"))
         #expect(try journal.effectiveBase(repository: "backend")?.featureID == featureID)
-        try journal.recordLanding(featureID: featureID, repository: "backend", mainlineCommit: "a", evidence: .ancestry)
+        try journal.recordLanding(
+            featureID: featureID, repository: "backend", landingCommit: "a",
+            mainlineCommit: "a", evidence: .ancestry
+        )
         #expect(try journal.unmergedFeatureStack().count == 1)
         #expect(try NightSummary.unmergedStackLines(night: world.night, journal: journal)[0]
             .contains("1 of 2 Feature Branches merged"))
@@ -126,7 +129,10 @@ struct FeatureCancellationTests {
         #expect(try journal.unmergedFeatureStack().map(\.feature.id) == [featureID])
         #expect(try journal.effectiveBase(repository: "mobile")?.featureID == featureID)
         try observeFeature(journal, runID: world.runID, state: stateCanceledByCategory, revision: 22)
-        try journal.recordLanding(featureID: featureID, repository: "mobile", mainlineCommit: "b", evidence: .ancestry)
+        try journal.recordLanding(
+            featureID: featureID, repository: "mobile", landingCommit: "b",
+            mainlineCommit: "b", evidence: .ancestry
+        )
         #expect(try journal.unmergedFeatureStack().isEmpty)
         #expect(try NightSummary.unmergedStackLines(night: world.night, journal: journal).isEmpty)
         let cycleID = try gateCycleID(journal, featureID: featureID)
@@ -180,10 +186,16 @@ struct FeatureCancellationTests {
         let boards = try await makeProjectionBoards()
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)
         let projection = BoardStateProjection(journal: journal, outbox: world.outbox, scope: scope)
-        try journal.recordLanding(featureID: featureID, repository: "backend", mainlineCommit: "a", evidence: .ancestry)
+        try journal.recordLanding(
+            featureID: featureID, repository: "backend", landingCommit: "a",
+            mainlineCommit: "a", evidence: .ancestry
+        )
         _ = try await projection.transition(featureIssue: issue, to: .done)
         #expect(await world.board.issue(issue)?.workflowState == stateCanceledByCategory.id)
-        try journal.recordLanding(featureID: featureID, repository: "mobile", mainlineCommit: "b", evidence: .ancestry)
+        try journal.recordLanding(
+            featureID: featureID, repository: "mobile", landingCommit: "b",
+            mainlineCommit: "b", evidence: .ancestry
+        )
         let reopened = try fixture.open()
         let nextProjection = BoardStateProjection(journal: reopened, outbox: world.outbox, scope: scope)
         _ = try await nextProjection.transition(featureIssue: issue, to: .inProgress)

@@ -8,19 +8,26 @@ public struct RepoAncestryResult: Equatable, Sendable {
     public let isAncestor: Bool
     public let branchCommit: String?
     public let mainlineCommit: String?
+    /// Where the tip entered mainline: the oldest commit on mainline's first-parent chain that has the tip as an
+    /// ancestor — the tip itself after a fast-forward, else the merge that brought it in
+    /// (feature-authoring/select-the-next-feature, the Observed Merge record; OQ190 item 26). Read only when
+    /// `isAncestor`; nil otherwise, or when git could not read it.
+    public let landingCommit: String?
 
     public init(
         repository: String,
         branch: String,
         isAncestor: Bool,
         branchCommit: String? = nil,
-        mainlineCommit: String? = nil
+        mainlineCommit: String? = nil,
+        landingCommit: String? = nil
     ) {
         self.repository = repository
         self.branch = branch
         self.isAncestor = isAncestor
         self.branchCommit = branchCommit
         self.mainlineCommit = mainlineCommit
+        self.landingCommit = landingCommit
     }
 }
 
@@ -153,13 +160,7 @@ public struct AncestryTester: Sendable {
     ) async -> RepoAncestryResult {
         let path = (repo.path as NSString).expandingTildeInPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return RepoAncestryResult(
-                repository: repo.name,
-                branch: branch,
-                isAncestor: false,
-                branchCommit: nil,
-                mainlineCommit: nil
-            )
+            return RepoAncestryResult(repository: repo.name, branch: branch, isAncestor: false)
         }
 
         // 1. Resolve the tested commit in the repository: the recorded one alone when there is one, else the branch
@@ -201,12 +202,18 @@ public struct AncestryTester: Sendable {
             in: path
         )
 
+        // 4. Where it entered mainline, only once it has
+        let landingCommit = ancestor
+            ? await self.landingCommit(of: branchCommit, mainline: targetMainlineCommit, in: path)
+            : nil
+
         return RepoAncestryResult(
             repository: repo.name,
             branch: branch,
             isAncestor: ancestor,
             branchCommit: branchCommit,
-            mainlineCommit: targetMainlineCommit
+            mainlineCommit: targetMainlineCommit,
+            landingCommit: landingCommit
         )
     }
 

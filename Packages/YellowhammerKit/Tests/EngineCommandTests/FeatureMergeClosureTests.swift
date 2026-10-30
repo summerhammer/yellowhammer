@@ -341,10 +341,12 @@ struct FeatureMergeClosureTests {
         // Records the landings the closure itself reads, exactly what the gate would have done first.
         let context = try world.makeContext(repositories: repositories)
         try world.journal.recordLanding(
-            featureID: world.featureID, repository: "backend", mainlineCommit: "b1", evidence: .ancestry
+            featureID: world.featureID, repository: "backend", landingCommit: "b1",
+            mainlineCommit: "b1", evidence: .ancestry
         )
         try world.journal.recordLanding(
-            featureID: world.featureID, repository: "mobile", mainlineCommit: "m1", evidence: .ancestry
+            featureID: world.featureID, repository: "mobile", landingCommit: "m1",
+            mainlineCommit: "m1", evidence: .ancestry
         )
         let (feature, _) = try #require(try world.journal.inFlightFeature())
 

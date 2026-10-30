@@ -65,13 +65,15 @@ struct FeatureLandingStoreTests {
         let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
 
         let first = try journal.recordLanding(
-            featureID: featureID, repository: "backend", mainlineCommit: "aaa", evidence: .ancestry
+            featureID: featureID, repository: "backend", landingCommit: "aaa",
+            mainlineCommit: "aaa", evidence: .ancestry
         )
         let second = try journal.recordLanding(
-            featureID: featureID, repository: "backend", mainlineCommit: "bbb", evidence: .ancestry
+            featureID: featureID, repository: "backend", landingCommit: "bbb",
+            mainlineCommit: "bbb", evidence: .ancestry
         )
         _ = try journal.recordLanding(
-            featureID: featureID, repository: "mobile", mainlineCommit: "ccc", evidence: .ancestry
+            featureID: featureID, repository: "mobile", landingCommit: "ccc", mainlineCommit: "ccc", evidence: .ancestry
         )
 
         #expect(first)
@@ -81,6 +83,29 @@ struct FeatureLandingStoreTests {
         #expect(landings["mobile"] == "ccc")
     }
 
+    @Test("recordLanding keeps the landing commit beside the mainline commit, from the first observation")
+    func recordLandingKeepsTheFirstLandingCommit() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+
+        try journal.recordLanding(
+            featureID: featureID, repository: "backend", landingCommit: "squash", mainlineCommit: "head",
+            evidence: .content
+        )
+        let overwritten = try journal.recordLanding(
+            featureID: featureID, repository: "backend", landingCommit: "later", mainlineCommit: "later-head",
+            evidence: .ancestry
+        )
+        try journal.recordLanding(
+            featureID: featureID, repository: "mobile", landingCommit: "tip", mainlineCommit: "tip", evidence: .ancestry
+        )
+
+        #expect(!overwritten)
+        #expect(try journal.landingCommits(featureID: featureID) == ["backend": "squash", "mobile": "tip"])
+        #expect(try journal.landings(featureID: featureID) == ["backend": "head", "mobile": "tip"])
+    }
+
     @Test("recordLanding keeps the evidence of the first observation, and landingEvidence reads each repository")
     func recordLandingKeepsTheFirstEvidence() throws {
         let fixture = try JournalFixture()
@@ -88,13 +113,14 @@ struct FeatureLandingStoreTests {
         let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
 
         try journal.recordLanding(
-            featureID: featureID, repository: "backend", mainlineCommit: "aaa", evidence: .content
+            featureID: featureID, repository: "backend", landingCommit: "aaa", mainlineCommit: "aaa", evidence: .content
         )
         let overwritten = try journal.recordLanding(
-            featureID: featureID, repository: "backend", mainlineCommit: "bbb", evidence: .ancestry
+            featureID: featureID, repository: "backend", landingCommit: "bbb",
+            mainlineCommit: "bbb", evidence: .ancestry
         )
         try journal.recordLanding(
-            featureID: featureID, repository: "mobile", mainlineCommit: "ccc", evidence: .ancestry
+            featureID: featureID, repository: "mobile", landingCommit: "ccc", mainlineCommit: "ccc", evidence: .ancestry
         )
 
         #expect(!overwritten)
@@ -111,8 +137,9 @@ struct FeatureLandingStoreTests {
         try journal.write { db in
             try db.execute(
                 sql: """
-                INSERT INTO feature_landing (feature_id, repository, mainline_commit, observed_at, evidence)
-                VALUES (?, 'backend', 'aaa', ?, 'guess')
+                INSERT INTO feature_landing
+                    (feature_id, repository, landing_commit, mainline_commit, observed_at, evidence)
+                VALUES (?, 'backend', 'aaa', 'aaa', ?, 'guess')
                 """,
                 arguments: [featureID, JournalStore.timestamp(epoch)]
             )

@@ -28,8 +28,8 @@ struct AdoptionSequenceGateTests {
         try insertFeatureSelectionAdoptionCard(journal, cycleID: cycleID, issueID: "B", repository: "backend", order: 2)
         try setState(journal, issueID: "A", state: .done)
         try journal.recordLanding(
-            featureID: featureID, repository: "backend", mainlineCommit: String(repeating: "a", count: 40),
-            evidence: .ancestry
+            featureID: featureID, repository: "backend", landingCommit: String(repeating: "a", count: 40),
+            mainlineCommit: String(repeating: "a", count: 40), evidence: .ancestry
         )
 
         let candidate = try #require(try journal.card(issueID: "B"))

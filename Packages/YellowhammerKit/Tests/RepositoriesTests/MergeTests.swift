@@ -284,7 +284,7 @@ struct ContentMergeTests {
     private func test(_ fixture: borrowing GitFixture, tip: String? = nil, branch: String = "yh-feature") async
         -> RepoMergeResult {
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
-        return await MergeTester().testMerge(branch: branch, recordedCommit: tip, in: repo)
+        return await MergeTester().testContent(branch: branch, recordedCommit: tip, in: repo)
     }
 
     @Test("A squash merge is not an ancestor but is content-merged")
@@ -294,13 +294,15 @@ struct ContentMergeTests {
         _ = await fixture.run(["merge", "--squash", "yh-feature"])
         _ = await fixture.run(["commit", "-m", "squash of yh-feature"])
 
+        let squash = await fixture.revParse("main")
+
         let result = await test(fixture)
 
         #expect(result.verdict == .clean)
         #expect(result.branchCommit == tip)
         #expect(result.tipHasNetChange == true)
         #expect(result.mergedTree != nil)
-        #expect(result.mergedTree == result.mainlineTree)
+        #expect(result.landingCommit == squash)
         #expect(result.isContentMerged)
     }
 
@@ -341,7 +343,7 @@ struct ContentMergeTests {
 
         #expect(result.verdict == .clean)
         #expect(result.tipHasNetChange == true)
-        #expect(result.mergedTree != result.mainlineTree)
+        #expect(result.landingCommit == nil)
         #expect(!result.isContentMerged)
     }
 
@@ -358,40 +360,102 @@ struct ContentMergeTests {
         let result = await test(fixture)
 
         #expect(result.verdict == .clean)
-        #expect(result.mergedTree == result.mainlineTree)
         #expect(result.tipHasNetChange == false)
+        #expect(result.landingCommit == nil)
         #expect(!result.isContentMerged)
     }
 
-    @Test("A later mainline edit to the same lines lapses the content test")
-    func sameLinesEditedLaterIsNotContentMerged() async throws {
+    // OQ190 item 24: the content test searches mainline's history, so a later edit no longer lapses it. Until
+    // 2026-10-28 these two read mainline's head only, and were not content-merged.
+    @Test("A later mainline edit to the same lines does not hide the squash, which is the landing commit")
+    func sameLinesEditedLaterIsStillContentMerged() async throws {
         let fixture = GitFixture(name: "content-lapsed-\(UUID().uuidString)")
         _ = try await populateFeature(fixture)
         _ = await fixture.run(["merge", "--squash", "yh-feature"])
         _ = await fixture.run(["commit", "-m", "squash of yh-feature"])
+        let squash = await fixture.revParse("main")
         _ = try await fixture.commit(
             filename: "shared.txt", content: "base\nline two\nlater line three\n", message: "overwrite line three"
         )
 
         let result = await test(fixture)
 
+        // The verdict is still the merge into mainline's head, which conflicts.
         #expect(result.isMainlineConflict)
-        #expect(!result.isContentMerged)
+        #expect(result.landingCommit == squash)
+        #expect(result.isContentMerged)
     }
 
-    @Test("A later mainline deletion of the added file lapses the content test without a conflict")
-    func deletedLaterIsNotContentMerged() async throws {
+    @Test("A later mainline deletion of the added file does not hide the squash")
+    func deletedLaterIsStillContentMerged() async throws {
         let fixture = GitFixture(name: "content-deleted-\(UUID().uuidString)")
         _ = try await populateFeature(fixture)
         _ = await fixture.run(["merge", "--squash", "yh-feature"])
         _ = await fixture.run(["commit", "-m", "squash of yh-feature"])
+        let squash = await fixture.revParse("main")
         _ = await fixture.run(["rm", "feat.txt"])
         _ = await fixture.run(["commit", "-m", "drop feat"])
 
         let result = await test(fixture)
 
         #expect(result.verdict == .clean)
-        #expect(result.mergedTree != result.mainlineTree)
+        #expect(result.landingCommit == squash)
+        #expect(result.isContentMerged)
+    }
+
+    @Test("A squash of a branch whose lines the Operator changed first is never content-merged, and conflicts")
+    func squashOfChangedLinesIsNotContentMerged() async throws {
+        let fixture = GitFixture(name: "content-changed-\(UUID().uuidString)")
+        _ = try await populateFeature(fixture)
+        // The pull request's last commit, pushed by the Operator after the Pushed Tip, rewrote line three.
+        _ = await fixture.run(["merge", "--squash", "yh-feature"])
+        try fixture.writeFile(filename: "shared.txt", content: "base\nline two\noperator line three\n")
+        _ = await fixture.run(["add", "shared.txt"])
+        _ = await fixture.run(["commit", "-m", "squash of yh-feature, edited"])
+
+        let result = await test(fixture)
+
+        #expect(result.tipHasNetChange == true)
+        #expect(result.landingCommit == nil)
+        #expect(!result.isContentMerged)
+        #expect(result.conflictingPaths == ["shared.txt"])
+    }
+
+    @Test("A rebase merge whose added commits come after the branch's own lands at the branch's last commit")
+    func rebaseWithLaterAddedCommitsIsContentMerged() async throws {
+        let fixture = GitFixture(name: "content-rebase-added-\(UUID().uuidString)")
+        _ = try await populateFeature(fixture)
+        _ = try await fixture.commit(filename: "other.txt", content: "other\n", message: "unrelated mainline commit")
+        _ = await fixture.run(["cherry-pick", "yh-feature~1", "yh-feature"])
+        let rebasedTip = await fixture.revParse("main")
+        // A commit the Operator added to the pull request after the Pushed Tip, rebased in after the branch's own.
+        _ = try await fixture.commit(
+            filename: "shared.txt", content: "base\nline two\nreviewed line three\n", message: "review fix"
+        )
+
+        let result = await test(fixture)
+
+        #expect(result.isMainlineConflict)
+        #expect(result.landingCommit == rebasedTip)
+        #expect(result.isContentMerged)
+    }
+
+    @Test("A commit before the fork point is never the landing commit, though it holds the same content")
+    func searchStartsAfterTheForkPoint() async throws {
+        let fixture = GitFixture(name: "content-fork-\(UUID().uuidString)")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "shared.txt", content: "one\n", message: "init")
+        _ = try await fixture.commit(filename: "shared.txt", content: "two\n", message: "two")
+        _ = await fixture.run(["checkout", "-b", "yh-feature"])
+        // The branch puts back what mainline had before the fork point.
+        _ = try await fixture.commit(filename: "shared.txt", content: "one\n", message: "back to one")
+        _ = await fixture.run(["checkout", "main"])
+        _ = try await fixture.commit(filename: "other.txt", content: "other\n", message: "unrelated")
+
+        let result = await test(fixture)
+
+        #expect(result.tipHasNetChange == true)
+        #expect(result.landingCommit == nil)
         #expect(!result.isContentMerged)
     }
 
@@ -460,7 +524,7 @@ struct ContentMergeTests {
             Repo(name: "absent", path: open.path, role: .backend)
         ]
 
-        let report = await MergeTester().evaluateMerge(
+        let report = await MergeTester().evaluateContent(
             tips: [
                 "merged": TestedTip(branch: nil, recordedCommit: mergedTip),
                 "open": TestedTip(branch: FeatureBranch(name: "yh-feature"))

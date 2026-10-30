@@ -97,7 +97,8 @@ struct NightSummaryUnmergedStackTests {
         let night2 = try await openNight(journal, "2026-09-16")
         _ = try seedUnmerged(journal, issueID: "FEAT-2", pushing: ["repo-a"], landedIn: night2)
         try journal.recordLanding(
-            featureID: first.featureID, repository: "repo-b", mainlineCommit: "m", evidence: .ancestry
+            featureID: first.featureID, repository: "repo-b", landingCommit: "m",
+            mainlineCommit: "m", evidence: .ancestry
         )
         try journal.append(
             .pullRequestStacked(

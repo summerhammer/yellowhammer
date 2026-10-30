@@ -68,7 +68,8 @@ private func seedFeature(
 
 private func land(_ journal: JournalStore, _ featureID: Int64, _ repository: String) throws {
     try journal.recordLanding(
-        featureID: featureID, repository: repository, mainlineCommit: "main-\(repository)", evidence: .ancestry
+        featureID: featureID, repository: repository, landingCommit: "main-\(repository)",
+        mainlineCommit: "main-\(repository)", evidence: .ancestry
     )
 }
 

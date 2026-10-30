@@ -208,7 +208,8 @@ struct FeatureSettleAuthorActTests {
     private func recordLandings(_ world: SettleWorld, repositories: [String]) throws {
         for repository in repositories {
             try world.journal.recordLanding(
-                featureID: world.featureID, repository: repository, mainlineCommit: "c-\(repository)",
+                featureID: world.featureID, repository: repository, landingCommit: "c-\(repository)",
+                mainlineCommit: "c-\(repository)",
                 evidence: .ancestry
             )
         }

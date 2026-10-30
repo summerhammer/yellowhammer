@@ -180,7 +180,8 @@ func runningAttemptsAcrossRepos() throws {
 /// An Observed Merge for `featureID` in `repository`, observed at the fixture epoch.
 private func recordFixtureLanding(_ journal: JournalStore, featureID: Int64, repository: String) throws {
     try journal.recordLanding(
-        featureID: featureID, repository: repository, mainlineCommit: "abc", evidence: .ancestry, now: epoch
+        featureID: featureID, repository: repository, landingCommit: "abc",
+        mainlineCommit: "abc", evidence: .ancestry, now: epoch
     )
 }
 

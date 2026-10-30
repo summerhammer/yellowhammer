@@ -7,9 +7,10 @@ import Repositories
 import Testing
 
 // feature-authoring/select-the-next-feature #merge-test, #net-zero-branch, #tested-tip and the Observed Merge
-// recording and indeterminate-read criteria (OQ164): a predecessor merged with Squash and merge or Rebase and
-// merge opens the gate; the evidence of each Observed Merge is recorded; the commit the land Act recorded is the
-// tip tested; the landed pin goes once the merge is observed. Real git, local only.
+// recording and indeterminate-read criteria (OQ164, OQ190 items 24 and 26): a predecessor merged with Squash and
+// merge or Rebase and merge opens the gate; the evidence and landing commit of each Observed Merge are recorded;
+// the content test searches mainline's history; the commit the land Act recorded is the tip tested; the landed
+// pin goes once the merge is observed. Real git, local only.
 
 private let gateBranch = "yh-gate-feature"
 
@@ -30,6 +31,10 @@ private func populateFeatureRepository(_ repo: borrowing GateGitFixture) async t
 private func squashMerge(_ repo: borrowing GateGitFixture) async {
     _ = await repo.run(["merge", "--squash", gateBranch])
     _ = await repo.run(["commit", "-m", "squash of \(gateBranch)"])
+}
+
+private func revParse(_ ref: String, in repo: borrowing GateGitFixture) async -> String {
+    await repo.run(["rev-parse", ref]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 private func repositories(_ repo: borrowing GateGitFixture) -> ProjectRepositories {
@@ -68,8 +73,9 @@ struct PredecessorAncestryGateContentTests {
         #expect(outcome == .open)
         #expect(closure.callCount == 1)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
-        let mainHead = await repo.run(["rev-parse", "main"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mainHead = await revParse("main", in: repo)
         #expect(try journal.landings(featureID: featureID) == ["backend": mainHead])
+        #expect(try journal.landingCommits(featureID: featureID) == ["backend": mainHead])
         #expect(await landedPin(in: repo) == nil)
         #expect(try journal.events(ofType: .landedPinFailed).isEmpty)
     }
@@ -98,11 +104,15 @@ struct PredecessorAncestryGateContentTests {
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
     }
 
-    @Test("A merge commit records ancestry evidence and no conflict or content read is needed")
+    @Test("A merge commit records ancestry evidence, with the merge as its landing commit")
     func mergeCommitRecordsAncestry() async throws {
         let repo = GateGitFixture(name: "content-merge-commit")
         let tip = try await populateFeatureRepository(repo)
+        _ = try await repo.commit(filename: "other.txt", content: "other\n", message: "mainline before the merge")
         _ = await repo.run(["merge", "--no-ff", "-m", "merge", gateBranch])
+        let merge = await revParse("main", in: repo)
+        _ = try await repo.commit(filename: "later.txt", content: "later\n", message: "mainline after the merge")
+        let head = await revParse("main", in: repo)
 
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -115,6 +125,29 @@ struct PredecessorAncestryGateContentTests {
 
         #expect(outcome == .open)
         #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .ancestry])
+        #expect(try journal.landingCommits(featureID: featureID) == ["backend": merge])
+        #expect(try journal.landings(featureID: featureID) == ["backend": head])
+    }
+
+    @Test("A fast-forward records ancestry evidence, with the tip as its landing commit")
+    func fastForwardRecordsTheTipAsTheLandingCommit() async throws {
+        let repo = GateGitFixture(name: "content-fast-forward")
+        let tip = try await populateFeatureRepository(repo)
+        _ = await repo.run(["merge", "--ff-only", gateBranch])
+        _ = try await repo.commit(filename: "later.txt", content: "later\n", message: "mainline after the merge")
+
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-FF", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
+        )
+        let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
+
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
+
+        #expect(outcome == .open)
+        #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .ancestry])
+        #expect(try journal.landingCommits(featureID: featureID) == ["backend": tip])
     }
 
     @Test("A Feature pushed before commits were recorded falls back to the Feature Branch name")
@@ -184,14 +217,45 @@ struct PredecessorAncestryGateContentTests {
         #expect(closure.callCount == 0)
     }
 
-    @Test("A content test that lapsed before observation stays closed and reports the Mainline Conflict once")
-    func lapsedContentTestStaysClosed() async throws {
+    @Test("A net-zero branch stays closed although every later mainline commit would absorb it unchanged")
+    func netZeroBranchStaysClosedWhateverMainlineHistory() async throws {
+        let repo = GateGitFixture(name: "content-net-zero-history")
+        await repo.initRepo()
+        _ = try await repo.commit(filename: "shared.txt", content: "base\n", message: "init")
+        _ = await repo.run(["checkout", "-b", gateBranch])
+        _ = try await repo.commit(filename: "feat.txt", content: "feature\n", message: "add feat")
+        _ = await repo.run(["revert", "--no-edit", "HEAD"])
+        let tip = await revParse("HEAD", in: repo)
+        _ = await repo.run(["checkout", "main"])
+        _ = try await repo.commit(filename: "other.txt", content: "other\n", message: "unrelated")
+        _ = try await repo.commit(filename: "more.txt", content: "more\n", message: "unrelated again")
+
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-NH", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
+        )
+        let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
+
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
+
+        // Every commit after the fork point would absorb the tip unchanged; none is ever its landing commit.
+        #expect(namedUnmerged(outcome) == [NamedUnmerged("FEAT-NH", ["backend"])])
+        #expect(try journal.landingCommits(featureID: featureID).isEmpty)
+    }
+
+    // OQ190 item 24. Until 2026-10-28 the content test read mainline's head only, so this case stayed closed and
+    // reported a Mainline Conflict; the search of mainline's history now finds the squash.
+    @Test("A squash merge followed by a later mainline edit to the same lines is observed at the squash commit")
+    func squashThenSameLinesEditIsStillObserved() async throws {
         let repo = GateGitFixture(name: "content-lapsed")
         let tip = try await populateFeatureRepository(repo)
         await squashMerge(repo)
+        let squash = await revParse("main", in: repo)
         _ = try await repo.commit(
             filename: "shared.txt", content: "base\nline two\nlater line three\n", message: "overwrite line three"
         )
+        let head = await revParse("main", in: repo)
         await pinLandedTip(tip, in: repo)
 
         let fixture = try OutboxJournalFixture()
@@ -203,7 +267,61 @@ struct PredecessorAncestryGateContentTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        #expect(namedUnmerged(outcome) == [NamedUnmerged("FEAT-LP", ["backend"])])
+        #expect(outcome == .open)
+        #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
+        #expect(try journal.landingCommits(featureID: featureID) == ["backend": squash])
+        #expect(try journal.landings(featureID: featureID) == ["backend": head])
+        #expect(try journal.events(ofType: .mainlineConflictDetected).isEmpty)
+        #expect(await landedPin(in: repo) == nil)
+    }
+
+    @Test("A rebase merge whose added commits come after the branch's own is observed at the branch's last commit")
+    func rebaseWithLaterAddedCommitsIsObserved() async throws {
+        let repo = GateGitFixture(name: "content-rebase-added")
+        let tip = try await populateFeatureRepository(repo)
+        _ = try await repo.commit(filename: "other.txt", content: "other\n", message: "unrelated mainline commit")
+        _ = await repo.run(["cherry-pick", "\(gateBranch)~1", gateBranch])
+        let rebasedTip = await revParse("main", in: repo)
+        // The Operator's review fix, pushed to the pull request after the Pushed Tip, rebased in after it.
+        _ = try await repo.commit(
+            filename: "shared.txt", content: "base\nline two\nreviewed line three\n", message: "review fix"
+        )
+
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-RA", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
+        )
+        let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
+
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
+
+        #expect(outcome == .open)
+        #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content])
+        #expect(try journal.landingCommits(featureID: featureID) == ["backend": rebasedTip])
+    }
+
+    @Test("A squash of lines the Operator changed is never observed, and reports the Mainline Conflict once")
+    func squashOfChangedLinesStaysClosed() async throws {
+        let repo = GateGitFixture(name: "content-changed-lines")
+        let tip = try await populateFeatureRepository(repo)
+        _ = await repo.run(["merge", "--squash", gateBranch])
+        _ = try await repo.commit(
+            filename: "shared.txt", content: "base\nline two\noperator line three\n", message: "edited squash"
+        )
+        await pinLandedTip(tip, in: repo)
+
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-CL", branch: gateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
+        )
+        let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
+
+        let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
+
+        // The named limitation (#content-test-limitation): with no pull request read, the gate stays closed.
+        #expect(namedUnmerged(outcome) == [NamedUnmerged("FEAT-CL", ["backend"])])
         #expect(try journal.landings(featureID: featureID).isEmpty)
         #expect(try journal.events(ofType: .mainlineConflictDetected).count == 1)
         // No Observed Merge, so the pin stays: the commit must survive until it is observed.

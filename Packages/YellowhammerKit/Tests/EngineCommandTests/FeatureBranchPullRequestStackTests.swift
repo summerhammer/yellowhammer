@@ -67,7 +67,8 @@ struct FeatureBranchPullRequestStackTests {
         try world.recordPredecessorPullRequest()
         #expect(try world.journal.effectiveBase(repository: "backend", excludingFeatureID: world.feature.id) != nil)
         try world.journal.recordLanding(
-            featureID: world.predecessorID, repository: "backend", mainlineCommit: world.predecessorTip,
+            featureID: world.predecessorID, repository: "backend", landingCommit: world.predecessorTip,
+            mainlineCommit: world.predecessorTip,
             evidence: .ancestry, now: landEpoch
         )
         #expect(try world.journal.effectiveBase(repository: "backend", excludingFeatureID: world.feature.id) == nil)

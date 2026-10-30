@@ -226,6 +226,11 @@ extension JournalMigrations {
             table.column("feature_id", .integer).notNull()
                 .references("feature", column: "id", onDelete: .cascade)
             table.column("repository", .text).notNull()
+            // Where the change entered mainline (OQ190 item 26): for `ancestry`, the oldest commit on
+            // mainline's first-parent chain that contains the tested tip; for `content`, the commit the content
+            // test found. The release gate's test (A) reads it.
+            table.column("landing_commit", .text).notNull()
+            // Mainline's commit when the merge was first observed.
             table.column("mainline_commit", .text).notNull()
             table.column("observed_at", .text).notNull()
             // How the merge was observed: `ancestry` (the tested tip is an ancestor of mainline) or

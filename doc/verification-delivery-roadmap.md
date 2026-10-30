@@ -145,7 +145,7 @@ Steps are ordered by dependency:
 - #716 edits the same standing line as #714, so it comes after it.
 - #718 needs #717's stored state.
 
-- [ ] **B1 #713 — Record the Observed Merge's landing commit.**
+- [x] **B1 #713 — Record the Observed Merge's landing commit.**
   - **Ancestry.** The landing commit is the oldest first-parent commit that contains the tip.
   - **Content.** The landing commit is the first first-parent commit C where
     `merge-tree --write-tree C <tip>` writes `C^{tree}`. This scan replaces the test against

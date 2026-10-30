@@ -133,7 +133,7 @@ func partialMergeStaysListed() throws {
         run: night.run
     ))
     try journal.recordLanding(
-        featureID: feature.featureID, repository: "web", mainlineCommit: "m1", evidence: .ancestry
+        featureID: feature.featureID, repository: "web", landingCommit: "m1", mainlineCommit: "m1", evidence: .ancestry
     )
 
     let member = try #require(try pulse(journal).unmergedFeatures.features.first)
@@ -154,7 +154,8 @@ func fullyMergedLeavesTheStack() throws {
     ))
     for repository in ["backend", "web"] {
         try journal.recordLanding(
-            featureID: feature.featureID, repository: repository, mainlineCommit: "m-\(repository)", evidence: .ancestry
+            featureID: feature.featureID, repository: repository, landingCommit: "m-\(repository)",
+            mainlineCommit: "m-\(repository)", evidence: .ancestry
         )
     }
 
