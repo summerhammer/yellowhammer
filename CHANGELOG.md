@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.31.0](https://github.com/summerhammer/yellowhammer/compare/v0.30.0...v0.31.0) (2026-10-30)
+
+
+### Features
+
+* **engine:** a Cycle judges and publishes what it pushed ([#708](https://github.com/summerhammer/yellowhammer/issues/708)) ([#722](https://github.com/summerhammer/yellowhammer/issues/722)) ([6691b12](https://github.com/summerhammer/yellowhammer/commit/6691b12eace260c5a8638d59347c0db4002c2d57))
+* **engine:** observe a merge by its pull request read ([#698](https://github.com/summerhammer/yellowhammer/issues/698)) ([#723](https://github.com/summerhammer/yellowhammer/issues/723)) ([1b6cbc7](https://github.com/summerhammer/yellowhammer/commit/1b6cbc778581ca344d7282aace1d88214766c161))
+
 ## [0.30.0](https://github.com/summerhammer/yellowhammer/compare/v0.29.0...v0.30.0) (2026-10-28)
 
 
