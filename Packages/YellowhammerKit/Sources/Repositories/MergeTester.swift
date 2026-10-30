@@ -20,13 +20,15 @@ public struct RepoMergeResult: Equatable, Sendable {
     /// The tree OID `git merge-tree --write-tree` printed for a clean merge into `mainlineCommit`; nil for any
     /// other verdict.
     public let mergedTree: String?
-    /// Whether the tip's tree differs from the tree of `git merge-base <mainline> <tip>` (the fork point) — the
-    /// branch has a net change at all (#net-zero-branch). Read only by the content test
-    /// (``MergeTester/testContent(branch:recordedCommit:in:mainline:)``); nil otherwise, or when it could not be
-    /// read.
+    /// Whether the tip's tree differs from the tree of `git merge-base <mainline> <tip>` (the fork point), or for
+    /// a stacked Feature from its recorded base's — the branch has a net change at all (#net-zero-branch). Read only
+    /// by the content test (``MergeTester/testContent(branch:recordedCommit:in:mainline:)``,
+    /// ``MergeTester/testStackedContent(branch:recordedCommit:in:anchor:mainline:)``); nil otherwise, or when it
+    /// could not be read.
     public let tipHasNetChange: Bool?
     /// The content test's landing commit: the oldest commit C on mainline's first-parent chain after the fork
-    /// point such that `git merge-tree --write-tree C <tip>` exits clean and writes C's own tree — merging the
+    /// point (for a stacked Feature, from the lower Feature's landing commit, with the recorded base as the merge
+    /// base) such that `git merge-tree --write-tree C <tip>` exits clean and writes C's own tree — merging the
     /// tip into C changes nothing, so C is where the branch's change entered mainline. Searched only by the
     /// content test, and only for a tip with a net change; nil when no such commit exists.
     public let landingCommit: String?
@@ -190,17 +192,16 @@ public struct MergeTester: Sendable {
     }
 
     /// `git merge-tree --write-tree --name-only <into> <tip>`: the verdict, and the merged tree for a clean merge.
+    /// With `mergeBase`, `--merge-base=<mergeBase>` makes that commit the three-way merge's base in place of the
+    /// two commits' merge base (git 2.40 or later; see ``GitVersion/mergeTreeTakesMergeBase``).
     func mergeTree(
-        mainlineCommit: String, branchCommit: String, in path: String
+        mainlineCommit: String, branchCommit: String, mergeBase: String? = nil, in path: String
     ) async -> (verdict: MergeVerdict, tree: String?) {
-        let result = await git.run([
-            "-C", path,
-            "merge-tree",
-            "--write-tree",
-            "--name-only",
-            mainlineCommit,
-            branchCommit
-        ])
+        let result = await git.run(
+            ["-C", path, "merge-tree", "--write-tree", "--name-only"]
+                + (mergeBase.map { ["--merge-base=\($0)"] } ?? [])
+                + [mainlineCommit, branchCommit]
+        )
 
         switch result.exitCode {
         case 0:

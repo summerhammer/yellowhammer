@@ -88,14 +88,14 @@ extension MergeTester {
     }
 
     /// Whether `tip`'s tree differs from `base`'s. Nil when git cannot read either tree.
-    private func hasNetChange(tip: String, base: String, in path: String) async -> Bool? {
+    func hasNetChange(tip: String, base: String, in path: String) async -> Bool? {
         guard let baseTree = await treeOID(of: base, in: path), let tipTree = await treeOID(of: tip, in: path)
         else { return nil }
         return baseTree != tipTree
     }
 
     /// The tree of `commit`, nil when git cannot read it.
-    private func treeOID(of commit: String, in path: String) async -> String? {
+    func treeOID(of commit: String, in path: String) async -> String? {
         let result = await git.run(["-C", path, "rev-parse", "--verify", "--quiet", "\(commit)^{tree}"])
         guard result.isSuccess else { return nil }
         let tree = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -105,7 +105,7 @@ extension MergeTester {
     /// Mainline's first-parent chain after `fork`, oldest first, each commit with its tree, read in one
     /// `git rev-list --first-parent --reverse --format=%T <fork>..<mainline>`. Its output pairs a
     /// `commit <oid>` line with the tree line. Empty when git cannot read it.
-    private func firstParentChain(
+    func firstParentChain(
         after fork: String, upTo mainline: String, in path: String
     ) async -> [(commit: String, tree: String)] {
         let result = await git.run([

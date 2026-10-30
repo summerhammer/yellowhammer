@@ -1,6 +1,7 @@
 import Config
 import Domain
 import Foundation
+import Repositories
 
 extension Doctor {
     /// Check 3: `git --version` at least 2.38 (AGENTS.md), once; then, for every valid Project, each
@@ -65,33 +66,4 @@ extension Doctor {
         }
         return path
     }
-}
-
-/// A parsed `git --version` version number, and whether it meets a minimum.
-struct GitVersion: Equatable {
-    let major: Int
-    let minor: Int
-    let patch: Int
-
-    func meets(minimumMajor: Int, minimumMinor: Int) -> Bool {
-        (major, minor) >= (minimumMajor, minimumMinor)
-    }
-
-    /// Parses `"git version 2.39.5 (Apple Git-154)"` into `(2, 39, 5)`. Requires the literal
-    /// `"git version "` prefix followed by at least a `major.minor` dotted number; anything else
-    /// (including a version with fewer than two components) fails to parse.
-    static func parse(_ output: String) -> GitVersion? {
-        let prefix = "git version "
-        guard let range = output.range(of: prefix) else { return nil }
-        let rest = output[range.upperBound...]
-        let token = rest.prefix { $0.isNumber || $0 == "." }
-        let parts = token.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
-        guard parts.count >= 2, let major = Int(parts[0]), let minor = Int(parts[1]) else { return nil }
-        let patch = parts.count >= 3 ? (Int(parts[2]) ?? 0) : 0
-        return GitVersion(major: major, minor: minor, patch: patch)
-    }
-}
-
-extension GitVersion: CustomStringConvertible {
-    var description: String { "\(major).\(minor).\(patch)" }
 }

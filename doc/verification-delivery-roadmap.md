@@ -151,7 +151,7 @@ Steps are ordered by dependency:
     `merge-tree --write-tree C <tip>` writes `C^{tree}`. This scan replaces the test against
     mainline's head (OQ190 item 24).
   - **Release gate.** (A) tests the tag against the landing commit.
-- [ ] **B2 #712 — A stacked Feature is tested by content only after the Feature below it has its
+- [x] **B2 #712 — A stacked Feature is tested by content only after the Feature below it has its
   Observed Merge.**
   - The scan starts at that Feature's landing commit.
   - The recorded base is the base of the three-way merge and of the net-change check.

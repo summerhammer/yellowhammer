@@ -1,5 +1,6 @@
 @testable import EngineCommand
 import Foundation
+import Repositories
 import Testing
 
 @Suite("Doctor: git version parsing")

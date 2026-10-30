@@ -20,13 +20,15 @@ extension PredecessorAncestryGate {
     }
 
     /// What one pass's merge tests share: the Feature, the Project's `Repo`s under test, the tip tested per
-    /// repository, the branch each repository's landed pin was written under, and the Act's context.
+    /// repository, the branch each repository's landed pin was written under, the Act's context and the running
+    /// git's version, read once per gate pass.
     struct TestScope {
         let feature: FeatureRecord
         let repos: [Repo]
         let tips: [String: TestedTip]
         let pinBranches: [String: FeatureBranch]
         let context: ActContext
+        let gitVersion: PassGitVersion
     }
 
     /// Tests the repositories with no Observed Merge yet: ancestry first, then the content test for each
@@ -36,14 +38,17 @@ extension PredecessorAncestryGate {
     /// ancestor but whose landing commit git could not read goes on to the content test, as any test that cannot
     /// run does (OQ190 item 22). Empty input skips git entirely.
     func testUntestedRepositories(
-        _ toTest: [String], feature: FeatureRecord, context: ActContext
+        _ toTest: [String], feature: FeatureRecord, context: ActContext, gitVersion: PassGitVersion
     ) async throws -> AncestryTestResult {
         guard !toTest.isEmpty else { return AncestryTestResult() }
         let tips = try testedTips(for: toTest, feature: feature, journal: context.journal)
         let repos = try Self.resolveRepos(featureIssueID: feature.issueID, names: toTest, in: context.repositories)
         // The land Act pinned under the resolved branch, Worktree-name fallback included; only the pin reads it.
         let pinBranches = try context.journal.resolvedFeatureBranches(feature: feature, repositories: toTest)
-        let scope = TestScope(feature: feature, repos: repos, tips: tips, pinBranches: pinBranches, context: context)
+        let scope = TestScope(
+            feature: feature, repos: repos, tips: tips, pinBranches: pinBranches, context: context,
+            gitVersion: gitVersion
+        )
         let ancestryReport = await ancestryTester.evaluateAncestry(
             tips: tips, repos: repos, mainlines: context.mainlines
         )
@@ -94,26 +99,28 @@ extension PredecessorAncestryGate {
     }
 
     /// The content test for the repositories whose tip is not an ancestor of mainline: a search of mainline's
-    /// first-parent history for the commit where the change entered it (OQ190 item 24). The Mainline Conflict
-    /// re-test stays a read of mainline's head, which the same pass returns. The very commit ancestry resolved is
-    /// the one tested.
+    /// first-parent history for the commit where the change entered it (OQ190 item 24), anchored for a stacked
+    /// Feature on the lower Feature's landing commit and not run before it (OQ190 item 25; see
+    /// ``contentTestPlan(for:scope:)``). The Mainline Conflict re-test stays a read of mainline's head, which the
+    /// same pass returns. The very commit ancestry resolved is the one tested.
     private func testContent(
         of notAncestors: [RepoAncestryResult], scope: TestScope, into result: inout AncestryTestResult
     ) async throws {
         guard !notAncestors.isEmpty else { return }
         let context = scope.context
-        var contentTips: [String: TestedTip] = [:]
-        for notAncestor in notAncestors {
-            contentTips[notAncestor.repository] = TestedTip(
-                branch: scope.tips[notAncestor.repository]?.branch, recordedCommit: notAncestor.branchCommit
+        var mergeResults: [RepoMergeResult] = []
+        for repo in scope.repos {
+            guard let notAncestor = notAncestors.first(where: { $0.repository == repo.name }) else { continue }
+            let tip = TestedTip(branch: scope.tips[repo.name]?.branch, recordedCommit: notAncestor.branchCommit)
+            mergeResults.append(
+                await contentResult(
+                    of: tip, in: repo, plan: try await contentTestPlan(for: repo.name, scope: scope),
+                    mainline: context.mainlines[repo.name]
+                )
             )
         }
-        let mergeReport = await mergeTester.evaluateContent(
-            tips: contentTips, repos: scope.repos.filter { contentTips[$0.name] != nil },
-            mainlines: context.mainlines
-        )
 
-        for mergeResult in mergeReport.results {
+        for mergeResult in mergeResults {
             if mergeResult.isContentMerged, let mainlineCommit = mergeResult.mainlineCommit,
                let landingCommit = mergeResult.landingCommit {
                 try await recordObservedMerge(
