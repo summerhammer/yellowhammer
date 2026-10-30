@@ -27,7 +27,7 @@ struct PullRequestTitleSeamTests {
         )
         let seam = FeatureBranchPullRequest(
             publication: stub, clock: { landEpoch }, titleTemplate: template, changeType: changeType,
-            projectID: "proj"
+            projectID: "proj", remoteTip: .at("deadbeef")
         )
         let laneContext = LandActLaneContext(
             act: context ?? env.context, feature: feature, cycleID: cycleID,

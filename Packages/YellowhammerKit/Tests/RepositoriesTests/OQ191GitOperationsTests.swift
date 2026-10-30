@@ -78,9 +78,7 @@ struct OQ191GitOperationsTests {
         let world = try await OQ191GitWorld.make()
         try #require(await world.pushBranch())
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.tip))
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.tip))
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -93,9 +91,7 @@ struct OQ191GitOperationsTests {
         try #require(await world.pushBranch())
         try #require(await world.remote.run(["update-ref", "refs/heads/\(branch.name)", world.base]).isSuccess)
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.base))
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .at(world.base))
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -107,9 +103,7 @@ struct OQ191GitOperationsTests {
         let world = try await OQ191GitWorld.make()
         try #require(await world.remote.revParse("refs/heads/\(branch.name)") == nil)
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .absent)
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .absent)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
@@ -123,9 +117,7 @@ struct OQ191GitOperationsTests {
         try #require(await world.clone.run(["remote", "set-url", "origin", "\(world.remote.path)missing"]).isSuccess)
         try #require(await !world.clone.run(["ls-remote", "origin"]).isSuccess)
 
-        await withKnownIssue("OQ191 item 4: the remote Feature Branch is not read") {
-            #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .unreadable)
-        }
+        #expect(await OQ191Probe.remoteTip(branch: branch, repositoryPath: world.clone.path) == .unreadable)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout

@@ -115,6 +115,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case noPushedBranchOutcome = "NoPushedBranchOutcome"
     case landedPinFailed = "LandedPinFailed"
     case pullRequestStacked = "PullRequestStacked"
+    case remoteTipMismatch = "RemoteTipMismatch"
+    case remoteTipUnreadable = "RemoteTipUnreadable"
     case featureVerified = "FeatureVerified"
     case featureReturned = "FeatureReturned"
     case cycleArchived = "CycleArchived"

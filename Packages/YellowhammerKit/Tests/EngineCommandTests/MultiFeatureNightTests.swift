@@ -142,7 +142,10 @@ private final class NightWorld {
         )
         let act = LandAct(
             push: FeatureBranchLanePush(credential: { nil }),
-            openPullRequest: FeatureBranchPullRequest(publication: stub, clock: { landEpoch }),
+            openPullRequest: FeatureBranchPullRequest(
+                publication: stub, clock: { landEpoch },
+                remoteTip: .rewriting("git@github.com:summerhammer/repo-a.git", to: remote.path)
+            ),
             verification: StubVerification(log: LandCallLog(), verdict: VerificationVerdict(allClausesMet: true)),
             archiveCycle: CycleArchive()
         )

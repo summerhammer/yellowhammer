@@ -106,7 +106,7 @@ main ← feat/708-publish-what-was-pushed   (Track A + C; one commit per step)
   - **Harness.** R5, R6, E22, E23, E26, E38, E39, E40, E42 and E43 turn green. Hand-check E37 and
     E41.
   - **Spec issue.** File OQ195 as built.
-- [ ] **A4 — The remote tip check runs before every pull request open.** Item 4.
+- [x] **A4 — The remote tip check runs before every pull request open.** Item 4.
   - **Read.** `git ls-remote`, with the push's credential.
   - **At another commit or absent.** The pull request does not open, and the failure names both
     commits.

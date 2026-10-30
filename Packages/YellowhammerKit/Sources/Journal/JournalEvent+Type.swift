@@ -230,6 +230,10 @@ extension JournalEvent {
             .landedPinFailed
         case .pullRequestStacked:
             .pullRequestStacked
+        case .remoteTipMismatch:
+            .remoteTipMismatch
+        case .remoteTipUnreadable:
+            .remoteTipUnreadable
         case .featureVerified:
             .featureVerified
         case .featureReturned:

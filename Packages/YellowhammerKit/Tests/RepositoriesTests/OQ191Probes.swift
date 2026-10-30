@@ -43,7 +43,11 @@ enum OQ191Probe {
     /// at on the `origin` remote of the main clone at `repositoryPath`; `.absent` when the remote has no such
     /// branch; `.unreadable` when the remote cannot be read.
     static func remoteTip(branch: FeatureBranch, repositoryPath: String) async -> OQ191RemoteTip? {
-        nil
+        switch await RemoteFeatureBranchReader().read(branch: branch, in: repositoryPath, credential: nil) {
+        case .at(let commit): .at(commit)
+        case .absent: .absent
+        case .unreadable: .unreadable
+        }
     }
 
     /// Items 7 and 8; `verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout`: whether the

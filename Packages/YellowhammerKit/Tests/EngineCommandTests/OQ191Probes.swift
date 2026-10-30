@@ -81,7 +81,13 @@ enum OQ191Probe {
     static func remoteTipFailures(
         _ journal: JournalStore, board: FakeWritingBoard, repository: String
     ) async throws -> [String]? {
-        nil
+        // The Feature Card's comments: the remote tip check reports each failure there, in the order made.
+        let featureIssue = try #require(try journal.inFlightFeature()).feature.issueID
+        let failures = await board.comments
+            .filter { $0.issue.rawValue == featureIssue && $0.body.hasPrefix("Not landed: the remote branch ") }
+            .map(\.body)
+            .filter { $0.contains(" in \(repository) ") }
+        return failures.isEmpty ? nil : failures
     }
 }
 

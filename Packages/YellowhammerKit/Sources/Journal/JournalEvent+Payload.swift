@@ -507,7 +507,7 @@ extension JournalEvent {
         case .cycleLanded(let cycleID): ["cycle_id": String(cycleID)]
         case .featureVerified, .featureReturned, .cycleArchived, .featureClosedByMerge,
             .verifiedFeatureMergeObserved, .completedFeatureMergeObserved, .noPushedBranchOutcome, .landedPinFailed,
-            .pullRequestStacked:
+            .pullRequestStacked, .remoteTipMismatch, .remoteTipUnreadable:
             landActPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared, .authoringHaltRepair:
