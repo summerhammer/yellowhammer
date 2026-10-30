@@ -67,26 +67,41 @@ enum LandBinding {
         scrub: @escaping @Sendable () -> NarrativeScrub = { .none },
         gitHubCLI: @escaping @Sendable (String?) throws -> String = GitHubCLIExecutable.production
     ) -> FeatureBranchPullRequest {
-        // A refusal here is thrown again by the token closure on the first call.
+        // The remote tip check reads the remote with the push's own credential, resolved lazily on each read.
+        let remoteTip = RemoteFeatureBranchRead.git {
+            try pushCredential(configuration: configuration, project: project, credentials: store, gitHubCLI: gitHubCLI)
+        }
+        return FeatureBranchPullRequest(
+            publication: publication(
+                configuration: configuration, project: project, credentials: store, gitHubCLI: gitHubCLI
+            ),
+            titleTemplate: project.pullRequestTitle, changeType: project.changeType,
+            projectID: project.id.rawValue, scrub: scrub, remoteTip: remoteTip
+        )
+    }
+
+    /// The Publication Port over the Project's selected Code Hosting Connection: the adapter that opens the land
+    /// Act's pull requests, and reads them for the author Act's predecessor gate (OQ190 item 29). Nothing is resolved
+    /// until a call: the Keychain token, or the `gh` executable, is found on each open or read. A connection absent
+    /// from the registry is thrown again by the token closure on the first call, so an open fails as credentials
+    /// missing and a read as credential refused.
+    static func publication(
+        configuration: Configuration,
+        project: ProjectConfiguration,
+        credentials store: KeychainCredentialStore = KeychainCredentialStore(),
+        gitHubCLI: @escaping @Sendable (String?) throws -> String = GitHubCLIExecutable.production
+    ) -> GitHubAdapter {
         let transport: any GitHubTransport
         if case .githubCLI(_, let executable)? = try? configuration.machine.codeHostingCredential(for: project) {
             transport = GitHubCLILazyTransport(declared: executable, resolve: gitHubCLI)
         } else {
             transport = URLSessionGitHubTransport()
         }
-        let adapter = GitHubAdapter(
+        return GitHubAdapter(
             transport: transport,
             token: {
                 try token(configuration: configuration, project: project, credentials: store, gitHubCLI: gitHubCLI)
             }
-        )
-        // The remote tip check reads the remote with the push's own credential, resolved lazily on each read.
-        let remoteTip = RemoteFeatureBranchRead.git {
-            try pushCredential(configuration: configuration, project: project, credentials: store, gitHubCLI: gitHubCLI)
-        }
-        return FeatureBranchPullRequest(
-            publication: adapter, titleTemplate: project.pullRequestTitle, changeType: project.changeType,
-            projectID: project.id.rawValue, scrub: scrub, remoteTip: remoteTip
         )
     }
 

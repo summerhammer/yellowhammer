@@ -227,14 +227,15 @@ extension JournalMigrations {
                 .references("feature", column: "id", onDelete: .cascade)
             table.column("repository", .text).notNull()
             // Where the change entered mainline (OQ190 item 26): for `ancestry`, the oldest commit on
-            // mainline's first-parent chain that contains the tested tip; for `content`, the commit the content
-            // test found. The release gate's test (A) reads it.
+            // mainline's first-parent chain that contains the tested tip; for `pull_request`, the pull request's
+            // merge commit; for `content`, the commit the content test found. The release gate's test (A) reads it.
             table.column("landing_commit", .text).notNull()
             // Mainline's commit when the merge was first observed.
             table.column("mainline_commit", .text).notNull()
             table.column("observed_at", .text).notNull()
-            // How the merge was observed: `ancestry` (the tested tip is an ancestor of mainline) or
-            // `content` (a squash or rebase merge, found by the content test). Journal-only.
+            // How the merge was observed: `ancestry` (the tested tip is an ancestor of mainline),
+            // `pull_request` (the merged pull request's merge commit is in mainline) or `content` (a squash or
+            // rebase merge, found by the content test). Journal-only.
             table.column("evidence", .text).notNull()
             table.primaryKey(["feature_id", "repository"])
         }
@@ -257,7 +258,7 @@ extension JournalMigrations {
     }
 
     /// Records a Repo Lane's opened pull request, once (roadmap P10.4): `url` is nullable because
-    /// GitHub reporting `.alreadyOpen` carries no URL — this Port never reads pull request state.
+    /// GitHub reporting `.alreadyOpen` carries no URL; the predecessor gate then reads by head branch (OQ190 item 27).
     /// Unique on `(feature_id, repository)` so a first write wins and a pull request is never
     /// duplicated for the same Feature's repository.
     static func createPullRequestTable(_ db: Database) throws {

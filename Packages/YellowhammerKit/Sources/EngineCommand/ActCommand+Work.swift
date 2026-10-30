@@ -39,23 +39,10 @@ extension ActCommand {
                 archiveCycle: CycleArchive()
             ).work
         case .author:
-            // Selection and breakdown are agent CLI dispatches routed through the ordinary Routing Table
-            // under the reserved authoring Kind (P9.11); `AuthoringBinding` wires both, and a Rehearsal
-            // Night answers them from the shipped result fixtures. The closure seam (P10.8) is wired to
-            // the real `FeatureMergeClosure`: a fully-merged predecessor or in-flight landed Feature is
-            // closed unverified, not just observed. The disposition seam (P10.9, P22.2) is wired to the real
-            // `FeatureSettleGesture`, applied to whatever Feature the merge closure left in flight.
-            return AuthorAct(
-                predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()),
-                authoring: try AuthoringBinding.authoring(
-                    mode: mode, configuration: configuration, project: project,
-                    configurationDirectory: configurationDirectory, refresher: refresher,
-                    resultFixtures: resultFixtures
-                ),
-                settle: FeatureSettleGesture(),
-                unansweredNightsMax: project.bounds.unansweredNightsMax,
-                unmergedFeaturesMax: project.bounds.unmergedFeaturesMax
-            ).work
+            return try authorWork(
+                mode: mode, configuration: configuration, project: project,
+                configurationDirectory: configurationDirectory, refresher: refresher
+            )
         case .build:
             let cardRunner = try CardRunBinding.cardRunner(
                 mode: mode, configuration: configuration, project: project,
@@ -78,5 +65,32 @@ extension ActCommand {
                 unansweredNightsMax: project.bounds.unansweredNightsMax
             ).work
         }
+    }
+
+    /// The author Act's work. Selection and breakdown are agent CLI dispatches routed through the ordinary Routing
+    /// Table under the reserved authoring Kind (P9.11); `AuthoringBinding` wires both, and a Rehearsal Night answers
+    /// them from the shipped result fixtures. The closure seam (P10.8) is wired to the real `FeatureMergeClosure`: a
+    /// fully-merged predecessor or in-flight landed Feature is closed unverified, not just observed. The disposition
+    /// seam (P10.9, P22.2) is wired to the real `FeatureSettleGesture`, applied to whatever Feature the merge closure
+    /// left in flight. The gate reads pull requests through the same Publication Port the land Act opens them with
+    /// (OQ190 item 29), in a Rehearsal Night too: a read is none of its three boundaries.
+    private func authorWork(
+        mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL,
+        refresher: MainlineRefresher
+    ) throws -> EngineInvocation.ActWork {
+        AuthorAct(
+            predecessorGate: PredecessorAncestryGate(
+                closure: FeatureMergeClosure(),
+                publication: LandBinding.publication(configuration: configuration, project: project)
+            ),
+            authoring: try AuthoringBinding.authoring(
+                mode: mode, configuration: configuration, project: project,
+                configurationDirectory: configurationDirectory, refresher: refresher,
+                resultFixtures: resultFixtures
+            ),
+            settle: FeatureSettleGesture(),
+            unansweredNightsMax: project.bounds.unansweredNightsMax,
+            unmergedFeaturesMax: project.bounds.unmergedFeaturesMax
+        ).work
     }
 }

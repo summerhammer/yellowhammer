@@ -72,6 +72,13 @@ extension JournalEvent {
         )
     }
 
+    static func decodePullRequestReadFailed(_ reader: PayloadReader) throws -> JournalEvent {
+        guard let reason = PullRequestReadFailure.Reason(rawValue: try reader.require("reason")) else {
+            throw JournalError.eventUnreadable(id: reader.rowID)
+        }
+        return .pullRequestReadFailed(repository: try reader.require("repository"), reason: reason)
+    }
+
     static func decodeFeatureSelected(_ reader: PayloadReader) throws -> JournalEvent {
         let rawRepositories = try reader.require("repositories")
         let rawAdopted = try reader.require("adopted_card_issue_ids")

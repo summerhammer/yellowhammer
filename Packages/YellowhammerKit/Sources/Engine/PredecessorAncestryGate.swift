@@ -43,8 +43,10 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 }
 
 /// The real predecessor-ancestry gate (roadmap P9.2, P9.9, P23.5; spec: feature-authoring/
-/// select-the-next-feature, `#unmerged-feature-stack`, `#merge-test`; glossary "Mainline Conflict"). Pure local
-/// git, run strictly before authoring: allocates no Worktree, dispatches nothing, records no Attempt.
+/// select-the-next-feature, `#unmerged-feature-stack`, `#merge-test`, `#pull-request-read`; glossary "Mainline
+/// Conflict"). Local git, plus one read of Code Hosting per untested repository through the Publication Port: the
+/// pull request read (OQ190). Run strictly before authoring: allocates no Worktree, dispatches nothing, records no
+/// Attempt, and never writes to Code Hosting.
 ///
 /// Every author Act runs the merge pass over every Feature in the Unmerged Feature Stack U, oldest first,
 /// whether or not a Feature is in flight: F1's Observed Merge is recorded while F2 builds, because the land Act
@@ -56,9 +58,10 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 ///
 /// A repository already recorded landed (an Observed Merge) reads no git at all; a repository with no recorded
 /// Feature Branch only throws when it still needs a fresh test. The merge test per repository is ancestry first,
-/// then — only where that fails — the content test, so a Feature merged with Squash and merge or Rebase and
-/// merge leaves U too. The tested tip is the commit the land Act recorded, not a branch ref (see
-/// ``TestedTip``). The test itself is in `PredecessorAncestryGate+MergeTest.swift`.
+/// then the pull request test, then the content test, each only where the ones before it did not hold (OQ190 item
+/// 22), so a Feature merged with Squash and merge or Rebase and merge leaves U too. The tested tip is the commit the
+/// land Act recorded, not a branch ref (see ``TestedTip``). The test itself is in
+/// `PredecessorAncestryGate+MergeTest.swift`, its pull request rung in `PredecessorAncestryGate+PullRequestTest.swift`.
 ///
 /// The pass runs over N (``JournalStore/pushedRepositories(featureID:)``), never over a repository with a
 /// No-Pushed-Branch Outcome: its Feature Branch sits at its base and is trivially an ancestor of
@@ -74,19 +77,29 @@ public struct PredecessorAncestryGate: PredecessorGate {
     /// The running git's version, read at most once per pass: a stacked Feature's content test needs git 2.40 or
     /// later (``GitVersion/mergeTreeTakesMergeBase``) and does not run on an older one. A test injects a fixed one.
     public let gitVersion: GitVersionReader
+    /// The Publication Port's pull request read, for the merge test's second rung. Built with the Project's selected
+    /// Code Hosting Connection, which it resolves only when it reads. Nil runs no pull request test at all.
+    public let publication: (any Publication)?
+    /// Finds each repository's GitHub owner and name from its `origin` remote, as the land Act does when it opens
+    /// the pull request.
+    public let slugResolver: GitHubRepositorySlugResolver
 
     public init(
         ancestryTester: AncestryTester = AncestryTester(),
         mergeTester: MergeTester = MergeTester(),
         closure: (any PostMergeClosure)? = nil,
         landedTipPin: LandedTipPin = LandedTipPin(),
-        gitVersion: GitVersionReader = GitVersionReader()
+        gitVersion: GitVersionReader = GitVersionReader(),
+        publication: (any Publication)? = nil,
+        slugResolver: GitHubRepositorySlugResolver = GitHubRepositorySlugResolver()
     ) {
         self.ancestryTester = ancestryTester
         self.mergeTester = mergeTester
         self.closure = closure
         self.landedTipPin = landedTipPin
         self.gitVersion = gitVersion
+        self.publication = publication
+        self.slugResolver = slugResolver
     }
 
     public func check(_ context: ActContext, unmergedFeaturesMax: Int) async throws -> PredecessorGateOutcome {
@@ -151,7 +164,7 @@ public struct PredecessorAncestryGate: PredecessorGate {
     }
 
     /// One pass over one Feature's pushed repositories (N): repositories with an Observed Merge are
-    /// counted merged with no git read at all; the rest are merge-tested (ancestry, then the content test),
+    /// counted merged with no git read at all; the rest are merge-tested (ancestry, the pull request, content),
     /// an Observed Merge recorded for each that passed, and a Mainline Conflict reported for each that did
     /// not. Records `predecessorAncestryObserved` every time it runs, and fires the closure seam the first
     /// pass that finds every repository in N merged. Returns what the pass found, every list sorted.

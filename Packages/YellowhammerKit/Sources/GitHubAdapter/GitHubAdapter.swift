@@ -1,15 +1,16 @@
 import Domain
 import Foundation
 
-/// The GitHub implementation of the Publication Port (roadmap P10.4): `POST
-/// /repos/{owner}/{repo}/pulls`, nothing else. It authenticates with a token resolved lazily, per
+/// The GitHub implementation of the Publication Port (roadmap P10.4; OQ190 item 29): `POST
+/// /repos/{owner}/{repo}/pulls` to open a pull request, and `GET /repos/{owner}/{repo}/pulls/{number}` or
+/// `GET /repos/{owner}/{repo}/pulls?head=…&state=all` to read them, nothing else. It authenticates with a token resolved lazily, per
 /// call, through an injected closure — never eagerly, and never logged or placed in an error. A nil token
 /// sets no `Authorization` header: the transport authenticates (``GHCLITransport`` does, as `gh`'s active
 /// account). It translates GitHub's response and never decides: no retry.
 public struct GitHubAdapter: Publication, Sendable {
     private let transport: any GitHubTransport
     /// Resolves the bearer token for one call, or nil when the transport authenticates. Called once per
-    /// `openPullRequest`, never cached here.
+    /// `openPullRequest` or `readPullRequests`, never cached here.
     private let token: @Sendable () throws -> String?
     private let apiVersion: String
 
@@ -48,6 +49,38 @@ public struct GitHubAdapter: Publication, Sendable {
         }
 
         return try GitHubPullRequestFailure.map(data: data, response: response)
+    }
+
+    public func readPullRequests(
+        _ query: PullRequestQuery
+    ) async throws(PullRequestReadFailure) -> [ObservedPullRequest] {
+        let resolvedToken: String?
+        do {
+            resolvedToken = try token()
+        } catch {
+            throw PullRequestReadFailure(
+                .credentialRefused,
+                detail: "the GitHub token could not be resolved for \(query.owner)/\(query.repository)"
+            )
+        }
+
+        let request = GitHubPullRequestRead.request(query, token: resolvedToken, apiVersion: apiVersion)
+
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await transport.send(request)
+        } catch GHCLITransportError.authenticationFailed {
+            throw PullRequestReadFailure(
+                .credentialRefused, detail: "GitHub refused the credentials for \(query.owner)/\(query.repository)"
+            )
+        } catch {
+            throw PullRequestReadFailure(
+                .unreachable, detail: "GitHub could not be reached (\(String(describing: type(of: error))))"
+            )
+        }
+
+        return try GitHubPullRequestRead.map(data: data, response: response, selector: query.selector)
     }
 
     private static func makeRequest(_ draft: PullRequestDraft, token: String?, apiVersion: String) -> URLRequest {

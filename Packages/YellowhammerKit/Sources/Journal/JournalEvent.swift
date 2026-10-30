@@ -113,6 +113,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// will not merge cleanly into mainline: a Mainline Conflict. Reported only — no Card state
     /// changes, no Block Reason.
     case mainlineConflictDetected(featureIssueID: String, repository: String, paths: [String])
+    /// The predecessor gate's pull request read could not be made in `repository` (feature-authoring/
+    /// select-the-next-feature, `#pull-request-read`; OQ190 item 28): at most one per repository per pass. The pull
+    /// request test did not hold, and the content test still ran. Never a Failure Notice, never a halt.
+    case pullRequestReadFailed(repository: String, reason: PullRequestReadFailure.Reason)
     case managedBlockDelimiterBroken(issueID: String)
     /// A pending state- or input-affecting write was not delivered because the board no longer held the
     /// condition that justified it (a human moved the issue): the write is superseded, never applied from

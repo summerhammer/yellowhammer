@@ -4,10 +4,12 @@ import Journal
 import Repositories
 
 // The predecessor gate's merge test (spec: feature-authoring/select-the-next-feature, #merge-test,
-// #net-zero-branch, #tested-tip): per repository in N with no Observed Merge, ancestry first and — only
-// where that fails — the content test, both against the commit the land Act recorded. Each Observed Merge records
-// its landing commit, where the change entered mainline (OQ190 item 26). Local git reads only; GitHub is never
-// asked. Split out of PredecessorAncestryGate.swift for the file and type length limits.
+// #net-zero-branch, #tested-tip): per repository in N with no Observed Merge, ancestry first, then the pull request
+// test, then the content test, each only where the ones before it did not hold and all against the commit the land
+// Act recorded (OQ190 item 22). Each Observed Merge records its landing commit, where the change entered mainline
+// (OQ190 item 26). Ancestry and content are local git reads; the pull request test reads Code Hosting through the
+// Publication Port and checks its merge commit locally (PredecessorAncestryGate+PullRequestTest.swift). Split out
+// of PredecessorAncestryGate.swift for the file and type length limits.
 
 extension PredecessorAncestryGate {
     /// One pass's repositories, split by what this pass found: freshly merged (an Observed Merge was just
@@ -31,8 +33,8 @@ extension PredecessorAncestryGate {
         let gitVersion: PassGitVersion
     }
 
-    /// Tests the repositories with no Observed Merge yet: ancestry first, then the content test for each
-    /// repository where ancestry failed. An Observed Merge is recorded for each that passed (with the
+    /// Tests the repositories with no Observed Merge yet: ancestry first, then the pull request test and the content
+    /// test, in that order, for each repository where ancestry failed. An Observed Merge is recorded for each that passed (with the
     /// evidence that found it and its landing commit) and its landed pin deleted; a Mainline Conflict is
     /// reported for each unmerged repository whose merge into mainline's head was conflicting. A tip that is an
     /// ancestor but whose landing commit git could not read goes on to the content test, as any test that cannot
@@ -73,7 +75,8 @@ extension PredecessorAncestryGate {
             }
         }
 
-        try await testContent(of: notAncestors, scope: scope, into: &result)
+        let notByPullRequest = try await testPullRequests(of: notAncestors, scope: scope, into: &result)
+        try await testContent(of: notByPullRequest, scope: scope, into: &result)
         return result
     }
 
@@ -165,7 +168,7 @@ extension PredecessorAncestryGate {
     /// A pin that cannot be deleted is reported by a Journal-only
     /// ``JournalEvent/landedPinFailed(featureIssueID:repository:branch:commit:operation:reason:)`` and never
     /// changes the gate's outcome. An Observed Merge recorded by an earlier pass already had its pin handled.
-    private func recordObservedMerge(
+    func recordObservedMerge(
         _ merge: ObservedMerge, scope: TestScope
     ) async throws {
         let context = scope.context

@@ -49,6 +49,8 @@ extension JournalEvent {
             .predecessorAncestryObserved
         case .mainlineConflictDetected:
             .mainlineConflictDetected
+        case .pullRequestReadFailed:
+            .pullRequestReadFailed
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken
         case .boardWriteSuperseded:

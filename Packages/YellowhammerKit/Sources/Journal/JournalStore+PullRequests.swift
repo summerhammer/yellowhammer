@@ -9,7 +9,8 @@ import GRDB
 public struct PullRequestRecord: Equatable, Sendable {
     public let featureID: Int64
     public let repository: String
-    /// Nil when GitHub reported `.alreadyOpen` — this Port never reads, so there is no URL to record.
+    /// Nil when GitHub reported `.alreadyOpen`: its refusal names no URL. The predecessor gate then finds the pull
+    /// request by its head branch (OQ190 item 27).
     public let url: String?
     public let nightID: Int64
     public let runID: RunID

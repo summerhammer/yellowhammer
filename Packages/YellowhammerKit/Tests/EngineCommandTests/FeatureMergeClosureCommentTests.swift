@@ -38,7 +38,7 @@ struct FeatureMergeClosureCommentTests {
         #expect(body.contains("## Accepted"))
         #expect(body.contains("1 green Cards recorded as accepted: BACK-1"))
         #expect(body.contains("Night \(mergeClosureLandingNightStart) is recorded as triaged."))
-        #expect(body.contains("Observed on Night \(mergeClosureObservingNightStart) from mainline ancestry"))
+        #expect(body.contains("Observed on Night \(mergeClosureObservingNightStart) by the merge test"))
     }
 
     @Test("No carried-forward Cards and no accepted Cards render explicitly")

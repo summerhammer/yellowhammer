@@ -156,7 +156,7 @@ Steps are ordered by dependency:
   - The scan starts at that Feature's landing commit.
   - The recorded base is the base of the three-way merge and of the net-change check.
   - $U$ is tested oldest first.
-- [ ] **B3 #698 — Read the pull request.**
+- [x] **B3 #698 — Read the pull request.**
   - Add a second Publication Port operation and a GitHub adapter GET.
   - The merge test's second rung: the pull request is merged, and its merge commit is in
     mainline.

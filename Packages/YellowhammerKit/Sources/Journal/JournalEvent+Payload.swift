@@ -61,6 +61,8 @@ extension JournalEvent {
                 "merged_repositories": mergedRepositories.joined(separator: "\u{1F}"),
                 "unmerged_repositories": unmergedRepositories.joined(separator: "\u{1F}")
             ]
+        case .pullRequestReadFailed(let repository, let reason):
+            ["reason": reason.rawValue, "repository": repository]
         case .mainlineConflictDetected(let featureIssueID, let repository, let paths):
             [
                 "feature_issue_id": featureIssueID,

@@ -23,6 +23,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case predecessorWalkSkippedReleasedFeature = "PredecessorWalkSkippedReleasedFeature"
     case predecessorAncestryObserved = "PredecessorAncestryObserved"
     case mainlineConflictDetected = "MainlineConflictDetected"
+    case pullRequestReadFailed = "PullRequestReadFailed"
     case managedBlockDelimiterBroken = "ManagedBlockDelimiterBroken"
     case boardWriteSuperseded = "BoardWriteSuperseded"
     case managedBlockInputImported = "ManagedBlockInputImported"
