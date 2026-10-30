@@ -150,12 +150,13 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
     /// the report starts with one prefix, so a replay replaces the whole report and nothing else.
     private func queueReport(_ record: FeatureVerificationRecord, context: LandActFeatureContext) throws {
         guard let outbox = context.act.outbox else { return }
+        let touched = try context.act.journal.touchedRepositories(featureID: context.feature.id).count
         let write = OutboxWrite(
             key: "land:\(context.cycleID):verification:\(context.feature.issueID)",
             write: .updateManagedBlockLine(
                 issue: BoardObjectID(rawValue: context.feature.issueID),
                 prefix: VerificationReport.managedBlockPrefix,
-                line: VerificationReport(record: record).managedBlockLines()
+                line: VerificationReport(record: record, touchedRepositoryCount: touched).managedBlockLines()
             )
         )
         _ = try outbox.accept(write)

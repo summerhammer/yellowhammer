@@ -4,10 +4,11 @@ import Foundation
 @testable import Journal
 import Testing
 
-// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): the API the
-// land Act harness needs and `main` does not have yet. Each probe names the ruling item and the spec anchor it
-// serves. Today each one returns nil or throws `OQ191NotBuilt`; the implementation PRs replace the bodies with
-// real calls and keep the signatures, so the tests do not change. Production code is untouched.
+// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): thin adapters
+// from the land Act harness's own types to the production API. Each probe names the ruling item and the spec
+// anchor it serves, and calls the production code that builds it; the harness was written before that code, so
+// its tests speak in these types rather than the production ones. A probe throws `OQ191NotBuilt` only when a
+// fixture asks for something the production API cannot express.
 //
 // The Journal half of these probes (the Pushed Tip, the judged checkouts) is repeated in
 // `Tests/JournalTests/OQ191Probes.swift`: each test target is its own module.
@@ -17,11 +18,11 @@ extension Tag {
     @Tag static var oq191: Self
 }
 
-/// What a probe throws until its behaviour is built.
+/// What a probe throws when a fixture asks for something the production API cannot express.
 struct OQ191NotBuilt: Error, CustomStringConvertible {
     let item: String
 
-    var description: String { "OQ191 \(item): not built" }
+    var description: String { "OQ191 \(item): not expressible" }
 }
 
 /// The checkout a repository was judged in (item 7): a held Worktree, or a fresh checkout.

@@ -18,19 +18,45 @@ public struct VerificationReport: Equatable, Sendable {
         + "is wrong or thin, a Feature that is correct clause by clause and incoherent as a whole, or which "
         + "Feature was selected in the first place."
 
+    /// What the limitation adds when the Feature touches more than one repository (OQ197; spec:
+    /// verification/verify-a-feature-clause-by-clause `#report-limitation`): the Checks ran apart.
+    public static let separateChecksSentence =
+        "Each Check ran in its own repository; this report does not show which commits of the other "
+        + "repositories a Check used, so it is not evidence that they were tested together."
+
     /// The clauses, Feature-level first and then Cards in authored order, as recorded.
     public let clauses: [ClauseVerificationRecord]
     /// Per repository, the checkout the Verification judged, as recorded (OQ191 item 3). Empty for a record
     /// written before that rule: the report then says "judged commit not recorded" and names no commit.
     public let judgedCheckouts: [JudgedCheckout]
+    /// How many repositories the Feature touches (`touched_repos`, as recorded at selection; not N, and not
+    /// the repositories with a judged checkout). More than one adds ``separateChecksSentence`` to the limitation.
+    public let touchedRepositoryCount: Int
 
-    public init(clauses: [ClauseVerificationRecord], judgedCheckouts: [JudgedCheckout] = []) {
+    public init(
+        clauses: [ClauseVerificationRecord], judgedCheckouts: [JudgedCheckout] = [], touchedRepositoryCount: Int = 1
+    ) {
         self.clauses = clauses
         self.judgedCheckouts = judgedCheckouts
+        self.touchedRepositoryCount = touchedRepositoryCount
     }
 
-    public init(record: FeatureVerificationRecord) {
-        self.init(clauses: record.clauses, judgedCheckouts: record.judgedCheckouts)
+    public init(record: FeatureVerificationRecord, touchedRepositoryCount: Int = 1) {
+        self.init(
+            clauses: record.clauses, judgedCheckouts: record.judgedCheckouts,
+            touchedRepositoryCount: touchedRepositoryCount
+        )
+    }
+
+    /// The limitation stated beside this report on every surface: ``limitation``, followed by
+    /// ``separateChecksSentence`` when the Feature touches more than one repository (OQ197).
+    public var limitationStatement: String {
+        Self.limitationStatement(touchedRepositoryCount: touchedRepositoryCount)
+    }
+
+    /// The limitation for a Feature touching `touchedRepositoryCount` repositories: unchanged for one.
+    public static func limitationStatement(touchedRepositoryCount: Int) -> String {
+        touchedRepositoryCount > 1 ? limitation + " " + separateChecksSentence : limitation
     }
 
     /// The clauses that are `unmet` or `unresolved`: what the Feature is returned holding.
@@ -79,18 +105,19 @@ public struct VerificationReport: Equatable, Sendable {
             prefix + "Definition of Done, clause by clause (Feature-level clauses first, then Cards in authored order)"
         ]
         lines += clauses.map { prefix + Self.line(for: $0) }
-        lines.append(prefix + Self.limitation)
+        lines.append(prefix + limitationStatement)
         return lines.joined(separator: "\n")
     }
 
     // MARK: - Pull request body
 
-    /// The pull request body variant: a Markdown section, the judged commits first, the limitation beneath it.
+    /// The pull request body variant: a Markdown section, the judged commits first, then the clauses, the
+    /// limitation beneath them.
     public func markdownSection() -> String {
         var lines = ["## Verification, clause by clause", "", judgedCommitsLine(), ""]
         lines += clauses.map { "- " + Self.line(for: $0) }
         lines.append("")
-        lines.append(Self.limitation)
+        lines.append(limitationStatement)
         return lines.joined(separator: "\n")
     }
 

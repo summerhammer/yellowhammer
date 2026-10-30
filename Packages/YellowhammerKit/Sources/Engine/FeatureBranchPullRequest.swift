@@ -198,7 +198,10 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         // titles (VerificationReport carries no Card), so the renderer is handed this Cycle's own
         // issue id → display name lookup to resolve them (issue #161; spec:
         // landing/announce-a-partial-landing).
-        let report = try journal.featureVerification(cycleID: context.cycleID).map(VerificationReport.init(record:))
+        // The limitation names separate Checks when the Feature touches more than one repository (OQ197).
+        let touched = try journal.touchedRepositories(featureID: context.feature.id).count
+        let report = try journal.featureVerification(cycleID: context.cycleID)
+            .map { VerificationReport(record: $0, touchedRepositoryCount: touched) }
         var workCardTitles = Dictionary(uniqueKeysWithValues: cards.map { ($0.issueID, $0.displayTitle) })
         workCardTitles[context.feature.issueID] = featureTitle
 

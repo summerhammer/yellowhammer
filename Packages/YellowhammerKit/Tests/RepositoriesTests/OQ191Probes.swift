@@ -4,10 +4,10 @@ import Testing
 
 @testable import Repositories
 
-// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): the local git
-// operations the land Act needs and `main` does not have yet. Each probe names the ruling item and the spec
-// anchor it serves. Today each one returns nil; the implementation PRs replace the bodies with real calls and
-// keep the signatures, so the tests do not change. Production code is untouched.
+// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): thin adapters
+// from the harness's own types to the production local git operations the land Act uses. Each probe names the
+// ruling item and the spec anchor it serves, and calls the production code that builds it; the harness was
+// written before that code, so its tests speak in these types rather than the production ones.
 
 extension Tag {
     /// The OQ191 harness. Declared once per test target: each target is its own module.

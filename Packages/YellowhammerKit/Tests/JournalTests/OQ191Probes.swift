@@ -5,21 +5,22 @@ import Testing
 
 @testable import Journal
 
-// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): the Journal
-// API the harness needs and `main` does not have yet. Each probe names the ruling item and the spec anchor it
-// serves. Today each one returns nil or throws `OQ191NotBuilt`; the implementation PRs replace the bodies with
-// real calls and keep the signatures, so the tests do not change. Production code is untouched.
+// OQ191 (yellowhammer#708; spec ruling 2026-10-29, "a Cycle judges and publishes what it pushed"): thin adapters
+// from the harness's own types to the production Journal API. Each probe names the ruling item and the spec
+// anchor it serves, and calls the production code that builds it; the harness was written before that code, so
+// its tests speak in these types rather than the production ones. A probe throws `OQ191NotBuilt` only when a
+// fixture asks for something the production API cannot express.
 
 extension Tag {
     /// The OQ191 harness. Declared once per test target: each target is its own module.
     @Tag static var oq191: Self
 }
 
-/// What a probe throws until its behaviour is built.
+/// What a probe throws when a fixture asks for something the production API cannot express.
 struct OQ191NotBuilt: Error, CustomStringConvertible {
     let item: String
 
-    var description: String { "OQ191 \(item): not built" }
+    var description: String { "OQ191 \(item): not expressible" }
 }
 
 /// What the failure-injecting probe throws once the injected abort fired inside the record's transaction.

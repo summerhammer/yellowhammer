@@ -57,17 +57,22 @@ public struct FeatureReturnComment: Equatable, Sendable {
     public let issues: [String: IssueDisplay]
     /// The repositories that declared `check = none`: why a `not checked` build or test clause had no Check.
     public let noCheckRepositories: [String]
+    /// How many repositories the Feature touches (`touched_repos`): more than one adds the separate-Checks
+    /// sentence to the limitation (OQ197), as beside the report on the Managed Block.
+    public let touchedRepositoryCount: Int
 
     public init(
         clauses: [ClauseVerificationRecord],
         pullRequests: [String: PullRequestRecord],
         issues: [String: IssueDisplay] = [:],
-        noCheckRepositories: [String] = []
+        noCheckRepositories: [String] = [],
+        touchedRepositoryCount: Int = 1
     ) {
         self.clauses = clauses
         self.pullRequests = pullRequests
         self.issues = issues
         self.noCheckRepositories = noCheckRepositories
+        self.touchedRepositoryCount = touchedRepositoryCount
     }
 
     public init(
@@ -83,7 +88,8 @@ public struct FeatureReturnComment: Equatable, Sendable {
         pullRequests: [String: PullRequestRecord],
         feature: FeatureRecord,
         cards: [CardRecord] = [],
-        noCheckRepositories: [String] = []
+        noCheckRepositories: [String] = [],
+        touchedRepositoryCount: Int = 1
     ) {
         var issues: [String: IssueDisplay] = [:]
         issues[feature.issueID] = IssueDisplay(feature: feature)
@@ -92,7 +98,7 @@ public struct FeatureReturnComment: Equatable, Sendable {
         }
         self.init(
             clauses: record.clauses, pullRequests: pullRequests, issues: issues,
-            noCheckRepositories: noCheckRepositories
+            noCheckRepositories: noCheckRepositories, touchedRepositoryCount: touchedRepositoryCount
         )
     }
 
@@ -246,7 +252,7 @@ public struct FeatureReturnComment: Equatable, Sendable {
         }
 
         lines.append("")
-        lines.append(VerificationReport.limitation)
+        lines.append(VerificationReport.limitationStatement(touchedRepositoryCount: touchedRepositoryCount))
         return lines.joined(separator: "\n")
     }
 }
