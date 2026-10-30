@@ -68,6 +68,8 @@ extension JournalEvent {
             try Self.decodeMainlineConflictDetected(reader)
         case .pullRequestReadFailed:
             try Self.decodePullRequestReadFailed(reader)
+        case .multiplePullRequestsObserved:
+            try Self.decodeMultiplePullRequestsObserved(reader)
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken(issueID: try reader.require("issue_id"))
         case .boardWriteSuperseded:

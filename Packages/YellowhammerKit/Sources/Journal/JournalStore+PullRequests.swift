@@ -12,7 +12,8 @@ public struct PullRequestRecord: Equatable, Sendable {
     public let featureID: Int64
     public let repository: String
     /// Nil when GitHub reported `.alreadyOpen`: its refusal names no URL. The predecessor gate then finds the pull
-    /// request by its head branch (OQ190 item 27), and the first read that finds it fills this in.
+    /// request by its head branch (OQ190 item 27) on every pass, which is the only read that can see a second pull
+    /// request for the Feature Branch (#714); a read never fills this in. ``number`` names the one it uses.
     public let url: String?
     public let nightID: Int64
     public let runID: RunID
@@ -74,9 +75,9 @@ extension JournalStore {
 
     /// Records what a successful pull request read observed for `featureID`'s pull request in `repository`
     /// (`#pull-request-read`, "What it records"): its state and `now` as when it was observed, its number, its
-    /// head and merge commits and its base branch, overwriting the previous observation. Where the land Act
-    /// recorded no URL, the read's URL fills it in; a recorded URL is never replaced. Revalidates `runID`'s Act
-    /// Lease in the same transaction. Updates only: with no recorded pull request it writes nothing and returns
+    /// head and merge commits and its base branch, overwriting the previous observation. The URL stays what the land
+    /// Act recorded, none included, so a pull request recorded without one is read by its head branch on every pass
+    /// (#714). Revalidates `runID`'s Act Lease in the same transaction. Updates only: with no recorded pull request it writes nothing and returns
     /// false, because a pull request the land Act did not record is not one Yellowhammer opened.
     @discardableResult
     public func recordObservedPullRequest(
@@ -88,13 +89,12 @@ extension JournalStore {
                 sql: """
                 UPDATE pull_request SET
                     observed_state = ?, observed_at = ?, number = ?, head_commit = ?, merge_commit = ?,
-                    base_branch = ?, url = COALESCE(url, ?)
+                    base_branch = ?
                 WHERE feature_id = ? AND repository = ?
                 """,
                 arguments: [
                     observed.state.rawValue, JournalStore.timestamp(JournalStore.stored(now)), observed.number,
-                    observed.headCommit, observed.mergeCommit, observed.baseBranch, observed.url,
-                    featureID, repository
+                    observed.headCommit, observed.mergeCommit, observed.baseBranch, featureID, repository
                 ]
             )
             return db.changesCount == 1

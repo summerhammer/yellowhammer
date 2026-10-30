@@ -237,12 +237,12 @@ extension PulseSnapshot {
         return repos
     }
 
-    /// The pull request's number is the last path component of its URL; nil when there is no URL, it is
-    /// not an `https` or `http` URL, or it does not end in a number.
+    /// The pull request's number is the one the pull request read recorded, else the last path component of its
+    /// URL; nil when there is no URL (a chip is a link), it is not an `https` or `http` URL, or no number is known.
     static func chip(_ record: PullRequestRecord) -> PullRequestChip? {
         guard
             let text = record.url, let url = LinearIssueLink.webURL(text),
-            let number = Int(text.split(separator: "/").last ?? "")
+            let number = record.number ?? Int(text.split(separator: "/").last ?? "")
         else { return nil }
         return PullRequestChip(number: number, url: url, state: nil)
     }

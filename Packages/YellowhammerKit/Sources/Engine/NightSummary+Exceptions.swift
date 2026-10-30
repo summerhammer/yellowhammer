@@ -119,7 +119,7 @@ extension NightSummary {
     }
 
     /// The `**Exceptions:**` section: `boardWriteFailed`, `rateBudgetExhausted`, `mainlineFetchFailed`,
-    /// `tagFetchFailed`, `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision`, a
+    /// `tagFetchFailed`, `pullRequestReadFailed` (once per repository; ``pullRequestReadFailureLines(events:)``), `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision`, a
     /// `flushFiringRan` that closed the Night (the closing land did not), a `worktreeLost` that
     /// recovered nothing (OQ133; ``worktreeLossLines(night:journal:)``) and `overrideRefused` — the last
     /// once per Card and reason, however many Acts refused it (OQ126) — plus one line per recovery of failed
@@ -170,10 +170,30 @@ extension NightSummary {
             }
         }
         return lines
+            + pullRequestReadFailureLines(events: events)
             + (try repeatedAuthoringFaultLines(events: events, journal: journal))
             + recoveredFailureLines(events: events, renderingRunID: renderingRunID, timeZone: timeZone)
             + (try worktreeLossLines(night: night, journal: journal))
             + (try overrideRefusalLines(night: night, journal: journal))
+    }
+
+    /// One line per repository whose pull request read failed this Night (`pull_request_read_failed`; spec:
+    /// morning-report/write-the-night-summary `#pull-request-read-notes`, OQ190 items 12 and 28), however many passes
+    /// failed, in the order each repository first failed, with each distinct reason. Noted as a failed mainline
+    /// fetch is: never a failure line and never in the verdict, because the content test still ran.
+    static func pullRequestReadFailureLines(events: [JournalEventRecord]) -> [String] {
+        var repositories: [String] = []
+        var reasons: [String: [PullRequestReadFailure.Reason]] = [:]
+        for record in events {
+            guard case .pullRequestReadFailed(let repository, let reason) = record.event else { continue }
+            if reasons[repository] == nil { repositories.append(repository) }
+            if !(reasons[repository] ?? []).contains(reason) { reasons[repository, default: []].append(reason) }
+        }
+        return repositories.map { repository in
+            let named = (reasons[repository] ?? []).map(\.words).joined(separator: "; ")
+            return "Reading the pull request in `\(repository)` failed: \(named). "
+                + "Not a failure: the merge test went on without it."
+        }
     }
 
     private static func repeatedAuthoringFaultLines(

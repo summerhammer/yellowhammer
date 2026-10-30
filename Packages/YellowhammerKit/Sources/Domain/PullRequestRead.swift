@@ -80,6 +80,17 @@ public struct PullRequestReadFailure: Error, Equatable, Sendable {
         case rateLimited = "rate_limited"
         /// Code Hosting answered something that could not be read.
         case unreadableAnswer = "unreadable_answer"
+
+        /// The reason in plain words, for the Night Summary and the Pulse.
+        public var words: String {
+            switch self {
+            case .unreachable: "Code Hosting could not be reached"
+            case .credentialRefused: "the credential was refused"
+            case .noAccess: "no access to the pull request"
+            case .rateLimited: "rate limited"
+            case .unreadableAnswer: "the answer could not be read"
+            }
+        }
     }
 
     public let reason: Reason

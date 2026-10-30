@@ -51,6 +51,8 @@ extension JournalEvent {
             .mainlineConflictDetected
         case .pullRequestReadFailed:
             .pullRequestReadFailed
+        case .multiplePullRequestsObserved:
+            .multiplePullRequestsObserved
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken
         case .boardWriteSuperseded:

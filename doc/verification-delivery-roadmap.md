@@ -164,7 +164,7 @@ Steps are ordered by dependency:
 - [x] **B4 #717 — Store the last observed pull request state per (Feature, repository).**
   - The state is `open`, `merged` or `closed without merge`, with when it was observed.
   - A failed read leaves the last state in place.
-- [ ] **B5 #714 — Night Summary notes:**
+- [x] **B5 #714 — Night Summary notes:**
   - `pull_request_read_failed`;
   - `[closed without merge: <repo>]`;
   - `[merged into <branch>, waiting for it: <repo>]`;

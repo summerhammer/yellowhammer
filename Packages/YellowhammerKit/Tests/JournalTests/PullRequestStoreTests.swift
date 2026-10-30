@@ -221,8 +221,8 @@ struct PullRequestObservedStateStoreTests {
         #expect(record.mergeCommit == nil)
     }
 
-    @Test("A pull request the land Act recorded without a URL gets the URL and number the read found")
-    func fillsTheURLOfAnAlreadyOpenPullRequest() throws {
+    @Test("A pull request the land Act recorded without a URL keeps none; the read records its number (#714)")
+    func recordsTheNumberOfAnAlreadyOpenPullRequest() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
         let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
@@ -238,7 +238,7 @@ struct PullRequestObservedStateStoreTests {
         )
 
         let record = try #require(try journal.pullRequest(featureID: featureID, repository: "backend"))
-        #expect(record.url == "https://github.com/o/r/pull/7")
+        #expect(record.url == nil)
         #expect(record.number == 7)
     }
 

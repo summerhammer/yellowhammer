@@ -154,7 +154,8 @@ extension NightAccount {
     /// Event types that are a problem whatever their payload. ``isProblem(_:)`` adds the five events whose
     /// payload decides.
     private static let problemTypes: Set<JournalEventType> = [
-        .linearAuthorizationHalted, .linearUnreachableHalted, .mainlineFetchFailed, .absentNightDetected,
+        .linearAuthorizationHalted, .linearUnreachableHalted, .mainlineFetchFailed, .pullRequestReadFailed,
+        .absentNightDetected,
         .nightOpenedAndDied, .leaseReclaimed, .cardLeaseReclaimed, .notificationDeliveryFailed,
         .boardWriteFailed, .outboxGroupRolledBack, .managedBlockDelimiterBroken, .managedBlockOverBudget,
         .worktreeNameCollision,

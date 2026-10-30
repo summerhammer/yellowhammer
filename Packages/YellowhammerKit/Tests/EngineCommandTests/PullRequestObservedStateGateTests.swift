@@ -162,9 +162,45 @@ struct PullRequestObservedStateGateTests {
         #expect(await read.queried("backend").count == 3)
     }
 
-    @Test("A pull request recorded without a URL gets the URL and number of the one the head-branch read found")
-    func alreadyOpenRowGetsItsURLAndNumber() async throws {
+    @Test("""
+        A pull request recorded without a URL keeps none: the read records the number of the one it uses, \
+        and every pass reads by head branch again (#714)
+        """)
+    func alreadyOpenRowKeepsNoURLAndGetsItsNumber() async throws {
         let repo = GateGitFixture(name: "state-already-open")
+        let tip = try await populateFeature(repo, name: "backend")
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let (context, runID) = try makeGateContext(journal, repositories: repositories([("backend", repo.path)]))
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-S", branch: stateBranch, repositories: ["backend"], pushedTips: ["backend": tip]
+        )
+        try journal.recordPullRequest(
+            featureID: featureID, repository: "backend", url: nil, nightID: context.night.id, runID: runID
+        )
+        let read = ScriptedPullRequestRead(["backend": .found([
+            observed("backend", 7, state: .open, head: tip)
+        ])])
+        let gate = PredecessorAncestryGate(publication: read)
+
+        _ = try await gate.check(context, unmergedFeaturesMax: 1)
+        _ = try await gate.check(context, unmergedFeaturesMax: 1)
+
+        let byBranch = PullRequestQuery(owner: "o", repository: "backend", selector: .headBranch(stateBranch))
+        #expect(await read.queries == [byBranch, byBranch])
+        let record = try #require(try journal.pullRequest(featureID: featureID, repository: "backend"))
+        #expect(record.url == nil)
+        #expect(record.number == 7)
+        #expect(record.observedState == .open)
+        #expect(try journal.events(ofType: .multiplePullRequestsObserved).isEmpty)
+    }
+
+    @Test("""
+        A head-branch read that finds more than one pull request records MultiplePullRequestsObserved once per \
+        repository and branch in the pass, and changes nothing else (#714)
+        """)
+    func duplicatePullRequestsAreRecordedOncePerPass() async throws {
+        let repo = GateGitFixture(name: "state-duplicates")
         let tip = try await populateFeature(repo, name: "backend")
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -179,16 +215,19 @@ struct PullRequestObservedStateGateTests {
             observed("backend", 4, state: .closedWithoutMerge, head: "f00dfeed"),
             observed("backend", 7, state: .open, head: tip)
         ])])
+        let gate = PredecessorAncestryGate(publication: read)
 
-        _ = try await PredecessorAncestryGate(publication: read).check(context, unmergedFeaturesMax: 1)
+        let outcome = try await gate.check(context, unmergedFeaturesMax: 1)
+        _ = try await gate.check(context, unmergedFeaturesMax: 1)
 
-        #expect(await read.queries == [
-            PullRequestQuery(owner: "o", repository: "backend", selector: .headBranch(stateBranch))
+        #expect(singleUnmerged(outcome)?.repositories == ["backend"])
+        #expect(try journal.events(ofType: .multiplePullRequestsObserved).map(\.event) == [
+            .multiplePullRequestsObserved(repository: "backend", branch: stateBranch, numbers: [4, 7])
         ])
         let record = try #require(try journal.pullRequest(featureID: featureID, repository: "backend"))
-        #expect(record.url == url("backend", 7))
+        #expect(record.url == nil)
         #expect(record.number == 7)
-        #expect(record.observedState == .open)
+        #expect(try readFailures(journal).isEmpty)
     }
 
     @Test("A pushed repository with no recorded pull request is read, and the read records nothing")

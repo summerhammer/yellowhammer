@@ -8,8 +8,8 @@ extension JournalMigrations {
     /// Unique on `(feature_id, repository)` so a first write wins and a pull request is never
     /// duplicated for the same Feature's repository. The rest is its last observed state (feature-authoring/
     /// select-the-next-feature `#pull-request-read`, OQ190 item 14): null until the first successful read, then
-    /// overwritten by each one, never set by Yellowhammer otherwise. `number` and, where the land Act recorded
-    /// none, `url` come from the read that found the pull request.
+    /// overwritten by each one, never set by Yellowhammer otherwise. `number` comes from the read that found the pull
+    /// request; `url` is only ever the land Act's.
     static func createPullRequestTable(_ db: Database) throws {
         try db.create(table: "pull_request") { table in
             table.autoIncrementedPrimaryKey("id")

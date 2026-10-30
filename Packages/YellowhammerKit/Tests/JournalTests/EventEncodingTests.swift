@@ -36,6 +36,7 @@ func eventTypeRawValues() {
         "AuthoringPredecessorIndeterminate", "ObservedReleaseRecorded", "AuthoringReleaseGateHeld",
         "PredecessorWalkSkippedReleasedFeature",
         "PredecessorAncestryObserved", "MainlineConflictDetected", "PullRequestReadFailed",
+        "MultiplePullRequestsObserved",
         "ManagedBlockDelimiterBroken", "ManagedBlockOverBudget", "BoardWriteSuperseded",
         "ManagedBlockInputImported", "ManagedBlockInputInvalid", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",

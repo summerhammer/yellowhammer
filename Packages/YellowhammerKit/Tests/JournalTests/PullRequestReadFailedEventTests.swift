@@ -26,3 +26,22 @@ func pullRequestReadFailedRoundTrips() throws {
         "unreachable", "credential_refused", "no_access", "rate_limited", "unreadable_answer"
     ])
 }
+
+@Test("multiplePullRequestsObserved round-trips its repository, Feature Branch and pull request numbers (#714)")
+func multiplePullRequestsObservedRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-journal-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let event = JournalEvent.multiplePullRequestsObserved(
+        repository: "backend", branch: "yh/feat-1", numbers: [4, 7, 12]
+    )
+
+    try journal.append(event, act: .author, runID: RunID())
+
+    let records = try journal.events(ofType: .multiplePullRequestsObserved)
+    #expect(records.map(\.type.rawValue) == ["MultiplePullRequestsObserved"])
+    #expect(records.map(\.event) == [event])
+}
