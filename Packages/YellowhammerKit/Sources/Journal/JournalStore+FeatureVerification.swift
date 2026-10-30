@@ -48,7 +48,7 @@ public struct ClauseVerificationRecord: Equatable, Sendable {
     }
 }
 
-/// A Cycle's recorded Verification: its clauses in report order.
+/// A Cycle's recorded Verification: its clauses in report order, and the checkouts it judged.
 public struct FeatureVerificationRecord: Equatable, Sendable {
     public let id: Int64
     public let featureID: Int64
@@ -59,6 +59,10 @@ public struct FeatureVerificationRecord: Equatable, Sendable {
     public let runID: RunID
     public let verifiedAt: Date
     public let clauses: [ClauseVerificationRecord]
+    /// Per repository, the commit judged, the kind of checkout and the "no pushed branch" mark, sorted by
+    /// repository (OQ191 items 3, 5 and 7). Empty for a record written before that rule: "judged commit not
+    /// recorded", never filled in from the Feature Branch record or the Pushed Tip.
+    public let judgedCheckouts: [JudgedCheckout]
 }
 
 /// Everything a Cycle's Verification record needs, bundled so `recordFeatureVerification` stays under the
@@ -71,10 +75,12 @@ public struct NewFeatureVerification: Sendable {
     public let nightID: Int64
     public let runID: RunID
     public let clauses: [ClauseVerificationRecord]
+    /// The checkouts judged, one per repository, written in the same transaction as the verdicts.
+    public let judgedCheckouts: [JudgedCheckout]
 
     public init(
         featureID: Int64, cycleID: Int64, route: String?, nightID: Int64, runID: RunID,
-        clauses: [ClauseVerificationRecord]
+        clauses: [ClauseVerificationRecord], judgedCheckouts: [JudgedCheckout] = []
     ) {
         self.featureID = featureID
         self.cycleID = cycleID
@@ -82,13 +88,14 @@ public struct NewFeatureVerification: Sendable {
         self.nightID = nightID
         self.runID = runID
         self.clauses = clauses
+        self.judgedCheckouts = judgedCheckouts
     }
 }
 
 extension JournalStore {
-    /// Records `cycleID`'s Verification and its clauses (in the order given) in one transaction, first
-    /// write wins. Returns whether this call inserted it — false means the Cycle was already verified and
-    /// nothing was written.
+    /// Records `cycleID`'s Verification, its clauses (in the order given) and its judged checkouts in one
+    /// transaction, first write wins. Returns whether this call inserted it — false means the Cycle was already
+    /// verified and nothing was written: a second write adds no clause and no judged checkout.
     @discardableResult
     public func recordFeatureVerification(_ verification: NewFeatureVerification, now: Date = Date()) throws -> Bool {
         let (featureID, cycleID, route) = (verification.featureID, verification.cycleID, verification.route)
@@ -116,6 +123,18 @@ extension JournalStore {
                         verificationID, clause.issueID, clause.cid, clause.level, clause.text, clause.locationID,
                         clause.citationProvenance, clause.verdict.rawValue, clause.whatWasChecked,
                         clause.interpretation, clause.invalidatedCause, clause.judgedBy.rawValue, position
+                    ]
+                )
+            }
+            for checkout in verification.judgedCheckouts {
+                try db.execute(
+                    sql: """
+                    INSERT INTO judged_checkout (verification_id, repository, "commit", checkout_kind, no_pushed_branch)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    arguments: [
+                        verificationID, checkout.repository, checkout.commit, checkout.kind.rawValue,
+                        checkout.noPushedBranch
                     ]
                 )
             }
@@ -161,7 +180,27 @@ extension JournalStore {
             return FeatureVerificationRecord(
                 id: id, featureID: row["feature_id"], cycleID: cycleID, route: row["route"],
                 nightID: row["night_id"], runID: runID,
-                verifiedAt: try JournalStore.date(row["verified_at"], onError: onError), clauses: clauses
+                verifiedAt: try JournalStore.date(row["verified_at"], onError: onError), clauses: clauses,
+                judgedCheckouts: try Self.judgedCheckouts(db, verificationID: id, onError: onError)
+            )
+        }
+    }
+
+    /// The judged checkouts of the Verification `verificationID`, sorted by repository; empty for a record that
+    /// names none.
+    private static func judgedCheckouts(
+        _ db: Database, verificationID: Int64, onError: () -> JournalError
+    ) throws -> [JudgedCheckout] {
+        let rows = try Row.fetchAll(
+            db, sql: "SELECT * FROM judged_checkout WHERE verification_id = ? ORDER BY repository ASC",
+            arguments: [verificationID]
+        )
+        return try rows.map { row -> JudgedCheckout in
+            let kindText: String = row["checkout_kind"]
+            guard let kind = JudgedCheckout.Kind(rawValue: kindText) else { throw onError() }
+            return JudgedCheckout(
+                repository: row["repository"], commit: row["commit"], kind: kind,
+                noPushedBranch: row["no_pushed_branch"]
             )
         }
     }

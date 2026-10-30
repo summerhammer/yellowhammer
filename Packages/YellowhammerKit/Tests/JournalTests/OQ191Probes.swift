@@ -65,7 +65,7 @@ enum OQ191Probe {
     static func recordFeatureVerification(
         _ journal: JournalStore, _ verification: NewFeatureVerification, judged: [OQ191JudgedCheckout]
     ) throws -> Bool {
-        throw OQ191NotBuilt(item: "item 3 (judged commit in the Verification record)")
+        try journal.recordFeatureVerification(verification.judging(judged))
     }
 
     /// Item 3; `verify-a-feature-clause-by-clause.md#judged-checkout` ("written in the same transaction as the
@@ -75,12 +75,69 @@ enum OQ191Probe {
     static func recordFeatureVerificationAbortingJudgedCheckoutWrite(
         _ journal: JournalStore, _ verification: NewFeatureVerification, judged: [OQ191JudgedCheckout]
     ) throws {
-        throw OQ191NotBuilt(item: "item 3 (judged commit in the Verification transaction)")
+        let recorded = try verification.judging(judged)
+        try journal.write { db in
+            try db.execute(sql: """
+            CREATE TRIGGER oq191_abort_judged_checkout BEFORE INSERT ON judged_checkout
+            BEGIN SELECT RAISE(ABORT, 'oq191 injected judged checkout'); END
+            """)
+        }
+        defer { try? journal.write { db in try db.execute(sql: "DROP TRIGGER IF EXISTS oq191_abort_judged_checkout") } }
+        do {
+            try journal.recordFeatureVerification(recorded)
+        } catch {
+            guard (error as? DatabaseError)?.message?.contains("oq191 injected judged checkout") == true else {
+                throw error
+            }
+            throw OQ191InjectedFailure()
+        }
     }
 
     /// Items 3, 5 and 7; `verify-a-feature-clause-by-clause.md#judged-checkout`: the judged checkouts the
     /// Cycle's Verification record names, sorted by repository; nil when no record names any.
     static func judgedCheckouts(_ journal: JournalStore, cycleID: Int64) throws -> [OQ191JudgedCheckout]? {
-        nil
+        guard let record = try journal.featureVerification(cycleID: cycleID), !record.judgedCheckouts.isEmpty else {
+            return nil
+        }
+        return record.judgedCheckouts.map(OQ191JudgedCheckout.init)
+    }
+}
+
+extension OQ191JudgedCheckout {
+    /// The record's judged checkout as the harness compares it.
+    init(_ checkout: JudgedCheckout) {
+        let kind: OQ191CheckoutKind = switch checkout.kind {
+        case .heldWorktree: .heldWorktree
+        case .freshCheckout: .freshCheckout
+        }
+        self.init(
+            repository: checkout.repository, commit: checkout.commit, kind: kind,
+            noPushedBranch: checkout.noPushedBranch
+        )
+    }
+
+    /// The judged checkout the record is written with; a probe value with no commit or no kind names a record
+    /// from before the rule, which the write API cannot make.
+    func recorded() throws -> JudgedCheckout {
+        guard let commit, let kind else {
+            throw OQ191NotBuilt(item: "fixture: a judged checkout to record needs a commit and a kind")
+        }
+        let recordedKind: JudgedCheckout.Kind = switch kind {
+        case .heldWorktree: .heldWorktree
+        case .freshCheckout: .freshCheckout
+        }
+        return JudgedCheckout(
+            repository: repository, commit: commit, kind: recordedKind, noPushedBranch: noPushedBranch
+        )
+    }
+}
+
+extension NewFeatureVerification {
+    /// `self` with the harness's judged checkouts.
+    func judging(_ judged: [OQ191JudgedCheckout]) throws -> NewFeatureVerification {
+        NewFeatureVerification(
+            featureID: featureID, cycleID: cycleID, route: route, nightID: nightID, runID: runID, clauses: clauses,
+            judgedCheckouts: try judged.map { try $0.recorded() }
+        )
     }
 }

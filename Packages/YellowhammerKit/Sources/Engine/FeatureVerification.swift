@@ -80,7 +80,9 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         let records = candidates.compactMap { judged[$0.key] }
         try journal.recordFeatureVerification(NewFeatureVerification(
             featureID: context.feature.id, cycleID: context.cycleID, route: route?.description,
-            nightID: context.act.night.id, runID: context.act.runID, clauses: records
+            nightID: context.act.night.id, runID: context.act.runID, clauses: records,
+            // OQ191 items 3, 5 and 7: the judged checkouts arrive with the checkout the verifier is given.
+            judgedCheckouts: []
         ))
         guard let recorded = try journal.featureVerification(cycleID: context.cycleID) else {
             throw VerificationFault(reason: "the Verification just recorded cannot be read back")

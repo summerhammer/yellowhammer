@@ -132,7 +132,7 @@ struct FeatureReturnCommentTests {
         let fixture = makeDuplicateClausesFixture()
         let record = FeatureVerificationRecord(
             id: 1, featureID: 1, cycleID: 1, route: nil, nightID: 1, runID: RunID(),
-            verifiedAt: Date(), clauses: fixture.clauses
+            verifiedAt: Date(), clauses: fixture.clauses, judgedCheckouts: []
         )
         let comment = FeatureReturnComment(
             record: record, pullRequests: [:], feature: fixture.feature, cards: [fixture.card]

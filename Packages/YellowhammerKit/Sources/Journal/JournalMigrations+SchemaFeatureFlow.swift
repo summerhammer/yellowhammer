@@ -311,6 +311,7 @@ extension JournalMigrations {
             table.column("position", .integer).notNull()
             table.primaryKey(["verification_id", "issue_id", "cid"])
         }
+        try createJudgedCheckoutTable(db)
     }
 
     /// The Card Question table (roadmap P11.1; spec: bounds/escalate-a-question-to-the-operator): a

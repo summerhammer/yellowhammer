@@ -93,7 +93,7 @@ main ← feat/708-publish-what-was-pushed   (Track A + C; one commit per step)
     again.
   - **Harness.** J1, E1, E2, E4 and E7 turn green. E6, E9 and E11 stay green.
   - **Old-rule tests.** Rewrite `laterPushOverwrites` and `laterPushMovesTheRecordAndThePin`.
-- [ ] **A2 — The Verification record names each repository's judged commit, its checkout kind and
+- [x] **A2 — The Verification record names each repository's judged commit, its checkout kind and
   the "no pushed branch" mark.** These are written in the same transaction as the verdicts. A record
   written before this rule reads "judged commit not recorded" and is never backfilled. Items 3, 5
   and 7.

@@ -119,10 +119,9 @@ struct OQ191JournalTests {
         let journal = try fixture.open()
         let world = try makeWorld(journal, projectID: fixture.projectID)
 
-        withKnownIssue("OQ191 item 3: the Verification record names no judged commit") {
-            try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: freshCheckouts)
-            #expect(try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID) == freshCheckouts)
-        }
+        try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: freshCheckouts)
+        let judged = try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID)
+        #expect(judged == freshCheckouts)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -138,10 +137,9 @@ struct OQ191JournalTests {
             OQ191JudgedCheckout(repository: "backend", commit: commitB1, kind: .heldWorktree, noPushedBranch: false)
         ]
 
-        withKnownIssue("OQ191 item 7: the Verification record names no checkout kind") {
-            try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: held)
-            #expect(try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID) == held)
-        }
+        try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: held)
+        let judged = try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID)
+        #expect(judged == held)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -155,12 +153,10 @@ struct OQ191JournalTests {
         let world = try makeWorld(journal, projectID: fixture.projectID)
         #expect(try journal.featureVerification(cycleID: world.cycleID) == nil)
 
-        withKnownIssue("OQ191 item 3: the judged commit is not written with the verdicts") {
-            #expect(throws: OQ191InjectedFailure.self) {
-                try OQ191Probe.recordFeatureVerificationAbortingJudgedCheckoutWrite(
-                    journal, verification(world), judged: freshCheckouts
-                )
-            }
+        #expect(throws: OQ191InjectedFailure.self) {
+            try OQ191Probe.recordFeatureVerificationAbortingJudgedCheckoutWrite(
+                journal, verification(world), judged: freshCheckouts
+            )
         }
         #expect(try journal.featureVerification(cycleID: world.cycleID) == nil)
         #expect(try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID) == nil)
@@ -185,10 +181,8 @@ struct OQ191JournalTests {
         #expect(throws: DatabaseError.self) { try journal.recordFeatureVerification(verification(world)) }
         #expect(try journal.featureVerification(cycleID: world.cycleID) == nil)
 
-        withKnownIssue("OQ191 item 3: the judged commit is not written with the verdicts") {
-            #expect(throws: DatabaseError.self) {
-                try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: freshCheckouts)
-            }
+        #expect(throws: DatabaseError.self) {
+            try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: freshCheckouts)
         }
         #expect(try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID) == nil)
     }
@@ -247,10 +241,9 @@ struct OQ191JournalTests {
             OQ191JudgedCheckout(repository: "backend", commit: commitB2, kind: .heldWorktree, noPushedBranch: false)
         ]
 
-        withKnownIssue("OQ191 item 3: the Verification record names no judged commit") {
-            try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: freshCheckouts)
-            #expect(try !OQ191Probe.recordFeatureVerification(journal, verification(world), judged: moved))
-            #expect(try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID) == freshCheckouts)
-        }
+        #expect(try OQ191Probe.recordFeatureVerification(journal, verification(world), judged: freshCheckouts))
+        #expect(try !OQ191Probe.recordFeatureVerification(journal, verification(world), judged: moved))
+        let judged = try OQ191Probe.judgedCheckouts(journal, cycleID: world.cycleID)
+        #expect(judged == freshCheckouts)
     }
 }
