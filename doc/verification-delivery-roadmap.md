@@ -128,7 +128,7 @@ main ← feat/708-publish-what-was-pushed   (Track A + C; one commit per step)
 
 ## Track C — #708 investigation step 2 (feeds OQ198)
 
-- [ ] **C1 — Try to reproduce two cases with two disposable local repositories:**
+- [x] **C1 — Try to reproduce two cases with two disposable local repositories:**
   - two Checks that are each green while the combined state fails;
   - a combined state that is green while an intermediate merge state fails.
 
