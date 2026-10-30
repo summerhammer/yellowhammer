@@ -5,8 +5,8 @@ import Journal
 // The standing line's entries for the Unmerged Feature Stack U (roadmap P23.6; spec:
 // morning-report/write-the-night-summary, the standing line and `#stacked-conflicts`): each verified,
 // landed Feature awaiting merge, oldest first, with how many Nights it has awaited merge, `k of N`, its
-// conflicts, its place in the stack and its notes, the pull request read's among them (#714). Derived from the
-// Journal at read time; reported only.
+// conflicts, its place in the stack and its notes, the pull request read's among them (#714), then the route out
+// (#716). Derived from the Journal at read time; reported only.
 
 extension NightSummary {
     /// One entry per Feature in U, in `journal.unmergedFeatureStack()`'s order (Feature id ascending).
@@ -39,7 +39,7 @@ extension NightSummary {
                         below: isStacked ? conflictsBelow : []
                     )
                 }
-                line += "; " + named.joined(separator: "; ") + " " + MergeCommitRecommendation.shared
+                line += "; " + named.joined(separator: "; ")
             }
             let noPullRequest = try journal.noPushedBranchRepositories(featureID: member.feature.id)
             if !noPullRequest.isEmpty { line += " " + FeatureRollUp.noPullRequestNotes(noPullRequest) }
@@ -51,6 +51,7 @@ extension NightSummary {
             line += try FeatureCancellationAnnotation.suffix(
                 featureID: member.feature.id, issueID: issueID, journal: journal
             )
+            line += " " + MergeRouteOut.nightCard
             lines.append(line)
             conflictsBelow.append((identifier, conflicts))
             below.append(member)

@@ -163,8 +163,12 @@ struct NightCardAuthoringCopyTests {
         let line = try #require(NightCardMaintenance.authoringLine(for: event, journal: journal))
         #expect(line.hasPrefix("Authoring was skipped: predecessor Feature `YLH-321` has not merged in web, backend."))
         #expect(line.contains("Not found in mainline: `yh-feature-web` in web, `yh-feature-backend` in backend."))
-        #expect(line.contains(MergeCommitRecommendation.shared))
-        #expect(line.contains("(`git merge -s ours`) with a merge commit opens this gate."))
+        #expect(line.contains(" Merging the pull request by any method releases the next Feature. "))
+        #expect(line.contains(
+            " If the pull request is already merged and the Feature is still waiting, a content-free merge of the "
+                + "Feature Branch into mainline with a merge commit (`git merge -s ours`) opens the gate. "
+        ))
+        #expect(!line.contains("Create a merge commit"))
         #expect(!line.contains("An edit to the same lines"))
         #expect(!line.contains("unmerged_features_max"))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
@@ -176,7 +180,7 @@ struct NightCardAuthoringCopyTests {
         let line = try #require(NightCardMaintenance.authoringLine(for: event))
         #expect(line.contains("predecessor Feature `YLH-1` has not merged in backend."))
         #expect(line.contains("Not found in mainline: `yh-ylh-1` in backend."))
-        #expect(line.contains(MergeCommitRecommendation.shared))
+        #expect(line.contains("Merging the pull request by any method releases the next Feature."))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
     }
 
@@ -202,9 +206,10 @@ struct NightCardAuthoringCopyTests {
         #expect(line == "Authoring was skipped: unmerged Feature stack reached unmerged_features_max "
             + "(3 unmerged Features: `YLH-1`, `YLH-2`, `YLH-3`). Not found in mainline: `yh-ylh-1` in backend, "
             + "`yh-ylh-1-mobile` in mobile, `yh-ylh-2` in backend, `yh-ylh-3` in mobile. "
-            + MergeCommitRecommendation.shared
-            + " If mainline already has the changes, a content-free merge of the Feature Branch (`git merge -s ours`) "
-            + "with a merge commit opens this gate. A quiet Night, not a failure.")
+            + "Merging the pull request by any method releases the next Feature. "
+            + "If the pull request is already merged and the Feature is still waiting, a content-free merge of the "
+            + "Feature Branch into mainline with a merge commit (`git merge -s ours`) opens the gate. "
+            + "A quiet Night, not a failure.")
     }
 
     @Test("At max 1 with more than one Feature in U (the bound lowered), the line names the stack, not a predecessor")
@@ -220,14 +225,13 @@ struct NightCardAuthoringCopyTests {
         #expect(!line.contains("Not found in mainline"))
     }
 
-    @Test("The merge-commit recommendation is word for word the same in both bodies and the Night Card line")
-    func recommendationIsSharedAcrossSurfaces() throws {
-        let sentences = [
-            "Merging with **Create a merge commit** always releases the next Feature.",
-            "Squash and merge or Rebase and merge works too, but it is recognised only while mainline "
-                + "still shows this branch's changes."
-        ]
-        #expect(MergeCommitRecommendation.shared == sentences.joined(separator: " "))
+    @Test("The any-method sentence is word for word the same on both bodies and the Night Card line (#716)")
+    func anyMethodSentenceIsSharedAcrossSurfaces() throws {
+        let shared = "Merging the pull request by any method releases the next Feature."
+        let routeOut = "If the pull request is already merged and the Feature is still waiting, a content-free merge "
+            + "of the Feature Branch into mainline with a merge commit (`git merge -s ours`) opens the gate."
+        #expect(MergeRouteOut.anyMethod == shared)
+        #expect(MergeRouteOut.contentFreeMerge == routeOut)
 
         let done = PullRequestBodyCard(
             title: "BACK-1", repository: "backend", state: .done, routeSummary: "r", checkSummary: "c", roundCount: 1
@@ -249,25 +253,20 @@ struct NightCardAuthoringCopyTests {
             for: stackFullSkip("FEAT-1", ["backend"])
         ))
 
-        let editSentence =
-            "An edit to the same lines before the next Night holds the next Feature back."
+        let recommendations = [
+            "Create a merge commit", "Squash and merge", "Rebase and merge", "recognised only while",
+            "An edit to the same lines"
+        ]
         for surface in [complete, partial, card] {
-            for sentence in sentences { #expect(surface.contains(sentence)) }
+            #expect(surface.contains(shared))
+            for phrase in recommendations { #expect(!surface.contains(phrase), "found: \(phrase)") }
         }
+        // Only the Night Card gives the route out for a merge the gate cannot see.
         for pullRequestBody in [complete, partial] {
-            #expect(pullRequestBody.contains(editSentence))
+            #expect(!pullRequestBody.contains(routeOut))
             #expect(!pullRequestBody.contains("git merge -s ours"))
         }
-        #expect(complete.contains(
-            PullRequestBody.releaseSentence + "\n" + MergeCommitRecommendation.shared + " " + editSentence
-        ))
-        #expect(partial.contains(
-            "Merging satisfies the landing gate for the repositories it reached: it clears this Feature's slot "
-                + "in the unmerged Feature stack (`unmerged_features_max`) and releases any downstream Features "
-                + "waiting on it. Leaving it open costs tomorrow night."
-                + "\n" + MergeCommitRecommendation.shared + " " + editSentence
-        ))
-        #expect(!card.contains(editSentence))
+        #expect(card.contains(shared + " " + routeOut))
     }
 
     @Test("No surface says a squash or rebase merge stalls the next Feature, or that one happened")

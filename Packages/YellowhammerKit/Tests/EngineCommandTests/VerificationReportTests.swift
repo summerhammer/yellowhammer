@@ -213,13 +213,16 @@ struct VerificationPullRequestBodyTests {
         #expect(body.contains("1 Definition of Done clauses remain unmet"))
     }
 
-    @Test("Complete and partial bodies tell the Operator to merge with a merge commit (issue #448)")
-    func bodiesNameTheMergeCommit() {
+    @Test("Complete and partial bodies say any merge method releases the next Feature, and recommend none (#716)")
+    func bodiesRecommendNoMergeMethod() {
         let complete = PullRequestBody.render(bodyInput(cards: [doneCard]))
         let partial = PullRequestBody.render(bodyInput(cards: [doneCard, blockedCard]))
         #expect(!complete.contains("Definition of Done clauses unmet:"))
         for body in [complete, partial] {
-            #expect(body.contains(MergeCommitRecommendation.shared))
+            #expect(body.contains("Merging the pull request by any method releases the next Feature."))
+            for phrase in ["Create a merge commit", "Squash and merge", "Rebase and merge", "git merge -s ours"] {
+                #expect(!body.contains(phrase), "found: \(phrase)")
+            }
         }
     }
 

@@ -169,7 +169,7 @@ Steps are ordered by dependency:
   - `[closed without merge: <repo>]`;
   - `[merged into <branch>, waiting for it: <repo>]`;
   - a Feature Branch with more than one pull request.
-- [ ] **B6 #716 — Recommend no merge method.**
+- [x] **B6 #716 — Recommend no merge method.**
   - Copy: "Merging the pull request by any method releases the next Feature."
   - The Night Card lines carry the route out (`git merge -s ours`).
   - `MergeCommitRecommendation` goes.

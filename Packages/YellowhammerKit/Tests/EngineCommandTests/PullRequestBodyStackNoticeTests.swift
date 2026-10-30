@@ -90,20 +90,27 @@ struct PullRequestBodyStackNoticeTests {
         #expect(Array(stacked.dropFirst(4)) == Array(plain.dropFirst(3)))
     }
 
-    @Test("The release sentence names the unmerged Feature stack, followed by the recommendation, exactly once")
-    func releaseSentenceAndRecommendationOnce() {
+    @Test("The release sentence leads with the any-method sentence, exactly once, and recommends no method (#716)")
+    func releaseSentenceOnce() {
+        let shared = "Merging the pull request by any method releases the next Feature."
         for cards in [[Self.doneCard], [Self.doneCard, Self.blockedCard]] {
             for notice in [nil, Self.notice] {
                 let body = Self.body(cards, notice: notice)
-                #expect(Self.occurrences(of: MergeCommitRecommendation.shared, in: body) == 1)
-                #expect(Self.occurrences(of: MergeCommitRecommendation.pullRequestBody, in: body) == 1)
+                #expect(Self.occurrences(of: shared, in: body) == 1)
+                #expect(!body.contains("Create a merge commit"))
+                #expect(!body.contains("git merge -s ours"))
             }
         }
         let complete = Self.body([Self.doneCard], notice: Self.notice)
         #expect(complete.contains(
-            "Merging this pull request is what releases the next Feature: it clears this Feature's slot in the "
-                + "unmerged Feature stack (`unmerged_features_max`) and releases any downstream Features waiting "
-                + "on it. Leaving it open costs tomorrow night.\n" + MergeCommitRecommendation.pullRequestBody
+            "\n" + shared + " It clears this Feature's slot in the unmerged Feature stack (`unmerged_features_max`) "
+                + "and releases any downstream Features waiting on it. Leaving it open costs tomorrow night.\n"
+        ))
+        let partial = Self.body([Self.doneCard, Self.blockedCard], notice: Self.notice)
+        #expect(partial.contains(
+            "\n" + shared + " It satisfies the landing gate for the repositories it reached, clears this Feature's "
+                + "slot in the unmerged Feature stack (`unmerged_features_max`) and releases any downstream "
+                + "Features waiting on it. Leaving it open costs tomorrow night.\n"
         ))
     }
 }

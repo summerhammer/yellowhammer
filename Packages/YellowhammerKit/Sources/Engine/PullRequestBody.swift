@@ -180,12 +180,12 @@ public struct PullRequestBodyInput: Equatable, Sendable {
 /// or board access. Never renders model-authored content (diffs, verdict prose, briefs).
 public enum PullRequestBody {
     /// What merging a verified Feature's pull request releases (spec: landing/open-one-pull-request-per-
-    /// repository; OQ177): its slot in the Unmerged Feature Stack and any Feature waiting on it. Followed by
-    /// ``MergeCommitRecommendation/pullRequestBody``.
-    static let releaseSentence =
-        "Merging this pull request is what releases the next Feature: it clears this Feature's slot in the "
-        + "unmerged Feature stack (`unmerged_features_max`) and releases any downstream Features waiting on it. "
-        + "Leaving it open costs tomorrow night."
+    /// repository `#any-merge-method`; OQ177, OQ190 item 3): its slot in the Unmerged Feature Stack and any Feature
+    /// waiting on it. It leads with the sentence the Night Card shares (``MergeRouteOut/anyMethod``), recommends no
+    /// merge method, and does not carry the Night Card's route out.
+    static let releaseSentence = MergeRouteOut.anyMethod
+        + " It clears this Feature's slot in the unmerged Feature stack (`unmerged_features_max`) and releases any "
+        + "downstream Features waiting on it. Leaving it open costs tomorrow night."
 
     public static func render(_ input: PullRequestBodyInput) -> String {
         input.isPartialLanding ? renderPartial(input) : renderComplete(input)
@@ -217,7 +217,6 @@ public enum PullRequestBody {
             lines.append("")
         }
         lines.append(releaseSentence)
-        lines.append(MergeCommitRecommendation.pullRequestBody)
         lines.append("")
         lines.append(mainlineVerdictLine(input))
         lines.append("")
