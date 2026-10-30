@@ -98,7 +98,7 @@ main ← feat/708-publish-what-was-pushed   (Track A + C; one commit per step)
   written before this rule reads "judged commit not recorded" and is never backfilled. Items 3, 5
   and 7.
   - **Harness.** J2, J3, J4, J5 and J8 turn green.
-- [ ] **A3 — The verifier judges checkouts at the Pushed Tips.** A No-Pushed-Branch repository is
+- [x] **A3 — The verifier judges checkouts at the Pushed Tips.** A No-Pushed-Branch repository is
   judged at `feature_base.base_commit`. Items 2, 5, 7 and 8.
   - **Reuse.** Held Worktrees are reused only when every one of them is exact and clean. Otherwise
     every repository gets a fresh checkout (`clone --shared`) in a shared layout.

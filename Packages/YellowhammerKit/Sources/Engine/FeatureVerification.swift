@@ -42,11 +42,17 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
     let resolver: RouteResolver
     let dispatch: any AgentDispatch
     let citations: any CitationResolving
+    /// Makes the checkout of every repository the verifier is handed, at its recorded commit, and removes it.
+    let checkouts: any VerifierCheckoutPreparing
 
-    public init(resolver: RouteResolver, dispatch: any AgentDispatch, citations: any CitationResolving) {
+    public init(
+        resolver: RouteResolver, dispatch: any AgentDispatch, citations: any CitationResolving,
+        checkouts: any VerifierCheckoutPreparing
+    ) {
         self.resolver = resolver
         self.dispatch = dispatch
         self.citations = citations
+        self.checkouts = checkouts
     }
 
     public func verify(_ context: LandActFeatureContext) async throws -> VerificationVerdict {
@@ -61,12 +67,16 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         guard !candidates.isEmpty else {
             throw VerificationFault(reason: "the Cycle has no Definition of Done clause to verify")
         }
+        // OQ191 items 2, 5, 7 and 8: what was pushed is judged, in checkouts removed when Verification ends.
+        let prepared = try await checkouts.prepare(context, repositories: try verifiedRepositories(context))
+        defer { checkouts.release(prepared) }
+
         var judged = try await decideByEngine(candidates, context: context)
         let pending = candidates.filter { judged[$0.key] == nil }
 
         var route: Route?
         if !pending.isEmpty {
-            let (routeUsed, verdicts) = try await dispatchVerifier(pending, context: context)
+            let (routeUsed, verdicts) = try await dispatchVerifier(pending, checkouts: prepared, context: context)
             route = routeUsed
             for candidate in pending {
                 guard let verified = verdicts[candidate.key] else { continue }
@@ -81,8 +91,7 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         try journal.recordFeatureVerification(NewFeatureVerification(
             featureID: context.feature.id, cycleID: context.cycleID, route: route?.description,
             nightID: context.act.night.id, runID: context.act.runID, clauses: records,
-            // OQ191 items 3, 5 and 7: the judged checkouts arrive with the checkout the verifier is given.
-            judgedCheckouts: []
+            judgedCheckouts: prepared.judgedCheckouts
         ))
         guard let recorded = try journal.featureVerification(cycleID: context.cycleID) else {
             throw VerificationFault(reason: "the Verification just recorded cannot be read back")

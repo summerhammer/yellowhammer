@@ -140,9 +140,7 @@ struct OQ191GitOperationsTests {
         try "output".write(toFile: "\(world.worktree)/build/output.o", atomically: true, encoding: .utf8)
         try #require(await world.git(["status", "--porcelain"]).stdout.isEmpty)
 
-        await withKnownIssue("OQ191 item 7: held Worktrees are not checked before reuse") {
-            #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == true)
-        }
+        #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == true)
     }
 
     // verification/stories/verify-a-feature-clause-by-clause.md#judged-checkout
@@ -162,9 +160,7 @@ struct OQ191GitOperationsTests {
             _ = await world.git(["checkout", "--quiet", "--detach", world.base])
         }
 
-        await withKnownIssue("OQ191 item 7: held Worktrees are not checked before reuse") {
-            #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == false)
-        }
+        #expect(await OQ191Probe.isExactAndClean(worktreePath: world.worktree, recordedCommit: world.tip) == false)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin

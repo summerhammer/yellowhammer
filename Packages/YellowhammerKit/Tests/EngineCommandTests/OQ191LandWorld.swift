@@ -139,6 +139,18 @@ struct OQ191LoggedPush: LanePushing {
     }
 }
 
+/// The engine's own checkouts, kept until the world is gone: a test reads the HEAD of each directory the verifier
+/// was handed after the firing returns. That the engine removes them is `JudgedCheckoutPreparationTests`'.
+struct OQ191KeptCheckouts: VerifierCheckoutPreparing {
+    let inner: JudgedCheckoutPreparation
+
+    func prepare(_ context: LandActFeatureContext, repositories: [String]) async throws -> VerifierCheckouts {
+        try await inner.prepare(context, repositories: repositories)
+    }
+
+    func release(_ checkouts: VerifierCheckouts) {}
+}
+
 /// What one land firing did: the verifier dispatch it used, and what the Act threw.
 struct OQ191Firing {
     let dispatch: ScriptedVerifierDispatch

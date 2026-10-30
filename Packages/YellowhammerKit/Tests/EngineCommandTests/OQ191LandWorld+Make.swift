@@ -18,6 +18,8 @@ final class OQ191LandWorld {
     let feature: FeatureRecord
     let cycleID: Int64
     let log = LandCallLog()
+    /// This world's own directory for the verifier's fresh checkouts, so no other test's prune reaches them.
+    let checkoutDirectory = TestGitRepo(name: "oq191-checkouts")
     let publication: OQ191Publication
     let workspace: ReconcilerFakeWorkspace
     private let slugResolver: GitHubRepositorySlugResolver
@@ -124,10 +126,14 @@ final class OQ191LandWorld {
     }
 
     /// One land firing. `verifier` scripts the verifier's answer; `.refuse` leaves no Route, so Verification
-    /// faults.
+    /// faults. The verifier's checkouts are kept for the test to read unless `keepingCheckouts` is false.
     @discardableResult
-    func fire(verifier: VerifierBehaviour = .judgeAll()) async -> OQ191Firing {
+    func fire(verifier: VerifierBehaviour = .judgeAll(), keepingCheckouts: Bool = true) async -> OQ191Firing {
         let dispatch = ScriptedVerifierDispatch([routeOther: verifier])
+        let engineCheckouts = JudgedCheckoutPreparation(directory: checkoutDirectory.url)
+        let checkouts: any VerifierCheckoutPreparing = keepingCheckouts
+            ? OQ191KeptCheckouts(inner: engineCheckouts)
+            : engineCheckouts
         let act = LandAct(
             mergeTest: StubMergeTest(log: log),
             push: OQ191LoggedPush(inner: FeatureBranchLanePush(credential: { nil }), log: log),
@@ -136,7 +142,8 @@ final class OQ191LandWorld {
             ),
             verification: FeatureVerification(
                 resolver: verificationResolver(primary: routeOther), dispatch: dispatch,
-                citations: FakeCitationResolver()
+                citations: FakeCitationResolver(),
+                checkouts: checkouts
             ),
             returnFeature: StubReturnFeature(log: log),
             archiveCycle: StubArchiveCycle(log: log)

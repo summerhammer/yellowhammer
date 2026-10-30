@@ -7,7 +7,8 @@ struct DispatchPromptRecordTests {
     @Test("PromptFamily raw values, diagnostic state, instructions acceptance, and default versions")
     func promptFamilyProperties() {
         for family in PromptFamily.allCases {
-            #expect(family.defaultVersion == 1)
+            // The verifier's text changed for OQ191 (it judges the commit its checkout is at).
+            #expect(family.defaultVersion == (family == .verifier ? 2 : 1))
         }
 
         let productionFamilies: Set<PromptFamily> = [

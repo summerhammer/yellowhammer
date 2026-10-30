@@ -87,7 +87,9 @@ enum LandBinding {
 
     /// Verification (P10.5): the same ``RoutingBinding`` resolver and Dispatch choice as the author Act —
     /// ``RehearsalDispatch`` in a rehearsal Night, ``CLIAdapterDispatch`` otherwise — with
-    /// ``MainlineReader`` resolving each clause's Spec Citation.
+    /// ``MainlineReader`` resolving each clause's Spec Citation, and fresh checkouts for the verifier made under
+    /// the Project's ``JudgedCheckoutPreparation/directory(homeDirectory:projectID:)``, outside the
+    /// configuration directory every read-only pass is denied.
     static func verification(
         mode: NightMode,
         configuration: Configuration,
@@ -103,7 +105,12 @@ enum LandBinding {
                 mode: mode, configuration: configuration, project: project,
                 configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
             ),
-            citations: MainlineReader(refresher: refresher)
+            citations: MainlineReader(refresher: refresher),
+            checkouts: JudgedCheckoutPreparation(
+                directory: JudgedCheckoutPreparation.directory(
+                    homeDirectory: FileManager.default.homeDirectoryForCurrentUser, projectID: project.id
+                )
+            )
         )
     }
 }

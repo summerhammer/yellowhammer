@@ -43,7 +43,11 @@ public enum PromptFamily: String, CaseIterable, Codable, Sendable {
     ///
     /// It must change whenever that family's shipped text changes.
     public var defaultVersion: Int {
-        1
+        switch self {
+        // 2: the verifier judges the commit its checkout is at, not the head of each Feature Branch (OQ191).
+        case .verifier: 2
+        default: 1
+        }
     }
 
     /// The current default version of each family that accepts Project instructions.

@@ -268,7 +268,7 @@ struct LandActFeatureReturnTests {
         let log = LandCallLog()
         let verification = FeatureVerification(
             resolver: verificationResolver(primary: routeOther), dispatch: RehearsalDispatch(),
-            citations: FakeCitationResolver()
+            citations: FakeCitationResolver(), checkouts: UnrecordedCheckouts()
         )
         let act = LandAct(
             mergeTest: StubMergeTest(log: log), push: StubPush(log: log), openPullRequest: StubPullRequest(log: log),

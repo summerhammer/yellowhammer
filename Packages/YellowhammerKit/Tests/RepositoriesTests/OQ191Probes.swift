@@ -50,7 +50,7 @@ enum OQ191Probe {
     /// held Worktree at `worktreePath` is exact (HEAD at `recordedCommit`) and clean (`git status` reports
     /// nothing; ignored files are allowed).
     static func isExactAndClean(worktreePath: String, recordedCommit: String) async -> Bool? {
-        nil
+        await JudgedCheckoutGit().isExactAndClean(worktreePath: worktreePath, recordedCommit: recordedCommit)
     }
 
     /// Items 6 and 9; `landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin`: how the
