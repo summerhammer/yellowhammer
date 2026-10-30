@@ -2,7 +2,7 @@ import Foundation
 
 /// What checking the GitHub credential found: the single shared shape the engine encodes (one compact JSON
 /// object on the command's last line) and the app decodes, so the two can never drift. The raw values of
-/// ``State`` and ``RepoStatus`` are a contract with the app.
+/// ``State``, ``RepoStatus`` and ``PullRequestReadStatus`` are a contract with the app.
 ///
 /// It never carries the token. Every ``message`` is a sentence for the Operator.
 public struct GitHubCredentialReport: Codable, Equatable, Sendable {
@@ -35,21 +35,52 @@ public struct GitHubCredentialReport: Codable, Equatable, Sendable {
         case rejected
     }
 
+    /// Whether the credential can read pull requests on one Repo, for the merge test's pull request read
+    /// (shift-scheduling/diagnose-the-installation, `#check-5-code-hosting-connections-github`). Only `yh doctor`
+    /// asks; it never decides ``isValid``, which is about pushing.
+    public struct PullRequestRead: Codable, Equatable, Sendable {
+        public var status: PullRequestReadStatus
+        public var message: String
+
+        public init(status: PullRequestReadStatus, message: String) {
+            self.status = status
+            self.message = message
+        }
+    }
+
+    /// Whether the credential could read pull requests on one Repo.
+    public enum PullRequestReadStatus: String, Codable, Equatable, Sendable {
+        /// A pull request list was read.
+        case canRead
+        /// GitHub refused the read (no access, or the credential refused for it).
+        case cannotRead
+        /// GitHub gave no verdict: unreachable, rate limited, or an answer that could not be read.
+        case unverified
+    }
+
     /// One working Repo's verdict.
     public struct Repo: Codable, Equatable, Sendable {
         public var name: String
         public var path: String
         /// `owner/name`, when the Repo's `origin` named a GitHub repository.
         public var slug: String?
+        /// Whether the credential can push: the Repo's verdict.
         public var status: RepoStatus
         public var message: String
+        /// Whether the credential can read pull requests; nil when it was not asked (only `yh doctor` asks) or
+        /// the Repo is not a GitHub repository.
+        public var pullRequestRead: PullRequestRead?
 
-        public init(name: String, path: String, slug: String? = nil, status: RepoStatus, message: String) {
+        public init(
+            name: String, path: String, slug: String? = nil, status: RepoStatus, message: String,
+            pullRequestRead: PullRequestRead? = nil
+        ) {
             self.name = name
             self.path = path
             self.slug = slug
             self.status = status
             self.message = message
+            self.pullRequestRead = pullRequestRead
         }
     }
 
@@ -71,7 +102,8 @@ public struct GitHubCredentialReport: Codable, Equatable, Sendable {
         self.repos = repos
     }
 
-    /// The credential resolves and every Repo can push (``RepoStatus/ok`` or ``RepoStatus/okUnverified``).
+    /// The credential resolves and every Repo can push (``RepoStatus/ok`` or ``RepoStatus/okUnverified``). A
+    /// Repo's ``Repo/pullRequestRead`` plays no part.
     public var isValid: Bool {
         state == .resolves && repos.allSatisfy { $0.status == .ok || $0.status == .okUnverified }
     }

@@ -75,7 +75,10 @@ func otherFindings() throws {
         Finding("launchd", "demo", "warning", "no LaunchAgent installed for Project demo"),
         Finding("linear", "authorization", "failure", "Linear could not be reached"),
         Finding("linear", "authorization", "pass", "Linear authorization succeeded"),
-        Finding("linear", "operator", "pass", "Operator identity usr-1 is a candidate")
+        Finding("linear", "operator", "pass", "Operator identity usr-1 is a candidate"),
+        Finding("github", "repo app", "pass", "Repo app (acme/app): the token can push.", projects: ["demo"]),
+        Finding("github", "pull request read app", "warning",
+                "Repo app (acme/app): the token cannot read pull requests", projects: ["demo"])
     ])
 
     #expect(HealthFlag.read(doctorOutput: output, project: demo) == [])

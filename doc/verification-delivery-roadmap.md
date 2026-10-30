@@ -173,7 +173,7 @@ Steps are ordered by dependency:
   - Copy: "Merging the pull request by any method releases the next Feature."
   - The Night Card lines carry the route out (`git merge -s ours`).
   - `MergeCommitRecommendation` goes.
-- [ ] **B7 #715 — `yh doctor` Check 5 reports whether the connection can read pull requests.**
+- [x] **B7 #715 — `yh doctor` Check 5 reports whether the connection can read pull requests.**
   - A connection that cannot read them is a warning.
   - A read that cannot be verified is unverified.
 - [ ] **B8 #718 — The Pulse shows each repository's last observed pull request state.**

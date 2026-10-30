@@ -36,7 +36,7 @@ struct GitHubCLIDoctorSetupTests {
         _ directory: borrowing ConfigurationDirectory, gh: StubGitHubCLI, found: Bool = true
     ) async -> [DoctorFinding] {
         await makeDoctor(directory: directory, gitHub: gh.validation(found: found), checks: [.github])
-            .run().filter { $0.check == .github }
+            .run().filter { $0.check == .github && !$0.subject.hasPrefix("pull request read ") }
     }
 
     // MARK: Doctor
