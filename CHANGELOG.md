@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.32.0](https://github.com/summerhammer/yellowhammer/compare/v0.31.0...v0.32.0) (2026-10-31)
+
+
+### Features
+
+* **shift-scheduling:** Complete the open Night Card during Project removal ([#726](https://github.com/summerhammer/yellowhammer/issues/726)) ([d3b33c5](https://github.com/summerhammer/yellowhammer/commit/d3b33c5efb03c24e2837f62835cc06648ba705e4))
+
+
+### Bug Fixes
+
+* **pulse:** a failed pull request read is not a failed Act ([#730](https://github.com/summerhammer/yellowhammer/issues/730)) ([9c29635](https://github.com/summerhammer/yellowhammer/commit/9c2963547adb7d9e7e4368c2db89b1c99573cf4f))
+
 ## [0.31.0](https://github.com/summerhammer/yellowhammer/compare/v0.30.0...v0.31.0) (2026-10-30)
 
 
