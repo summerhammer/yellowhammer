@@ -117,8 +117,9 @@ extension PredecessorAncestryGate {
     /// repository. `PullRequestReadFailed` is keyed by its repository, `MultiplePullRequestsObserved` by its
     /// repository and branch. Neither is a Failure Notice or a halt.
     private func recordOncePerPass(_ event: JournalEvent, context: ActContext) throws {
-        let alreadyRecorded = try context.journal.events(ofType: event.type).contains { record in
-            record.runID == context.runID && Self.samePassKey(record.event, event)
+        // Only this pass's events of the type, filtered in SQL: every earlier Night's are never decoded.
+        let alreadyRecorded = try context.journal.events(runID: context.runID, ofTypes: [event.type]).contains {
+            Self.samePassKey($0.event, event)
         }
         guard !alreadyRecorded else { return }
         try context.journal.append(event, act: context.act, runID: context.runID, nightID: context.night.id)
