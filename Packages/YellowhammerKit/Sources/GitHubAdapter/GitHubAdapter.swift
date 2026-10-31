@@ -83,17 +83,24 @@ public struct GitHubAdapter: Publication, Sendable {
         return try GitHubPullRequestRead.map(data: data, response: response, selector: query.selector)
     }
 
-    private static func makeRequest(_ draft: PullRequestDraft, token: String?, apiVersion: String) -> URLRequest {
-        let url = URL(
-            string: "https://api.github.com/repos/\(draft.owner)/\(draft.repository)/pulls"
-        )!
+    /// A request to GitHub's REST API: the method, the bearer token when there is one, and the media type and API
+    /// version every call sends.
+    static func apiRequest(url: URL, method: String, token: String?, apiVersion: String) -> URLRequest {
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        request.httpMethod = method
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue(apiVersion, forHTTPHeaderField: "X-GitHub-Api-Version")
+        return request
+    }
+
+    private static func makeRequest(_ draft: PullRequestDraft, token: String?, apiVersion: String) -> URLRequest {
+        let url = URL(
+            string: "https://api.github.com/repos/\(draft.owner)/\(draft.repository)/pulls"
+        )!
+        var request = apiRequest(url: url, method: "POST", token: token, apiVersion: apiVersion)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body = GitHubCreatePullRequestBody(
             title: draft.title, head: draft.head, base: draft.base, body: draft.body
