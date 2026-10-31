@@ -15,9 +15,10 @@ extension JournalStore {
     /// Opens a dedicated connection and takes the writer lock before confirmation or remote effects.
     /// No lease row, receipt, counter or event is committed until `commitProjectRemoval` succeeds.
     public func beginProjectRemoval(
-        runID: RunID, now: Date = Date(), holding removalHold: ProjectRemovalHold? = nil
+        runID: RunID, now: Date = Date(), holding removalHold: ProjectRemovalHold? = nil,
+        exclusiveWait: Duration = ProjectRemovalHold.exclusiveWait
     ) throws -> JournalStore {
-        let removalHold = try removalHold ?? .exclusive(for: fileURL)
+        let removalHold = try removalHold ?? .exclusive(for: fileURL, wait: exclusiveWait)
         try removalHold.validate(journalURL: fileURL)
         var configuration = Configuration()
         configuration.foreignKeysEnabled = true

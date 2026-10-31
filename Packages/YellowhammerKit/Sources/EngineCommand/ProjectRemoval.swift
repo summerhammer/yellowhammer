@@ -236,22 +236,26 @@ struct ProjectRemoval {
 
     /// Step 1's exclusive hold: the committed Journal, removal's own transaction on it, or — with no
     /// Journal — the hold alone, which keeps an Act from creating one while removal runs.
+    /// The exclusive hold is taken before the Journal is opened, and the open runs under it, so removal never
+    /// holds a shared hold of its own while it waits for the exclusive one.
     private func holdForRemoval(projectID: ProjectID) throws -> RemovalHold {
-        guard let committed = try openJournalIfPresent(projectID: projectID) else {
-            let hold = try JournalStore.holdProjectRemoval(
-                configurationDirectory: configurationDirectory, projectID: projectID
-            )
+        let hold = try JournalStore.holdProjectRemoval(
+            configurationDirectory: configurationDirectory, projectID: projectID
+        )
+        guard let committed = try openJournalIfPresent(projectID: projectID, holding: hold) else {
             return RemovalHold(committed: nil, removal: nil, journalless: hold)
         }
-        let removal = try committed.beginProjectRemoval(runID: RunID(), now: now)
+        let removal = try committed.beginProjectRemoval(runID: RunID(), now: now, holding: hold)
         return RemovalHold(committed: committed, removal: removal, journalless: nil)
     }
 
     /// Never creates a Journal: opens it only when `journals/<id>.db` already exists.
-    private func openJournalIfPresent(projectID: ProjectID) throws -> JournalStore? {
+    private func openJournalIfPresent(projectID: ProjectID, holding hold: ProjectRemovalHold) throws -> JournalStore? {
         let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
         guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return nil }
-        return try JournalStore.openExisting(configurationDirectory: configurationDirectory, projectID: projectID)
+        return try JournalStore.openExisting(
+            configurationDirectory: configurationDirectory, projectID: projectID, removalHold: hold
+        )
     }
 
     private func confirmRemoval(id: String) -> Bool {

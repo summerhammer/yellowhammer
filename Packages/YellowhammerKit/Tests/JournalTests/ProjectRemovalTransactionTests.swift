@@ -20,7 +20,9 @@ struct ProjectRemovalTransactionTests {
         #expect(throws: ProjectRemovalHoldError.self) {
             try other.claimActLease(act: .author, runID: RunID(), mode: .real)
         }
-        #expect(throws: ProjectRemovalHoldError.self) { try other.beginProjectRemoval(runID: RunID()) }
+        #expect(throws: ProjectRemovalHoldError.self) {
+            try other.beginProjectRemoval(runID: RunID(), exclusiveWait: .milliseconds(100))
+        }
         #expect(try source.events().isEmpty)
         removal.rollbackProjectRemoval()
         #expect(throws: ProjectRemovalTransactionError.self) { try removal.revalidateProjectRemoval(runID: run) }

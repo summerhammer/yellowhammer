@@ -12,17 +12,18 @@ public final class ProjectRemovalHold: Sendable {
     /// The locked descriptor, -1 once ``release()`` ran.
     private let descriptor: Mutex<Int32>
 
-    /// How long removal waits for an exclusive hold: SQLite's own busy timeout. A shared hold is only ever taken for one short
-    /// open or Act claim (or inherited for an instant by a spawned child before `exec` closes it), so
-    /// removal waits it out; an Act never waits, it refuses fast while removal holds the Journal.
-    static let exclusiveWait: Duration = .seconds(JournalStore.busyTimeout)
+    /// How long removal waits for an exclusive hold by default. A shared hold is only ever taken for one short
+    /// open or Act claim (or inherited for an instant by a spawned child before `exec` closes it), but on a
+    /// loaded machine such an instant outlasted SQLite's 5 s busy timeout, so attended removal waits longer;
+    /// an Act never waits, it refuses fast while removal holds the Journal.
+    public static let exclusiveWait: Duration = .seconds(30)
 
-    private init(journalURL: URL, exclusive: Bool) throws {
+    private init(journalURL: URL, exclusive: Bool, wait: Duration = .zero) throws {
         self.journalURL = journalURL.standardizedFileURL
         let path = journalURL.path + ".removal.lock"
         let descriptor = Darwin.open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { throw ProjectRemovalHoldError.unavailable(path: path, code: errno) }
-        let deadline = ContinuousClock.now + (exclusive ? Self.exclusiveWait : .zero)
+        let deadline = ContinuousClock.now + (exclusive ? wait : .zero)
         while flock(descriptor, (exclusive ? LOCK_EX : LOCK_SH) | LOCK_NB) != 0 {
             let code = errno
             if code == EINTR { continue }
@@ -52,11 +53,11 @@ public final class ProjectRemovalHold: Sendable {
         try ProjectRemovalHold(journalURL: journalURL, exclusive: false)
     }
 
-    static func exclusive(for journalURL: URL) throws -> ProjectRemovalHold {
+    static func exclusive(for journalURL: URL, wait: Duration = exclusiveWait) throws -> ProjectRemovalHold {
         try FileManager.default.createDirectory(
             at: journalURL.deletingLastPathComponent(), withIntermediateDirectories: true
         )
-        return try ProjectRemovalHold(journalURL: journalURL, exclusive: true)
+        return try ProjectRemovalHold(journalURL: journalURL, exclusive: true, wait: wait)
     }
 
     func validate(journalURL: URL) throws {
@@ -84,8 +85,8 @@ extension JournalStore {
     /// Does not create a Journal. The lock also excludes an Act's first writable open while removal
     /// handles a Project that has never run or whose Journal was deleted.
     public static func holdProjectRemoval(
-        configurationDirectory: URL, projectID: ProjectID
+        configurationDirectory: URL, projectID: ProjectID, wait: Duration = ProjectRemovalHold.exclusiveWait
     ) throws -> ProjectRemovalHold {
-        try .exclusive(for: defaultFileURL(configurationDirectory: configurationDirectory, id: projectID))
+        try .exclusive(for: defaultFileURL(configurationDirectory: configurationDirectory, id: projectID), wait: wait)
     }
 }
