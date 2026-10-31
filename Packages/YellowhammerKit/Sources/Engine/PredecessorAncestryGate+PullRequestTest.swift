@@ -38,7 +38,7 @@ extension PredecessorAncestryGate {
             let tipCommit = notAncestor.branchCommit,
             let mainlineCommit = notAncestor.mainlineCommit, !mainlineCommit.isEmpty,
             let repo = scope.repos.first(where: { $0.name == notAncestor.repository }),
-            let mergeCommit = Self.mergeCommitUnderTest(scope.pullRequestReads[repo.name], pushedTip: tipCommit)
+            let mergeCommit = Self.mergeCommitUnderTest(scope.pullRequestReads[repo.name])
         else { return nil }
 
         // Item 9 and 23: merged into any branch, but it counts only once its merge commit is in mainline, as this
@@ -53,12 +53,12 @@ extension PredecessorAncestryGate {
         )
     }
 
-    /// The merge commit of the pull request under test, when it reads merged: from this pass's read, or the one an
-    /// earlier read recorded with the merged state, which is final and not read again. Nil otherwise.
-    static func mergeCommitUnderTest(_ reading: PullRequestReading?, pushedTip: String) -> String? {
+    /// The merge commit of the pull request under test, when it reads merged: from this pass's read, which chose it
+    /// against the tested tip, or the one an earlier read recorded with the merged state, final for that pull
+    /// request and still carrying the tip. Nil otherwise.
+    static func mergeCommitUnderTest(_ reading: PullRequestReading?) -> String? {
         switch reading {
-        case .read(let read):
-            let pullRequest = pullRequestUnderTest(read, pushedTip: pushedTip)
+        case .read(let pullRequest):
             return pullRequest?.state == .merged ? pullRequest?.mergeCommit : nil
         case .recordedMerge(let mergeCommit):
             return mergeCommit

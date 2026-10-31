@@ -233,6 +233,12 @@ public struct AncestryTester: Sendable {
         return result.exitCode == 0
     }
 
+    /// Whether this clone has `commit`, a full hexadecimal object name, as a commit. False for anything else,
+    /// a branch name included, so a commit the clone never fetched is told apart from one that is not an ancestor.
+    public func hasCommit(_ commit: String, in repositoryPath: String) async -> Bool {
+        await git.existingCommit(commit, in: repositoryPath) != nil
+    }
+
     /// The commit under test (#tested-tip): `recordedCommit` when one was recorded — nil if the repository no
     /// longer has it, and the branch is then never read — else the commit the branch name resolves to.
     private func resolveTestedCommit(branch: String, recordedCommit: String?, in path: String) async -> String? {
