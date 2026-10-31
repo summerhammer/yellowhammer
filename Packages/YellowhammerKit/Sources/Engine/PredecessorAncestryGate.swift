@@ -54,7 +54,8 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 /// computes a pull request's base from U as it then stands. The in-flight Feature is observed too once its Cycle
 /// has landed (a Partial Landing or a returned Feature). Only the decision depends on flight: in flight, the
 /// gate answers ``PredecessorGateOutcome/open`` (the author Act's in-flight check skips authoring anyway);
-/// otherwise an unreadable tip anywhere in U is ``PredecessorGateOutcome/indeterminate(predecessorIssueID:repositories:)``,
+/// otherwise an unreadable tip anywhere in U, or an ancestor whose landing commit could not be read and whose pull
+/// request did not show the merge, is ``PredecessorGateOutcome/indeterminate(predecessorIssueID:repositories:)``,
 /// and |U| at or above `unmerged_features_max` after the pass is ``PredecessorGateOutcome/stackFull(features:)``.
 ///
 /// A repository already recorded landed (an Observed Merge) is never merge-tested again: only its pull request is

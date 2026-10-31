@@ -14,7 +14,8 @@ import Repositories
 extension PredecessorAncestryGate {
     /// One pass's repositories, split by what this pass found: freshly merged (an Observed Merge was just
     /// recorded), unmerged (a known commit, neither an ancestor nor shown by content) and indeterminate
-    /// (no commit could be resolved for the tip at all). A named type rather than a wide tuple.
+    /// (no commit could be resolved for the tip at all, or an ancestor whose landing commit could not be read and
+    /// whose pull request did not show the merge). A named type rather than a wide tuple.
     struct AncestryTestResult {
         var merged: [String] = []
         var unmerged: [String] = []
@@ -37,9 +38,15 @@ extension PredecessorAncestryGate {
     /// Tests the repositories with no Observed Merge yet: ancestry first, then the pull request test and the content
     /// test, in that order, for each repository where ancestry failed. An Observed Merge is recorded for each that passed (with the
     /// evidence that found it and its landing commit) and its landed pin deleted; a Mainline Conflict is
-    /// reported for each unmerged repository whose merge into mainline's head was conflicting. A tip that is an
-    /// ancestor but whose landing commit git could not read goes on to the content test, as any test that cannot
-    /// run does (OQ190 item 22). Empty input skips git entirely.
+    /// reported for each unmerged repository whose merge into mainline's head was conflicting.
+    ///
+    /// A tip that is an ancestor but whose landing commit git could not read has no Observed Merge by ancestry, since
+    /// the record carries the landing commit (OQ190 item 26). It still goes to the pull request test (item 22), but
+    /// never to the content test: its fork point with mainline is the tip itself, so it carries no net change there
+    /// and the content test cannot hold (#net-zero-branch). Where the pull request test does not hold, the repository
+    /// is indeterminate for the pass, not unmerged: the merge is proven, but the proof the record needs is missing
+    /// ("Missing merge proof remains indeterminate", the criterion *Predecessor tracking across the unmerged Feature
+    /// stack*). Empty input skips git entirely.
     func testUntestedRepositories(
         _ toTest: [String], feature: FeatureRecord, context: ActContext, gitVersion: PassGitVersion,
         pullRequestReads: [String: PullRequestReading]
@@ -58,7 +65,7 @@ extension PredecessorAncestryGate {
         )
 
         var result = AncestryTestResult()
-        var notAncestors: [RepoAncestryResult] = []
+        var ancestryUnrecorded: [RepoAncestryResult] = []
         for repoResult in ancestryReport.results {
             if repoResult.isAncestor, let mainlineCommit = repoResult.mainlineCommit,
                let landingCommit = repoResult.landingCommit {
@@ -73,12 +80,14 @@ extension PredecessorAncestryGate {
             } else if repoResult.branchCommit == nil {
                 result.indeterminate.append(repoResult.repository)
             } else {
-                notAncestors.append(repoResult)
+                ancestryUnrecorded.append(repoResult)
             }
         }
 
-        let notByPullRequest = try await testPullRequests(of: notAncestors, scope: scope, into: &result)
-        try await testContent(of: notByPullRequest, scope: scope, into: &result)
+        let notByPullRequest = try await testPullRequests(of: ancestryUnrecorded, scope: scope, into: &result)
+        // An ancestor reaches here only when its landing commit could not be read; the content test cannot hold for it.
+        result.indeterminate += notByPullRequest.filter(\.isAncestor).map(\.repository)
+        try await testContent(of: notByPullRequest.filter { !$0.isAncestor }, scope: scope, into: &result)
         return result
     }
 
