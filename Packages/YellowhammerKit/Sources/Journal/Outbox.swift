@@ -82,7 +82,7 @@ extension JournalStore {
     ) throws -> [OutboxEntry] {
         let now = JournalStore.stored(now)
         return try write { db in
-            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+            try revalidateOutboxAuthority(db, runID: runID, now: now)
 
             var results: [OutboxEntry] = []
             var inserted = false // whether any draft was new
@@ -178,8 +178,8 @@ extension JournalStore {
         now: Date = Date()
     ) throws {
         try read { db in
-            _ = try Self.revalidateActLease(db, runID: runID, now: now)
-            if let cardID = entry.cardID {
+            try revalidateOutboxAuthority(db, runID: runID, now: now)
+            if removalRunID != runID, let cardID = entry.cardID {
                 _ = try Self.revalidateCardLease(db, cardID: cardID, runID: runID, now: now)
             }
         }

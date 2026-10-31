@@ -5,10 +5,12 @@ import Journal
 extension NightCardMaintenance {
     /// The completed Night Card's renderings, the full one first, then each more compacted (see
     /// ``NightCardCompaction``). Delivery writes the first that fits the description budget.
-    func completedRenderings(night: NightRecord) throws -> [String] {
+    func completedRenderings(night: NightRecord, projectRemoved: Bool = false) throws -> [String] {
         // This Act renders the summary before its own terminal event, so the Night Summary counts it as ended.
         let renderingRunID = outbox.runID
-        let verdict = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: renderingRunID)
+        let verdict = try NightSummary.verdictLine(
+            night: night, journal: journal, renderingRunID: renderingRunID, projectRemoved: projectRemoved
+        )
         let failureLines = try NightSummary.failureLines(
             night: night, journal: journal, renderingRunID: renderingRunID,
             consecutiveAuthoringFaultsMax: bounds.consecutiveAuthoringFaultsMax

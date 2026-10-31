@@ -130,7 +130,7 @@ extension JournalStore {
     ) throws {
         let now = JournalStore.stored(now)
         try write { db in
-            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+            try revalidateOutboxAuthority(db, runID: runID, now: now)
             guard let row = try Row.fetchOne(
                 db, sql: "SELECT board_state_version FROM card WHERE id = ?", arguments: [cardID]
             ) else {

@@ -17,20 +17,28 @@ public final class JournalStore: Sendable {
     /// The Linear workspace of the Board Connection this Journal was built against
     /// (`project_state.linear_workspace`), recorded when the Journal was created and read once here.
     public let linearWorkspace: BoardObjectID
-    private let queue: DatabaseQueue
+    let queue: DatabaseQueue
+    /// Non-nil only on the isolated connection holding removal's uncommitted IMMEDIATE transaction.
+    let removalRunID: RunID?
+    /// Retains removal's process-lifetime exclusion after its SQLite transaction commits.
+    let removalHold: ProjectRemovalHold?
 
     /// How long a connection waits for SQLite's lock before failing with `SQLITE_BUSY`. The app reads
     /// while an Act writes, and an overlapping Act of the same Project stands down after one short
     /// transaction; neither holds the lock for long.
     static let busyTimeout: TimeInterval = 5
 
-    private init(
+    init(
         projectID: ProjectID,
         fileURL: URL,
         queue: DatabaseQueue,
         outboxSalt: String,
-        linearWorkspace: BoardObjectID
+        linearWorkspace: BoardObjectID,
+        removalRunID: RunID? = nil,
+        removalHold: ProjectRemovalHold? = nil
     ) {
+        self.removalRunID = removalRunID
+        self.removalHold = removalHold
         self.projectID = projectID
         self.fileURL = fileURL
         self.queue = queue
@@ -130,15 +138,19 @@ public final class JournalStore: Sendable {
     /// it. It rejects unknown migrations as ``open(configurationDirectory:projectID:linearWorkspace:)``
     /// does, and migrates with no workspace, so a creation still pending throws
     /// `JournalError.linearWorkspaceRequired` rather than inventing one.
-    public static func openExisting(configurationDirectory: URL, projectID: ProjectID) throws -> JournalStore {
+    public static func openExisting(
+        configurationDirectory: URL, projectID: ProjectID, removalHold: ProjectRemovalHold? = nil
+    ) throws -> JournalStore {
         let fileURL = defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
         return try openWritable(
-            at: fileURL, projectID: projectID, migrator: JournalMigrations.migrator, creating: false
+            at: fileURL, projectID: projectID, migrator: JournalMigrations.migrator, creating: false,
+            removalHold: removalHold
         )
     }
 
     private static func openWritable(
-        at fileURL: URL, projectID: ProjectID, migrator: DatabaseMigrator, creating: Bool
+        at fileURL: URL, projectID: ProjectID, migrator: DatabaseMigrator, creating: Bool,
+        removalHold: ProjectRemovalHold? = nil
     ) throws -> JournalStore {
         if creating {
             let directory = fileURL.deletingLastPathComponent()
@@ -146,6 +158,14 @@ public final class JournalStore: Sendable {
         } else if !FileManager.default.fileExists(atPath: fileURL.path) {
             throw JournalError.missing(path: fileURL.path)
         }
+        let sharedHold: ProjectRemovalHold?
+        if let removalHold {
+            try removalHold.validate(journalURL: fileURL)
+            sharedHold = nil
+        } else {
+            sharedHold = try .shared(for: fileURL)
+        }
+        defer { withExtendedLifetime(sharedHold) {} }
 
         // Two Acts of one Project (`build` and `land`) fired in the same minute can reach a fresh, or
         // deleted-and-recreated, Journal at once. Each opens its own connection, and GRDB's migrator does
@@ -298,12 +318,24 @@ public final class JournalStore: Sendable {
 
     /// Access for later steps: `read`/`write` closures over GRDB `Database`.
     public func read<T>(_ block: (Database) throws -> T) throws -> T {
-        try queue.read(block)
+        if removalRunID != nil {
+            return try queue.unsafeRead { db in
+                guard db.isInsideTransaction else { throw ProjectRemovalTransactionError.finished }
+                return try block(db)
+            }
+        }
+        return try queue.read(block)
     }
 
     /// Every write is one IMMEDIATE transaction (GRDB's default for writes), so two connections to the
     /// same file, from the same or another process, serialise on SQLite's lock rather than interleave.
     public func write<T>(_ block: (Database) throws -> T) throws -> T {
-        try queue.write(block)
+        if removalRunID != nil {
+            return try queue.writeWithoutTransaction { db in
+                guard db.isInsideTransaction else { throw ProjectRemovalTransactionError.finished }
+                return try block(db)
+            }
+        }
+        return try queue.write(block)
     }
 }

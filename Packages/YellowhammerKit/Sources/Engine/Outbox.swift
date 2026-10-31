@@ -78,7 +78,7 @@ public struct Outbox: Sendable {
         ) { _ in }
     }
 
-    init(
+    public init(
         journal: JournalStore,
         board: any BoardWriting,
         reading: (any Board)? = nil,
@@ -195,10 +195,24 @@ public struct Outbox: Sendable {
             case .deferred(.rateLimited), .deferred(.transient):
                 return OutboxDeliveryReport(deliveries: deliveries)
             case .applied, .alreadyApplied, .aborted, .superseded, .deferred:
-                continue
+                break
+            }
+            if journal.isProjectRemoval(runID: runID), removalMustStop(after: delivery.outcome) {
+                return OutboxDeliveryReport(deliveries: deliveries)
             }
         }
         return OutboxDeliveryReport(deliveries: deliveries)
+    }
+
+    /// Removal must not send a later workflow-state write after a summary was refused by fencing or
+    /// the budget. Archive/removal and conditional supersession retain their normal safe skip semantics.
+    private func removalMustStop(after outcome: OutboxDelivery.Outcome) -> Bool {
+        switch outcome {
+        case .failed, .deferred: true
+        case .aborted(let reason):
+            !reason.contains("is archived") && !reason.contains("was removed from the board")
+        case .applied, .alreadyApplied, .superseded: false
+        }
     }
 
     // One try of one entry: Lease check, the board call, then the record — in that order, always. A
