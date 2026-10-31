@@ -6,27 +6,6 @@ import Foundation
 // MergeTester.swift for the file and type length limits.
 
 extension MergeTester {
-    /// Runs the content test across `repos`, each against its own ``TestedTip``: the recorded commit alone when
-    /// one was recorded, else the Feature Branch (#tested-tip). A repository absent from `tips`, or whose tip
-    /// resolves to no commit (including a recorded commit the repository lost), is untestable.
-    public func evaluateContent(
-        tips: [String: TestedTip],
-        repos: [Repo],
-        mainlines: ResolvedMainlines? = nil
-    ) async -> FeatureMergeReport {
-        var results: [RepoMergeResult] = []
-        for repo in repos {
-            let tip = tips[repo.name] ?? TestedTip(branch: nil)
-            results.append(
-                await testContent(
-                    branch: tip.branchName, recordedCommit: tip.recordedCommit, in: repo,
-                    mainline: mainlines?[repo.name]
-                )
-            )
-        }
-        return FeatureMergeReport(branches: tips.compactMapValues(\.branch), results: results)
-    }
-
     /// The content test of one repository (OQ190 item 24). It searches mainline's first-parent chain after the
     /// fork point (`git merge-base <mainline> <tip>`), oldest first, for the first commit C where
     /// `git merge-tree --write-tree C <tip>` exits clean and writes C's own tree: merging the tip into C would

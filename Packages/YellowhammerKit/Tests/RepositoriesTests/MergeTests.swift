@@ -510,31 +510,29 @@ struct ContentMergeTests {
         #expect(neither.verdict != .clean)
     }
 
-    @Test("Tips: a repository absent from the map is untestable, and each tip is read in its own repository")
-    func evaluateMergeByTips() async throws {
+    @Test("Per-repository tips: a recorded commit, a branch, and no tip at all are each read in their own repository")
+    func contentTestByPerRepositoryTips() async throws {
         let merged = GitFixture(name: "content-tips-a-\(UUID().uuidString)")
         let mergedTip = try await populateFeature(merged)
         _ = await merged.run(["merge", "--squash", "yh-feature"])
         _ = await merged.run(["commit", "-m", "squash of yh-feature"])
         let open = GitFixture(name: "content-tips-b-\(UUID().uuidString)")
         _ = try await populateFeature(open)
-        let repos = [
-            Repo(name: "merged", path: merged.path, role: .backend),
-            Repo(name: "open", path: open.path, role: .backend),
-            Repo(name: "absent", path: open.path, role: .backend)
-        ]
+        let tester = MergeTester()
 
-        let report = await MergeTester().evaluateContent(
-            tips: [
-                "merged": TestedTip(branch: nil, recordedCommit: mergedTip),
-                "open": TestedTip(branch: FeatureBranch(name: "yh-feature"))
-            ],
-            repos: repos
+        let mergedResult = await tester.testContent(
+            branch: "", recordedCommit: mergedTip, in: Repo(name: "merged", path: merged.path, role: .backend)
+        )
+        let openResult = await tester.testContent(
+            branch: "yh-feature", recordedCommit: nil, in: Repo(name: "open", path: open.path, role: .backend)
+        )
+        let absentResult = await tester.testContent(
+            branch: "", recordedCommit: nil, in: Repo(name: "absent", path: open.path, role: .backend)
         )
 
-        #expect(report["merged"]?.isContentMerged == true)
-        #expect(report["open"]?.isContentMerged == false)
-        #expect(report["open"]?.verdict == .clean)
-        if case .untestable = report["absent"]?.verdict {} else { Issue.record("expected untestable") }
+        #expect(mergedResult.isContentMerged == true)
+        #expect(openResult.isContentMerged == false)
+        #expect(openResult.verdict == .clean)
+        if case .untestable = absentResult.verdict {} else { Issue.record("expected untestable") }
     }
 }
