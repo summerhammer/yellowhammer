@@ -13,9 +13,8 @@ public final class ProjectRemovalHold: Sendable {
     private let descriptor: Mutex<Int32>
 
     /// How long removal waits for an exclusive hold by default. A shared hold is only ever taken for one short
-    /// open or Act claim (or inherited for an instant by a spawned child before `exec` closes it), but on a
-    /// loaded machine such an instant outlasted SQLite's 5 s busy timeout, so attended removal waits longer;
-    /// an Act never waits, it refuses fast while removal holds the Journal.
+    /// open or Act claim, but on a loaded machine such an open outlasted SQLite's 5 s busy timeout, so attended
+    /// removal waits longer; an Act never waits, it refuses fast while removal holds the Journal.
     public static let exclusiveWait: Duration = .seconds(30)
 
     private init(journalURL: URL, exclusive: Bool, wait: Duration = .zero) throws {
@@ -40,10 +39,19 @@ public final class ProjectRemovalHold: Sendable {
 
     deinit { release() }
 
+    /// The locked descriptor, for tests that model a spawned child's inherited copy of it with `dup`.
+    var lockedDescriptor: Int32 { descriptor.withLock { $0 } }
+
     /// Ends the hold now rather than when the last reference goes; idempotent.
+    ///
+    /// Unlocks before closing. A `flock` belongs to the open file description, and a child that any thread of
+    /// this process is spawning holds a copy of it until the kernel closes `O_CLOEXEC` descriptors at image
+    /// activation, so `close` alone can leave the Journal held for that window and a waitless shared hold
+    /// taken right after it refuses. `LOCK_UN` releases the description whatever copies remain.
     public func release() {
         descriptor.withLock { descriptor in
             guard descriptor >= 0 else { return }
+            flock(descriptor, LOCK_UN)
             Darwin.close(descriptor)
             descriptor = -1
         }
