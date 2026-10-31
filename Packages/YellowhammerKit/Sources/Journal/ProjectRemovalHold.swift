@@ -12,10 +12,10 @@ public final class ProjectRemovalHold: Sendable {
     /// The locked descriptor, -1 once ``release()`` ran.
     private let descriptor: Mutex<Int32>
 
-    /// How long removal waits for an exclusive hold. A shared hold is only ever taken for one short
+    /// How long removal waits for an exclusive hold: SQLite's own busy timeout. A shared hold is only ever taken for one short
     /// open or Act claim (or inherited for an instant by a spawned child before `exec` closes it), so
     /// removal waits it out; an Act never waits, it refuses fast while removal holds the Journal.
-    static let exclusiveWait: Duration = .seconds(2)
+    static let exclusiveWait: Duration = .seconds(JournalStore.busyTimeout)
 
     private init(journalURL: URL, exclusive: Bool) throws {
         self.journalURL = journalURL.standardizedFileURL

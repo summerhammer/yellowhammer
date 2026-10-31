@@ -48,7 +48,7 @@ func actOpensOnlyItsOwnJournal(_ act: Act) async throws {
     try await runAct(act, project: "alpha", in: directory, force: act != .author)
 
     // `alpha.db.lock` serialises creating and migrating alpha's Journal; nothing of beta's appears.
-    #expect(try journalFiles(in: directory) == ["alpha.db", "alpha.db.lock"])
+    #expect(try journalFiles(in: directory) == ["alpha.db", "alpha.db.lock", "alpha.db.removal.lock"])
 }
 
 @Test("A refused Act creates no Journal", arguments: Act.allCases)
