@@ -67,6 +67,9 @@ actor FakeWritingBoard: BoardWriting {
     private(set) var updateCalls = 0
     private(set) var archiveCalls = 0
 
+    private var stateUpdateRefusal: BoardError?
+    func refuseStateUpdates(with error: BoardError?) { stateUpdateRefusal = error }
+
     private var archiveAfterUpdate = false
     func archiveAfterNextUpdate() { archiveAfterUpdate = true }
 
@@ -213,6 +216,7 @@ actor FakeWritingBoard: BoardWriting {
         _ issue: BoardObjectID, _ change: BoardIssueChange
     ) async throws(BoardError) -> BoardDescriptionSnapshot {
         updateCalls += 1
+        if change.workflowState != nil, let stateUpdateRefusal { throw stateUpdateRefusal }
         try consumeRefusal()
         if let error = issueRefusals[issue] { throw error }
         guard let found = issues[issue] else { throw .scopeNotFound("no such issue") }

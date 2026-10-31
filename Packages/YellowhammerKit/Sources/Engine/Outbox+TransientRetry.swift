@@ -86,6 +86,10 @@ extension Outbox {
 
     private func transientWait(beforeResend resend: Int, after error: BoardError) throws -> Duration? {
         let now = clock()
+        if journal.isProjectRemoval(runID: runID) {
+            try journal.revalidateProjectRemoval(runID: runID)
+            return transientRetry.wait(beforeResend: resend, after: error, leaseRemaining: .seconds(600))
+        }
         let lease: ActLease
         do {
             lease = try journal.revalidateActLease(runID: runID, now: now)

@@ -26,12 +26,14 @@ extension NightSummary {
     /// front (`crashed · <decisions> · <advance>`). The ending is abnormal only when the Night's ending was:
     /// see ``endingWord(night:events:renderingRunID:)``. `renderingRunID` is the Act computing the line.
     public static func verdictLine(
-        night: NightRecord, journal: JournalStore, renderingRunID: RunID? = nil
+        night: NightRecord, journal: JournalStore, renderingRunID: RunID? = nil, projectRemoved: Bool = false
     ) throws -> String {
         let events = try nightEvents(night: night, journal: journal)
         let ending = endingWord(night: night, events: events, renderingRunID: renderingRunID)
         let advance = try advanceWord(night: night, journal: journal, events: events)
         let decisions = try decisionsPhrase(night: night, journal: journal)
+        // Lead draft, pending sponsor: retain the summary so far and name removal as its ending.
+        if projectRemoved { return "\(decisions) · \(advance) · closed: Project removed" }
         switch ending {
         case .crashed, .halted:
             return "\(ending.rawValue) · \(decisions) · \(advance)"

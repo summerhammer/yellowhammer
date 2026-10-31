@@ -5,10 +5,10 @@ import Foundation
 import Journal
 import Repositories
 
-// Steps 7-9 of removal: comment on the in-flight Feature Issue, resolve the mode to run the WIP commit
+// Steps 5-6 of removal: comment on the in-flight Feature Issue, resolve the mode to run the WIP commit
 // under, and WIP-commit/push/remove every held Worktree.
 
-/// What step 9 (``ProjectRemoval/removeWorktrees(journal:project:mode:push:)``) did: the Worktree ids it
+/// What step 6 (``ProjectRemoval/removeWorktrees(journal:project:mode:push:)``) did: the Worktree ids it
 /// released, and any step failure it hit along the way — a Worktree it could not resolve or remove is
 /// left held and named here, never silently dropped.
 struct WorktreeRemovalResult {
@@ -26,7 +26,7 @@ private struct WorktreeRemovalContext {
     let committer: WorktreeCommitter
 }
 
-/// Accumulates step 9's outcome across every held Worktree. A class, not `inout`, for the same
+/// Accumulates step 6's outcome across every held Worktree. A class, not `inout`, for the same
 /// parameter-count reason as ``WorktreeRemovalContext``.
 private final class WorktreeRemovalOutcome {
     var releasedWorktreeIDs: [Int64] = []
@@ -34,7 +34,7 @@ private final class WorktreeRemovalOutcome {
 }
 
 extension ProjectRemoval {
-    /// Step 7: posts the deterministic ``ProjectRemovalComment`` on the in-flight Feature Issue.
+    /// Step 5: posts the deterministic ``ProjectRemovalComment`` on the in-flight Feature Issue.
     /// Deterministic on `feature.issueID` (`OutboxClientID.make`, salted by the Journal that computed
     /// `clientID`), so a re-run of the same Journal after a partial failure replays the same comment
     /// rather than duplicating it. A board error is a step failure.
@@ -51,7 +51,7 @@ extension ProjectRemoval {
         }
     }
 
-    /// Step 8: the `NightMode` of the Night the in-flight Feature was selected in, `.rehearsal` (the
+    /// Step 6: the `NightMode` of the Night the in-flight Feature was selected in, `.rehearsal` (the
     /// safe side — it never commits or pushes) when that cannot be resolved.
     func resolveMode(journal: JournalStore) -> NightMode {
         guard
@@ -64,7 +64,7 @@ extension ProjectRemoval {
         return night.mode
     }
 
-    /// Step 9: WIP-commits, pushes and removes every held Worktree. Worktrees this call could not
+    /// Step 6: WIP-commits, pushes and removes every held Worktree. Worktrees this call could not
     /// resolve or that failed are left held and reported as step failures; a rehearsal-mode Worktree
     /// left dirty on purpose is reported but is not a failure.
     func removeWorktrees(

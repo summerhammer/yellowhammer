@@ -41,7 +41,10 @@ public struct ProjectRemoveCommand: AsyncParsableCommand {
             promptStore: DispatchPromptStore(
                 rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory)
             ),
-            now: Date()
+            now: Date(),
+            bindDeliveryBoard: { configuration, project in
+                try BoardBinding.actBoard(machine: configuration.machine, project: project)
+            }
         )
         guard await removal.run(id: id, yes: yes) else {
             throw ExitCode(1)

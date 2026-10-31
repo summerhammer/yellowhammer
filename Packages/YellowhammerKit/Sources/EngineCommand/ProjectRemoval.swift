@@ -8,8 +8,8 @@ import Repositories
 /// `yh project remove <id>`'s orchestration (roadmap P13.5; spec risks.md OQ52(1)), with every side
 /// effect injected as a seam, mirroring ``Doctor``/``Status``.
 ///
-/// Removal is not an Act: it claims no Act Lease of its own (`recordProjectRemoval` refuses instead
-/// while any Act of this Project holds one). It never deletes the Journal or anything on Linear — only
+/// Removal is not an Act: an isolated SQLite writer transaction excludes overlapping execution
+/// and refuses while an Act of this Project holds an unexpired Lease. It never deletes the Journal or anything on Linear — only
 /// the machine-local footprint: the three LaunchAgents, the three Act logs, held Worktrees (after a
 /// WIP-commit-and-push of any uncommitted edits), and finally `projects/<id>.toml`.
 struct ProjectRemoval {
@@ -22,6 +22,9 @@ struct ProjectRemoval {
     /// `bindProvisioning`): a Project with no in-flight Feature never calls this, so it never touches
     /// the Keychain.
     let bindBoard: (Configuration, ProjectConfiguration) throws -> any BoardWriting
+    let bindDeliveryBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)?
+    let scrub: (@Sendable () -> NarrativeScrub)?
+    let deliveryInterrupt: @Sendable (OutboxEntry) throws -> Void
     let workspace: any Workspace
     let git: GitRunner
     /// Builds the push seam once the Project is resolved; the returned closure resolves the GitHub
@@ -44,8 +47,14 @@ struct ProjectRemoval {
         bindPush: @escaping (Configuration, ProjectConfiguration)
             -> @Sendable (FeatureBranch, Repo, NightMode) async -> PushOutcome,
         promptStore: (any DispatchPromptCleaning)? = nil,
-        now: Date
+        now: Date,
+        bindDeliveryBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)? = nil,
+        scrub: (@Sendable () -> NarrativeScrub)? = nil,
+        deliveryInterrupt: @escaping @Sendable (OutboxEntry) throws -> Void = { _ in }
     ) {
+        self.bindDeliveryBoard = bindDeliveryBoard
+        self.scrub = scrub
+        self.deliveryInterrupt = deliveryInterrupt
         self.configurationDirectory = configurationDirectory
         self.homeDirectory = homeDirectory
         self.output = output
@@ -115,13 +124,19 @@ struct ProjectRemoval {
 
         reportWIPCommitFallbacks(project: project)
 
-        let journal = openJournalIfPresent(projectID: project.id)
-        if let journal {
-            if let refusal = refusalIfActLeaseHeld(journal: journal) {
-                output(refusal)
-                return false
-            }
+        let hold: RemovalHold
+        do {
+            hold = try holdForRemoval(projectID: project.id)
+        } catch {
+            output("refused: could not exclusively hold the Project for removal: \(error)")
+            return false
         }
+        defer {
+            hold.removal?.rollbackProjectRemoval()
+            hold.journalless?.release()
+        }
+        let journal = hold.removal
+        let committedJournal = hold.committed
 
         guard yes || confirmRemoval(id: project.id.rawValue) else {
             output("nothing removed")
@@ -134,9 +149,10 @@ struct ProjectRemoval {
 
         guard removeRecordedPrompts(projectID: project.id) else { return false }
 
-        if let journal {
+        if let journal, let committedJournal {
             guard await removeJournaledFootprint(
-                journal: journal, configuration: configuration, project: project, failures: &failures
+                journal: journal, committedJournal: committedJournal,
+                configuration: configuration, project: project, failures: &failures
             ) else {
                 return false
             }
@@ -147,19 +163,23 @@ struct ProjectRemoval {
             return false
         }
 
-        deleteProjectFile(id: project.id)
+        guard deleteProjectFile(id: project.id) else { return false }
         output("Project \(project.id.rawValue) removed. Its Journal was kept.") // glossary:ignore GL001
         return true
     }
 
-    /// Steps 7-10, run only when the Project has a Journal: comments on the in-flight Feature, WIP-
+    /// Steps 5-8, run only when the Project has a Journal: comments on the in-flight Feature, WIP-
     /// commits/pushes/removes its held Worktrees, then writes the removal to the Journal. Returns
     /// whether this succeeded — false means `run` should stop and report without touching the TOML.
     private func removeJournaledFootprint(
-        journal: JournalStore, configuration: Configuration, project: ProjectConfiguration,
+        journal: JournalStore, committedJournal: JournalStore,
+        configuration: Configuration, project: ProjectConfiguration,
         failures: inout [String]
     ) async -> Bool {
-        let boardWriting: () throws -> any BoardWriting = { try bindBoard(configuration, project) }
+        let boardWriting: () throws -> any BoardWriting = {
+            try journal.revalidateProjectRemoval(runID: journal.projectRemovalRunID())
+            return try bindBoard(configuration, project)
+        }
         let push = bindPush(configuration, project)
 
         let mode = resolveMode(journal: journal)
@@ -197,12 +217,14 @@ struct ProjectRemoval {
         }
 
         do {
-            let runID = RunID()
+            let runID = try journal.projectRemovalRunID()
+            try await deliverBoardForRemoval(journal: journal, configuration: configuration, project: project)
             let removal = try journal.recordProjectRemoval(
                 NewProjectRemoval(featureIssueID: featureIssueID, releasedWorktreeIDs: releasedWorktreeIDs),
                 runID: runID, now: now
             )
-            await unpinLandedTips(removal, journal: journal, project: project, runID: runID)
+            try journal.commitProjectRemoval()
+            await unpinLandedTips(removal, journal: committedJournal, project: project, runID: runID)
             return true
         } catch {
             output("refused: \(error)")
@@ -212,17 +234,28 @@ struct ProjectRemoval {
 
     // MARK: - Steps 1-4
 
-    /// Never creates a Journal: opens it only when `journals/<id>.db` already exists.
-    private func openJournalIfPresent(projectID: ProjectID) -> JournalStore? {
-        let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
-        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return nil }
-        return try? JournalStore.openExisting(configurationDirectory: configurationDirectory, projectID: projectID)
+    /// Step 1's exclusive hold: the committed Journal, removal's own transaction on it, or — with no
+    /// Journal — the hold alone, which keeps an Act from creating one while removal runs.
+    /// The exclusive hold is taken before the Journal is opened, and the open runs under it, so removal never
+    /// holds a shared hold of its own while it waits for the exclusive one.
+    private func holdForRemoval(projectID: ProjectID) throws -> RemovalHold {
+        let hold = try JournalStore.holdProjectRemoval(
+            configurationDirectory: configurationDirectory, projectID: projectID
+        )
+        guard let committed = try openJournalIfPresent(projectID: projectID, holding: hold) else {
+            return RemovalHold(committed: nil, removal: nil, journalless: hold)
+        }
+        let removal = try committed.beginProjectRemoval(runID: RunID(), now: now, holding: hold)
+        return RemovalHold(committed: committed, removal: removal, journalless: nil)
     }
 
-    private func refusalIfActLeaseHeld(journal: JournalStore) -> String? {
-        guard let lease = try? journal.currentActLease(), lease.isHeld(at: now) else { return nil }
-        return "refused: \(lease.act.rawValue) run \(lease.runID.rawValue) holds \(journal.projectID.rawValue)'s "
-            + "Act lease until \(lease.expiresAt)"
+    /// Never creates a Journal: opens it only when `journals/<id>.db` already exists.
+    private func openJournalIfPresent(projectID: ProjectID, holding hold: ProjectRemovalHold) throws -> JournalStore? {
+        let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
+        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return nil }
+        return try JournalStore.openExisting(
+            configurationDirectory: configurationDirectory, projectID: projectID, removalHold: hold
+        )
     }
 
     private func confirmRemoval(id: String) -> Bool {
@@ -232,6 +265,8 @@ struct ProjectRemoval {
         output("- delete its recorded prompts and saved Project instructions")
         output("- comment on its in-flight Feature Issue, if one exists")
         output("- WIP-commit, push and remove each of its held Worktrees")
+        // Lead draft, pending sponsor: confirmation names the new board effect.
+        output("- complete its open Night Card")
         output("- close its open Night, if one exists")
         output("- keep its Journal")
         output("- delete projects/\(id).toml") // glossary:ignore GL001
@@ -247,10 +282,27 @@ struct ProjectRemoval {
         output("removal incomplete; re-run `yh project remove <id>` to retry") // glossary:ignore GL001
     }
 
-    private func deleteProjectFile(id: ProjectID) {
+    private func deleteProjectFile(id: ProjectID) -> Bool {
         let projectFile = configurationDirectory.appending(
             components: "projects", "\(id.rawValue).toml", directoryHint: .notDirectory
         )
-        try? FileManager.default.removeItem(at: projectFile)
+        do {
+            try FileManager.default.removeItem(at: projectFile)
+            return true
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain
+            && error.code == NSFileNoSuchFileError {
+            return true
+        } catch {
+            output("Journal removal committed, but could not delete projects/\(id.rawValue).toml: \(error)")
+            output("removal incomplete; re-run `yh project remove <id>` to retry") // glossary:ignore GL001
+            return false
+        }
     }
+}
+
+/// What step 1 holds for the whole removal: see ``ProjectRemoval/holdForRemoval(projectID:)``.
+private struct RemovalHold {
+    let committed: JournalStore?
+    let removal: JournalStore?
+    let journalless: ProjectRemovalHold?
 }

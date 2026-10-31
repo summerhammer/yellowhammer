@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 
-// Steps 5-6 of removal: unload and delete the 3 LaunchAgents, then delete the 3 Act logs. Reuses
+// Steps 3-4 of removal: unload and delete the 3 LaunchAgents, then delete the 3 Act logs. Reuses
 // ``ScheduledJob``'s own label/fileName/logPath construction (a throwaway job per Act, firings and
 // yhExecutablePath unused) rather than re-deriving the naming scheme.
 

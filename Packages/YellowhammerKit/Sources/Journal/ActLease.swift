@@ -65,6 +65,8 @@ extension JournalStore {
         policy: LeasePolicy = .ruled,
         now: Date = Date()
     ) throws -> ActLeaseClaim {
+        let removalExclusion = try ProjectRemovalHold.shared(for: fileURL)
+        defer { withExtendedLifetime(removalExclusion) {} }
         let now = JournalStore.stored(now)
         return try write { db in
             let holder = try Self.fetchActLease(db)

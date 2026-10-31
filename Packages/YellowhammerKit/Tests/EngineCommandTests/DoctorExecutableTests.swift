@@ -297,9 +297,9 @@ struct ScheduledExecutableTests {
         }
         try Data("#!/bin/sh\n\(body)\n".utf8).write(to: script)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path())
-        let result = kind == "timeout"
-            ? await ScheduledExecutable.querySchema(script.path(), timeout: 0.2)
-            : await ScheduledExecutable.schema(script.path())
+        // The non-timeout cases get a budget far above spawn latency: under whole-suite load a trivial
+        // `/bin/sh` script took up to 2.4 s to answer, so the production 5 s budget timed out "valid".
+        let result = await ScheduledExecutable.querySchema(script.path(), timeout: kind == "timeout" ? 0.2 : 60)
         #expect(result == (kind == "valid" ? "journal-schema-9" : nil))
     }
 
