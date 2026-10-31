@@ -6,33 +6,14 @@ import Foundation
 // MergeTester.swift for the file and type length limits.
 
 extension MergeTester {
-    /// Runs the content test across `repos`, each against its own ``TestedTip``: the recorded commit alone when
-    /// one was recorded, else the Feature Branch (#tested-tip). A repository absent from `tips`, or whose tip
-    /// resolves to no commit (including a recorded commit the repository lost), is untestable.
-    public func evaluateContent(
-        tips: [String: TestedTip],
-        repos: [Repo],
-        mainlines: ResolvedMainlines? = nil
-    ) async -> FeatureMergeReport {
-        var results: [RepoMergeResult] = []
-        for repo in repos {
-            let tip = tips[repo.name] ?? TestedTip(branch: nil)
-            results.append(
-                await testContent(
-                    branch: tip.branchName, recordedCommit: tip.recordedCommit, in: repo,
-                    mainline: mainlines?[repo.name]
-                )
-            )
-        }
-        return FeatureMergeReport(branches: tips.compactMapValues(\.branch), results: results)
-    }
-
     /// The content test of one repository (OQ190 item 24). It searches mainline's first-parent chain after the
     /// fork point (`git merge-base <mainline> <tip>`), oldest first, for the first commit C where
     /// `git merge-tree --write-tree C <tip>` exits clean and writes C's own tree: merging the tip into C would
     /// change nothing, so C is the ``RepoMergeResult/landingCommit``. Searching the history rather than reading
     /// mainline's head means a later edit to the same lines does not hide a squash or rebase merge. The search
-    /// runs only when the tip's tree differs from the fork point's (#net-zero-branch).
+    /// runs only when the tip's tree differs from the fork point's (#net-zero-branch), and merges the tip only
+    /// into the commits that touch the tip's paths when that finds the same commit
+    /// (``landingCandidates(after:upTo:tip:base:in:)``).
     ///
     /// The verdict is always that of a merge into mainline's head, a separate read, so a conflict at an earlier
     /// commit of the chain is never a Mainline Conflict; when the search reaches the head, that read is reused.
@@ -52,12 +33,19 @@ extension MergeTester {
         let fork = await forkPoint(of: read.branchCommit, mainline: read.mainlineCommit, in: read.path)
         var tipHasNetChange: Bool?
         if let fork {
-            tipHasNetChange = await hasNetChange(tip: read.branchCommit, base: fork, in: read.path)
+            tipHasNetChange = await hasNetChange(tip: read.branchCommit, base: fork.commit, in: read.path)
         }
         var headMerge: (verdict: MergeVerdict, tree: String?)?
         var landingCommit: String?
         if let fork, tipHasNetChange == true {
-            for candidate in await firstParentChain(after: fork, upTo: read.mainlineCommit, in: read.path) {
+            // With more than one merge base, a commit's merge base with the tip need not be the fork point.
+            let candidates = fork.isOnlyMergeBase
+                ? await landingCandidates(
+                    after: fork.commit, upTo: read.mainlineCommit, tip: read.branchCommit, base: fork.commit,
+                    in: read.path
+                )
+                : await firstParentChain(after: fork.commit, upTo: read.mainlineCommit, in: read.path)
+            for candidate in candidates {
                 let merge = await mergeTree(
                     mainlineCommit: candidate.commit, branchCommit: read.branchCommit, in: read.path
                 )
@@ -80,11 +68,18 @@ extension MergeTester {
         )
     }
 
-    /// `git merge-base <mainline> <tip>`: where the branch left mainline. Nil for unrelated histories.
-    private func forkPoint(of tip: String, mainline: String, in path: String) async -> String? {
+    /// `git merge-base <mainline> <tip>`: where the branch left mainline, and whether it is the only merge base.
+    /// Read as `git merge-base --all`, and again without `--all` only when that prints more than one, so the commit
+    /// is always the one `git merge-base` picks. Nil for unrelated histories.
+    private func forkPoint(
+        of tip: String, mainline: String, in path: String
+    ) async -> (commit: String, isOnlyMergeBase: Bool)? {
+        let all = await git.run(["-C", path, "merge-base", "--all", mainline, tip])
+        let bases = all.stdout.split(whereSeparator: \.isNewline).map(String.init)
+        if all.isSuccess, bases.count == 1 { return (bases[0], true) }
         let result = await git.run(["-C", path, "merge-base", mainline, tip])
         let commit = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return result.isSuccess && !commit.isEmpty ? commit : nil
+        return result.isSuccess && !commit.isEmpty ? (commit, false) : nil
     }
 
     /// Whether `tip`'s tree differs from `base`'s. Nil when git cannot read either tree.

@@ -30,6 +30,25 @@ struct GitHubAdapterTests {
         #expect(json["body"] == "the body")
     }
 
+    @Test("With no token, neither the open request nor the read request carries an Authorization header")
+    func noTokenSendsNoAuthorization() async throws {
+        let stub = StubTransport(response: (201, ["html_url": "https://github.com/o/r/pull/1"]))
+        let adapter = GitHubAdapter(transport: stub, token: { nil })
+        let draft = PullRequestDraft(
+            owner: "o", repository: "r", head: "yh-proj-feat", base: "main", title: "Feature X", body: "the body"
+        )
+        _ = try await adapter.openPullRequest(draft)
+        let opened = try #require(await stub.lastRequest)
+        let read = GitHubPullRequestRead.request(
+            PullRequestQuery(owner: "o", repository: "r", selector: .number(7)), token: nil, apiVersion: "2022-11-28"
+        )
+
+        #expect(opened.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(opened.value(forHTTPHeaderField: "Accept") == "application/vnd.github+json")
+        #expect(read.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(read.value(forHTTPHeaderField: "Accept") == "application/vnd.github+json")
+    }
+
     @Test("201 maps to opened with the html_url")
     func opened() async throws {
         let stub = StubTransport(response: (201, ["html_url": "https://github.com/o/r/pull/7"]))

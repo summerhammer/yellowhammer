@@ -206,12 +206,13 @@ struct NightAccountFailureWordingTests {
         }
     }
 
-    @Test("A failed pull request read names the repository and its reason, as a failed mainline fetch does (#714)")
+    @Test("A failed pull request read names the repository and its reason, and is not a failure (#714)")
     func pullRequestReadFailed() {
         let words = failureEntry(.pullRequestReadFailed(repository: "backend", reason: .rateLimited))
         #expect(words.headline == "Could not read the pull request in backend")
         #expect(words.detail == "rate limited")
-        #expect(words.isProblem == failureEntry(.mainlineFetchFailed(repository: "backend", reason: "x")).isProblem)
+        #expect(!words.isProblem)
+        #expect(words.failedAct == nil)
     }
 
     @Test("A Feature Branch with more than one pull request names the branch and its pull requests (#714)")

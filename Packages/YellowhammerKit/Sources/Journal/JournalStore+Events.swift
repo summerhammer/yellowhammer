@@ -66,6 +66,33 @@ extension JournalStore {
         }
     }
 
+    /// When each repository's pull request read last failed, from every Night: one row per repository, grouped in
+    /// SQL so a read decodes no other `PullRequestReadFailed` event. `occurred_at` is ISO 8601 UTC, so `MAX` on the
+    /// text is chronological; SQLite's bare `id` is the id of that latest row.
+    public func lastPullRequestReadFailures() throws -> [String: Date] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT json_extract(payload, '$.repository') AS repository, MAX(occurred_at) AS occurred_at, id
+                FROM event
+                WHERE type = ? AND json_extract(payload, '$.repository') IS NOT NULL
+                GROUP BY repository
+                """,
+                arguments: [JournalEventType.pullRequestReadFailed.rawValue]
+            )
+            var result: [String: Date] = [:]
+            for row in rows {
+                let repository: String = row["repository"]
+                let id: Int64 = row["id"]
+                result[repository] = try Self.date(row["occurred_at"] as String? ?? "") {
+                    JournalError.eventUnreadable(id: id)
+                }
+            }
+            return result
+        }
+    }
+
     /// The events of the given types that name one Card's Attempt (`card_id` and `attempt_id` in the payload),
     /// in append order, filtered in SQL so a read of one Attempt decodes no other row.
     public func events(

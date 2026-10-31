@@ -140,6 +140,37 @@ func failedReadKeepsTheLastState() throws {
     ))
 }
 
+@Test("Failed reads across two Nights: the latest failure date wins, whatever order they were recorded in")
+func latestFailureAcrossNightsWins() throws {
+    let fixture = StateFixture()
+    let journal = try fixture.open()
+    let night = try StateNight(journal)
+    let featureID = try seedAwaiting(journal, night: night, repositories: ["backend": 7])
+    try failRead(journal, night: night, repository: "backend", at: 30)
+    try failRead(journal, night: night, repository: "backend", at: 60)
+    try observe(journal, night: night, Read(featureID, "backend", 7), state: .open, at: 120)
+    try journal.releaseActLease(runID: night.run)
+    let nextRun = RunID()
+    let later = epoch.addingTimeInterval(100_000)
+    _ = try journal.claimActLease(act: .land, runID: nextRun, mode: .real, now: later)
+    let nextNight = try journal.openNight(
+        nightStart: try #require(NightStart(rawValue: "2026-09-30")), mode: .real, act: .land, runID: nextRun,
+        now: later
+    ).night.id
+    for offset in [100_200.0, 100_100.0] {
+        try journal.append(
+            .pullRequestReadFailed(repository: "backend", reason: .unreachable), act: .land, runID: nextRun,
+            nightID: nextNight, now: epoch.addingTimeInterval(offset)
+        )
+    }
+
+    #expect(try journal.lastPullRequestReadFailures()["backend"] == epoch.addingTimeInterval(100_200))
+    let backend = try #require(try awaitingRepositories(journal)["backend"])
+    #expect(backend.pullRequestObservation == PullRequestObservation(
+        state: .open, observedAt: epoch.addingTimeInterval(120), latestReadFailed: true
+    ))
+}
+
 @Test("A successful read after a failed one is the latest read, so nothing says it failed")
 func successAfterFailureClearsTheMark() throws {
     let fixture = StateFixture()

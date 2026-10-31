@@ -25,14 +25,7 @@ enum GitHubPullRequestRead {
                 URLQueryItem(name: "per_page", value: String(pageSize))
             ]
         }
-        var request = URLRequest(url: components.url!)
-        request.httpMethod = "GET"
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue(apiVersion, forHTTPHeaderField: "X-GitHub-Api-Version")
-        return request
+        return GitHubAdapter.apiRequest(url: components.url!, method: "GET", token: token, apiVersion: apiVersion)
     }
 
     /// 200 → the pull requests read (none is an empty answer); 401 → credential refused; 403 with the rate limit

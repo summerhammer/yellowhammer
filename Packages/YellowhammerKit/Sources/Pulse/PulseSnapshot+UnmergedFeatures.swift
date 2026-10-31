@@ -9,7 +9,8 @@ extension PulseSnapshot {
     /// U, bottom of the stack first, as `JournalStore.unmergedFeatureStack()` orders it. `night` is the Night the
     /// Pulse shows: a Feature is `landedTonight` when its Cycle's `cycleLanded` event is stamped with it.
     static func unmergedFeatures(_ journal: JournalStore, night: NightRecord?) throws -> UnmergedFeatureStack {
-        let lastReadFailures = try lastPullRequestReadFailures(journal)
+        // From every Night: a Feature can wait in U for many.
+        let lastReadFailures = try journal.lastPullRequestReadFailures()
         let features = try journal.unmergedFeatureStack().map { member in
             let record = member.feature
             let pullRequests = try journal.pullRequests(featureID: record.id)
@@ -51,16 +52,6 @@ extension PulseSnapshot {
         guard let state = record.observedState, let observedAt = record.observedAt else { return nil }
         let failed = state != .merged && lastReadFailure.map { $0 > observedAt } == true
         return PullRequestObservation(state: state, observedAt: observedAt, latestReadFailed: failed)
-    }
-
-    /// When each repository's pull request read last failed, from every Night: a Feature can wait in U for many.
-    private static func lastPullRequestReadFailures(_ journal: JournalStore) throws -> [String: Date] {
-        var result: [String: Date] = [:]
-        for record in try journal.events(ofType: .pullRequestReadFailed) {
-            guard case .pullRequestReadFailed(let repository, _) = record.event else { continue }
-            result[repository] = max(result[repository] ?? record.occurredAt, record.occurredAt)
-        }
-        return result
     }
 
     /// Per repository, the display identifier of the Feature in U that `featureID`'s recorded base stacks on;

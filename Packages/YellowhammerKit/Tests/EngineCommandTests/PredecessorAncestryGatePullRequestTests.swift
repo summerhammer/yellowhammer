@@ -331,11 +331,12 @@ struct PredecessorAncestryGatePullRequestTests {
         #expect(try journal.landingCommits(featureID: featureID) == ["backend": squash])
     }
 
-    @Test("By head branch, with no pull request at the Pushed Tip, a merged one is used")
+    @Test("By head branch, with no pull request at the Pushed Tip, a merged one whose head descends from it is used")
     func headLookupFallsBackToAMergedOne() async throws {
         let repo = GateGitFixture(name: "pr-head-merged")
         let tip = try await populateLandedFeature(repo)
         let squash = try await squashMergeWithPostLandEdits(repo)
+        let fixUp = await revParse(gateBranch, in: repo)
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let (context, runID) = try makeGateContext(journal, repositories: repositories(repo))
@@ -344,7 +345,7 @@ struct PredecessorAncestryGatePullRequestTests {
         )
         let read = FakePullRequestRead(.found([
             pullRequest(5, state: .closedWithoutMerge, mergeCommit: nil, head: "f00dfeed"),
-            pullRequest(6, mergeCommit: squash, head: "decafbad")
+            pullRequest(6, mergeCommit: squash, head: fixUp)
         ]))
 
         let outcome = try await PredecessorAncestryGate(publication: read).check(context, unmergedFeaturesMax: 1)

@@ -59,9 +59,13 @@ extension MergeTester {
         )
     }
 
-    /// The first commit of `anchoredChain(from:upTo:in:)` that absorbs the tip with `base` as the merge base.
+    /// The first commit of `anchoredChain(from:upTo:tip:base:in:)` that absorbs the tip with `base` as the merge
+    /// base.
     private func searchLandingCommit(of read: ResolvedMergeRead, from anchor: String, base: String) async -> String? {
-        for candidate in await anchoredChain(from: anchor, upTo: read.mainlineCommit, in: read.path) {
+        let chain = await anchoredChain(
+            from: anchor, upTo: read.mainlineCommit, tip: read.branchCommit, base: base, in: read.path
+        )
+        for candidate in chain {
             let merge = await mergeTree(
                 mainlineCommit: candidate.commit, branchCommit: read.branchCommit, mergeBase: base, in: read.path
             )
@@ -70,16 +74,19 @@ extension MergeTester {
         return nil
     }
 
-    /// `anchor` and mainline's first-parent chain after it, oldest first, each commit with its tree. Empty when
-    /// `anchor` is not a commit this repository has, or not an ancestor of `mainline`.
+    /// `anchor` and mainline's first-parent chain after it, oldest first, each commit with its tree; after `anchor`,
+    /// only the commits that touch the paths `tip` changes against `base` when that finds the same commit
+    /// (``landingCandidates(after:upTo:tip:base:in:)``). `--merge-base` makes `base` every merge's base.
+    /// Empty when `anchor` is not a commit this repository has, or not an ancestor of `mainline`.
     private func anchoredChain(
-        from anchor: String, upTo mainline: String, in path: String
+        from anchor: String, upTo mainline: String, tip: String, base: String, in path: String
     ) async -> [(commit: String, tree: String)] {
         guard
             let anchor = await git.existingCommit(anchor, in: path),
             await git.run(["-C", path, "merge-base", "--is-ancestor", anchor, mainline]).isSuccess,
             let anchorTree = await treeOID(of: anchor, in: path)
         else { return [] }
-        return [(anchor, anchorTree)] + (await firstParentChain(after: anchor, upTo: mainline, in: path))
+        return [(anchor, anchorTree)]
+            + (await landingCandidates(after: anchor, upTo: mainline, tip: tip, base: base, in: path))
     }
 }

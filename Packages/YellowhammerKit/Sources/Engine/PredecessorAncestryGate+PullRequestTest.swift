@@ -12,9 +12,10 @@ import Repositories
 // of PredecessorAncestryGate+MergeTest.swift for the file and type length limits.
 
 extension PredecessorAncestryGate {
-    /// Runs the pull request test on each repository whose tip is not an ancestor of mainline, records the Observed
-    /// Merge (evidence `pull_request`, the merge commit as its landing commit) for each where it holds, and returns
-    /// the rest, in order, for the content test. A repository the pass did not read is returned as it is.
+    /// Runs the pull request test on each repository with no Observed Merge by ancestry (its tip not an ancestor of
+    /// mainline, or an ancestor whose landing commit could not be read), records the Observed Merge (evidence
+    /// `pull_request`, the merge commit as its landing commit) for each where it holds, and returns the rest, in
+    /// order. A repository the pass did not read is returned as it is.
     func testPullRequests(
         of notAncestors: [RepoAncestryResult], scope: TestScope, into result: inout AncestryTestResult
     ) async throws -> [RepoAncestryResult] {
@@ -38,7 +39,7 @@ extension PredecessorAncestryGate {
             let tipCommit = notAncestor.branchCommit,
             let mainlineCommit = notAncestor.mainlineCommit, !mainlineCommit.isEmpty,
             let repo = scope.repos.first(where: { $0.name == notAncestor.repository }),
-            let mergeCommit = Self.mergeCommitUnderTest(scope.pullRequestReads[repo.name], pushedTip: tipCommit)
+            let mergeCommit = Self.mergeCommitUnderTest(scope.pullRequestReads[repo.name])
         else { return nil }
 
         // Item 9 and 23: merged into any branch, but it counts only once its merge commit is in mainline, as this
@@ -53,12 +54,12 @@ extension PredecessorAncestryGate {
         )
     }
 
-    /// The merge commit of the pull request under test, when it reads merged: from this pass's read, or the one an
-    /// earlier read recorded with the merged state, which is final and not read again. Nil otherwise.
-    static func mergeCommitUnderTest(_ reading: PullRequestReading?, pushedTip: String) -> String? {
+    /// The merge commit of the pull request under test, when it reads merged: from this pass's read, which chose it
+    /// against the tested tip, or the one an earlier read recorded with the merged state, final for that pull
+    /// request and still carrying the tip. Nil otherwise.
+    static func mergeCommitUnderTest(_ reading: PullRequestReading?) -> String? {
         switch reading {
-        case .read(let read):
-            let pullRequest = pullRequestUnderTest(read, pushedTip: pushedTip)
+        case .read(let pullRequest):
             return pullRequest?.state == .merged ? pullRequest?.mergeCommit : nil
         case .recordedMerge(let mergeCommit):
             return mergeCommit
