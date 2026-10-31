@@ -248,7 +248,8 @@ func rerunAfterPartialFailureReplaysTheSameComment() async throws {
     await board.seed(issue: seeded.featureIssueID, description: nil)
     let workspace = RemovalFakeWorkspace()
     workspace.scriptFailNextRemove()
-    let removal = makeRemoval(directory: directory, home: home, board: board, workspace: workspace)
+    let output = RecordingOutput()
+    let removal = makeRemoval(directory: directory, home: home, output: output, board: board, workspace: workspace)
 
     let firstAttempt = await removal.run(id: "alpha", yes: true)
     #expect(!firstAttempt)
@@ -256,7 +257,7 @@ func rerunAfterPartialFailureReplaysTheSameComment() async throws {
     #expect(commentsAfterFirst.count == 1)
 
     let secondAttempt = await removal.run(id: "alpha", yes: true)
-    #expect(secondAttempt)
+    #expect(secondAttempt, "removal output: \(output.lines)")
     let commentsAfterSecond = await board.comments
     #expect(commentsAfterSecond.count == 1)
 }
