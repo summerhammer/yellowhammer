@@ -12,13 +12,7 @@ final class FailureNoticeUITests: XCTestCase {
         continueAfterFailure = false
         base = FileManager.default.temporaryDirectory.appending(component: "yh-failure-notice-\(UUID())")
         try HealthGroupUITests.writeConfiguration(in: base)
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", base.path(), "-ApplePersistenceIgnoreState", "YES",
-            // A missing link reads as "not installed", so a stale /usr/local/bin/yh cannot raise the modal
-            // "Yellowhammer moved" alert over the window and swallow the clicks.
-            "-YellowhammerCommandLineToolLink", base.appending(component: "no-yh").path()
-        ]
+        app = .yellowhammer(configurationDirectory: base)
     }
 
     override func tearDown() async throws {

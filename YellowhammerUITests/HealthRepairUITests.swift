@@ -11,10 +11,7 @@ final class HealthRepairUITests: XCTestCase {
         continueAfterFailure = false
         base = FileManager.default.temporaryDirectory.appending(component: "yh-health-repair-\(UUID())")
         try HealthGroupUITests.writeConfiguration(in: base)
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", base.path(), "-ApplePersistenceIgnoreState", "YES"
-        ]
+        app = .yellowhammer(configurationDirectory: base)
     }
 
     override func tearDown() async throws {

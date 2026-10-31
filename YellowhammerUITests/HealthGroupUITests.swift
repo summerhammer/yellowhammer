@@ -30,11 +30,9 @@ final class HealthGroupUITests: XCTestCase {
         let stubURL = stubDirectory.appending(component: "yh.sh", directoryHint: .notDirectory)
         try Self.stub.write(to: stubURL, atomically: true, encoding: .utf8)
 
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
+        app.launchArguments += [
+            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false)
         ]
         app.launchEnvironment["YH_STUB_HEALTH_FINDINGS_FILE"] = base.appending(component: "findings.json").path()
         app.launchEnvironment["YH_STUB_HEALTH_REPORT_FILE"] = base.appending(component: "report.json").path()

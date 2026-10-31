@@ -45,11 +45,9 @@ final class RecalibrateUITests: XCTestCase {
         )
         let stubURL = try Self.writeStub(in: stubDirectory)
 
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
+        app.launchArguments += [
+            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false)
         ]
         app.launch()
         app.activate()

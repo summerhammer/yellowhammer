@@ -41,11 +41,9 @@ final class AgentCLIUITests: XCTestCase {
     /// real machine (`-YellowhammerDiscoveryHome`); without it, discovery finds nothing.
     private func launch(machineTOML: String?, discoveryHome: URL? = nil) throws {
         try machineTOML?.write(to: machineFile, atomically: true, encoding: .utf8)
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
+        app.launchArguments += [
+            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false)
         ]
         if let discoveryHome {
             app.launchArguments += ["-YellowhammerDiscoveryHome", discoveryHome.path(percentEncoded: false)]

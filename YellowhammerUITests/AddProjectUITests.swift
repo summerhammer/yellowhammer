@@ -67,12 +67,10 @@ final class AddProjectUITests: XCTestCase {
             withDestinationURL: projectsDirectory
         )
 
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
+        app.launchArguments += [
             "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
-            "-YellowhammerFolderPickerStub", Self.pickedFolder,
-            "-ApplePersistenceIgnoreState", "YES"
+            "-YellowhammerFolderPickerStub", Self.pickedFolder
         ]
         app.launchEnvironment = [
             "YH_STUB_INSTALLED_MARKER": installedMarker.path(percentEncoded: false),

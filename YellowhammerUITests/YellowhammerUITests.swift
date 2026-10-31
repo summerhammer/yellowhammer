@@ -16,11 +16,7 @@ final class OverviewWindowUITests: XCTestCase {
         configurationDirectory = FileManager.default.temporaryDirectory
             .appending(component: "yellowhammer-ui-\(UUID().uuidString)", directoryHint: .isDirectory)
         try Self.writeConfiguration(in: configurationDirectory)
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
-        ]
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
         app.launch()
     }
 

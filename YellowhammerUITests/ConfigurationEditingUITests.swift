@@ -32,11 +32,7 @@ final class ConfigurationEditingUITests: XCTestCase {
         projectFileURL = projectsDirectory.appending(component: "demo.toml", directoryHint: .notDirectory)
         try Self.demoProjectTOML.write(to: projectFileURL, atomically: true, encoding: .utf8)
 
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
-        ]
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
         app.launch()
         showConfiguration()
     }

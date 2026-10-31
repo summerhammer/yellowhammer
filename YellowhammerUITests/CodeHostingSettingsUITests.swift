@@ -34,11 +34,9 @@ final class CodeHostingSettingsUITests: XCTestCase {
         let stubURL = try EngineStub.write(in: stubDirectory)
         argvLog = URL(filePath: "/tmp/yh-uitest-code-hosting-argv-\(UUID().uuidString)")
 
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
+        app.launchArguments += [
+            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false)
         ]
         app.launchEnvironment = [
             "YH_STUB_ARGV_LOG": argvLog.path(percentEncoded: false),

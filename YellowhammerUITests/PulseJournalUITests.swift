@@ -30,11 +30,7 @@ final class PulseJournalUITests: XCTestCase {
         journal = journals.appending(component: "archive.db", directoryHint: .notDirectory)
         try FileManager.default.copyItem(at: try Self.fixture(), to: journal)
 
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
-        ]
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
         if name.contains("testDeliverNowBuildsAndRefreshesHealthAfterCompletion") {
             let stubDirectory = configurationDirectory.appending(component: "stub", directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: stubDirectory, withIntermediateDirectories: true)

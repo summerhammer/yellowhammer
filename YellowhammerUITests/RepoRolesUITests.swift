@@ -35,11 +35,9 @@ final class RepoRolesUITests: XCTestCase {
     /// Writes `machineTOML` as `config.toml`, then launches the app against it and the stub `yh`.
     private func launch(machineTOML: String) throws {
         try machineTOML.write(to: machineFile, atomically: true, encoding: .utf8)
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
+        app.launchArguments += [
+            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false)
         ]
         app.launch()
     }

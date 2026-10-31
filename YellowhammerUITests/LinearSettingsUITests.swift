@@ -30,11 +30,9 @@ final class LinearSettingsUITests: XCTestCase {
         attemptsMarker = URL(filePath: "/tmp/yh-uitest-attempts-\(uniqueSuffix)")
         argvLog = URL(filePath: "/tmp/yh-uitest-argv-\(uniqueSuffix)")
 
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
-            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
-            "-ApplePersistenceIgnoreState", "YES"
+        app = .yellowhammer(configurationDirectory: configurationDirectory)
+        app.launchArguments += [
+            "-YellowhammerEngineStub", stubURL.path(percentEncoded: false)
         ]
         app.launchEnvironment = [
             "YH_STUB_INSTALLED_MARKER": installedMarker.path(percentEncoded: false),
