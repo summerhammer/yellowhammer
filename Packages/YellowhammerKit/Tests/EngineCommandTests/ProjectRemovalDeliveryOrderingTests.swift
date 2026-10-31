@@ -73,4 +73,26 @@ struct ProjectRemovalDeliveryOrderingTests {
         #expect(oldOutbox.clientID(for: key + ":summary") != newOutbox.clientID(for: key + ":summary"))
         #expect(oldOutbox.clientID(for: key + ":complete") != newOutbox.clientID(for: key + ":complete"))
     }
+
+    @Test("Lead draft, pending sponsor: confirmation lists completing the Night Card after the Worktree step")
+    func confirmationListsNightCardCompletion() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let home = try RemovalHomeFixture(projectID: "alpha", plists: false, logs: false)
+        let output = RecordingOutput()
+        let removal = makeRemoval(
+            directory: directory, home: home, output: output, console: ScriptedConsole(answers: ["n"])
+        )
+
+        #expect(await removal.run(id: "alpha", yes: false) == false)
+
+        let worktreeLine = "- WIP-commit, push and remove each of its held Worktrees"
+        let worktrees = try #require(output.lines.firstIndex(of: worktreeLine))
+        let nightCard = try #require(output.lines.firstIndex(of: "- complete its open Night Card"))
+        let night = try #require(output.lines.firstIndex(of: "- close its open Night, if one exists"))
+        #expect(nightCard == worktrees + 1)
+        #expect(night == nightCard + 1)
+        #expect(removalTOMLExists(directory.url))
+    }
 }
