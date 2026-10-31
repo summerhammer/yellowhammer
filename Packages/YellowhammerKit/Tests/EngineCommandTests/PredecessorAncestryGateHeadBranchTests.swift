@@ -140,6 +140,39 @@ struct PredecessorAncestryGateHeadBranchTests {
         #expect(try journal.pullRequest(featureID: featureID, repository: "backend")?.observedState != .merged)
     }
 
+    // M3 on PR #723: with no Pushed Tip recorded (a Feature pushed before its commit was, ruling 2026-10-11 item 9),
+    // the tested tip is the Feature Branch head. The read used to choose against the branch's name, which no pull
+    // request's head commit equals, so it recorded nothing while the test went on against the branch head.
+    @Test("With no Pushed Tip, the read records the pull request whose head is the Feature Branch head")
+    func noPushedTipRecordsThePullRequestAtTheBranchHead() async throws {
+        let repo = GateGitFixture(name: "pr-m3-no-pushed-tip")
+        let history = try await populateTwoPullRequests(repo)
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let (context, runID) = try makeGateContext(journal, repositories: repositories(repo))
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-PR", branch: gateBranch, repositories: ["backend"]
+        )
+        try journal.recordPullRequest(
+            featureID: featureID, repository: "backend", url: nil, nightID: context.night.id, runID: runID
+        )
+        #expect(try journal.pushedTips(featureID: featureID).isEmpty)
+        // #5's merge commit is mainline's head, so the pull request test would hold if it chose #5.
+        let read = FallbackPullRequestRead([
+            pullRequest(5, state: .merged, mergeCommit: history.oldSquash, head: history.oldHead),
+            pullRequest(6, state: .open, head: history.newHead)
+        ])
+
+        let outcome = try await PredecessorAncestryGate(publication: read).check(context, unmergedFeaturesMax: 1)
+
+        let recorded = try journal.pullRequest(featureID: featureID, repository: "backend")
+        #expect(recorded?.observedState == .open)
+        #expect(recorded?.number == 6)
+        #expect(recorded?.headCommit == history.newHead)
+        #expect(try journal.landingEvidence(featureID: featureID).isEmpty)
+        #expect(singleUnmerged(outcome)?.repositories == ["backend"])
+    }
+
     @Test("A merged state an earlier pass recorded by head branch is re-checked against the Pushed Tip")
     func recordedFallbackMergeIsRechecked() async throws {
         let repo = GateGitFixture(name: "pr-m1-recorded")

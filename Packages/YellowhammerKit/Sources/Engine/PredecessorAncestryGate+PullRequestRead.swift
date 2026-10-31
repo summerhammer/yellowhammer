@@ -47,8 +47,7 @@ extension PredecessorAncestryGate {
             let selector = Self.pullRequestSelector(recorded: recorded[repository], branch: branches[repository])
             let path = context.repositories?.workingRepo(named: repository)
                 .map { ($0.path as NSString).expandingTildeInPath }
-            // The tested tip (#tested-tip): the Pushed Tip, else the Feature Branch, which git resolves by name.
-            let tip = pushedTips[repository] ?? branches[repository]?.name
+            let tip = await testedTip(pushedTip: pushedTips[repository], branch: branches[repository], path: path)
             if let record = recorded[repository], record.observedState == .merged,
                await recordedMergeStands(record, selector: selector, tip: tip, path: path) {
                 readings[repository] = .recordedMerge(mergeCommit: record.mergeCommit)
@@ -87,6 +86,17 @@ extension PredecessorAncestryGate {
         return readings
     }
 
+    /// The tested tip the read chooses against (#tested-tip; ruling 2026-10-28 item 27, M3 on PR #723): the Pushed
+    /// Tip, else the commit the Feature Branch resolves to in this clone, through the merge test's own resolution
+    /// (``AncestryTester/testedCommit(_:in:)``). The read runs before ancestry, and for a repository that already
+    /// has an Observed Merge ancestry never runs at all, so it resolves the tip itself; a branch name is never
+    /// compared with a pull request's head commit. Nil when neither is known or the branch resolves to no commit.
+    func testedTip(pushedTip: String?, branch: FeatureBranch?, path: String?) async -> String? {
+        if let pushedTip { return pushedTip }
+        guard let branch, let path else { return nil }
+        return await ancestryTester.testedCommit(TestedTip(branch: branch), in: path)
+    }
+
     /// Which pull request to read (OQ190 item 27): the one whose URL is recorded, by its number; where no URL was
     /// recorded (Code Hosting answered that one already existed, or none was recorded at all), the pull requests
     /// whose head is the Feature Branch. Nil when neither is known.
@@ -100,9 +110,10 @@ extension PredecessorAncestryGate {
         return .headBranch(name)
     }
 
-    /// The pull request the test uses and the read records, among those `read` found. By number, the one found: it is
-    /// the one the land Act opened. By head branch (OQ190 item 27, narrowed for M1), the one whose head is the tested
-    /// tip; else a merged one whose head descends from the tip in this clone, as a fix-up the Operator pushed after
+    /// The pull request the test uses and the read records, among those `read` found: the one function that decides
+    /// it, called once per read with the tested tip (``testedTip(pushedTip:branch:path:)``), so the recorded state and
+    /// the test's verdict always describe the same pull request. By number, the one found: it is the one the land Act
+    /// opened. By head branch (OQ190 item 27, narrowed for M1), the one whose head is the tested tip; else a merged one whose head descends from the tip in this clone, as a fix-up the Operator pushed after
     /// the land and then merged does; else, when the read found only that one pull request, merged, and its head is
     /// not in this clone, that one, because a fix-up made on Code Hosting is never fetched. A merged pull request
     /// whose head this clone has but that does not carry the tip is never used: it holds older work. Nil when none
