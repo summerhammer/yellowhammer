@@ -152,9 +152,10 @@ extension NightAccount {
     }
 
     /// Event types that are a problem whatever their payload. ``isProblem(_:)`` adds the five events whose
-    /// payload decides.
+    /// payload decides. `PullRequestReadFailed` is not one: a failed pull request read is not a failure, the
+    /// content test still runs (feature-authoring/select-the-next-feature#pull-request-read).
     private static let problemTypes: Set<JournalEventType> = [
-        .linearAuthorizationHalted, .linearUnreachableHalted, .mainlineFetchFailed, .pullRequestReadFailed,
+        .linearAuthorizationHalted, .linearUnreachableHalted, .mainlineFetchFailed,
         .absentNightDetected,
         .nightOpenedAndDied, .leaseReclaimed, .cardLeaseReclaimed, .notificationDeliveryFailed,
         .boardWriteFailed, .outboxGroupRolledBack, .managedBlockDelimiterBroken, .managedBlockOverBudget,
