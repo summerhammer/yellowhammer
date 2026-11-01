@@ -2,6 +2,7 @@ import Domain
 @testable import Engine
 import Foundation
 @testable import Journal
+import Repositories
 import Testing
 
 // OQ191 item 4 with the Operator's OQ194 decision as built (landing/open-one-pull-request-per-repository
@@ -51,7 +52,11 @@ struct RemoteTipOtherLanesTests {
 
         let expected = "Not landed: the remote branch `\(landBranch.name)` in backend is at "
             + "\(oq191Short(backend.base)), not at the Pushed Tip \(oq191Short(backend.tip)). "
-            + "No pull request was opened for backend."
+            + "No pull request was opened for backend. Yellowhammer never pushes the branch again itself. "
+            + "Route out: put the remote branch `\(landBranch.name)` back at the Pushed Tip "
+            + "\(oq191Short(backend.tip)), kept at `\(LandedTipPin.ref(for: landBranch))`, and the next land firing "
+            + "opens the pull request; or cancel the Feature on the Board, which archives the Cycle and frees the "
+            + "Project for its next Feature."
         let step = try recordedLandSteps(world.env.journal, .openPullRequest, repository: "backend").last
         #expect(step?.outcome == .failed)
         #expect(step?.detail == expected)

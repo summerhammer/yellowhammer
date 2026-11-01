@@ -2,6 +2,7 @@ import Domain
 @testable import Engine
 import Foundation
 @testable import Journal
+import Repositories
 import Testing
 
 // OQ191 (yellowhammer#708), item 4: before every pull request open — the first land firing right after its own
@@ -121,6 +122,60 @@ struct OQ191RemoteTipCheckTests {
         #expect(!landed)
         let failures = try #require(try await world.remoteTipFailures("backend"))
         #expect(failures.contains { $0.contains("absent") && $0.contains(oq191Short(backend.tip)) })
+    }
+
+    // landing/stories/open-one-pull-request-per-repository.md#remote-tip-route-out
+    @Test("a remote at another commit names both routes out")
+    func remoteAtAnotherCommitNamesBothRoutesOut() async throws {
+        let world = try await firstFiring(.movedToBase)
+        let backend = world["backend"]
+        try #require(await backend.remoteTip() == backend.base)
+
+        let failures = try #require(try await world.remoteTipFailures("backend"))
+        let landedRef = LandedTipPin.ref(for: landBranch)
+        let pushedTip = oq191Short(backend.tip)
+        #expect(failures.contains {
+            $0.contains(landedRef)
+                && $0.contains(pushedTip)
+                && $0.contains("cancel the Feature on the Board")
+                && $0.contains("Yellowhammer never pushes the branch again")
+        })
+    }
+
+    // landing/stories/open-one-pull-request-per-repository.md#remote-tip-route-out
+    @Test("an absent remote branch names both routes out")
+    func absentRemoteBranchNamesBothRoutesOut() async throws {
+        let world = try await firstFiring(.deleted)
+        let backend = world["backend"]
+        try #require(await backend.remoteTip() == nil)
+
+        let failures = try #require(try await world.remoteTipFailures("backend"))
+        let landedRef = LandedTipPin.ref(for: landBranch)
+        let pushedTip = oq191Short(backend.tip)
+        #expect(failures.contains {
+            $0.contains(landedRef)
+                && $0.contains(pushedTip)
+                && $0.contains("cancel the Feature on the Board")
+                && $0.contains("Yellowhammer never pushes the branch again")
+        })
+    }
+
+    // landing/stories/open-one-pull-request-per-repository.md#remote-tip-route-out
+    @Test("an unreadable remote contains none of the routes out")
+    func unreadableRemoteContainsNoRoutesOut() async throws {
+        let world = try await firstFiring(.unreadable)
+        let backend = world["backend"]
+        defer { restoreRemote(backend) }
+
+        let failures = try #require(try await world.remoteTipFailures("backend"))
+        let landedRef = LandedTipPin.ref(for: landBranch)
+        let pushedTip = oq191Short(backend.tip)
+        for failure in failures {
+            #expect(!failure.contains(landedRef))
+            #expect(!failure.contains(pushedTip))
+            #expect(!failure.contains("cancel the Feature on the Board"))
+            #expect(!failure.contains("Yellowhammer never pushes the branch again"))
+        }
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#remote-tip-check
