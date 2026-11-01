@@ -3,6 +3,21 @@ import Domain
 import Engine
 
 extension Setup {
+    /// Recommends grouping Work Cards by parent issue in Linear board views (OQ188,
+    /// `board-projection/provision-the-board#work-card-grouping`).
+    ///
+    /// This recommendation is printed once per setup run as advisory text; the setting is a
+    /// Linear display option and is never set or checked by Yellowhammer.
+    static let workCardGroupingRecommendation =
+        "In the Project's board view, group by parent issue so that each Feature's Work Cards sit under its Feature "
+        + "Card. This is a Linear display option: set it as a personal preference, or as the view's default for "
+        + "every member of the workspace."
+
+    /// Prints the Work Card grouping recommendation once during setup's closing report.
+    func reportWorkCardGroupingRecommendation() {
+        output(Self.workCardGroupingRecommendation)
+    }
+
     /// Step 6: provisions every valid Project. A `BoardError` for one Project is printed and setup
     /// continues with the next. Returns the ids of every Project whose provisioning failed, so step 6.5
     /// (scheduled jobs) can exclude them, plus each Project's own unfinished-steps report — the story's

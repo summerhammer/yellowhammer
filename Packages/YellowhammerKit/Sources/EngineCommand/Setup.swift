@@ -98,6 +98,7 @@ struct Setup {
         )
         await reportNotifications()
         reportRoutingWarnings(configuration: configuration, machine: machine)
+        reportWorkCardGroupingRecommendation()
         // The story's consolidated list, last: every unfinished provisioning step across every Project.
         reportUnfinishedProvisioning(unfinishedProvisioning)
 
