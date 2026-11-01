@@ -222,6 +222,102 @@ struct SetupTests {
         #expect(output.lines.last == "Setup complete.")
     }
 
+    @Test("Setup recommends the Linear grouping by parent issue once on a clean run")
+    func recommendsLinearGroupingOnCleanRun() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(
+            project: BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "demo", teams: [engineeringTeam])
+        )
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearProject: "proj-1",
+            specSource: "~/dev/demo-spec", repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
+
+        try await setup.run()
+
+        let matches = output.lines.filter { $0 == Setup.workCardGroupingRecommendation }
+        #expect(matches.count == 1)
+        let recommendationIndex = try #require(output.lines.firstIndex(of: Setup.workCardGroupingRecommendation))
+        let completeIndex = try #require(output.lines.firstIndex(of: "Setup complete."))
+        #expect(recommendationIndex < completeIndex)
+        #expect(!output.lines.contains("Unfinished provisioning steps:"))
+    }
+
+    @Test("Setup recommends the Linear grouping by parent issue once on a re-run with no changes")
+    func recommendsLinearGroupingOnRerun() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(
+            project: BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "demo", teams: [engineeringTeam])
+        )
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearProject: "proj-1",
+            specSource: "~/dev/demo-spec", repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let setup1 = try makeSetup(arguments: arguments, directory: directory, board: board)
+        try await setup1.run()
+
+        let output2 = RecordingOutput()
+        let setup2 = try makeSetup(
+            arguments: arguments + ["--board-connection", "acme"], directory: directory, board: board, output: output2
+        )
+        try await setup2.run()
+
+        let matches = output2.lines.filter { $0 == Setup.workCardGroupingRecommendation }
+        #expect(matches.count == 1)
+        let recommendationIndex = try #require(output2.lines.firstIndex(of: Setup.workCardGroupingRecommendation))
+        let completeIndex = try #require(output2.lines.firstIndex(of: "Setup complete."))
+        #expect(recommendationIndex < completeIndex)
+    }
+
+    @Test("Setup recommends the Linear grouping by parent issue once when a permission refusal remains")
+    func recommendsLinearGroupingWithPermissionRefusal() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(
+            project: BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "demo", teams: [engineeringTeam])
+        )
+        await board.script(.refuse(.forbidden("not allowed")), for: BoardProvisioner.blockedState)
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearProject: "proj-1",
+            specSource: "~/dev/demo-spec", repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
+
+        try await setup.run()
+
+        let matches = output.lines.filter { $0 == Setup.workCardGroupingRecommendation }
+        #expect(matches.count == 1)
+        let recommendationIndex = try #require(output.lines.firstIndex(of: Setup.workCardGroupingRecommendation))
+        let consolidatedIndex = try #require(output.lines.firstIndex(of: "Unfinished provisioning steps:"))
+        #expect(recommendationIndex < consolidatedIndex)
+        #expect(output.lines.last == "Setup complete.")
+        #expect(output.lines[output.lines.count - 2].contains("category started"))
+    }
+
+    @Test("Setup recommends the Linear grouping by parent issue before failing on invalid Projects")
+    func recommendsLinearGroupingBeforeErrorThrow() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeProjectFile(id: "broken", "id = \"broken\"\n")
+        try directory.writeValidProjectFile(id: "healthy")
+        let board = await makeBoard(
+            project: BoardProjectScope(
+                id: BoardObjectID(rawValue: "proj-1"), name: "healthy", teams: [engineeringTeam]
+            )
+        )
+        let arguments = makeArguments(operatorID: "user-op", installation: "acme")
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
+
+        await #expect(throws: SetupError.self) { try await setup.run() }
+
+        let matches = output.lines.filter { $0 == Setup.workCardGroupingRecommendation }
+        #expect(matches.count == 1)
+        #expect(!output.lines.contains("Setup complete."))
+    }
+
     @Test("An absent operator throws, listing the candidates, with no Project file and no provisioning")
     func absentOperatorThrows() async throws {
         let directory = ConfigurationDirectory()
