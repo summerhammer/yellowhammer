@@ -66,4 +66,34 @@ struct UnpublishedCommitsEventTests {
         #expect(records.first?.type.rawValue == "UnpublishedCommitsPinned")
         #expect(event.payload?["pin_ref"] == "refs/yellowhammer/unpublished/yh-proj-feat")
     }
+
+    @Test(
+        "pinnedAtCancellation round-trips pinRef, commitsAfter nil and non-nil, and noPushedBranch",
+        arguments: [3, nil] as [Int?], [true, false] as [Bool]
+    )
+    func pinnedAtCancellationRoundTrips(commitsAfter: Int?, noPushedBranch: Bool) throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(component: "yh-journal-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let journal = try openJournal(directory)
+        let pinRef = "refs/yellowhammer/unpublished/yh-proj-feat"
+        let event = JournalEvent.unpublishedCommitsPinnedAtCancellation(
+            cycleID: 7,
+            unpublished: UnpublishedHead(
+                repository: "backend", recordedCommit: Self.recorded, head: Self.head, commitsAfter: commitsAfter,
+                noPushedBranch: noPushedBranch
+            ),
+            pinRef: pinRef
+        )
+
+        try journal.append(event, act: .land, runID: RunID())
+
+        let records = try journal.events(ofType: .unpublishedCommitsPinnedAtCancellation)
+        #expect(records.map(\.event) == [event])
+        #expect(records.first?.type.rawValue == "UnpublishedCommitsPinnedAtCancellation")
+        #expect(event.payload?["pin_ref"] == pinRef)
+        #expect(event.payload?["descends"] == (commitsAfter == nil ? "false" : "true"))
+        #expect(event.payload?["commits_after"] == commitsAfter.map(String.init))
+        #expect(event.payload?["no_pushed_branch"] == (noPushedBranch ? "true" : "false"))
+    }
 }

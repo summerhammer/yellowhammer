@@ -122,4 +122,77 @@ struct UnpublishedCommitsReportTests {
         #expect(try world.isCycleLanded)
         #expect(await comments(world, on: "FEAT-1").filter { $0.contains("pinned at") }.count == 1)
     }
+
+    @Test("atCancellation for descendant HEAD names pin, commits and count, claiming no pull request")
+    func atCancellationDescendantHead() {
+        let recorded = "fedcba9876543210fedcba9876543210fedcba98"
+        let head = "0123456789abcdef0123456789abcdef01234567"
+        let unpublished = UnpublishedHead(
+            repository: "backend", recordedCommit: recorded, head: head, commitsAfter: 3,
+            noPushedBranch: false
+        )
+        let text = UnpublishedCommitsReport.atCancellation(unpublished, pinRef: pinRef)
+
+        #expect(text.contains(pinRef))
+        #expect(text.contains("3 commits"))
+        #expect(text.contains(oq191Short(recorded)))
+        #expect(text.contains(oq191Short(head)))
+        #expect(!text.contains("pull request"))
+        #expect(text.contains("The pinned commits are yours: Yellowhammer never pushes them or deletes the pin."))
+
+        let event = JournalEvent.unpublishedCommitsPinnedAtCancellation(
+            cycleID: 42, unpublished: unpublished, pinRef: pinRef
+        )
+        #expect(UnpublishedCommitsReport.text(of: event) == text)
+    }
+
+    @Test("atCancellation for non-descendant HEAD says differs and names both commits, claiming no pull request")
+    func atCancellationNonDescendantHead() {
+        let recorded = "fedcba9876543210fedcba9876543210fedcba98"
+        let head = "0123456789abcdef0123456789abcdef01234567"
+        let unpublished = UnpublishedHead(
+            repository: "backend", recordedCommit: recorded, head: head, commitsAfter: nil,
+            noPushedBranch: false
+        )
+        let text = UnpublishedCommitsReport.atCancellation(unpublished, pinRef: pinRef)
+
+        #expect(text.contains(pinRef))
+        #expect(text.contains("differs"))
+        #expect(text.contains(oq191Short(recorded)))
+        #expect(text.contains(oq191Short(head)))
+        #expect(!text.contains("pull request"))
+        #expect(text.contains("The pinned commits are yours: Yellowhammer never pushes them or deletes the pin."))
+
+        let event = JournalEvent.unpublishedCommitsPinnedAtCancellation(
+            cycleID: 42, unpublished: unpublished, pinRef: pinRef
+        )
+        #expect(UnpublishedCommitsReport.text(of: event) == text)
+    }
+
+    @Test("Kind.cancellation uses its own raw value and Outbox key suffix")
+    func cancellationKindRawValue() {
+        #expect(UnpublishedCommitsReport.Kind.cancellation.rawValue == "cancellation")
+    }
+
+    @Test("pullRequestLines includes the cancellation report when seeded on a Night")
+    func pullRequestLinesIncludesCancellationReport() async throws {
+        let world = try await OQ191LandWorld.make(withMobile: false)
+        let head = try await backendTwoCommitsAhead(world)
+        let backend = world["backend"]
+
+        _ = await world.fire()
+
+        let journal = world.env.journal
+        let unpublished = UnpublishedHead(
+            repository: "backend", recordedCommit: backend.tip, head: head, commitsAfter: 2, noPushedBranch: false
+        )
+        let event = JournalEvent.unpublishedCommitsPinnedAtCancellation(
+            cycleID: world.cycleID, unpublished: unpublished, pinRef: pinRef
+        )
+        try journal.append(event, act: .land, runID: RunID(), nightID: world.env.context.night.id)
+
+        let notes = try NightSummary.pullRequestLines(night: world.env.context.night, journal: journal)
+        let expected = UnpublishedCommitsReport.atCancellation(unpublished, pinRef: pinRef)
+        #expect(notes.contains(expected))
+    }
 }

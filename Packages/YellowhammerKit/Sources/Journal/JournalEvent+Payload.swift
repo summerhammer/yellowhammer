@@ -513,7 +513,7 @@ extension JournalEvent {
             .verifiedFeatureMergeObserved, .completedFeatureMergeObserved, .noPushedBranchOutcome, .landedPinFailed,
             .pullRequestStacked, .remoteTipMismatch, .remoteTipUnreadable:
             landActPayload
-        case .unpublishedCommitsReported, .unpublishedCommitsPinned:
+        case .unpublishedCommitsReported, .unpublishedCommitsPinned, .unpublishedCommitsPinnedAtCancellation:
             unpublishedCommitsPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared, .authoringHaltRepair:

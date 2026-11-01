@@ -309,7 +309,7 @@ extension JournalEvent {
             try Self.decodeLandAct(type, reader)
         case .remoteTipMismatch, .remoteTipUnreadable:
             try Self.decodeRemoteTip(type, reader)
-        case .unpublishedCommitsReported, .unpublishedCommitsPinned:
+        case .unpublishedCommitsReported, .unpublishedCommitsPinned, .unpublishedCommitsPinnedAtCancellation:
             try Self.decodeUnpublishedCommits(type, reader)
         case .cycleLanded: .cycleLanded(cycleID: try reader.int64("cycle_id"))
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,

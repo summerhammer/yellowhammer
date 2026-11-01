@@ -63,6 +63,7 @@ func eventTypeRawValues() {
         "RefusalOpened", "RefusalRepeated", "RefusalExpired", "RefusalCountReset",
         "LandStep", "CycleLanded", "NoPushedBranchOutcome", "LandedPinFailed", "PullRequestStacked",
         "RemoteTipMismatch", "RemoteTipUnreadable", "UnpublishedCommitsReported", "UnpublishedCommitsPinned",
+        "UnpublishedCommitsPinnedAtCancellation",
         "FeatureVerified",
         "FeatureReturned", "CycleArchived",
         "RefusalAnswered", "AuthoringHaltOpened", "AuthoringHaltRepeated", "AuthoringHaltExpired",

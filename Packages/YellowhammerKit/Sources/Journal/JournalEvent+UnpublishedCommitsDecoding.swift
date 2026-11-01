@@ -1,13 +1,14 @@
 import Domain
 import Foundation
 
-// The unpublished-commits events' payload and decoding (OQ191 items 1, 2, 5, 6 and 9;
+// The unpublished-commits events' payload and decoding (OQ191 items 1, 2, 5, 6 and 9; OQ194 item 3;
 // landing/open-one-pull-request-per-repository `#unpublished-commits-pin`): the repository, the recorded commit,
 // HEAD and whether HEAD descends from the recorded commit, with how many commits after it, the no-pushed-branch
 // mark and, once pinned, the pin ref. Enough to render the report again without git.
 
 extension JournalEvent {
-    /// Decodes `unpublishedCommitsReported`, or else `unpublishedCommitsPinned`.
+    /// Decodes `unpublishedCommitsReported`, `unpublishedCommitsPinned`, or
+    /// `unpublishedCommitsPinnedAtCancellation`.
     static func decodeUnpublishedCommits(_ type: JournalEventType, _ reader: PayloadReader) throws -> JournalEvent {
         let descends = try reader.bool("descends")
         let unpublished = UnpublishedHead(
@@ -20,11 +21,15 @@ extension JournalEvent {
             return .unpublishedCommitsReported(cycleID: cycleID, unpublished: unpublished)
         }
         let pinRef = try reader.require("pin_ref")
+        if type == .unpublishedCommitsPinnedAtCancellation {
+            return .unpublishedCommitsPinnedAtCancellation(cycleID: cycleID, unpublished: unpublished, pinRef: pinRef)
+        }
         return .unpublishedCommitsPinned(cycleID: cycleID, unpublished: unpublished, pinRef: pinRef)
     }
 
-    /// The `unpublishedCommitsReported` and `unpublishedCommitsPinned` events' payloads; `commits_after` is absent
-    /// when HEAD does not descend from the recorded commit, and `pin_ref` when nothing is pinned yet.
+    /// The `unpublishedCommitsReported`, `unpublishedCommitsPinned` and `unpublishedCommitsPinnedAtCancellation`
+    /// events' payloads; `commits_after` is absent when HEAD does not descend from the recorded commit, and `pin_ref`
+    /// when nothing is pinned yet.
     var unpublishedCommitsPayload: [String: String]? {
         let cycleID: Int64
         let unpublished: UnpublishedHead
@@ -34,6 +39,8 @@ extension JournalEvent {
             (cycleID, unpublished) = (reportedCycleID, reported)
         case .unpublishedCommitsPinned(let pinnedCycleID, let pinned, let ref):
             (cycleID, unpublished, pinRef) = (pinnedCycleID, pinned, ref)
+        case .unpublishedCommitsPinnedAtCancellation(let cancelledCycleID, let pinned, let ref):
+            (cycleID, unpublished, pinRef) = (cancelledCycleID, pinned, ref)
         default:
             return nil
         }

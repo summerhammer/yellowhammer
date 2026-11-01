@@ -487,6 +487,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// that HEAD at `pinRef`, a local ref outside `refs/heads/` that is never pushed (OQ191 items 6 and 9). A note,
     /// never a failure.
     case unpublishedCommitsPinned(cycleID: Int64, unpublished: UnpublishedHead, pinRef: String)
+    /// Before native `canceled` released a held Worktree whose HEAD was not the recorded commit, the settle
+    /// gesture pinned that HEAD at `pinRef` (OQ194 item 3). The pin is never pushed and never deleted by the
+    /// engine (OQ193). A note, never a failure.
+    case unpublishedCommitsPinnedAtCancellation(cycleID: Int64, unpublished: UnpublishedHead, pinRef: String)
     /// The land Act opened `featureIssueID`'s pull request in `repository` against a predecessor's Feature
     /// Branch, because `effective_base(R)` computed at landing from the Unmerged Feature Stack U was that
     /// predecessor (spec: landing/open-one-pull-request-per-repository `#stack-notice`; OQ177). Appended
