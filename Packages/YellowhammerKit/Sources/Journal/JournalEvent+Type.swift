@@ -242,6 +242,8 @@ extension JournalEvent {
             .unpublishedCommitsReported
         case .unpublishedCommitsPinned:
             .unpublishedCommitsPinned
+        case .unpublishedCommitsPinnedAtCancellation:
+            .unpublishedCommitsPinnedAtCancellation
         case .featureVerified:
             .featureVerified
         case .featureReturned:

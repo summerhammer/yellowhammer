@@ -4,11 +4,12 @@ import Journal
 import Repositories
 
 /// The "not published" report (spec: landing/open-one-pull-request-per-repository, `#unpublished-commits-pin`;
-/// OQ191 items 1, 2, 5, 6 and 9): a held Worktree whose HEAD is not its repository's recorded commit, reported when
-/// Verification runs and again when the land Act pins that HEAD before release. Each is a note, never a failure,
-/// and starts "Not published:". The release report never rewrites the Verification-time report: each is its own
-/// comment, under its own Outbox key, on the Feature Card and on each Work Card of the lane, and its own Journal
-/// event, from which the Night Summary renders the same text.
+/// OQ191 items 1, 2, 5, 6 and 9; OQ194 item 3): a held Worktree whose HEAD is not its repository's recorded commit,
+/// reported when Verification runs, again when the land Act pins that HEAD before release, and before cancellation
+/// releases the Worktree. Each is a note, never a failure, and starts "Not published:". The release and cancellation
+/// reports never rewrite the Verification-time report: each is its own comment, under its own Outbox key, on the
+/// Feature Card and on each Work Card of the lane, and its own Journal event, from which the Night Summary renders
+/// the same text.
 enum UnpublishedCommitsReport {
     /// When the report is made.
     enum Kind: String {
@@ -16,6 +17,8 @@ enum UnpublishedCommitsReport {
         case verification
         /// Before the Worktree is released, once its HEAD is pinned.
         case release
+        /// Before cancellation releases the Worktree, once its HEAD is pinned.
+        case cancellation
     }
 
     /// What differs: the commits after the recorded commit, or a HEAD that does not descend from it.
@@ -46,6 +49,12 @@ enum UnpublishedCommitsReport {
         return "\(pinned) The pull request is at \(GitCommit.short(unpublished.recordedCommit))."
     }
 
+    /// The report made at cancellation, naming the pin.
+    static func atCancellation(_ unpublished: UnpublishedHead, pinRef: String) -> String {
+        "Not published: \(whatDiffers(unpublished)); pinned at `\(pinRef)` before the Feature was cancelled. "
+            + "The pinned commits are yours: Yellowhammer never pushes them or deletes the pin."
+    }
+
     /// The report a Journal event records; nil for any other event.
     static func text(of event: JournalEvent) -> String? {
         switch event {
@@ -53,6 +62,8 @@ enum UnpublishedCommitsReport {
             atVerification(unpublished)
         case .unpublishedCommitsPinned(_, let unpublished, let pinRef):
             atRelease(unpublished, pinRef: pinRef)
+        case .unpublishedCommitsPinnedAtCancellation(_, let unpublished, let pinRef):
+            atCancellation(unpublished, pinRef: pinRef)
         default:
             nil
         }
