@@ -14,6 +14,44 @@ import Repositories
 // Worktree held. A pin an earlier firing already wrote at the same HEAD is neither reported nor posted again.
 // Uncommitted changes are not covered (OQ196).
 
+/// What evaluating and attempting to pin a held Worktree's HEAD produced.
+enum UnpublishedPinDecision: Sendable {
+    case missingWorktree
+    case notGitWorktree
+    case noFeatureBranch(recordedCommit: String)
+    case notNeeded
+    case alreadyPinned(ref: String)
+    case failed(reason: String)
+    case pinned(ref: String, relation: WorktreeHeadRelation)
+
+    static func evaluate(
+        worktreePath: String, recordedCommit: String, branch: FeatureBranch?,
+        pin: UnpublishedHeadPin = UnpublishedHeadPin()
+    ) async -> UnpublishedPinDecision {
+        let path = (worktreePath as NSString).expandingTildeInPath
+        guard FileManager.default.fileExists(atPath: path) else { return .missingWorktree }
+        guard FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(".git")) else {
+            return .notGitWorktree
+        }
+        guard let branch else {
+            if case .atRecordedCommit = await pin.headRelation(worktreePath: path, recordedCommit: recordedCommit) {
+                return .notNeeded
+            }
+            return .noFeatureBranch(recordedCommit: recordedCommit)
+        }
+        switch await pin.pinUnpublishedHead(worktreePath: path, recordedCommit: recordedCommit, branch: branch) {
+        case .notNeeded:
+            return .notNeeded
+        case .alreadyPinned(let ref):
+            return .alreadyPinned(ref: ref)
+        case .failed(let reason):
+            return .failed(reason: reason)
+        case .pinned(let ref, let relation):
+            return .pinned(ref: ref, relation: relation)
+        }
+    }
+}
+
 /// What the pin before release decided.
 enum UnpublishedPinStep {
     /// The Worktree may be released; `detail` names the pin when one was written.
@@ -35,29 +73,22 @@ extension LandAct {
         else {
             return .release(detail: nil)
         }
-        let path = (held.path as NSString).expandingTildeInPath
-        guard FileManager.default.fileExists(atPath: path) else { return .release(detail: nil) }
-        guard FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(".git")) else {
+
+        let branch = try? context.journal.resolvedFeatureBranch(feature: laneContext.feature, repository: repository)
+        switch await UnpublishedPinDecision.evaluate(
+            worktreePath: held.path, recordedCommit: recordedCommit, branch: branch
+        ) {
+        case .missingWorktree, .notNeeded:
+            return .release(detail: nil)
+        case .notGitWorktree:
             return .release(
                 detail: "HEAD in \(repository) could not be read (not a git work tree); nothing was pinned"
             )
-        }
-
-        let pin = UnpublishedHeadPin()
-        let feature = laneContext.feature
-        guard let branch = try? context.journal.resolvedFeatureBranch(feature: feature, repository: repository) else {
-            if case .atRecordedCommit = await pin.headRelation(worktreePath: path, recordedCommit: recordedCommit) {
-                return .release(detail: nil)
-            }
+        case .noFeatureBranch(let commit):
             return .keepHeld(
-                "the Worktree's HEAD in \(repository) is not the recorded commit \(recordedCommit.prefix(7)), and no "
+                "the Worktree's HEAD in \(repository) is not the recorded commit \(commit.prefix(7)), and no "
                     + "Feature Branch is recorded to pin it under; the Worktree stays held"
             )
-        }
-
-        switch await pin.pinUnpublishedHead(worktreePath: path, recordedCommit: recordedCommit, branch: branch) {
-        case .notNeeded:
-            return .release(detail: nil)
         case .alreadyPinned(let ref):
             return .release(detail: "already pinned at \(ref)")
         case .failed(let reason):

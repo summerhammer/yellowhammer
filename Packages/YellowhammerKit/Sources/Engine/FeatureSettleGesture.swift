@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Journal
+import Repositories
 
 /// The injectable seam the author Act calls, once the predecessor-ancestry gate has run this Act, for
 /// whatever Feature is still in flight (roadmap P10.9, P22.2; spec: morning-report/triage-the-morning).
@@ -23,6 +24,7 @@ public protocol FeatureSettle: Sendable {
 ///
 /// Both terminal dispositions defer, by throwing ``CycleArchiveFault``, while another run holds a Card
 /// Lease (``CardAutoBlock``): the Cycle is closed on a later pass, never while work may still write.
+/// Cancellation also defers when a held Worktree's unpublished HEAD cannot be pinned before release (OQ194 item 3).
 ///
 /// No board wired means the Board is never read at all, the same as an indeterminate disposition.
 public struct FeatureSettleGesture: FeatureSettle, Sendable {
@@ -130,10 +132,11 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
 
     /// Stop-with-salvage: every Waiting on You Card is auto-Blocked `reply overdue`, while Todo and In
     /// Progress Cards are auto-Blocked `feature abandoned` (``CardAutoBlock``). Blocked Cards are detached from the
-    /// Feature Issue, every held Worktree is released — including unpushed work, which an abandon
-    /// discards rather than refuses — and the Cycle is archived without `closed_by` (never a closure
-    /// route; `abandoned_at` is the marker). The Feature Issue itself is never archived and its workflow
-    /// state is never rewritten: it stays in the Operator's own *abandoned* state, re-enterable.
+    /// Feature Issue, each held Worktree whose HEAD is not the recorded commit has that HEAD pinned under
+    /// `refs/yellowhammer/unpublished/<branch>` before release (OQ194 item 3), every held Worktree is released,
+    /// and the Cycle is archived without `closed_by` (never a closure route; `abandoned_at` is the marker).
+    /// The Feature Issue itself is never archived and its workflow state is never rewritten: it stays in the
+    /// Operator's own *abandoned* state, re-enterable.
     ///
     private func applyAbandoned(
         feature: FeatureRecord, cycleID: Int64, cards: [CardRecord], context: ActContext
@@ -149,6 +152,10 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         let blockedCards = refreshedCards.filter { $0.state == .blocked }
         let carriedForward = blockedCards.map(\.issueID).sorted()
         let acceptedCards = refreshedCards.filter { $0.state == .done }.map(\.issueID).sorted()
+
+        try await pinWorktrees(
+            feature: feature, cycleID: cycleID, cards: refreshedCards, context: context
+        )
 
         try await releaseWorktrees(featureID: feature.id, context: context)
 
@@ -193,8 +200,9 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         let triagedNightID: Int64
     }
 
-    /// Releases every held Worktree for `featureID`, including unpushed work. A no-op on a Partial
-    /// Landing — the land Act has already released every Worktree it could push.
+    /// Releases every held Worktree for `featureID`. The HEAD of each held Worktree has already been
+    /// pinned before release (OQ194 item 3), making the discard safe. A no-op on a Partial Landing — the
+    /// land Act has already released every Worktree it could push.
     private func releaseWorktrees(featureID: Int64, context: ActContext) async throws {
         guard let workspace = context.workspace else { return }
         let held = try context.journal.worktrees(featureID: featureID).filter(\.isHeld)

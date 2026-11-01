@@ -165,16 +165,24 @@ final class SettleWorld {
     /// Holds a Worktree for the Feature's `repository`, pushed or not.
     @discardableResult
     func holdWorktree(repository: String, pushed: Bool) throws -> WorktreeRecord {
+        try holdWorktree(
+            repository: repository, path: "/tmp/\(repository)", pushedCommit: pushed ? "abc123" : nil
+        )
+    }
+
+    /// Holds a Worktree for the Feature's `repository` at `path`, optionally with `pushedCommit`.
+    @discardableResult
+    func holdWorktree(repository: String, path: String, pushedCommit: String? = nil) throws -> WorktreeRecord {
         let runID = RunID()
         guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .real) else {
             throw JournalError.actLeaseLost(runID: runID, holder: nil)
         }
         var record = try journal.recordWorktree(
-            featureID: featureID, repository: repository, worktreeID: "wt-\(repository)", path: "/tmp/\(repository)",
+            featureID: featureID, repository: repository, worktreeID: "wt-\(repository)", path: path,
             runID: runID
         )
-        if pushed {
-            record = try journal.recordWorktreePush(id: record.id, commit: "abc123", runID: runID)
+        if let pushedCommit {
+            record = try journal.recordWorktreePush(id: record.id, commit: pushedCommit, runID: runID)
         }
         try journal.releaseActLease(runID: runID)
         return record
