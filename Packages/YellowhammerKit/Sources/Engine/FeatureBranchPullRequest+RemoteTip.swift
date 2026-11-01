@@ -38,7 +38,8 @@ public struct RemoteFeatureBranchRead: Sendable {
 // it does not: the open-pull-request step fails, the lane's Worktree stays held, the Cycle stays unlanded, and
 // the next land firing checks again. The other lanes still publish and release in that firing (OQ194, the
 // Operator's decision as built). The failure is a Journal event, a comment on the Feature Card and on each Work
-// Card of the lane, and the failed land step's detail, which the Night Summary counts as a failed landing step.
+// Card of the lane, and the failed land step's detail, which the Night Summary counts as a failed landing step;
+// for at-another-commit and absent, the failure names both routes out (OQ194 item 2).
 
 extension FeatureBranchPullRequest {
     /// Nil when the remote Feature Branch is at the Pushed Tip, so the pull request may open; else the outcome
@@ -62,14 +63,16 @@ extension FeatureBranchPullRequest {
             failure = RemoteTipFailure(
                 text: "Not landed: the remote branch `\(branch.name)` in \(repository) is at "
                     + "\(GitCommit.short(commit)), not at the Pushed Tip \(GitCommit.short(pushedTip)). "
-                    + "No pull request was opened for \(repository).",
+                    + "No pull request was opened for \(repository)."
+                    + routeOut(branch: branch, pushedTip: pushedTip),
                 event: .remoteTipMismatch(repository: repository, pushedTip: pushedTip, remoteCommit: commit),
                 key: "remote-tip-mismatch:\(commit)"
             )
         case .absent:
             failure = RemoteTipFailure(
                 text: "Not landed: the remote branch `\(branch.name)` in \(repository) is absent; the Pushed Tip is "
-                    + "\(GitCommit.short(pushedTip)). No pull request was opened for \(repository).",
+                    + "\(GitCommit.short(pushedTip)). No pull request was opened for \(repository)."
+                    + routeOut(branch: branch, pushedTip: pushedTip),
                 event: .remoteTipMismatch(repository: repository, pushedTip: pushedTip, remoteCommit: nil),
                 key: "remote-tip-mismatch:absent"
             )
@@ -96,6 +99,14 @@ extension FeatureBranchPullRequest {
             featureIssueID: laneContext.feature.issueID, laneCards: laneContext.lane.cards
         )
         await placement.post(body, keySuffix: keySuffix, outbox: laneContext.act.outbox)
+    }
+
+    /// The Operator's two routes out when the remote Feature Branch is not at the Pushed Tip (OQ194 item 2).
+    private func routeOut(branch: FeatureBranch, pushedTip: String) -> String {
+        " Yellowhammer never pushes the branch again itself. Route out: put the remote branch `\(branch.name)` back "
+            + "at the Pushed Tip \(GitCommit.short(pushedTip)), kept at `\(LandedTipPin.ref(for: branch))`, and the "
+            + "next land firing opens the pull request; or cancel the Feature on the Board, which archives the "
+            + "Cycle and frees the Project for its next Feature."
     }
 }
 
