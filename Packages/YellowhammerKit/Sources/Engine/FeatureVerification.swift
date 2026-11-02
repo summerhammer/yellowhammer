@@ -82,17 +82,17 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         if !pending.isEmpty {
             let made = try await checkouts.materialise(plan, context: context)
             prepared = made
-            let (routeUsed, verdicts, dropped) = try await dispatchVerifier(
+            let answer = try await dispatchVerifier(
                 pending, repositories: names, checkouts: made, context: context
             )
-            route = routeUsed
+            route = answer.route
             for candidate in pending {
-                if let verified = verdicts[candidate.key] {
+                if let verified = answer.judged[candidate.key] {
                     judged[candidate.key] = candidate.record(
                         verdict: verified.verdict, whatWasChecked: verified.whatWasChecked,
                         interpretation: verified.interpretation, judgedBy: .agent
                     )
-                } else if let drop = dropped[candidate.key] {
+                } else if let drop = answer.dropped[candidate.key] {
                     judged[candidate.key] = candidate.droppedRecord(reason: drop.reason)
                 }
             }

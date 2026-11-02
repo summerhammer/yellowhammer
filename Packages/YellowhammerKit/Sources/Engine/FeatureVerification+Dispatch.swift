@@ -15,7 +15,7 @@ extension FeatureVerification {
     func dispatchVerifier(
         _ pending: [VerificationCandidate], repositories: [String], checkouts: VerifierCheckouts,
         context: LandActFeatureContext
-    ) async throws -> (Route, [String: VerifiedClause], [String: DroppedVerificationClause]) {
+    ) async throws -> VerifierAnswer {
         let act = context.act
         let writers = try act.journal.attemptRoutes(cycleID: context.cycleID)
         let base = try instructionBase(pending, repositories: repositories, checkouts: checkouts, context: context)
@@ -52,7 +52,9 @@ extension FeatureVerification {
             }
             try record(report.origin, route: route, ordinal: Int(ordinal), context: act)
             let judged = try judgeVerifier(report.outcome, pending: pending, route: route, act: act)
-            if let answer = judged.answer { return (route, answer.judged, answer.dropped) }
+            if let answer = judged.answer {
+                return VerifierAnswer(route: route, judged: answer.judged, dropped: answer.dropped)
+            }
             if !judged.usageLimited { tried.insert(route) }
             lastFailure = judged.failure
             if let rejection = judged.rejection {
@@ -89,6 +91,14 @@ extension FeatureVerification {
     private struct VerifierRejection {
         let cause: AuthoringRouteRejectionCause
         let reason: String
+    }
+
+    /// The verifier pass's answer: the Route that gave it, its verdicts by clause key, and the clauses it
+    /// screened out by clause key.
+    struct VerifierAnswer {
+        let route: Route
+        let judged: [String: VerifiedClause]
+        let dropped: [String: DroppedVerificationClause]
     }
 
     private struct VerdictsResult {
