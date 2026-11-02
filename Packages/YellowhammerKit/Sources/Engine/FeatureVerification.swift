@@ -146,12 +146,15 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         }
     }
 
-    /// The land Act's two-way verdict from a recorded Verification: all clauses met only when every clause
-    /// is `met`; the remaining verdicts named separately as `<issue> <cid>` otherwise.
+    /// The land Act's two-way verdict from a recorded Verification: all clauses met only when at least one
+    /// clause received a verdict and every judged clause is `met` (dropped clauses are ignored; if every clause
+    /// was dropped, nothing was judged and the Feature is not verified, an engine choice); the remaining verdicts
+    /// named separately as `<issue> <cid>` otherwise.
     static func verdict(of record: FeatureVerificationRecord) -> VerificationVerdict {
         func name(_ clause: ClauseVerificationRecord) -> String { "\(clause.issueID) \(clause.cid)" }
+        let judged = record.clauses.filter { $0.verdict != nil }
         return VerificationVerdict(
-            allClausesMet: !record.clauses.isEmpty && record.clauses.allSatisfy { $0.verdict == .met },
+            allClausesMet: !judged.isEmpty && judged.allSatisfy { $0.verdict == .met },
             unmetClauses: record.clauses.filter { $0.verdict == .unmet }.map(name),
             unresolvedClauses: record.clauses.filter { $0.verdict == .unresolved }.map(name),
             notCheckedClauses: record.clauses.filter { $0.verdict == .notChecked }.map(name)

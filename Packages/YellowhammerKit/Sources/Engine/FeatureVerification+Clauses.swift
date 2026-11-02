@@ -22,6 +22,15 @@ struct VerificationCandidate: Sendable {
             invalidatedCause: clause.invalidated ? (clause.invalidatedCause ?? "unspecified") : nil
         )
     }
+
+    func droppedRecord(reason: String) -> ClauseVerificationRecord {
+        ClauseVerificationRecord(
+            issueID: clause.issueID, cid: clause.cid, level: clause.level, text: clause.text,
+            locationID: clause.locationID, citationProvenance: clause.citationProvenance,
+            droppedReason: reason, whatWasChecked: "", interpretation: "", judgedBy: .agent,
+            invalidatedCause: clause.invalidated ? (clause.invalidatedCause ?? "unspecified") : nil
+        )
+    }
 }
 
 extension FeatureVerification {

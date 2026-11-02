@@ -63,7 +63,8 @@ public struct CycleArchive: CycleArchiving, Sendable {
     /// The land Act's all-met rule (mirrors ``FeatureVerification/verdict(of:)``), checked again here in
     /// defence in depth: a Cycle is archived only when every Definition of Done clause is met.
     static func allClausesMet(_ record: FeatureVerificationRecord) -> Bool {
-        !record.clauses.isEmpty && record.clauses.allSatisfy { $0.verdict == .met }
+        let judged = record.clauses.filter { $0.verdict != nil }
+        return !judged.isEmpty && judged.allSatisfy { $0.verdict == .met }
     }
 
     /// Detaches every Blocked Card from the Feature Issue and moves the Feature Issue to Done, keyed so
