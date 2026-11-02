@@ -118,6 +118,25 @@ private final class DraftWorld {
         await writing.edit(issue.id, description: description.replacingOccurrences(of: old, with: new))
     }
 
+    func operatorEditsFeature(replacing old: String, with new: String) async throws {
+        let issue = try issueID()
+        let object = try #require(await writing.issue(issue))
+        let description = try #require(object.description)
+        #expect(description.contains(old))
+        await writing.edit(issue, description: description.replacingOccurrences(of: old, with: new))
+    }
+
+    func operatorEditsFeature(description: String) async throws {
+        let issue = try issueID()
+        await writing.edit(issue, description: description)
+    }
+
+    func featureDescription() async throws -> String {
+        let issue = try issueID()
+        let object = try #require(await writing.issue(issue))
+        return try #require(object.description)
+    }
+
     /// The Operator writes a new Work Card beneath the halted Feature Card, from the same draft shape.
     @discardableResult
     func operatorAdds(_ title: String, repository: String, scope: String) async throws -> BoardObjectID {
@@ -395,6 +414,184 @@ struct HaltedFeatureDraftRepairTests {
         let second = try await read([object("other-project-child", parent: issue)])
         #expect(second.haltDraftChildren.isEmpty)
         #expect(second.unknownObjects.map(\.id.rawValue) == ["other-project-child"])
+    }
+
+    @Test("A halt writes Feature-level Definition of Done to Feature Card, idempotent, and observe finishes it (c1)")
+    func haltPostsFeatureDefinitionOfDone() async throws {
+        let world = try await DraftWorld()
+        let halted = try await world.haltTheFeature()
+
+        let desc = try await world.featureDescription()
+        #expect(desc.contains(FeatureAuthoringProse.start))
+        #expect(desc.contains(FeatureAuthoringProse.end))
+        #expect(desc.contains(HaltDrafts.featureHeadline))
+        #expect(desc.contains("## Definition of done"))
+        #expect(desc.contains("- [ ] The Feature is done. (resolvable/story)"))
+        #expect(!desc.contains("<!-- yh:clause:"), "no cid markers on draft clauses")
+
+        // The write went through a deterministic Outbox key.
+        let key = HaltDrafts.featureDefinitionOfDoneKey(feature: world.feature, haltID: halted.id)
+        let outbox = try #require(try world.context(night: "2026-10-01").outbox)
+        let clientID = outbox.clientID(for: key)
+        let entry = try #require(try world.journal.outboxEntry(clientID: clientID))
+        #expect(entry.state == .applied)
+
+        // It is never sent twice on replay.
+        let writesBefore = await world.writing.updateCalls
+        try await HaltDrafts.ensureFeatureDefinitionOfDonePosted(
+            halt: halted, context: try world.context(night: "2026-10-01")
+        )
+        #expect(await world.writing.updateCalls == writesBefore, "alreadyApplied write is never sent again")
+
+        // A crash before the write applied is finished by HaltedFeatureRepair.observe.
+        let world2 = try await DraftWorld()
+        // Write 1: create Feature Issue, Write 2: comment. Crash before write 3 (the feature-dod write).
+        let crashed = crashing(try world2.context(night: "2026-10-01"), boards: world2.rig.boards, afterApplying: 2)
+        await #expect(throws: SimulatedCrash.self) { _ = try await world2.rig.selection.selectAndAuthor(crashed) }
+        _ = try world2.halt()
+        let descBefore = try await world2.featureDescription()
+        #expect(!descBefore.contains(FeatureAuthoringProse.start), "crashed before feature-dod write applied")
+
+        try await HaltedFeatureRepair.observe(context: try world2.context(night: "2026-10-01"))
+        let descAfter = try await world2.featureDescription()
+        #expect(descAfter.contains(FeatureAuthoringProse.start), "finished by observe")
+        #expect(descAfter.contains("## Definition of done"))
+        #expect(descAfter.contains("- [ ] The Feature is done. (resolvable/story)"))
+    }
+
+    @Test("Operator edits Feature Definition of Done: accepted plan and card hold edited clauses (c3, c4)")
+    func operatorEditsFeatureDefinitionOfDone() async throws {
+        let world = try await DraftWorld()
+        _ = try await world.haltTheFeature()
+        let issue = try world.issueID()
+
+        let descBefore = try await world.featureDescription()
+        #expect(descBefore.contains("- [ ] The Feature is done. (resolvable/story)"))
+
+        // Repair child drafts so children are valid
+        _ = try await world.repairTheOverlap()
+
+        // The Operator edits the Feature Card's Definition of Done: one clause reworded, one added
+        let oldClauses = "- [ ] The Feature is done. (resolvable/story)"
+        let newClauses = """
+        - [ ] The Feature is completely done. (resolvable/story)
+        - [ ] An extra clause is done. (resolvable/story)
+        """
+        try await world.operatorEditsFeature(replacing: oldClauses, with: newClauses)
+        try await world.operatorMoves(issue, to: .todo)
+
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        // 1. Accepted plan's featureClauses holds edited clauses, not checkpoint's:
+        let plans = try world.journal.events(ofType: .featureAuthoringAccepted).compactMap { record in
+            if case .featureAuthoringAccepted(let payload) = record.event { return payload }
+            return nil
+        }
+        let plan = try #require(plans.first)
+        #expect(plan.featureClauses.count == 2)
+        #expect(plan.featureClauses.map(\.text) == ["The Feature is completely done.", "An extra clause is done."])
+
+        // 2. The accepted Feature Card holds the edited clauses:
+        let descAfter = try await world.featureDescription()
+        #expect(descAfter.contains("The Feature is completely done."))
+        #expect(descAfter.contains("An extra clause is done."))
+        #expect(!descAfter.contains("The Feature is done. ("))
+        #expect(descAfter.contains("<!-- yh:clause:c1 -->"))
+        #expect(descAfter.contains("<!-- yh:clause:c2 -->"))
+
+        // 3. No outbox entry aborted as input-invalid:
+        let aborted = try world.journal.outboxEntries(forIssue: issue.rawValue).filter { $0.state == .aborted }
+        #expect(aborted.isEmpty, "no outbox entry was aborted")
+
+        // 4. No "did not re-author" comment posted:
+        let comments = await world.comments(on: issue)
+        #expect(!comments.contains { $0.contains("did not re-author") })
+    }
+
+    @Test("Feature Card Definition of Done edited between validation and acceptance defers and accepts nothing (c5)")
+    func featureEditedBeforeAcceptance() async throws {
+        let world = try await DraftWorld()
+        let halted = try await world.haltTheFeature()
+        try await world.repairTheOverlap()
+        let context = try world.context(night: "2026-10-02")
+        try await HaltedFeatureRepair.observe(context: context)
+        let checkpoint = try #require(try world.journal.authoringHaltCheckpoint(haltID: halted.id))
+        let snapshot = try #require(
+            try await HaltRepairSnapshot.take(halt: halted, checkpoint: checkpoint, context: context)
+        )
+        #expect(snapshot.problems.isEmpty)
+        let plan = AuthoringPlan(
+            writes: [],
+            record: FeatureAuthoringAcceptedPayload(
+                name: "FEAT-1", groupKey: "authoring:test", featureKey: "feature:test", nightID: context.night.id,
+                cards: [], adoptions: [], bases: []
+            ),
+            reusedFeatureIssue: try world.issueID(), repairSnapshot: snapshot
+        )
+
+        // The Operator edits the Feature Card's Definition of Done after validation:
+        try await world.operatorEditsFeature(
+            replacing: "The Feature is done.", with: "The Feature is modified after validation."
+        )
+
+        let outcome = try await HaltedFeatureRepair.revalidateBeforeAcceptance(plan, context: context)
+        #expect(outcome == .authoringPending)
+        #expect(try world.steps().contains("deferred"))
+        #expect(try tableRowCount(world.journal, table: "cycle") == 0)
+        #expect(try await world.featureDescription().contains("The Feature is modified after validation."))
+        let comments = await world.comments(on: try world.issueID())
+        #expect(comments.contains { $0.contains("changed while it was being validated") })
+    }
+
+    enum FeatureDODInvalidEdit: Sendable {
+        case deletedRegion
+        case notAClauseLine
+    }
+
+    @Test("Deleted Feature DoD region or invalid clause line is invalid repair, names card and restore (c6)",
+          arguments: [FeatureDODInvalidEdit.deletedRegion, FeatureDODInvalidEdit.notAClauseLine])
+    func invalidFeatureDefinitionOfDone(edit: FeatureDODInvalidEdit) async throws {
+        let world = try await DraftWorld()
+        let halted = try await world.haltTheFeature()
+        let issue = try world.issueID()
+        try await world.repairTheOverlap()
+
+        switch edit {
+        case .deletedRegion:
+            try await world.operatorEditsFeature(description: ManagedBlockFence.initialDescription(rendered: ""))
+        case .notAClauseLine:
+            try await world.operatorEditsFeature(
+                replacing: "- [ ] The Feature is done.", with: "This is freeform prose not a checklist"
+            )
+        }
+
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        let currentHalt = try #require(try world.journal.authoringHalts(feature: world.feature).last)
+        #expect(currentHalt.id == halted.id)
+        #expect(currentHalt.state != .cleared, "Feature stays halted")
+        #expect(world.rig.drafting.callCount == 1, "no model call")
+        #expect(try world.journal.authoringFaultCount(feature: world.feature).count == Int.zero, "no authoring fault")
+
+        let diagnostic = try #require(try world.journal.authoringHaltCheckpoint(haltID: halted.id)?.repairDiagnostic)
+        #expect(diagnostic.contains("FEAT-1"), "diagnostic names Feature Card")
+
+        switch edit {
+        case .deletedRegion:
+            #expect(diagnostic.contains("restore the delimiters"))
+        case .notAClauseLine:
+            #expect(diagnostic.contains("write `- [ ] text (citation)`"))
+        }
+
+        let comments = await world.comments(on: issue)
+        let invalidComment = try #require(comments.last { $0.contains("is not accepted") })
+        #expect(invalidComment.contains("FEAT-1"))
+        switch edit {
+        case .deletedRegion:
+            #expect(invalidComment.contains("restore the delimiters"))
+        case .notAClauseLine:
+            #expect(invalidComment.contains("write `- [ ] text (citation)`"))
+        }
     }
 }
 
