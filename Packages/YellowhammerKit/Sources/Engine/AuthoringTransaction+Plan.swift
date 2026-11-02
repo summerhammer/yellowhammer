@@ -46,6 +46,7 @@ struct AuthoringPlanner {
     /// The repaired halted Feature's draft child each drafted Card IS, aligned by index with `breakdown.cards`
     /// (roadmap P22.6); a Card whose entry is nil — or every Card, when this is empty — is created.
     var draftChildren: [RepairedDraftChild?] = []
+    var repairing = false
     /// `effective_base(R)` per working repository as selection resolved it (roadmap P23.2): the plan carries the
     /// rows of the repositories this Feature touches, so `finaliseAuthoring` records them with the Feature.
     var bases: [FeatureBaseRecord] = []
@@ -129,9 +130,13 @@ struct AuthoringPlanner {
             let prose = String(description.dropFirst(ManagedBlockFence.initialDescription(rendered: "").count))
             return [
                 OutboxWrite(
-                    key: "feature:\(prefix):description", write: .rewriteFeatureAuthoring(
-                        issue: issue, prose: prose.trimmingCharacters(in: .whitespacesAndNewlines)
-                    )
+                    key: "feature:\(prefix):description", write: repairing
+                        ? .rewriteFeatureDefinitionOfDone(
+                            issue: issue, prose: featureSections(clauses: clauses, adoptions: adoptions)[0].text
+                        )
+                        : .rewriteFeatureAuthoring(
+                            issue: issue, prose: prose.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
                 ),
                 OutboxWrite(key: "feature:\(prefix):accept", write: .updateIssue(
                     issue: issue, change: try scope.featureContentionChange(), undo: nil

@@ -111,7 +111,7 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
             let description = featureObject.description ?? ""
             if let region = FeatureAuthoringProse.current(in: description) {
                 regionText = region
-                let (clauses, problems) = parseFeatureDefinitionOfDone(in: region)
+                let (clauses, problems) = FeatureDefinitionOfDone.parse(description)
                 featureDOD = clauses
                 featureProblems.append(contentsOf: problems)
             } else {
@@ -131,44 +131,6 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
             children: children,
             excluded: excluded
         )
-    }
-
-    private static func parseFeatureDefinitionOfDone(
-        in region: String
-    ) -> (clauses: [DefinitionOfDoneClauseDraft], problems: [String]) {
-        let lines = region.components(separatedBy: "\n")
-        guard let headingIndex = lines.indices.first(where: {
-            lines[$0].trimmingCharacters(in: .whitespaces).lowercased() == "## definition of done"
-        }) else {
-            return ([], ["its authoring region has no `## Definition of done` heading; restore the heading"])
-        }
-        var clauses: [DefinitionOfDoneClauseDraft] = []
-        var unreadable: [String] = []
-        for index in (headingIndex + 1)..<lines.count {
-            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("## ") {
-                break
-            }
-            if trimmed.isEmpty {
-                continue
-            }
-            if let parsed = CardManagedBlockParser.parseClauseLine(trimmed) {
-                clauses.append(DefinitionOfDoneClauseDraft(
-                    text: parsed.text,
-                    citation: SpecCitation(parsed.citation ?? "")
-                ))
-            } else {
-                unreadable.append(trimmed)
-            }
-        }
-        var problems: [String] = []
-        if !unreadable.isEmpty {
-            problems.append(
-                "\(unreadable.count) line(s) under `## Definition of done` are not clause lines; "
-                    + "write `- [ ] text (citation)`: \(unreadable.map { "`\($0)`" }.joined(separator: ", "))"
-            )
-        }
-        return (clauses, problems)
     }
 
     /// Children created beneath the Feature Card since the Delta Read last ran: a complete read of what changed
