@@ -160,6 +160,7 @@ public struct WorktreeAllocator: Sendable {
     /// untouched and throws ``WorktreeAllocationError/recoveryMismatch(repository:branch:expected:found:)``.
     private func allocateNew(featureID: Int64, worktreeName: WorktreeName, repo: Repo) async throws -> WorktreeRecord {
         let recorded = try journal.featureBranch(featureID: featureID, repository: repo.name)
+        let worktreeName = try allocationName(worktreeName, featureID: featureID, recorded: recorded)
         let recovery = try journal.recoveryCommit(featureID: featureID, repository: repo.name)
         let pinned = recorded.flatMap { branch in recovery.map { (branch: branch, commit: $0) } }
         let repositoryPath = Self.expandedPath(repo.path)

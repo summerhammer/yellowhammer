@@ -18,6 +18,19 @@ struct RecordedBaseCut: Sendable {
 extension WorktreeAllocator {
     private static let landedPrefix = "refs/yellowhammer/landed/"
 
+    /// A legacy oversized name may already have a fixed branch. Preserve it; after the first
+    /// bounded allocation, recognize that recorded branch again during lost-Worktree recovery.
+    func allocationName(
+        _ name: WorktreeName, featureID: Int64, recorded: FeatureBranch?
+    ) throws -> WorktreeName {
+        let issueID = try journal.feature(id: featureID)?.issueID ?? "\(featureID)"
+        let bounded = name.bounded(featureIssueID: issueID)
+        let preservesRecorded = recorded.map {
+            Self.accepts(reported: $0.rawValue, worktreeName: bounded, recorded: nil)
+        } ?? true
+        return preservesRecorded ? bounded : name
+    }
+
     /// The cut for `repo`. A stacked record is cut from its landed-tip pin, else the remote-tracking
     /// `refs/remotes/origin/<b_last>`; an unstacked one is cut directly from `baseCommit` (Orca ADE's
     /// `--base-branch` accepts a bare commit SHA).
