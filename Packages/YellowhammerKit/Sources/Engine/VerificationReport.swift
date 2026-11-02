@@ -74,18 +74,29 @@ public struct VerificationReport: Equatable, Sendable {
     /// `cid · clause text · Spec Citation (<location_id>) · [provenance] · verdict · what was checked ·
     /// interpretation verified under`. The `cid` is prefixed with its issue id: clause ids are unique
     /// only within one issue. A clause whose text or citation was edited on the board after authoring
-    /// says so in its text field.
+    /// says so in its text field. A dropped clause puts `dropped: <reason>` in the verdict slot and shows
+    /// no verdict word (OQ157).
     public static func line(for clause: ClauseVerificationRecord) -> String {
         let text = clause.invalidatedCause.map { "\(clause.text) (invalidated: \($0))" } ?? clause.text
-        let fields = [
+        let verdictSlot = clause.verdict?.rawValue ?? "dropped: \(clause.droppedReason ?? "")"
+        var fields = [
             "\(clause.issueID) \(clause.cid)",
             text,
             "Spec Citation (\(clause.locationID))",
             "[\(clause.citationProvenance)]",
-            clause.verdict.rawValue,
-            clause.whatWasChecked,
-            clause.interpretation
+            verdictSlot
         ]
+        if clause.verdict != nil {
+            fields.append(clause.whatWasChecked)
+            fields.append(clause.interpretation)
+        } else {
+            if !clause.whatWasChecked.isEmpty {
+                fields.append(clause.whatWasChecked)
+            }
+            if !clause.interpretation.isEmpty {
+                fields.append(clause.interpretation)
+            }
+        }
         return fields.map(singleLine).joined(separator: " · ")
     }
 

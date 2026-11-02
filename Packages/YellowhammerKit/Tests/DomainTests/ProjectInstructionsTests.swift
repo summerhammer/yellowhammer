@@ -53,11 +53,11 @@ struct ProjectInstructionsTests {
         var reviewed = PromptFamily.productionDefaultVersions
         reviewed[.reviewer] = nil
         var current = PromptFamily.productionDefaultVersions
-        current[.breakdown] = 2
+        current[.selection] = 2
         current[.reviewer] = 1
         let changes = revision(reviewed).defaultChanges(current: current)
         #expect(changes == [
-            ProjectInstructionsDefaultChange(family: .breakdown, reviewedVersion: 1, currentVersion: 2),
+            ProjectInstructionsDefaultChange(family: .selection, reviewedVersion: 1, currentVersion: 2),
             ProjectInstructionsDefaultChange(family: .reviewer, reviewedVersion: nil, currentVersion: 1)
         ])
     }

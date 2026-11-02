@@ -36,14 +36,18 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
 
     public let haltID: Int64
     public let feature: BoardObjectID
+    public let featureLabel: String
     public let featureRevision: Date
     let featureDefinitionOfDone: [DefinitionOfDoneClauseDraft]
+    public let featureAuthoringRegion: String?
+    let featureProblems: [String]
     public let children: [Child]
     public let excluded: [BoardObjectID]
 
-    /// Every problem, each naming its child.
+    /// Every problem, each naming its child or the Feature Card.
     public var problems: [String] {
-        children.flatMap { child in child.problems.map { "\(child.label): \($0)" } }
+        featureProblems.map { "\(featureLabel): \($0)" }
+            + children.flatMap { child in child.problems.map { "\(child.label): \($0)" } }
     }
 
     /// The breakdown the children make: the Feature's own Definition of Done and one Card per child, in order.
@@ -97,11 +101,74 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
             }
             children.append(child(from: object))
         }
+        let featureLabel = featureObject.key.isEmpty
+            ? "'\(featureObject.title)'"
+            : "\(featureObject.key) '\(featureObject.title)'"
+        var featureProblems: [String] = []
+        var featureDOD: [DefinitionOfDoneClauseDraft] = []
+        let regionText: String?
+        if checkpoint.breakdown != nil {
+            let description = featureObject.description ?? ""
+            if let region = FeatureAuthoringProse.current(in: description) {
+                regionText = region
+                let (clauses, problems) = parseFeatureDefinitionOfDone(in: region)
+                featureDOD = clauses
+                featureProblems.append(contentsOf: problems)
+            } else {
+                regionText = nil
+                featureProblems.append("its authoring region cannot be read; restore the delimiters")
+            }
+        } else {
+            regionText = nil
+            featureDOD = []
+        }
         return HaltRepairSnapshot(
-            haltID: halt.id, feature: feature, featureRevision: featureObject.updatedAt,
-            featureDefinitionOfDone: checkpoint.breakdown?.definitionOfDone ?? [], children: children,
+            haltID: halt.id, feature: feature, featureLabel: featureLabel,
+            featureRevision: featureObject.updatedAt,
+            featureDefinitionOfDone: featureDOD,
+            featureAuthoringRegion: regionText,
+            featureProblems: featureProblems,
+            children: children,
             excluded: excluded
         )
+    }
+
+    private static func parseFeatureDefinitionOfDone(
+        in region: String
+    ) -> (clauses: [DefinitionOfDoneClauseDraft], problems: [String]) {
+        let lines = region.components(separatedBy: "\n")
+        guard let headingIndex = lines.indices.first(where: {
+            lines[$0].trimmingCharacters(in: .whitespaces).lowercased() == "## definition of done"
+        }) else {
+            return ([], ["its authoring region has no `## Definition of done` heading; restore the heading"])
+        }
+        var clauses: [DefinitionOfDoneClauseDraft] = []
+        var unreadable: [String] = []
+        for index in (headingIndex + 1)..<lines.count {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("## ") {
+                break
+            }
+            if trimmed.isEmpty {
+                continue
+            }
+            if let parsed = CardManagedBlockParser.parseClauseLine(trimmed) {
+                clauses.append(DefinitionOfDoneClauseDraft(
+                    text: parsed.text,
+                    citation: SpecCitation(parsed.citation ?? "")
+                ))
+            } else {
+                unreadable.append(trimmed)
+            }
+        }
+        var problems: [String] = []
+        if !unreadable.isEmpty {
+            problems.append(
+                "\(unreadable.count) line(s) under `## Definition of done` are not clause lines; "
+                    + "write `- [ ] text (citation)`: \(unreadable.map { "`\($0)`" }.joined(separator: ", "))"
+            )
+        }
+        return (clauses, problems)
     }
 
     /// Children created beneath the Feature Card since the Delta Read last ran: a complete read of what changed

@@ -32,9 +32,28 @@ public struct VerifiedClause: Equatable, Sendable {
     }
 }
 
+/// One clause the verifier screened out and dropped (OQ157).
+public struct DroppedVerificationClause: Equatable, Sendable {
+    public let cid: String
+    public let issueID: String
+    public let reason: String
+
+    public init(cid: String, issueID: String, reason: String) {
+        self.cid = cid
+        self.issueID = issueID
+        self.reason = reason
+    }
+
+    public init(issueID: String, cid: String, reason: String) {
+        self.cid = cid
+        self.issueID = issueID
+        self.reason = reason
+    }
+}
+
 /// What the verifier pass decided: a verdict for each clause it was given, or that it could not judge.
 public enum VerifierOutcome: Equatable, Sendable {
-    case reported(clauses: [VerifiedClause])
+    case reported(clauses: [VerifiedClause], dropped: [DroppedVerificationClause] = [])
     case failed(reason: String)
 }
 

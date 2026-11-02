@@ -37,6 +37,7 @@ private struct ClauseLevel {
 }
 
 enum AuthoringCitations {
+    static let landingOutputReason = UncitableClause.landingOutputReason
     private static let emptyTextReason = "the clause has no text"
     private static let emptyCitationReason = "the clause has no citation"
     private static let noRepositoriesReason =
@@ -59,6 +60,13 @@ enum AuthoringCitations {
                 uncitable: &uncitable
             )
             cardClauses.append(clauses)
+        }
+        for dropped in breakdown.droppedClauses {
+            let level = dropped.cardTitle == nil ? "feature" : "card"
+            uncitable.append(UncitableClause(
+                level: level, workCardTitle: dropped.cardTitle, text: dropped.text,
+                citation: dropped.citation.rawValue, reason: landingOutputReason
+            ))
         }
         return AuthoringCitationResolution(
             featureClauses: featureClauses, cardClauses: cardClauses, uncitable: uncitable

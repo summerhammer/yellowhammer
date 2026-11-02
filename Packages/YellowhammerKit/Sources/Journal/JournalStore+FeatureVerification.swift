@@ -22,7 +22,9 @@ public struct ClauseVerificationRecord: Equatable, Sendable {
     public let locationID: String
     /// Straight from the `clause` table's `citation_provenance`: `machine-found` or `Author-supplied`.
     public let citationProvenance: String
-    public let verdict: ClauseVerdict
+    public let verdict: ClauseVerdict?
+    /// Set when the clause was dropped before verification (OQ157); nil for a judged clause.
+    public let droppedReason: String?
     public let whatWasChecked: String
     public let interpretation: String
     public let judgedBy: ClauseJudge
@@ -31,9 +33,14 @@ public struct ClauseVerificationRecord: Equatable, Sendable {
 
     public init(
         issueID: String, cid: String, level: String, text: String, locationID: String,
-        citationProvenance: String, verdict: ClauseVerdict, whatWasChecked: String, interpretation: String,
+        citationProvenance: String, verdict: ClauseVerdict?, droppedReason: String? = nil,
+        whatWasChecked: String = "", interpretation: String = "",
         judgedBy: ClauseJudge, invalidatedCause: String? = nil
     ) {
+        precondition(
+            (verdict != nil) != (droppedReason != nil),
+            "A ClauseVerificationRecord must have exactly one of verdict or droppedReason"
+        )
         self.issueID = issueID
         self.cid = cid
         self.level = level
@@ -41,10 +48,38 @@ public struct ClauseVerificationRecord: Equatable, Sendable {
         self.locationID = locationID
         self.citationProvenance = citationProvenance
         self.verdict = verdict
+        self.droppedReason = droppedReason
         self.whatWasChecked = whatWasChecked
         self.interpretation = interpretation
         self.judgedBy = judgedBy
         self.invalidatedCause = invalidatedCause
+    }
+
+    public init(
+        issueID: String, cid: String, level: String, text: String, locationID: String,
+        citationProvenance: String, verdict: ClauseVerdict, whatWasChecked: String, interpretation: String,
+        judgedBy: ClauseJudge, invalidatedCause: String? = nil
+    ) {
+        self.init(
+            issueID: issueID, cid: cid, level: level, text: text, locationID: locationID,
+            citationProvenance: citationProvenance, verdict: verdict, droppedReason: nil,
+            whatWasChecked: whatWasChecked, interpretation: interpretation,
+            judgedBy: judgedBy, invalidatedCause: invalidatedCause
+        )
+    }
+
+    public init(
+        issueID: String, cid: String, level: String, text: String, locationID: String,
+        citationProvenance: String, droppedReason: String,
+        whatWasChecked: String = "", interpretation: String = "",
+        judgedBy: ClauseJudge = .agent, invalidatedCause: String? = nil
+    ) {
+        self.init(
+            issueID: issueID, cid: cid, level: level, text: text, locationID: locationID,
+            citationProvenance: citationProvenance, verdict: nil, droppedReason: droppedReason,
+            whatWasChecked: whatWasChecked, interpretation: interpretation,
+            judgedBy: judgedBy, invalidatedCause: invalidatedCause
+        )
     }
 }
 
@@ -116,13 +151,14 @@ extension JournalStore {
                     sql: """
                     INSERT INTO clause_verification (
                         verification_id, issue_id, cid, level, text, location_id, citation_provenance, verdict,
-                        what_was_checked, interpretation, invalidated_cause, judged_by, position
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        dropped_reason, what_was_checked, interpretation, invalidated_cause, judged_by, position
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     arguments: [
                         verificationID, clause.issueID, clause.cid, clause.level, clause.text, clause.locationID,
-                        clause.citationProvenance, clause.verdict.rawValue, clause.whatWasChecked,
-                        clause.interpretation, clause.invalidatedCause, clause.judgedBy.rawValue, position
+                        clause.citationProvenance, clause.verdict?.rawValue, clause.droppedReason,
+                        clause.whatWasChecked, clause.interpretation, clause.invalidatedCause,
+                        clause.judgedBy.rawValue, position
                     ]
                 )
             }
@@ -161,18 +197,28 @@ extension JournalStore {
                 arguments: [id]
             )
             let clauses = try clauseRows.map { clause -> ClauseVerificationRecord in
-                let verdictText: String = clause["verdict"]
+                let verdictText: String? = clause["verdict"]
+                let droppedReason: String? = clause["dropped_reason"]
                 let judgedByText: String = clause["judged_by"]
                 guard
-                    let verdict = ClauseVerdict(rawValue: verdictText),
-                    let judgedBy = ClauseJudge(rawValue: judgedByText)
+                    let judgedBy = ClauseJudge(rawValue: judgedByText),
+                    (verdictText != nil) != (droppedReason != nil)
                 else {
                     throw onError()
+                }
+                let verdict: ClauseVerdict?
+                if let verdictText {
+                    guard let parsedVerdict = ClauseVerdict(rawValue: verdictText) else {
+                        throw onError()
+                    }
+                    verdict = parsedVerdict
+                } else {
+                    verdict = nil
                 }
                 return ClauseVerificationRecord(
                     issueID: clause["issue_id"], cid: clause["cid"], level: clause["level"], text: clause["text"],
                     locationID: clause["location_id"], citationProvenance: clause["citation_provenance"],
-                    verdict: verdict, whatWasChecked: clause["what_was_checked"],
+                    verdict: verdict, droppedReason: droppedReason, whatWasChecked: clause["what_was_checked"],
                     interpretation: clause["interpretation"], judgedBy: judgedBy,
                     invalidatedCause: clause["invalidated_cause"]
                 )

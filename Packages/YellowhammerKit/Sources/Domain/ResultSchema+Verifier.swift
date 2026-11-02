@@ -28,12 +28,24 @@ extension ResultSchema {
                 }
               }
             },
+            "dropped": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["issue_id", "cid", "reason"],
+                "properties": {
+                  "issue_id": { "type": "string" },
+                  "cid": { "type": "string" },
+                  "reason": { "enum": ["asserts landing's own output"] }
+                }
+              }
+            },
             "reason": { "type": "string", "minLength": 1 }
           },
           "oneOf": [
             {
-              "properties": { "outcome": { "const": "reported" } },
-              "required": ["clauses"]
+              "properties": { "outcome": { "const": "reported" } }
             },
             {
               "properties": { "outcome": { "const": "failed" } },

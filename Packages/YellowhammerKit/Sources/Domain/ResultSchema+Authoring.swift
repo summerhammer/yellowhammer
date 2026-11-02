@@ -132,6 +132,20 @@ extension ResultSchema {
                 }
               }
             },
+            "dropped_clauses": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["text", "citation", "card_title", "reason"],
+                "properties": {
+                  "text": { "type": "string" },
+                  "citation": { "type": "string" },
+                  "card_title": { "type": ["string", "null"] },
+                  "reason": { "enum": ["asserts landing's own output"] }
+                }
+              }
+            },
             "reason": { "type": "string", "minLength": 1 }
           },
           "oneOf": [

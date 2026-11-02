@@ -90,7 +90,22 @@ extension AuthoringTransaction {
         _ resolution: AuthoringCitationResolution, _ snapshot: HaltRepairSnapshot
     ) -> [String] {
         var lines: [String] = []
-        if resolution.featureClauses.isEmpty { lines.append("the Feature has no citable Definition of Done clause") }
+        if resolution.featureClauses.isEmpty {
+            let featureUncitable = resolution.uncitable.filter { $0.level == "feature" }
+            let reasons: [String]
+            if featureUncitable.isEmpty {
+                reasons = ["the Feature-level Definition of Done has none"]
+            } else {
+                reasons = featureUncitable.map { clause in
+                    let citation = clause.citation.isEmpty ? "" : " (\(clause.citation))"
+                    return "\"\(clause.text)\"\(citation): \(clause.reason)"
+                }
+            }
+            lines.append(
+                "the Feature has no citable Definition of Done clause ("
+                    + reasons.joined(separator: "; ") + ")"
+            )
+        }
         for (index, clauses) in resolution.cardClauses.enumerated() where clauses.isEmpty {
             let label = snapshot.children.indices.contains(index) ? snapshot.children[index].label : "Card \(index + 1)"
             let reasons = resolution.uncitable.filter { $0.workCardTitle == snapshot.children[safe: index]?.title }
