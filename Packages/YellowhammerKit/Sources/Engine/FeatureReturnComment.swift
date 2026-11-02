@@ -117,15 +117,23 @@ public struct FeatureReturnComment: Equatable, Sendable {
         for clause in clauses {
             let key = UniqueClauseKey(locationID: clause.locationID, text: clause.text)
             if let existing = map[key] {
-                let verdict: ClauseVerdict
+                let verdict: ClauseVerdict?
+                let droppedReason: String?
                 if existing.verdict == .unmet || clause.verdict == .unmet {
                     verdict = .unmet
+                    droppedReason = nil
                 } else if existing.verdict == .unresolved || clause.verdict == .unresolved {
                     verdict = .unresolved
+                    droppedReason = nil
                 } else if existing.verdict == .notChecked || clause.verdict == .notChecked {
                     verdict = .notChecked
-                } else {
+                    droppedReason = nil
+                } else if existing.verdict == .met || clause.verdict == .met {
                     verdict = .met
+                    droppedReason = nil
+                } else {
+                    verdict = nil
+                    droppedReason = existing.droppedReason ?? clause.droppedReason
                 }
 
                 let decidingClause: ClauseVerificationRecord?
@@ -141,6 +149,10 @@ public struct FeatureReturnComment: Equatable, Sendable {
                     decidingClause = existing
                 } else if clause.verdict == .notChecked {
                     decidingClause = clause
+                } else if existing.verdict == .met {
+                    decidingClause = existing
+                } else if clause.verdict == .met {
+                    decidingClause = clause
                 } else {
                     decidingClause = nil
                 }
@@ -155,6 +167,7 @@ public struct FeatureReturnComment: Equatable, Sendable {
                     locationID: preferred.locationID,
                     citationProvenance: preferred.citationProvenance,
                     verdict: verdict,
+                    droppedReason: droppedReason,
                     whatWasChecked: reportingClause.whatWasChecked,
                     interpretation: reportingClause.interpretation,
                     judgedBy: reportingClause.judgedBy,
@@ -181,13 +194,23 @@ public struct FeatureReturnComment: Equatable, Sendable {
         let level = clause.level == "feature" ? "Feature" : "Work Card"
         let issueDisplay = issues[clause.issueID]?.rendered(fallback: clause.issueID) ?? clause.issueID
         let text = clause.invalidatedCause.map { "\(clause.text) (invalidated: \($0))" } ?? clause.text
-        let fields: [(label: String, value: String)] = [
+        let verdictText = clause.verdict?.rawValue ?? "dropped: \(clause.droppedReason ?? "")"
+        var fields: [(label: String, value: String)] = [
             ("Clause", text),
             ("Spec citation", "`\(clause.locationID)` · \(clause.citationProvenance)"),
-            ("Verdict", clause.verdict.rawValue),
-            ("Checked", clause.whatWasChecked),
-            ("Interpretation", clause.interpretation)
+            ("Verdict", verdictText)
         ]
+        if clause.verdict != nil {
+            fields.append(("Checked", clause.whatWasChecked))
+            fields.append(("Interpretation", clause.interpretation))
+        } else {
+            if !clause.whatWasChecked.isEmpty {
+                fields.append(("Checked", clause.whatWasChecked))
+            }
+            if !clause.interpretation.isEmpty {
+                fields.append(("Interpretation", clause.interpretation))
+            }
+        }
         var result = ["- **\(level)** \(issueDisplay) · `\(clause.cid)`"]
         for field in fields {
             let valueLines = Self.nonBlankLines(field.value)

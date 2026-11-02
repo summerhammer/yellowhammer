@@ -36,15 +36,18 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
 
     public let haltID: Int64
     public let feature: BoardObjectID
+    public let featureLabel: String
     public let featureRevision: Date
     let featureDefinitionOfDone: [DefinitionOfDoneClauseDraft]
+    public let featureAuthoringRegion: String?
     let featureProblems: [String]
     public let children: [Child]
     public let excluded: [BoardObjectID]
 
-    /// Every problem, each naming its child.
+    /// Every problem, each naming its child or the Feature Card.
     public var problems: [String] {
-        featureProblems + children.flatMap { child in child.problems.map { "\(child.label): \($0)" } }
+        featureProblems.map { "\(featureLabel): \($0)" }
+            + children.flatMap { child in child.problems.map { "\(child.label): \($0)" } }
     }
 
     /// The breakdown the children make: the Feature's own Definition of Done and one Card per child, in order.
@@ -98,10 +101,34 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
             }
             children.append(child(from: object))
         }
-        let parsed = FeatureDefinitionOfDone.parse(featureObject.description ?? "")
+        let featureLabel = featureObject.key.isEmpty
+            ? "'\(featureObject.title)'"
+            : "\(featureObject.key) '\(featureObject.title)'"
+        var featureProblems: [String] = []
+        var featureDOD: [DefinitionOfDoneClauseDraft] = []
+        let regionText: String?
+        if checkpoint.breakdown != nil {
+            let description = featureObject.description ?? ""
+            if let region = FeatureAuthoringProse.current(in: description) {
+                regionText = region
+                let (clauses, problems) = FeatureDefinitionOfDone.parse(description)
+                featureDOD = clauses
+                featureProblems.append(contentsOf: problems)
+            } else {
+                regionText = nil
+                featureProblems.append("its authoring region cannot be read; restore the delimiters")
+            }
+        } else {
+            regionText = nil
+            featureDOD = []
+        }
         return HaltRepairSnapshot(
-            haltID: halt.id, feature: feature, featureRevision: featureObject.updatedAt,
-            featureDefinitionOfDone: parsed.clauses, featureProblems: parsed.problems, children: children,
+            haltID: halt.id, feature: feature, featureLabel: featureLabel,
+            featureRevision: featureObject.updatedAt,
+            featureDefinitionOfDone: featureDOD,
+            featureAuthoringRegion: regionText,
+            featureProblems: featureProblems,
+            children: children,
             excluded: excluded
         )
     }

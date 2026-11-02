@@ -30,7 +30,10 @@ extension ResultFile {
             let drafts = try cards.enumerated().map { index, card throws(ResultFileError) in
                 try cardDraft(card, path: "cards[\(index)]")
             }
-            let breakdown = FeatureBreakdown(definitionOfDone: clauses ?? [], cards: drafts)
+            let dropped = try droppedClauseDrafts(object, "dropped_clauses", field: "dropped_clauses") ?? []
+            let breakdown = FeatureBreakdown(
+                definitionOfDone: clauses ?? [], cards: drafts, droppedClauses: dropped
+            )
             return BreakdownResult(outcome: .drafted(breakdown))
         case "failed":
             return BreakdownResult(outcome: .failed(reason: try nonEmptyString(object, "reason")))
@@ -169,6 +172,38 @@ extension ResultFile {
             return DefinitionOfDoneClauseDraft(
                 text: try nonEmptyString(item, "text", path: itemPath),
                 citation: SpecCitation(try nonEmptyString(item, "citation", path: itemPath))
+            )
+        }
+    }
+
+    private static func droppedClauseDrafts(
+        _ object: [String: Any], _ key: String, field: String
+    ) throws(ResultFileError) -> [DroppedClauseDraft]? {
+        guard let raw = object[key], !(raw is NSNull) else { return nil }
+        let items = try objectArray(object, key, field: field)
+        return try items.enumerated().map { index, item throws(ResultFileError) in
+            let itemPath = "\(field)[\(index)]"
+            let text = try nonEmptyString(item, "text", path: itemPath)
+            let citation = try string(item, "citation", path: itemPath)
+            guard let rawTitle = item["card_title"] else {
+                throw .invalid(field: "\(itemPath).card_title", reason: "missing or not a string or null")
+            }
+            var cardTitle: String?
+            if !(rawTitle is NSNull) {
+                guard let title = rawTitle as? String else {
+                    throw .invalid(field: "\(itemPath).card_title", reason: "must be a string or null")
+                }
+                cardTitle = title
+            }
+            let reason = try nonEmptyString(item, "reason", path: itemPath)
+            guard reason == UncitableClause.landingOutputReason else {
+                throw .invalid(field: "\(itemPath).reason", reason: "`\(reason)` is not a permitted reason")
+            }
+            return DroppedClauseDraft(
+                text: text,
+                citation: SpecCitation(citation),
+                cardTitle: cardTitle,
+                reason: reason
             )
         }
     }

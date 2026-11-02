@@ -287,8 +287,9 @@ extension JournalMigrations {
             table.column("location_id", .text).notNull()
             table.column("citation_provenance", .text).notNull()
                 .check(sql: "citation_provenance IN ('machine-found','Author-supplied')")
-            table.column("verdict", .text).notNull()
-                .check(sql: "verdict IN ('met','unmet','unresolved','not checked')")
+            table.column("verdict", .text)
+                .check(sql: "verdict IS NULL OR verdict IN ('met','unmet','unresolved','not checked')")
+            table.column("dropped_reason", .text)
             table.column("what_was_checked", .text).notNull()
             table.column("interpretation", .text).notNull()
             table.column("invalidated_cause", .text)
@@ -297,6 +298,12 @@ extension JournalMigrations {
                 .check(sql: "judged_by IN ('agent','engine')")
             table.column("position", .integer).notNull()
             table.primaryKey(["verification_id", "issue_id", "cid"])
+            table.check(
+                sql: """
+                (verdict IS NOT NULL AND dropped_reason IS NULL) \
+                OR (verdict IS NULL AND dropped_reason IS NOT NULL)
+                """
+            )
         }
         try createJudgedCheckoutTable(db)
     }

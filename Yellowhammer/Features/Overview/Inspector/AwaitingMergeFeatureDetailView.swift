@@ -31,7 +31,8 @@ struct AwaitingMergeFeatureDetailView: View {
                         .fontWeight(.semibold)
                         .accessibilityIdentifier("awaiting-merge-detail-repo-\(repository.repo)")
                     LabeledContent("Mainline") {
-                        Text(repository.merged ? "in mainline" : "not in mainline")
+                        Text(repository.mainlineText)
+                            .help(repository.mainlineHelp)
                     }
                     if let observation = repository.pullRequestObservation {
                         LabeledContent("Pull request state") {
@@ -61,9 +62,9 @@ struct AwaitingMergeFeatureDetailView: View {
         }
     }
 
-    /// `Awaiting merge · 1 of 2 merged · landed tonight`.
+    /// `Awaiting merge · 1 of 2 Feature Branches merged · landed tonight`.
     private var subtitle: String {
-        var line = "Awaiting merge \u{00B7} \(feature.mergedCount) of \(feature.pushedCount) merged"
+        var line = "Awaiting merge \u{00B7} \(feature.mergedText)"
         if feature.landedTonight { line += " \u{00B7} landed tonight" }
         return line
     }

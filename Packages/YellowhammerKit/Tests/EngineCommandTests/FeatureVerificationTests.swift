@@ -298,4 +298,136 @@ struct FeatureVerificationTests {
         #expect(text.contains("Feature Branch: yh-proj-feat"))
         #expect(text.contains("Specification path: /repos/spec"))
     }
+
+    // MARK: - Dropped clauses (OQ157)
+
+    @Test(
+        "Verdict with dropped clauses: met+dropped verified, unmet+dropped returns naming unmet, all-dropped unverified"
+    )
+    func verdictWithDroppedClauses() {
+        let metClause = ClauseVerificationRecord(
+            issueID: "BACK-1", cid: "c1", level: "card", text: "Returns 404.", locationID: "epic/story",
+            citationProvenance: "machine-found", verdict: .met, whatWasChecked: "checked handler",
+            interpretation: "path param", judgedBy: .agent
+        )
+        let unmetClause = ClauseVerificationRecord(
+            issueID: "BACK-1", cid: "c2", level: "card", text: "Returns 200.", locationID: "epic/story",
+            citationProvenance: "machine-found", verdict: .unmet, whatWasChecked: "checked handler",
+            interpretation: "returns 500", judgedBy: .agent
+        )
+        let droppedClause = ClauseVerificationRecord(
+            issueID: "FEAT-1", cid: "c4", level: "feature",
+            text: "A Night ships its change as a pushed Feature Branch with one pull request. (G1)",
+            locationID: "vision/risks", citationProvenance: "Author-supplied",
+            droppedReason: "asserts landing's own output"
+        )
+
+        // 1. Met + dropped: all clauses met
+        let metAndDropped = FeatureVerificationRecord(
+            id: 1, featureID: 1, cycleID: 1, route: nil, nightID: 1, runID: RunID(),
+            verifiedAt: Date(), clauses: [metClause, droppedClause], judgedCheckouts: []
+        )
+        let verdict1 = FeatureVerification.verdict(of: metAndDropped)
+        #expect(verdict1.allClausesMet)
+        #expect(verdict1.unmetClauses.isEmpty)
+        #expect(verdict1.unresolvedClauses.isEmpty)
+        #expect(verdict1.notCheckedClauses.isEmpty)
+        #expect(CycleArchive.allClausesMet(metAndDropped))
+
+        // 2. Unmet + dropped: returned, naming only the unmet clause
+        let unmetAndDropped = FeatureVerificationRecord(
+            id: 2, featureID: 1, cycleID: 1, route: nil, nightID: 1, runID: RunID(),
+            verifiedAt: Date(), clauses: [unmetClause, droppedClause], judgedCheckouts: []
+        )
+        let verdict2 = FeatureVerification.verdict(of: unmetAndDropped)
+        #expect(!verdict2.allClausesMet)
+        #expect(verdict2.unmetClauses == ["BACK-1 c2"])
+        #expect(verdict2.unresolvedClauses.isEmpty)
+        #expect(verdict2.notCheckedClauses.isEmpty)
+        #expect(!CycleArchive.allClausesMet(unmetAndDropped))
+
+        // 3. All dropped: nothing judged, not verified
+        let allDropped = FeatureVerificationRecord(
+            id: 3, featureID: 1, cycleID: 1, route: nil, nightID: 1, runID: RunID(),
+            verifiedAt: Date(), clauses: [droppedClause], judgedCheckouts: []
+        )
+        let verdict3 = FeatureVerification.verdict(of: allDropped)
+        #expect(!verdict3.allClausesMet)
+        #expect(verdict3.unmetClauses.isEmpty)
+        #expect(verdict3.unresolvedClauses.isEmpty)
+        #expect(verdict3.notCheckedClauses.isEmpty)
+        #expect(!CycleArchive.allClausesMet(allDropped))
+    }
+
+    @Test("Dropped clauses are excluded from the four featureVerified event counts (OQ157)")
+    func droppedClausesExcludedFromEventCounts() throws {
+        let metClause = ClauseVerificationRecord(
+            issueID: "BACK-1", cid: "c1", level: "card", text: "T1", locationID: "L1",
+            citationProvenance: "machine-found", verdict: .met, whatWasChecked: "W1",
+            interpretation: "I1", judgedBy: .agent
+        )
+        let droppedClause = ClauseVerificationRecord(
+            issueID: "FEAT-1", cid: "c4", level: "feature", text: "T4", locationID: "L4",
+            citationProvenance: "Author-supplied", droppedReason: "asserts landing's own output"
+        )
+        let record = FeatureVerificationRecord(
+            id: 1, featureID: 1, cycleID: 1, route: nil, nightID: 1, runID: RunID(),
+            verifiedAt: Date(), clauses: [metClause, droppedClause], judgedCheckouts: []
+        )
+
+        let metCount = record.clauses.filter { $0.verdict == .met }.count
+        let unmetCount = record.clauses.filter { $0.verdict == .unmet }.count
+        let unresolvedCount = record.clauses.filter { $0.verdict == .unresolved }.count
+        let notCheckedCount = record.clauses.filter { $0.verdict == .notChecked }.count
+
+        #expect(metCount == 1)
+        #expect(unmetCount == 0)
+        #expect(unresolvedCount == 0)
+        #expect(notCheckedCount == 0)
+
+        let event = JournalEvent.featureVerified(
+            cycleID: 1, met: metCount, unmet: unmetCount, unresolved: unresolvedCount, notChecked: notCheckedCount
+        )
+        #expect(event == .featureVerified(cycleID: 1, met: 1, unmet: 0, unresolved: 0, notChecked: 0))
+    }
+
+    @Test("One Author-supplied clause dropped, rest met: verified and report shows drop (OQ157)")
+    func endToEndVerificationWithDroppedAuthorSuppliedClause() async throws {
+        let world = try await VerificationWorld()
+        try world.addClause(issue: "BACK-1", cid: "c1", provenance: "machine-found")
+        try world.addClause(issue: "FEAT-1", cid: "c2", provenance: "Author-supplied")
+        try world.addClause(issue: "FEAT-1", cid: "c3", provenance: "Author-supplied")
+
+        let answer = DispatchResult.verifier(VerifierResult(outcome: .reported(
+            clauses: [
+                VerifiedClause(cid: "c1", issueID: "BACK-1", verdict: .met, whatWasChecked: "w1", interpretation: "i1"),
+                VerifiedClause(cid: "c2", issueID: "FEAT-1", verdict: .met, whatWasChecked: "w2", interpretation: "i2")
+            ],
+            dropped: [
+                DroppedVerificationClause(cid: "c3", issueID: "FEAT-1", reason: "asserts landing's own output")
+            ]
+        )))
+        let dispatch = ScriptedVerifierDispatch([routeOther: .answer(answer)])
+        let resolver = verificationResolver(primary: routeOther)
+
+        let verdict = try await world.verification(resolver: resolver, dispatch: dispatch)
+            .verify(world.featureContext)
+
+        #expect(verdict.allClausesMet)
+        #expect(verdict.unmetClauses.isEmpty)
+        #expect(verdict.unresolvedClauses.isEmpty)
+        #expect(verdict.notCheckedClauses.isEmpty)
+
+        let recorded = try #require(try world.journal.featureVerification(cycleID: world.cycleID))
+        #expect(recorded.clauses.count == 3)
+        let droppedRecord = try #require(recorded.clauses.first { $0.cid == "c3" && $0.issueID == "FEAT-1" })
+        #expect(droppedRecord.verdict == nil)
+        #expect(droppedRecord.droppedReason == "asserts landing's own output")
+        #expect(droppedRecord.judgedBy == .agent)
+
+        let reportLine = VerificationReport.line(for: droppedRecord)
+        #expect(reportLine.contains("dropped: asserts landing's own output"))
+        #expect(!reportLine.contains("· met"))
+        #expect(!reportLine.contains("· unmet"))
+    }
 }

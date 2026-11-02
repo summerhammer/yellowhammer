@@ -4,12 +4,6 @@ import Foundation
 /// The editable Feature-level field lives in the authored prose, outside the Roll-up's Managed Block.
 /// Only its section is repair input; the remaining Feature prose is preserved at delivery time.
 enum FeatureDefinitionOfDone {
-    static func render(_ clauses: [DefinitionOfDoneClauseDraft]) -> String {
-        "## Definition of done\n\n" + clauses.map {
-            "- [ ] \($0.text) (\($0.citation.rawValue))"
-        }.joined(separator: "\n")
-    }
-
     static func parse(_ description: String) -> (clauses: [DefinitionOfDoneClauseDraft], problems: [String]) {
         guard let prose = FeatureAuthoringProse.current(in: description), let range = sectionRange(in: prose) else {
             return ([], ["the Feature's Definition of Done section cannot be read; restore its heading and delimiters"])
@@ -22,7 +16,7 @@ enum FeatureDefinitionOfDone {
                 DefinitionOfDoneClauseDraft(text: $0.text, citation: SpecCitation($0.citation ?? ""))
             },
             parsed.invalid.filter { $0.field == "definition of done" }
-                .map { "Feature Definition of Done: \($0.reason)" }
+                .map { "Feature Definition of Done: \($0.reason); write `- [ ] text (citation)`" }
         )
     }
 
@@ -37,10 +31,11 @@ enum FeatureDefinitionOfDone {
         }
         var replacement = prose
         replacement.replaceSubrange(range, with: section)
+        replacement = replacement.replacingOccurrences(of: HaltDrafts.featureHeadline + "\n\n", with: "")
         return FeatureAuthoringProse.replace(in: description, prose: replacement)
     }
 
-    private static func sectionRange(in prose: String) -> Range<String.Index>? {
+    static func sectionRange(in prose: String) -> Range<String.Index>? {
         let lines = prose.components(separatedBy: "\n")
         let masked = ArchitecturalBriefProseRegion.structureMasks(lines)
         let headings = lines.indices.filter {

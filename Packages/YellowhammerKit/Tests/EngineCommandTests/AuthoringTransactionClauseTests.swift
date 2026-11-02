@@ -117,6 +117,142 @@ struct AuthoringTransactionClauseTests {
     }
 
     @Test("""
+        A Feature-level clause that asserts landing's own output is dropped from the board and Journal, \
+        and recorded on the plan with the distinct reason (OQ157)
+        """)
+    func featureLevelLandingOutputClauseIsDroppedAndRecorded() async throws {
+        let kind = try authoringKind()
+        let breakdown = FeatureBreakdown(
+            definitionOfDone: [authoringClause("The Feature is done.")],
+            cards: [
+                CardDraft(
+                    repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach for Backend one.",
+                    definitionOfDone: [authoringClause("Backend one is done.")]
+                )
+            ],
+            droppedClauses: [
+                DroppedClauseDraft(
+                    text: "A pull request is opened and merged.", citation: "feature-authoring/story",
+                    cardTitle: nil, reason: UncitableClause.landingOutputReason
+                )
+            ]
+        )
+        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(breakdown))
+
+        let outcome = try await rig.run(rig.context())
+
+        #expect(outcome == .authored)
+        let live = await rig.boards.writing.liveIssues
+        let feature = try #require(live.first { $0.title == "FEAT-1" })
+        let description = try #require(feature.description)
+        #expect(!description.contains("A pull request is opened and merged."))
+        let clauses = try rig.journal.clauses(issueID: feature.id.rawValue)
+        #expect(clauses.map(\.text) == ["The Feature is done."])
+
+        let event = try #require(try rig.journal.events(ofType: .featureAuthoringAccepted).first)
+        guard case .featureAuthoringAccepted(let plan) = event.event else {
+            Issue.record("expected featureAuthoringAccepted")
+            return
+        }
+        #expect(plan.uncitableClauses.count == 1)
+        let dropped = try #require(plan.uncitableClauses.first)
+        #expect(dropped.level == "feature")
+        #expect(dropped.workCardTitle == nil)
+        #expect(dropped.text == "A pull request is opened and merged.")
+        #expect(dropped.citation == "feature-authoring/story")
+        #expect(dropped.reason == "asserts landing's own output")
+
+        // No refusal opened and no refusal count change
+        #expect(try rig.journal.events(ofType: .refusalOpened).isEmpty)
+    }
+
+    @Test("""
+        A Card-level clause that asserts landing's own output is dropped from the board and Journal, \
+        and recorded on the plan with its Card title and distinct reason (OQ157)
+        """)
+    func cardLevelLandingOutputClauseIsDroppedAndRecorded() async throws {
+        let kind = try authoringKind()
+        let breakdown = FeatureBreakdown(
+            definitionOfDone: [authoringClause("The Feature is done.")],
+            cards: [
+                CardDraft(
+                    repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach for Backend one.",
+                    definitionOfDone: [authoringClause("Backend one is done.")]
+                )
+            ],
+            droppedClauses: [
+                DroppedClauseDraft(
+                    text: "Yellowhammer writes to the Linear board during landing.", citation: "",
+                    cardTitle: "Backend one", reason: UncitableClause.landingOutputReason
+                )
+            ]
+        )
+        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(breakdown))
+
+        let outcome = try await rig.run(rig.context())
+
+        #expect(outcome == .authored)
+        let live = await rig.boards.writing.liveIssues
+        let backendOne = try #require(live.first { $0.title == "Backend one" })
+        let description = try #require(backendOne.description)
+        #expect(!description.contains("Yellowhammer writes to the Linear board during landing."))
+        let clauses = try rig.journal.clauses(issueID: backendOne.id.rawValue)
+        #expect(clauses.map(\.text) == ["Backend one is done."])
+
+        let event = try #require(try rig.journal.events(ofType: .featureAuthoringAccepted).first)
+        guard case .featureAuthoringAccepted(let plan) = event.event else {
+            Issue.record("expected featureAuthoringAccepted")
+            return
+        }
+        #expect(plan.uncitableClauses.count == 1)
+        let dropped = try #require(plan.uncitableClauses.first)
+        #expect(dropped.level == "card")
+        #expect(dropped.workCardTitle == "Backend one")
+        #expect(dropped.text == "Yellowhammer writes to the Linear board during landing.")
+        #expect(dropped.citation.isEmpty)
+        #expect(dropped.reason == "asserts landing's own output")
+
+        // No refusal opened and no refusal count change
+        #expect(try rig.journal.events(ofType: .refusalOpened).isEmpty)
+    }
+
+    @Test("A Card left with only a landing-output drop has zero citable clauses and is refused")
+    func cardWithOnlyLandingOutputDropRefusesAuthoring() async throws {
+        let kind = try authoringKind()
+        let breakdown = FeatureBreakdown(
+            definitionOfDone: [authoringClause("The Feature is done.")],
+            cards: [
+                CardDraft(
+                    repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach for Backend one.",
+                    definitionOfDone: []
+                )
+            ],
+            droppedClauses: [
+                DroppedClauseDraft(
+                    text: "Pushes feature branch during landing.", citation: "",
+                    cardTitle: "Backend one", reason: UncitableClause.landingOutputReason
+                )
+            ]
+        )
+        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(breakdown))
+
+        let outcome = try await rig.run(rig.context())
+
+        #expect(outcome == .refused)
+        #expect(try tableRowCount(rig.journal, table: "feature") == 0)
+        #expect(try tableRowCount(rig.journal, table: "card") == 0)
+        let event = try #require(try rig.journal.events().first { $0.type == .refusalOpened })
+        guard case .refusalOpened(_, _, let clauses, _) = event.event else {
+            Issue.record("expected refusalOpened")
+            return
+        }
+        #expect(clauses.contains("Backend one"))
+    }
+
+    @Test("""
         A Feature left with zero Feature-level clauses is refused: nothing is accepted, no Attempt, \
         the Feature reads Waiting on You
         """)

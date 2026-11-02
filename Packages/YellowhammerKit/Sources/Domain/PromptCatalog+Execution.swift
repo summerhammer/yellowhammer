@@ -4,8 +4,8 @@ import Foundation
 // swiftlint:disable function_body_length
 extension PromptCatalog {
     /// Builds the entry through the real renderer, composed with the Project's instructions when given.
-    static func workerEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
-        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
+    static func workerEntry(_ projectInstructions: String?, role: RepoRole) -> PromptCatalogEntry {
+        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: role)
         let makeBase = { (payloads: InstructionPayloads) in
             Instruction(
                 pass: .worker,
@@ -77,7 +77,6 @@ extension PromptCatalog {
             "⟨clause text⟩",
             "⟨epic⟩/⟨story⟩",
             "⟨repo name⟩",
-            "backend",
             "⟨worktree path⟩",
             "⟨feature branch⟩",
             "⟨check command⟩",
@@ -177,13 +176,14 @@ extension PromptCatalog {
                 + "passes repository Checks, and commits the work.",
             defaultVersion: PromptFamily.worker.defaultVersion,
             acceptsProjectInstructions: PromptFamily.worker.acceptsProjectInstructions,
+            sampleRole: role,
             variants: [newSessionVariant, resumedVariant]
         )
     }
 
     /// Builds the entry through the real renderer, composed with the Project's instructions when given.
-    static func reviewerEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
-        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
+    static func reviewerEntry(_ projectInstructions: String?, role: RepoRole) -> PromptCatalogEntry {
+        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: role)
         let makeInstruction = { (lens: Lens) in
             Instruction(
                 pass: .reviewer,
@@ -262,7 +262,6 @@ extension PromptCatalog {
             "⟨clause text⟩",
             "⟨epic⟩/⟨story⟩",
             "⟨repo name⟩",
-            "backend",
             "⟨worktree path⟩",
             "⟨feature branch⟩",
             "⟨check command⟩",
@@ -296,6 +295,7 @@ extension PromptCatalog {
             purpose: "Judges a Work Card's committed changes against its Definition of Done and repository Checks.",
             defaultVersion: PromptFamily.reviewer.defaultVersion,
             acceptsProjectInstructions: PromptFamily.reviewer.acceptsProjectInstructions,
+            sampleRole: role,
             variants: [reviewVariant, checkVariant]
         )
     }

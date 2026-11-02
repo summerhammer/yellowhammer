@@ -74,15 +74,43 @@ public struct CardDraft: Equatable, Sendable {
     }
 }
 
+/// One Definition of Done clause dropped by the breakdown pass because it asserts an output Yellowhammer
+/// itself produces during landing, after Verification (OQ157; roadmap P9.5; spec: feature-authoring/
+/// author-citable-definitions-of-done).
+public struct DroppedClauseDraft: Equatable, Sendable {
+    public let text: String
+    public let citation: SpecCitation
+    public let cardTitle: String?
+    public let reason: String
+
+    public init(
+        text: String,
+        citation: SpecCitation = SpecCitation(""),
+        cardTitle: String? = nil,
+        reason: String = UncitableClause.landingOutputReason
+    ) {
+        self.text = text
+        self.citation = citation
+        self.cardTitle = cardTitle
+        self.reason = reason
+    }
+}
+
 /// What the model-authored breakdown returned for one selected Feature: the Feature-level definition of
 /// done and the Cards to author. A Card's authored order within its repository is its 1-based position
 /// among the drafts of the same repository, in array order.
 public struct FeatureBreakdown: Equatable, Sendable {
     public let definitionOfDone: [DefinitionOfDoneClauseDraft]
     public let cards: [CardDraft]
+    public let droppedClauses: [DroppedClauseDraft]
 
-    public init(definitionOfDone: [DefinitionOfDoneClauseDraft], cards: [CardDraft]) {
+    public init(
+        definitionOfDone: [DefinitionOfDoneClauseDraft],
+        cards: [CardDraft],
+        droppedClauses: [DroppedClauseDraft] = []
+    ) {
         self.definitionOfDone = definitionOfDone
         self.cards = cards
+        self.droppedClauses = droppedClauses
     }
 }

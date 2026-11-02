@@ -455,6 +455,68 @@ struct HaltedFeatureRepairTests {
         #expect(try rig.journal.inFlightFeature()?.feature.issueID == issue.rawValue)
     }
 
+    @Test("A halt raised before breakdown writes no Feature-level Definition of Done to its Feature Card (c2)")
+    func preBreakdownHaltWritesNoFeatureDefinitionOfDone() async throws {
+        let rig = try await AuthoringRig()
+        let feature = try #require(FeatureName(rawValue: "FEAT-1"))
+        let reading = FakeReadingBoard.quiet(10)
+        try await reading.readThrough(rig.boards)
+        let halted = try makeContext(rig, reading: reading, night: "2026-10-01")
+        _ = try await AuthoringHalt.record(
+            feature: feature, cause: .noBackwardCompatibleSeam(seam: "the shared endpoint"), context: halted
+        )
+        let issueText = try #require(try rig.journal.authoringHalts(feature: feature).last?.issueID)
+        let issue = BoardObjectID(rawValue: issueText)
+        let object = try #require(await rig.boards.writing.issue(issue))
+        let desc = object.description ?? ""
+        #expect(!desc.contains(FeatureAuthoringProse.start))
+        #expect(!desc.contains("## Definition of done"))
+
+        // Deterministic feature-dod key was never queued in outbox
+        let issueEntries = try rig.journal.outboxEntries(forIssue: issueText)
+        #expect(!issueEntries.contains { $0.operation == "rewriteFeatureAuthoring" })
+    }
+
+    @Test("A Feature halted before breakdown ignores Operator-written Definition of Done at Todo (c7)")
+    func preBreakdownHaltIgnoresOperatorWrittenDefinitionOfDone() async throws {
+        let rig = try await AuthoringRig()
+        let feature = try #require(FeatureName(rawValue: "FEAT-1"))
+        let reading = FakeReadingBoard.quiet(10)
+        try await reading.readThrough(rig.boards)
+        let halted = try makeContext(rig, reading: reading, night: "2026-10-01")
+        _ = try await AuthoringHalt.record(
+            feature: feature, cause: .noBackwardCompatibleSeam(seam: "the shared endpoint"), context: halted
+        )
+        let issueText = try #require(try rig.journal.authoringHalts(feature: feature).last?.issueID)
+        let issue = BoardObjectID(rawValue: issueText)
+
+        // The Operator writes a ## Definition of done block on the Feature Card
+        let operatorText = """
+        ## Definition of done
+
+        - [ ] Operator custom clause (feature-authoring/select-the-next-feature)
+        """
+        let existingDesc = try #require(await rig.boards.writing.issue(issue)?.description)
+        await rig.boards.writing.edit(issue, description: existingDesc + "\n\n" + operatorText)
+
+        // Move to Todo
+        let todo = try await BoardStateScope.resolve(using: rig.boards.provisioning).id(for: .todo)
+        _ = try await rig.boards.writing.updateIssue(issue, BoardIssueChange(workflowState: todo))
+
+        let repair = try makeContext(rig, reading: reading, night: "2026-10-02", previous: halted)
+        try await HaltedFeatureRepair.observe(context: repair)
+        let outcome = try await rig.selection.selectAndAuthor(repair)
+
+        #expect(outcome == .authored)
+        // Accepted Feature-level Definition of Done is the breakdown's, NOT the Operator's text
+        let plan = try #require(try rig.journal.events(ofType: .featureAuthoringAccepted).compactMap {
+            if case .featureAuthoringAccepted(let payload) = $0.event { return payload }
+            return nil
+        }.first)
+        #expect(!plan.featureClauses.contains { $0.text.contains("Operator custom clause") })
+        #expect(plan.featureClauses.contains { $0.text == "The Feature is done." })
+    }
+
     @Test("repositories-undetermined halt runs pinnedSelection at Todo, no duplicate Feature (spec#113, #676)")
     func repairingRepositoriesUndeterminedHaltRunsPinnedSelection() async throws {
         let feature = try #require(FeatureName(rawValue: "FEAT-1"))

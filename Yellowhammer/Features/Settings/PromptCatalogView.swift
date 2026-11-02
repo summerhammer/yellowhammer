@@ -180,6 +180,14 @@ struct PromptCatalogBlock: View {
 struct PromptTemplateSheet: View {
     let entry: PromptCatalogEntry
     @Environment(\.dismiss) private var dismiss
+    /// The sample Repo Role the template is rendered for; only Repo-dependent families offer the picker.
+    @State private var role: RepoRole = RepoRole.standard[0]
+
+    /// The entry re-rendered for the picked sample Repo Role, or the given entry when its text does not depend on one.
+    private var shown: PromptCatalogEntry {
+        guard entry.sampleRole != nil else { return entry }
+        return PromptCatalog.entry(for: entry.family, role: role) ?? entry
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -195,18 +203,32 @@ struct PromptTemplateSheet: View {
             }
 
             Text(
-                "Placeholders such as \u{27E8}work card title\u{27E9} are filled in at dispatch. "
-                    + "This is not text sent to an agent."
+                "The prompt is composed at dispatch from several sources: the built-in sections, the Card and its "
+                    + "Architectural Brief, Transcriptions, Definition of Done clauses, the Repo's configuration, "
+                    + "the lane's state in the Journal, and the Project's instructions. Placeholders such as "
+                    + "\u{27E8}work card title\u{27E9} mark where those values go. This is not text sent to an agent."
             )
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if entry.sampleRole != nil {
+                Picker("Sample Repo role", selection: $role) {
+                    ForEach(RepoRole.standard, id: \.self) { role in
+                        Text(role.rawValue).tag(role)
+                    }
+                }
+                .pickerStyle(.menu)
+                .fixedSize()
+                .help("A sample input: at dispatch the Role line is the dispatched Repo's configured role.")
+                .accessibilityIdentifier("settings-prompt-sample-role")
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ForEach(entry.variants) { variant in
+                    ForEach(shown.variants) { variant in
                         VStack(alignment: .leading, spacing: 10) {
-                            if entry.variants.count > 1 {
+                            if shown.variants.count > 1 {
                                 Text(variant.name)
                                     .font(.headline)
                             }
@@ -216,6 +238,20 @@ struct PromptTemplateSheet: View {
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(.secondary)
                                     Text(variant.placeholders.joined(separator: ", "))
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            if !variant.sampleValues.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Sample values")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text(
+                                        variant.sampleValues.joined(separator: ", ")
+                                            + " \u{2014} stand-ins for values filled in at dispatch."
+                                    )
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
                                         .textSelection(.enabled)

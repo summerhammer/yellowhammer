@@ -147,6 +147,41 @@ struct FeatureVerificationStoreTests {
         #expect(read.clauses == [record("c1")])
     }
 
+    @Test("A Verification record can hold a dropped clause, round-tripping through the Journal")
+    func roundTripDroppedClause() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let world = try makeWorld(journal, projectID: fixture.projectID)
+        let dropped = ClauseVerificationRecord(
+            issueID: "FEAT-1", cid: "c4", level: "feature",
+            text: "A Night ships its change as a pushed Feature Branch with one pull request. (G1)",
+            locationID: "vision/risks", citationProvenance: "Author-supplied",
+            droppedReason: "asserts landing's own output"
+        )
+        let clauses = [
+            record("c1", verdict: .met),
+            dropped
+        ]
+        let runID = RunID()
+
+        let inserted = try journal.recordFeatureVerification(NewFeatureVerification(
+            featureID: world.featureID, cycleID: world.cycleID, route: routeB.description, nightID: world.nightID,
+            runID: runID, clauses: clauses
+        ), now: epoch)
+
+        #expect(inserted)
+        let read = try #require(try journal.featureVerification(cycleID: world.cycleID))
+        #expect(read.clauses.count == 2)
+        #expect(read.clauses[0].verdict == .met)
+        #expect(read.clauses[0].droppedReason == nil)
+        #expect(read.clauses[1].verdict == nil)
+        #expect(read.clauses[1].droppedReason == "asserts landing's own output")
+        #expect(read.clauses[1].text == dropped.text)
+        #expect(read.clauses[1].citationProvenance == "Author-supplied")
+        #expect(read.clauses[1].locationID == "vision/risks")
+        #expect(read.clauses[1].judgedBy == .agent)
+    }
+
     @Test("The verdict and judge are constrained by the schema")
     func schemaRejectsUnknownVerdict() throws {
         let fixture = try JournalFixture()
@@ -168,6 +203,26 @@ struct FeatureVerificationStoreTests {
             try journal.write { db in
                 try db.execute(sql: "UPDATE clause_verification SET judged_by = 'model'")
             }
+        }
+        // Exactly one of verdict and dropped_reason must be set
+        #expect(throws: (any Error).self) {
+            try journal.write { db in
+                try db.execute(
+                    sql: "UPDATE clause_verification SET verdict = 'met', dropped_reason = ?",
+                    arguments: ["asserts landing's own output"]
+                )
+            }
+        }
+        #expect(throws: (any Error).self) {
+            try journal.write { db in
+                try db.execute(sql: "UPDATE clause_verification SET verdict = NULL, dropped_reason = NULL")
+            }
+        }
+        try journal.write { db in
+            try db.execute(
+                sql: "UPDATE clause_verification SET verdict = NULL, dropped_reason = ?",
+                arguments: ["asserts landing's own output"]
+            )
         }
     }
 

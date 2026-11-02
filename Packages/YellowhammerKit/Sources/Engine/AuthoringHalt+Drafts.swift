@@ -16,8 +16,51 @@ enum HaltDrafts {
     /// block (the one that turns a repaired draft into a Work Card) takes it away.
     static let headline = "> **Draft — not accepted; edit it, then move the Feature to Todo.**"
 
+    /// What the first line of the Feature Card's draft Definition of Done says.
+    static let featureHeadline =
+        "> **Draft — saved Feature-level Definition of Done; edit it, then move the Feature to Todo.**"
+
     static func outboxKey(feature: FeatureName, haltID: Int64, position: Int) -> String {
         "feature:\(feature.rawValue):authoring-halt:\(haltID):draft:\(position):create"
+    }
+
+    static func featureDefinitionOfDoneKey(feature: FeatureName, haltID: Int64) -> String {
+        "feature:\(feature.rawValue):authoring-halt:\(haltID):feature-dod"
+    }
+
+    /// Renders the checkpointed Feature-level Definition of Done in draft form.
+    static func featureDefinitionOfDoneProse(clauses: [DefinitionOfDoneClauseDraft]) -> String {
+        var lines = [
+            featureHeadline,
+            "",
+            "## Definition of done",
+            ""
+        ]
+        for clause in clauses {
+            let citation = clause.citation.rawValue.isEmpty ? "" : " (\(clause.citation.rawValue))"
+            lines.append("- [ ] \(clause.text)\(citation)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Posts the checkpointed Feature-level Definition of Done into the Feature Card's authoring region,
+    /// under a deterministic Outbox key so a replay is `alreadyApplied` and never overwrites an Operator edit.
+    static func ensureFeatureDefinitionOfDonePosted(halt: AuthoringHaltRecord, context: ActContext) async throws {
+        let journal = context.journal
+        guard let outbox = context.outbox, context.board != nil, let parent = halt.issueID,
+              let feature = FeatureName(rawValue: halt.featureName),
+              let breakdown = try journal.authoringHaltCheckpoint(haltID: halt.id)?.breakdown
+        else { return }
+        let key = featureDefinitionOfDoneKey(feature: feature, haltID: halt.id)
+        let prose = featureDefinitionOfDoneProse(clauses: breakdown.definitionOfDone)
+        _ = try await outbox.post(OutboxWrite(
+            key: key,
+            write: .rewriteFeatureAuthoring(issue: BoardObjectID(rawValue: parent), prose: prose)
+        ))
+        let baselineKey = HaltOtherTextBaseline.baselineKey(BoardObjectID(rawValue: parent))
+        if try journal.managedBlockLastPostedHash(issueID: baselineKey) == nil {
+            try await HaltOtherTextBaseline.record(issue: BoardObjectID(rawValue: parent), context: context)
+        }
     }
 
     /// Posts every draft the checkpointed breakdown asks for that has no issue yet. Safe to run again after a
@@ -27,17 +70,9 @@ enum HaltDrafts {
         let journal = context.journal
         guard let outbox = context.outbox, let board = context.board, let parent = halt.issueID,
               let feature = FeatureName(rawValue: halt.featureName),
-              let breakdown = try journal.authoringHaltCheckpoint(haltID: halt.id)?.breakdown
+              let breakdown = try journal.authoringHaltCheckpoint(haltID: halt.id)?.breakdown,
+              !breakdown.cards.isEmpty
         else { return }
-        // This per-halt write also exposes a breakdown produced after a pre-breakdown halt. Once applied,
-        // replay never writes over the Operator's saved-field edits; a crash before delivery retries it.
-        _ = try await outbox.post(OutboxWrite(
-            key: "feature:\(feature.rawValue):authoring-halt:\(halt.id):definition-of-done",
-            write: .rewriteFeatureDefinitionOfDone(
-                issue: BoardObjectID(rawValue: parent),
-                prose: FeatureDefinitionOfDone.render(breakdown.definitionOfDone)
-            )
-        ))
         let seeds = breakdown.cards.enumerated().map { index, card in
             AuthoringHaltDraftSeed(
                 outboxKey: outboxKey(feature: feature, haltID: halt.id, position: index + 1),

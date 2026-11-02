@@ -42,7 +42,6 @@ enum AuthoringHalt {
         try await AuthoringStopBoard.post(
             feature: feature, body: cause.description, context: context, reopenKey: reopenKey,
             commentSuffix: repeatedFault ? context.runID.rawValue : nil,
-            featureClauses: breakdown?.definitionOfDone,
             recordIssue: { try context.journal.recordAuthoringHaltIssue(feature: feature, issueID: $0) },
             // The Feature Card is Waiting on You after this post, so that is the state every later halt-related
             // write is decided against (roadmap P22.5) until the board is read again.
@@ -55,7 +54,10 @@ enum AuthoringHalt {
         )
         // The breakdown is in the checkpoint now, so its Work Cards may be posted as draft children (roadmap P22.6).
         if breakdown != nil, let halt = try context.journal.authoringHalts(feature: feature).last {
+            try await HaltDrafts.ensureFeatureDefinitionOfDonePosted(halt: halt, context: context)
             try await HaltDrafts.ensurePosted(halt: halt, context: context)
+        } else if let halt = try context.journal.authoringHalts(feature: feature).last, let issueID = halt.issueID {
+            try await HaltOtherTextBaseline.record(issue: BoardObjectID(rawValue: issueID), context: context)
         }
         return .halted
     }

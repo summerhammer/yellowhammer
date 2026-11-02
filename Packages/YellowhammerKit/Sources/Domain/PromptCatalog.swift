@@ -5,12 +5,16 @@ public struct PromptTemplateVariant: Equatable, Sendable, Identifiable {
     public var id: String { name }
     public let name: String
     public let template: String
+    /// The marked `⟨…⟩` placeholders filled in at dispatch, in template order.
     public let placeholders: [String]
+    /// Literal sample inputs the renderer cannot mark, such as a pass timeout or a Night date, in template order.
+    public let sampleValues: [String]
 
-    public init(name: String, template: String, placeholders: [String]) {
+    public init(name: String, template: String, placeholders: [String], sampleValues: [String] = []) {
         self.name = name
         self.template = template
         self.placeholders = placeholders
+        self.sampleValues = sampleValues
     }
 }
 
@@ -23,6 +27,8 @@ public struct PromptCatalogEntry: Equatable, Sendable, Identifiable {
     public let defaultVersion: Int
     public let acceptsProjectInstructions: Bool
     public let variants: [PromptTemplateVariant]
+    /// The sample Repo Role the template was rendered for, or nil when the family's text does not depend on it.
+    public let sampleRole: RepoRole?
 
     public init(
         family: PromptFamily,
@@ -30,6 +36,7 @@ public struct PromptCatalogEntry: Equatable, Sendable, Identifiable {
         purpose: String,
         defaultVersion: Int,
         acceptsProjectInstructions: Bool,
+        sampleRole: RepoRole? = nil,
         variants: [PromptTemplateVariant]
     ) {
         self.family = family
@@ -37,6 +44,7 @@ public struct PromptCatalogEntry: Equatable, Sendable, Identifiable {
         self.purpose = purpose
         self.defaultVersion = defaultVersion
         self.acceptsProjectInstructions = acceptsProjectInstructions
+        self.sampleRole = sampleRole
         self.variants = variants
     }
 }
@@ -52,13 +60,15 @@ public enum PromptCatalog {
     /// The same entries, built through the same real renderers, with the six production families composed
     /// with `projectInstructions` and the diagnostic families unchanged. Placeholders stay those of the
     /// shipped templates, so angle brackets in the Operator's text are never labelled.
-    public static func entries(projectInstructions: String?) -> [PromptCatalogEntry] {
+    ///
+    /// `role` is the sample Repo Role the Repo-dependent families are rendered for.
+    public static func entries(projectInstructions: String?, role: RepoRole = .backend) -> [PromptCatalogEntry] {
         [
-            selectionEntry(projectInstructions),
-            breakdownEntry(projectInstructions),
-            architectEntry(projectInstructions),
-            workerEntry(projectInstructions),
-            reviewerEntry(projectInstructions),
+            selectionEntry(projectInstructions, role: role),
+            breakdownEntry(projectInstructions, role: role),
+            architectEntry(projectInstructions, role: role),
+            workerEntry(projectInstructions, role: role),
+            reviewerEntry(projectInstructions, role: role),
             verifierEntry(projectInstructions),
             unattendedProbeEntry,
             sessionResumptionProbeEntry,
@@ -71,6 +81,11 @@ public enum PromptCatalog {
     /// Finds the catalog entry for a prompt family.
     public static func entry(for family: PromptFamily) -> PromptCatalogEntry? {
         entries.first { $0.family == family }
+    }
+
+    /// Finds the catalog entry for a prompt family, rendered for the sample Repo Role `role`.
+    public static func entry(for family: PromptFamily, role: RepoRole) -> PromptCatalogEntry? {
+        entries(projectInstructions: nil, role: role).first { $0.family == family }
     }
 
     static func makeVariant(
@@ -95,6 +110,12 @@ public enum PromptCatalog {
                 return r1 < r2
             }
 
-        return PromptTemplateVariant(name: name, template: template, placeholders: ordered)
+        let isMarked = { (candidate: String) in candidate.hasPrefix("⟨") && candidate.hasSuffix("⟩") }
+        return PromptTemplateVariant(
+            name: name,
+            template: template,
+            placeholders: ordered.filter(isMarked),
+            sampleValues: ordered.filter { !isMarked($0) }
+        )
     }
 }

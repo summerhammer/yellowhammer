@@ -69,7 +69,7 @@ enum PulseGroup: String, CaseIterable, Identifiable {
         guard let feature else {
             // Proposed amendment, yellowhammer-spec#132: a Feature awaiting merge is not "in flight".
             if stack.isEmpty { return "No Feature in flight" }
-            return stack.unmergedFeaturesMax == nil ? stack.awaitingText : "Awaiting merge · \(stack.countText)"
+            return stack.countText
         }
         let rollUp = feature.rollupState?.rawValue ?? "rollup state unknown"
         var parts = [feature.issueIDForDisplay ?? feature.id, rollUp]

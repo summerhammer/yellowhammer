@@ -82,16 +82,19 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         if !pending.isEmpty {
             let made = try await checkouts.materialise(plan, context: context)
             prepared = made
-            let (routeUsed, verdicts) = try await dispatchVerifier(
+            let answer = try await dispatchVerifier(
                 pending, repositories: names, checkouts: made, context: context
             )
-            route = routeUsed
+            route = answer.route
             for candidate in pending {
-                guard let verified = verdicts[candidate.key] else { continue }
-                judged[candidate.key] = candidate.record(
-                    verdict: verified.verdict, whatWasChecked: verified.whatWasChecked,
-                    interpretation: verified.interpretation, judgedBy: .agent
-                )
+                if let verified = answer.judged[candidate.key] {
+                    judged[candidate.key] = candidate.record(
+                        verdict: verified.verdict, whatWasChecked: verified.whatWasChecked,
+                        interpretation: verified.interpretation, judgedBy: .agent
+                    )
+                } else if let drop = answer.dropped[candidate.key] {
+                    judged[candidate.key] = candidate.droppedRecord(reason: drop.reason)
+                }
             }
         }
 
@@ -146,12 +149,15 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
         }
     }
 
-    /// The land Act's two-way verdict from a recorded Verification: all clauses met only when every clause
-    /// is `met`; the remaining verdicts named separately as `<issue> <cid>` otherwise.
+    /// The land Act's two-way verdict from a recorded Verification: all clauses met only when at least one
+    /// clause received a verdict and every judged clause is `met` (dropped clauses are ignored; if every clause
+    /// was dropped, nothing was judged and the Feature is not verified, an engine choice); the remaining verdicts
+    /// named separately as `<issue> <cid>` otherwise.
     static func verdict(of record: FeatureVerificationRecord) -> VerificationVerdict {
         func name(_ clause: ClauseVerificationRecord) -> String { "\(clause.issueID) \(clause.cid)" }
+        let judged = record.clauses.filter { $0.verdict != nil }
         return VerificationVerdict(
-            allClausesMet: !record.clauses.isEmpty && record.clauses.allSatisfy { $0.verdict == .met },
+            allClausesMet: !judged.isEmpty && judged.allSatisfy { $0.verdict == .met },
             unmetClauses: record.clauses.filter { $0.verdict == .unmet }.map(name),
             unresolvedClauses: record.clauses.filter { $0.verdict == .unresolved }.map(name),
             notCheckedClauses: record.clauses.filter { $0.verdict == .notChecked }.map(name)

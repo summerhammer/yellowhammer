@@ -34,6 +34,7 @@ enum HaltedFeatureRepair {
             else { continue }
             // A halt whose draft children were not all posted (a crash between the checkpoint and the creates)
             // finishes posting them here (roadmap P22.6); a draft already created is never created again.
+            try await HaltDrafts.ensureFeatureDefinitionOfDonePosted(halt: halt, context: context)
             try await HaltDrafts.ensurePosted(halt: halt, context: context)
             try journal.recordAuthoringHaltObservation(
                 haltID: halt.id, stateID: object.workflowState.id.rawValue, category: object.workflowState.category,

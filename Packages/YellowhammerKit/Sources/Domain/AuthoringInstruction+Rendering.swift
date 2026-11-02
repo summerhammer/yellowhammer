@@ -227,10 +227,23 @@ extension AuthoringInstruction {
         Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
         CLI Adapter persists it; do not create or edit a result file with tools. It must declare \
         `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
-        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(trackedContractPathSentence)\
-        \(descriptionBudgetSentence)\(briefAudienceSentence) Ending without a final structured response is \
-        treated as a crash.
+        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(landingOutputsSentence)\
+        \(trackedContractPathSentence)\(descriptionBudgetSentence)\(briefAudienceSentence) \
+        Ending without a final structured response is treated as a crash.
         """
+    }
+
+    /// Breakdown pass only: a Definition of Done clause asserting an output Yellowhammer itself produces
+    /// during landing is dropped (OQ157). Empty for the selection pass.
+    private var landingOutputsSentence: String {
+        guard pass == .breakdown else { return "" }
+        return " A Definition of Done clause that asserts an output Yellowhammer itself produces during "
+            + "landing, after Verification — the push, the pull request, the merge, the Cycle archive, or "
+            + "Yellowhammer's own board writes — can never be met before landing: leave such a clause out of "
+            + "`definition_of_done` and list it in `dropped_clauses`. The test is who performs the action and "
+            + "when, not keywords: a clause about pull requests, merges or board writes stays when it "
+            + "describes the Feature's own functionality and can be verified before landing; when it is unclear "
+            + "whether the test applies, keep the clause."
     }
 
     /// Breakdown pass only: a contract path is read from git at the repository's mainline commit, not from
@@ -330,9 +343,11 @@ extension AuthoringInstruction {
         switch pass {
         case .breakdown:
             return "`drafted` carries `definition_of_done` (clauses of `text` and `citation`, where `citation` "
-                + "is a story ID `<epic>/<story>` or a goal ID) and `cards` "
+                + "is a story ID `<epic>/<story>` or a goal ID), `cards` "
                 + "(each with `repository`, `kind`, `title`, `unit_of_work`, `brief`, `definition_of_done` "
-                + "and `contracts` naming a `repository`, its `paths`, `ranges` and an optional `symbol`); "
+                + "and `contracts` naming a `repository`, its `paths`, `ranges` and an optional `symbol`), "
+                + "and optional `dropped_clauses` (each with `text`, `citation`, `card_title` null for a "
+                + "Feature-level clause, and `reason` `asserts landing's own output`); "
                 + "each contract path names one regular file at mainline, never a directory, a submodule or "
                 + "a symbolic link; a path without a range is inlined whole into the worker's instruction, "
                 + "so `ranges` bound what the worker receives; a `ranges` entry is "

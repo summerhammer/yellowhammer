@@ -70,18 +70,6 @@ struct AuthoringPlanner {
         let (adoptions, adoptionWrites) = try adopt(nextOrder: &nextOrder)
         let featureWrites = try featureCreate(clauses: featureClauses, adoptions: adoptions)
         let (cards, cardWrites) = try create(nextOrder: &nextOrder)
-        let droppedWrites: [OutboxWrite]
-        if repairing, let issue = existingFeatureIssueID, !citations.uncitable.isEmpty {
-            let lines = citations.uncitable.map {
-                "- \($0.workCardTitle ?? "Feature") — \"\($0.text)\": \($0.reason)"
-            }.joined(separator: "\n")
-            droppedWrites = [OutboxWrite(
-                key: "feature:\(prefix):repair-dropped", write: .createComment(
-                    issue: issue, body: "Repair accepted. Dropped uncitable Definition of Done clauses:\n" + lines
-                )
-            )]
-        } else { droppedWrites = [] }
-
         let uncitable = citations.uncitable.map {
             PlannedUncitableClause(
                 level: $0.level, workCardTitle: $0.workCardTitle, text: $0.text,
@@ -97,7 +85,7 @@ struct AuthoringPlanner {
         return AuthoringPlan(
             writes: existingFeatureIssueID == nil
                 ? featureWrites + adoptionWrites + cardWrites
-                : adoptionWrites + cardWrites + featureWrites + droppedWrites,
+                : adoptionWrites + cardWrites + featureWrites,
             record: FeatureAuthoringAcceptedPayload(
                 name: selection.name.rawValue, groupKey: "authoring:\(prefix)", featureKey: featureKey,
                 nightID: nightID, cards: cards, adoptions: adoptions,
