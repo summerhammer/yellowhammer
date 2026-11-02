@@ -390,4 +390,44 @@ struct FeatureVerificationTests {
         )
         #expect(event == .featureVerified(cycleID: 1, met: 1, unmet: 0, unresolved: 0, notChecked: 0))
     }
+
+    @Test("One Author-supplied clause dropped, rest met: verified and report shows drop (OQ157)")
+    func endToEndVerificationWithDroppedAuthorSuppliedClause() async throws {
+        let world = try await VerificationWorld()
+        try world.addClause(issue: "BACK-1", cid: "c1", provenance: "machine-found")
+        try world.addClause(issue: "FEAT-1", cid: "c2", provenance: "Author-supplied")
+        try world.addClause(issue: "FEAT-1", cid: "c3", provenance: "Author-supplied")
+
+        let answer = DispatchResult.verifier(VerifierResult(outcome: .reported(
+            clauses: [
+                VerifiedClause(cid: "c1", issueID: "BACK-1", verdict: .met, whatWasChecked: "w1", interpretation: "i1"),
+                VerifiedClause(cid: "c2", issueID: "FEAT-1", verdict: .met, whatWasChecked: "w2", interpretation: "i2")
+            ],
+            dropped: [
+                DroppedVerificationClause(cid: "c3", issueID: "FEAT-1", reason: "asserts landing's own output")
+            ]
+        )))
+        let dispatch = ScriptedVerifierDispatch([routeOther: .answer(answer)])
+        let resolver = verificationResolver(primary: routeOther)
+
+        let verdict = try await world.verification(resolver: resolver, dispatch: dispatch)
+            .verify(world.featureContext)
+
+        #expect(verdict.allClausesMet)
+        #expect(verdict.unmetClauses.isEmpty)
+        #expect(verdict.unresolvedClauses.isEmpty)
+        #expect(verdict.notCheckedClauses.isEmpty)
+
+        let recorded = try #require(try world.journal.featureVerification(cycleID: world.cycleID))
+        #expect(recorded.clauses.count == 3)
+        let droppedRecord = try #require(recorded.clauses.first { $0.cid == "c3" && $0.issueID == "FEAT-1" })
+        #expect(droppedRecord.verdict == nil)
+        #expect(droppedRecord.droppedReason == "asserts landing's own output")
+        #expect(droppedRecord.judgedBy == .agent)
+
+        let reportLine = VerificationReport.line(for: droppedRecord)
+        #expect(reportLine.contains("dropped: asserts landing's own output"))
+        #expect(!reportLine.contains("· met"))
+        #expect(!reportLine.contains("· unmet"))
+    }
 }

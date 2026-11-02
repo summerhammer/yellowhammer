@@ -6,13 +6,22 @@ public struct VerificationClause: Equatable, Sendable {
     public let text: String
     /// The Spec Citation's location in the specification source.
     public let location: String
+    /// Whether the clause was inserted on the board by a human (`Author-supplied`), rather than authored by Yellowhammer.
+    public let isAuthorSupplied: Bool
 
-    public init(issueID: String, cid: String, text: String, location: String) {
+    public init(issueID: String, cid: String, text: String, location: String, isAuthorSupplied: Bool = false) {
         self.issueID = issueID
         self.cid = cid
         self.text = text
         self.location = location
+        self.isAuthorSupplied = isAuthorSupplied
     }
+
+    public init(issueID: String, cid: String, text: String, location: String, authorSupplied: Bool) {
+        self.init(issueID: issueID, cid: cid, text: text, location: location, isAuthorSupplied: authorSupplied)
+    }
+
+    public var authorSupplied: Bool { isAuthorSupplied }
 }
 
 /// One Check result recorded for a Feature's Work Cards, never reconstructed from current configuration.
@@ -130,6 +139,15 @@ public struct VerificationInstruction: Equatable, Sendable {
         clause needs in your environment, naming in `what_was_checked` the capability that was missing: \
         network access, a writable directory, or a tool. Report every clause listed, and no other.
 
+        Before judging Author-supplied clauses (marked `Author-supplied: yes` below), screen them: drop each \
+        clause that asserts an output Yellowhammer itself produces during landing, after Verification — the \
+        push, the pull request, the merge, the Cycle archive, or Yellowhammer's own board writes. Report each \
+        dropped clause in `dropped` with the reason `asserts landing's own output` and no verdict. The test \
+        is who performs the action and when, not keywords: a clause about pull requests, merges or board \
+        writes stays when it describes the Feature's own functionality and can be verified before landing; \
+        when it is unclear whether the test applies, judge the clause normally. Never screen machine-found \
+        clauses, because authoring already applied the test.
+
         Each repository below is checked out at the commit you judge, named on its `Checkout at` line: its \
         Pushed Tip or, marked no pushed branch, its recorded base commit. Use the recorded Check results \
         below to judge clauses they cover, on any Route. A record whose judged commit is not the commit you \
@@ -155,6 +173,9 @@ public struct VerificationInstruction: Equatable, Sendable {
         for clause in clauses {
             lines.append("- \(clause.issueID) \(clause.cid): \(clause.text)")
             lines.append("  Spec Citation: \(clause.location)")
+            if clause.isAuthorSupplied {
+                lines.append("  Author-supplied: yes")
+            }
         }
         return lines.joined(separator: "\n")
     }
@@ -188,8 +209,9 @@ public struct VerificationInstruction: Equatable, Sendable {
         Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
         CLI Adapter persists it; do not create or edit a result file with tools. It must declare \
         `"schema": "\(RunPass.verifier.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for \
-        this pass: reported, failed. `reported` carries `clauses`, one entry per clause with `issue_id`, \
-        `cid`, `verdict` (`met`, `unmet` or `not checked`), `what_was_checked` and `interpretation`; `failed` carries \
+        this pass: reported, failed. `reported` carries `clauses` (each with `issue_id`, `cid`, \
+        `verdict` (`met`, `unmet` or `not checked`), `what_was_checked` and `interpretation`) and optional \
+        `dropped` (each with `issue_id`, `cid` and `reason` `asserts landing's own output`); `failed` carries \
         `reason`. Ending without a final structured response is treated as a crash.
         """
     }

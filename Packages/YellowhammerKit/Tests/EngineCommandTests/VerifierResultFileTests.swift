@@ -42,7 +42,7 @@ struct VerifierResultFileTests {
         let result = try decode(verifier(
             #""outcome": "reported", "clauses": [\#(clauseJSON()), \#(clauseJSON(issue: "MOB-1", verdict: "unmet"))]"#
         ))
-        guard case .verifier(let decoded) = result, case .reported(let clauses) = decoded.outcome else {
+        guard case .verifier(let decoded) = result, case .reported(let clauses, _) = decoded.outcome else {
             Issue.record("expected a reported verifier result")
             return
         }
@@ -119,12 +119,69 @@ struct VerifierResultFileTests {
         let result = try decode(verifier(
             #""outcome": "reported", "clauses": [\#(clauseJSON(verdict: "not checked", what: "network access"))]"#
         ))
-        guard case .verifier(let decoded) = result, case .reported(let clauses) = decoded.outcome else {
+        guard case .verifier(let decoded) = result, case .reported(let clauses, _) = decoded.outcome else {
             Issue.record("expected a reported verifier result")
             return
         }
         #expect(clauses[0].verdict == .notChecked)
         #expect(clauses[0].whatWasChecked == "network access")
+    }
+
+    // MARK: - Dropped clauses (OQ157)
+
+    private static func droppedJSON(
+        issue: String = "FEAT-1", cid: String = "c1", reason: String = "asserts landing's own output"
+    ) -> String {
+        #"{"issue_id": "\#(issue)", "cid": "\#(cid)", "reason": "\#(reason)"}"#
+    }
+
+    @Test("reported decodes results with only dropped clauses")
+    func reportedOnlyDropped() throws {
+        let json = #""outcome": "reported", "dropped": [\#(Self.droppedJSON())]"#
+        let result = try decode(verifier(json))
+        guard case .verifier(let decoded) = result, case .reported(let clauses, let dropped) = decoded.outcome else {
+            Issue.record("expected reported result")
+            return
+        }
+        #expect(clauses.isEmpty)
+        #expect(dropped == [
+            DroppedVerificationClause(cid: "c1", issueID: "FEAT-1", reason: "asserts landing's own output")
+        ])
+    }
+
+    @Test("reported decodes results with both clauses and dropped")
+    func reportedBothLists() throws {
+        let json = #""outcome": "reported", "clauses": [\#(clauseJSON(issue: "BACK-1", cid: "c1"))], "#
+            + #""dropped": [\#(Self.droppedJSON(issue: "FEAT-1", cid: "c2"))]"#
+        let result = try decode(verifier(json))
+        guard case .verifier(let decoded) = result, case .reported(let clauses, let dropped) = decoded.outcome else {
+            Issue.record("expected reported result")
+            return
+        }
+        #expect(clauses.count == 1)
+        #expect(clauses[0].cid == "c1")
+        #expect(dropped.count == 1)
+        #expect(dropped[0].cid == "c2")
+    }
+
+    @Test("A clause appearing twice across both lists is refused")
+    func duplicateAcrossListsRefused() {
+        let json = #""outcome": "reported", "clauses": [\#(clauseJSON(issue: "BACK-1", cid: "c1"))], "#
+            + #""dropped": [\#(Self.droppedJSON(issue: "BACK-1", cid: "c1"))]"#
+        expectInvalid(verifier(json), field: "dropped[0]")
+    }
+
+    @Test("A clause appearing twice within dropped is refused")
+    func duplicateWithinDroppedRefused() {
+        let json = #""outcome": "reported", "dropped": ["#
+            + #"\#(Self.droppedJSON(issue: "BACK-1", cid: "c1")), \#(Self.droppedJSON(issue: "BACK-1", cid: "c1"))]"#
+        expectInvalid(verifier(json), field: "dropped[1]")
+    }
+
+    @Test("An invalid reason in dropped is refused")
+    func invalidDroppedReasonRefused() {
+        let json = #""outcome": "reported", "dropped": [\#(Self.droppedJSON(issue: "BACK-1", reason: "bad"))]"#
+        expectInvalid(verifier(json), field: "dropped[0].reason")
     }
 }
 
@@ -176,6 +233,41 @@ struct VerificationInstructionTests {
         #expect(text == instruction.render())
     }
 
+    @Test("It renders a clause with and without the Author-supplied flag (OQ157)")
+    func renderingAuthorSuppliedFlag() {
+        let flagInstruction = VerificationInstruction(
+            route: Route(cli: "codex", model: "gpt-5.4", effort: "high")!,
+            featureTitle: "FEAT-1",
+            clauses: [
+                VerificationClause(
+                    issueID: "FEAT-1", cid: "c1", text: "Human inserted.",
+                    location: "epic/story", isAuthorSupplied: true
+                ),
+                VerificationClause(
+                    issueID: "FEAT-1", cid: "c2", text: "Machine found.",
+                    location: "epic/story", isAuthorSupplied: false
+                )
+            ],
+            specificationSource: .specSource(SpecSource(path: "/repos/spec")),
+            repositories: [
+                VerificationRepository(name: "backend", directory: "/wt/backend", featureBranch: "yh-feat")
+            ]
+        )
+        let rendered = flagInstruction.render()
+        #expect(rendered.contains("FEAT-1 c1: Human inserted.\n  Spec Citation: epic/story\n  Author-supplied: yes"))
+        #expect(rendered.contains("FEAT-1 c2: Machine found.\n  Spec Citation: epic/story\n\n## Repositories"))
+        #expect(!rendered.contains("FEAT-1 c2: Machine found.\n  Spec Citation: epic/story\n  Author-supplied: yes"))
+        #expect(rendered.contains(
+            "Before judging Author-supplied clauses (marked `Author-supplied: yes` below), screen them"
+        ))
+        #expect(rendered.contains(
+            "the push, the pull request, the merge, the Cycle archive, or Yellowhammer's own board writes"
+        ))
+        #expect(rendered.contains("The test is who performs the action and when, not keywords"))
+        #expect(rendered.contains("when it is unclear whether the test applies, judge the clause normally"))
+        #expect(rendered.contains("Never screen machine-found clauses, because authoring already applied the test"))
+    }
+
     @Test("It travels as an AgentInstruction that names no result file path")
     func agentInstruction() {
         let wrapped = AgentInstruction.verification(instruction)
@@ -197,7 +289,7 @@ struct VerificationInstructionTests {
 
         #expect(report.origin == .rehearsalFixture("verifier-reported.json"))
         guard case .completed(.verifier(let result)) = report.outcome,
-            case .reported(let clauses) = result.outcome
+            case .reported(let clauses, _) = result.outcome
         else {
             Issue.record("expected a reported verifier result")
             return

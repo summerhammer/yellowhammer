@@ -15,7 +15,7 @@ extension FeatureVerification {
     func dispatchVerifier(
         _ pending: [VerificationCandidate], repositories: [String], checkouts: VerifierCheckouts,
         context: LandActFeatureContext
-    ) async throws -> (Route, [String: VerifiedClause]) {
+    ) async throws -> (Route, [String: VerifiedClause], [String: DroppedVerificationClause]) {
         let act = context.act
         let writers = try act.journal.attemptRoutes(cycleID: context.cycleID)
         let base = try instructionBase(pending, repositories: repositories, checkouts: checkouts, context: context)
@@ -52,7 +52,7 @@ extension FeatureVerification {
             }
             try record(report.origin, route: route, ordinal: Int(ordinal), context: act)
             let judged = try judgeVerifier(report.outcome, pending: pending, route: route, act: act)
-            if let verdicts = judged.verdicts { return (route, verdicts) }
+            if let answer = judged.answer { return (route, answer.judged, answer.dropped) }
             if !judged.usageLimited { tried.insert(route) }
             lastFailure = judged.failure
             if let rejection = judged.rejection {
@@ -91,8 +91,13 @@ extension FeatureVerification {
         let reason: String
     }
 
+    private struct VerdictsResult {
+        let judged: [String: VerifiedClause]
+        let dropped: [String: DroppedVerificationClause]
+    }
+
     private struct JudgedVerifier {
-        let verdicts: [String: VerifiedClause]?
+        let answer: VerdictsResult?
         let failure: String?
         var usageLimited = false
         /// Set for a Route the walk excludes; nil for an answer and for a deferred, usage-limited Route.
@@ -107,7 +112,7 @@ extension FeatureVerification {
         switch outcome {
         case .completed(let result):
             switch Self.verdicts(in: result, covering: pending) {
-            case .success(let verdicts): return JudgedVerifier(verdicts: verdicts, failure: nil)
+            case .success(let answer): return JudgedVerifier(answer: answer, failure: nil)
             case .failure(let verdictFailure):
                 failure = "verifier on \(route) \(verdictFailure)"
                 rejection = VerifierRejection(cause: verdictFailure.cause, reason: verdictFailure.reason)
@@ -115,8 +120,9 @@ extension FeatureVerification {
         case .usageLimited:
             _ = try act.recordUsageLimit(outcome, route: route)
             return JudgedVerifier(
-                verdicts: nil, failure: "\(route.cli) usage limit; Verification waits for CLI backoff",
-                                  usageLimited: true)
+                answer: nil, failure: "\(route.cli) usage limit; Verification waits for CLI backoff",
+                usageLimited: true
+            )
         case .failed(let exitStatus):
             failure = "verifier on \(route) exited with status \(exitStatus)"
             rejection = VerifierRejection(cause: .exited, reason: failure)
@@ -130,7 +136,7 @@ extension FeatureVerification {
             throw VerificationDispatchFault(reason: "verifier on \(route) crashed with no outcome (\(cause)); "
                 + "a Crashed-Unknown run excludes no Route and ends Verification for this Act")
         }
-        return JudgedVerifier(verdicts: nil, failure: failure, rejection: rejection)
+        return JudgedVerifier(answer: nil, failure: failure, rejection: rejection)
     }
 
     private func recordRejection(
@@ -175,7 +181,7 @@ extension FeatureVerification {
     /// verifier result, or not covering exactly the dispatched `(issue, cid)` set.
     private static func verdicts(
         in result: DispatchResult, covering pending: [VerificationCandidate]
-    ) -> Result<[String: VerifiedClause], VerdictFailure> {
+    ) -> Result<VerdictsResult, VerdictFailure> {
         guard case .verifier(let verifier) = result else {
             return .failure(VerdictFailure(
                 cause: .invalidOutput, reason: "answered with a result that is not a verifier result"
@@ -186,17 +192,40 @@ extension FeatureVerification {
             return .failure(VerdictFailure(
                 cause: .reportedFailed, reason: reason, description: "reported failed: \(reason)"
             ))
-        case .reported(let clauses):
-            var byKey: [String: VerifiedClause] = [:]
+        case .reported(let clauses, let dropped):
+            var judgedByKey: [String: VerifiedClause] = [:]
             for clause in clauses {
-                byKey["\(clause.issueID)\u{1F}\(clause.cid)"] = clause
+                judgedByKey["\(clause.issueID)\u{1F}\(clause.cid)"] = clause
             }
-            guard byKey.count == clauses.count, Set(byKey.keys) == Set(pending.map(\.key)) else {
+            var droppedByKey: [String: DroppedVerificationClause] = [:]
+            for item in dropped {
+                droppedByKey["\(item.issueID)\u{1F}\(item.cid)"] = item
+            }
+            guard judgedByKey.count == clauses.count && droppedByKey.count == dropped.count else {
                 return .failure(VerdictFailure(
-                    cause: .invalidOutput, reason: "did not judge exactly the clauses it was given"
+                    cause: .invalidOutput, reason: "contains duplicate clauses within clauses or dropped"
                 ))
             }
-            return .success(byKey)
+            let judgedKeys = Set(judgedByKey.keys)
+            let droppedKeys = Set(droppedByKey.keys)
+            guard judgedKeys.isDisjoint(with: droppedKeys) else {
+                return .failure(VerdictFailure(
+                    cause: .invalidOutput, reason: "named a clause in both clauses and dropped"
+                ))
+            }
+            let pendingKeys = Set(pending.map(\.key))
+            guard judgedKeys.union(droppedKeys) == pendingKeys else {
+                return .failure(VerdictFailure(
+                    cause: .invalidOutput, reason: "did not judge or drop exactly the clauses it was given"
+                ))
+            }
+            let authorSuppliedKeys = Set(pending.filter { $0.clause.provenance == "Author-supplied" }.map(\.key))
+            guard droppedKeys.isSubset(of: authorSuppliedKeys) else {
+                return .failure(VerdictFailure(
+                    cause: .invalidOutput, reason: "dropped a machine-found clause"
+                ))
+            }
+            return .success(VerdictsResult(judged: judgedByKey, dropped: droppedByKey))
         }
     }
 
@@ -266,7 +295,8 @@ extension FeatureVerification {
             clauses: pending.map {
                 VerificationClause(
                     issueID: $0.clause.issueID, cid: $0.clause.cid, text: $0.clause.text,
-                    location: $0.clause.locationID
+                    location: $0.clause.locationID,
+                    isAuthorSupplied: $0.clause.provenance == "Author-supplied"
                 )
             },
             source: source, repositories: touched
