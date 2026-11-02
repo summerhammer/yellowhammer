@@ -159,18 +159,19 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
     }
 
     /// Queues the report onto the Feature Issue's Managed Block, under a deterministic key. Every line of
-    /// the report starts with one prefix, so a replay replaces the whole report and nothing else.
+    /// the report starts with one prefix, so a replay replaces the whole report and nothing else. The report is
+    /// unbounded, so it is offered full and then compacted, per clause throughout (issue #670).
     private func queueReport(
         _ record: FeatureVerificationRecord, touchedRepositoryCount: Int, context: LandActFeatureContext
     ) throws {
         guard let outbox = context.act.outbox else { return }
         let write = OutboxWrite(
             key: "land:\(context.cycleID):verification:\(context.feature.issueID)",
-            write: .updateManagedBlockLine(
+            write: .updateManagedBlockLinesCompacting(
                 issue: BoardObjectID(rawValue: context.feature.issueID),
                 prefix: VerificationReport.managedBlockPrefix,
-                line: VerificationReport(record: record, touchedRepositoryCount: touchedRepositoryCount)
-                    .managedBlockLines()
+                renderings: VerificationReport(record: record, touchedRepositoryCount: touchedRepositoryCount)
+                    .managedBlockRenderings()
             )
         )
         _ = try outbox.accept(write)

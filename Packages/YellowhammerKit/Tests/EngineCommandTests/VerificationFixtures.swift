@@ -113,7 +113,9 @@ final class VerificationWorld {
     init(
         cards: [VerificationCard] = [VerificationCard("BACK-1", "backend", .done)],
         repositories: ProjectRepositories? = selectionRepositories(),
-        mode: NightMode = .real
+        mode: NightMode = .real,
+        descriptionBudget: DescriptionBudget? = nil,
+        featureDescription: String? = nil
     ) async throws {
         fixture = try OutboxJournalFixture()
         journal = try fixture.open()
@@ -128,8 +130,11 @@ final class VerificationWorld {
             )
         }
         let night = try journal.openNight(nightStart: landNightStart, mode: mode, act: .land, runID: runID).night
-        await board.seed(issue: "FEAT-1", description: nil)
-        let outbox = Outbox(journal: journal, board: board, runID: runID, act: .land, clock: { landEpoch })
+        await board.seed(issue: "FEAT-1", description: featureDescription)
+        let outbox = Outbox(
+            journal: journal, board: board, runID: runID, act: .land, descriptionBudget: descriptionBudget,
+            clock: { landEpoch }
+        )
         let context = ActContext(
             act: .land, mode: mode, trigger: .scheduled, runID: runID, journal: journal, night: night,
             outbox: outbox, mainlines: selectionMainlines(), repositories: repositories

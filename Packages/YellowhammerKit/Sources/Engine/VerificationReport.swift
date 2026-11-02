@@ -9,7 +9,7 @@ import Journal
 /// counts line that could read as one.
 public struct VerificationReport: Equatable, Sendable {
     /// The prefix every Managed Block line of this report starts with, so one
-    /// ``BoardWrite/updateManagedBlockLine(issue:prefix:line:)`` replaces the whole report.
+    /// ``BoardWrite/updateManagedBlockLinesCompacting(issue:prefix:renderings:)`` replaces the whole report.
     public static let managedBlockPrefix = "Verification: "
 
     /// The story's limitation statement, shown next to the report wherever it is.
@@ -76,8 +76,13 @@ public struct VerificationReport: Equatable, Sendable {
     /// only within one issue. A clause whose text or citation was edited on the board after authoring
     /// says so in its text field.
     public static func line(for clause: ClauseVerificationRecord) -> String {
+        fields(for: clause).map(singleLine).joined(separator: " · ")
+    }
+
+    /// The seven fields of ``line(for:)``, unsanitised, in order.
+    private static func fields(for clause: ClauseVerificationRecord) -> [String] {
         let text = clause.invalidatedCause.map { "\(clause.text) (invalidated: \($0))" } ?? clause.text
-        let fields = [
+        return [
             "\(clause.issueID) \(clause.cid)",
             text,
             "Spec Citation (\(clause.locationID))",
@@ -86,8 +91,10 @@ public struct VerificationReport: Equatable, Sendable {
             clause.whatWasChecked,
             clause.interpretation
         ]
-        return fields.map(singleLine).joined(separator: " · ")
     }
+
+    private static let managedBlockHeader =
+        "Definition of Done, clause by clause (Feature-level clauses first, then Cards in authored order)"
 
     /// A field can never break the one-line-per-clause shape, whatever text it carries.
     private static func singleLine(_ text: String) -> String {
@@ -98,15 +105,43 @@ public struct VerificationReport: Equatable, Sendable {
     // MARK: - Managed Block
 
     /// The Managed Block variant: a header, one line per clause and the limitation, every line starting
-    /// with ``managedBlockPrefix``. Newline-joined, for one `updateManagedBlockLine`.
+    /// with ``managedBlockPrefix``. Newline-joined; the first of ``managedBlockRenderings()``.
     public func managedBlockLines() -> String {
         let prefix = Self.managedBlockPrefix
-        var lines = [
-            prefix + "Definition of Done, clause by clause (Feature-level clauses first, then Cards in authored order)"
-        ]
+        var lines = [prefix + Self.managedBlockHeader]
         lines += clauses.map { prefix + Self.line(for: $0) }
         lines.append(prefix + limitationStatement)
         return lines.joined(separator: "\n")
+    }
+
+    /// The report's renderings for a Managed Block with a description budget, the full one first and the most
+    /// compacted last (issue #670; spec: board-projection/maintain-the-managed-block, budget on rewrite). Every
+    /// rung keeps the report per clause, with no aggregate or count, and ends with the limitation statement.
+    /// - Rung 1: ``managedBlockLines()``.
+    /// - Rung 2: each clause without what was checked and the interpretation, and a note saying so.
+    /// - Rung 3: each clause as its id and verdict only, and a note naming all that is left out.
+    public func managedBlockRenderings() -> [String] {
+        let prefix = Self.managedBlockPrefix
+        let header = prefix + Self.managedBlockHeader
+        let kept = "The full report stays in the Journal and is in the body of each pull request Yellowhammer "
+            + "opens for this Feature."
+        let withoutChecks = clauses.map { clause in
+            prefix + Self.fields(for: clause).dropLast(2).map(Self.singleLine).joined(separator: " · ")
+        }
+        let verdictsOnly = clauses.map { clause in
+            let fields = Self.fields(for: clause)
+            return prefix + [fields[0], fields[4]].map(Self.singleLine).joined(separator: " · ")
+        }
+        let rung2Note = prefix + "Compacted to fit the description budget: what was checked and the interpretation of "
+            + "each clause are left out here. " + kept
+        let rung3Note = prefix + "Compacted to fit the description budget: the clause text, Spec Citation, "
+            + "provenance, what was checked and the interpretation of each clause are left out here. " + kept
+        let limitation = prefix + limitationStatement
+        return [
+            managedBlockLines(),
+            ([header] + withoutChecks + [rung2Note, limitation]).joined(separator: "\n"),
+            ([header] + verdictsOnly + [rung3Note, limitation]).joined(separator: "\n")
+        ]
     }
 
     // MARK: - Pull request body

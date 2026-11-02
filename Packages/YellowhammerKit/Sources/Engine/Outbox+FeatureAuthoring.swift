@@ -45,6 +45,10 @@ extension Outbox {
             return try await performManagedBlock(issue: issue, renderings: [rendered], entry: entry)
         case .rewriteManagedBlockCompacting(let issue, let renderings):
             return try await performManagedBlock(issue: issue, renderings: renderings, entry: entry)
+        case .updateManagedBlockLinesCompacting(let issue, let prefix, let renderings):
+            return try await performManagedBlock(
+                issue: issue, renderings: renderings, replacingPrefix: prefix, entry: entry
+            )
         case .rewriteFeatureAuthoring(let issue, let prose):
             return try await performFeatureAuthoring(issue: issue, prose: prose, entry: entry)
         default: throw OutboxError.payloadUnreadable(entryID: entry.id)
@@ -77,7 +81,8 @@ extension Outbox {
         }
         if let descriptionBudget, !descriptionBudget.fits(composed) {
             return .overBudget(
-                length: descriptionBudget.measure(composed), budget: descriptionBudget, renderingAloneFits: false
+                length: descriptionBudget.measure(composed), budget: descriptionBudget,
+                cause: .blockRewrite(renderingAloneFits: false)
             )
         }
         let composedParts: ManagedBlockFence.Parts

@@ -19,8 +19,8 @@ extension BoardWrite {
             return .rewriteFeatureAuthoring(issue: issue, prose: scrub.apply(prose))
         case .rewriteManagedBlockCompacting(let issue, let renderings):
             return .rewriteManagedBlockCompacting(issue: issue, renderings: renderings.map(scrub.apply))
-        case .updateManagedBlockLine(let issue, let prefix, let line):
-            return .updateManagedBlockLine(issue: issue, prefix: prefix, line: scrub.apply(line))
+        case .updateManagedBlockLine, .updateManagedBlockLinesCompacting:
+            return scrubbedLineUpdate(by: scrub)
         case .updateIssue(let issue, let change, let undo):
             return .updateIssue(
                 issue: issue, change: change.scrubbed(by: scrub), undo: undo.map { $0.scrubbed(by: scrub) }
@@ -29,6 +29,22 @@ extension BoardWrite {
             return self
         case .adoptIssue(let issue, let parentKey, let undo):
             return .adoptIssue(issue: issue, parentKey: parentKey, undo: undo.map { $0.scrubbed(by: scrub) })
+        }
+    }
+}
+
+extension BoardWrite {
+    /// A targeted report update with every rendering scrubbed; any other write is returned as it is.
+    fileprivate func scrubbedLineUpdate(by scrub: NarrativeScrub) -> BoardWrite {
+        switch self {
+        case .updateManagedBlockLine(let issue, let prefix, let line):
+            return .updateManagedBlockLine(issue: issue, prefix: prefix, line: scrub.apply(line))
+        case .updateManagedBlockLinesCompacting(let issue, let prefix, let renderings):
+            return .updateManagedBlockLinesCompacting(
+                issue: issue, prefix: prefix, renderings: renderings.map(scrub.apply)
+            )
+        default:
+            return self
         }
     }
 }

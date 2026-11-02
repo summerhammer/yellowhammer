@@ -37,6 +37,13 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     /// Additive, like ``adoptIssue(issue:parentKey:undo:)``: ``rewriteManagedBlock(issue:rendered:)``
     /// encodes and decodes as it always did, because pending payloads persist in Journals.
     case rewriteManagedBlockCompacting(issue: BoardObjectID, renderings: [String])
+    /// A targeted report update that may compact to stay within the description budget: each of `renderings`
+    /// is the report's lines (all starting `prefix`), from the full one to the most compacted. Delivery
+    /// replaces every line starting `prefix` in the fresh block with the first rendering whose whole
+    /// replaced description fits (spec: board-projection/maintain-the-managed-block, budget on rewrite;
+    /// verification/verify-a-feature-clause-by-clause; issue #670). Additive:
+    /// ``updateManagedBlockLine(issue:prefix:line:)`` is unchanged.
+    case updateManagedBlockLinesCompacting(issue: BoardObjectID, prefix: String, renderings: [String])
 
     /// The operation as the Journal names it.
     public var operation: String {
@@ -46,7 +53,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .attachLink: "attachmentCreate"
         case .rewriteManagedBlock, .rewriteFeatureAuthoring: "descriptionRewrite"
         case .rewriteManagedBlockCompacting: "descriptionRewrite"
-        case .updateManagedBlockLine: "descriptionRewrite"
+        case .updateManagedBlockLine, .updateManagedBlockLinesCompacting: "descriptionRewrite"
         case .updateIssue: "issueUpdate"
         case .archiveIssue: "issueArchive"
         case .adoptIssue: "issueUpdate"
@@ -61,7 +68,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createComment(let issue, _), .attachLink(let issue, _, _), .rewriteManagedBlock(let issue, _),
              .rewriteManagedBlockCompacting(let issue, _), .rewriteFeatureAuthoring(let issue, _),
              .updateIssue(let issue, _, _), .archiveIssue(let issue), .adoptIssue(let issue, _, _),
-             .updateManagedBlockLine(let issue, _, _):
+             .updateManagedBlockLine(let issue, _, _), .updateManagedBlockLinesCompacting(let issue, _, _):
             issue
         }
     }
@@ -77,7 +84,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         switch self {
         case .createIssue, .createComment, .attachLink: true
         case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteManagedBlockCompacting,
-             .updateManagedBlockLine, .updateIssue,
+             .updateManagedBlockLine, .updateManagedBlockLinesCompacting, .updateIssue,
              .archiveIssue, .adoptIssue: false
         }
     }
