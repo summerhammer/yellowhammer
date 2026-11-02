@@ -8,46 +8,8 @@ extension ResultFile {
         switch outcomeRaw {
         case "reported":
             var seen: Set<String> = []
-            var clauses: [VerifiedClause] = []
-            if let raw = object["clauses"], !(raw is NSNull) {
-                guard let items = raw as? [[String: Any]] else {
-                    throw .invalid(field: "clauses", reason: "must be an array of objects")
-                }
-                for (index, item) in items.enumerated() {
-                    let clause = try verifiedClause(item, path: "clauses[\(index)]")
-                    guard seen.insert("\(clause.issueID)\u{1F}\(clause.cid)").inserted else {
-                        throw .invalid(
-                            field: "clauses[\(index)]", reason: "clause \(clause.issueID)/\(clause.cid) is judged twice"
-                        )
-                    }
-                    clauses.append(clause)
-                }
-            }
-            var dropped: [DroppedVerificationClause] = []
-            if let rawDropped = object["dropped"], !(rawDropped is NSNull) {
-                guard let items = rawDropped as? [[String: Any]] else {
-                    throw .invalid(field: "dropped", reason: "must be an array of objects")
-                }
-                for (index, item) in items.enumerated() {
-                    let path = "dropped[\(index)]"
-                    let reason = try nonEmptyField(item, "reason", path: path)
-                    guard reason == "asserts landing's own output" else {
-                        throw .invalid(field: "\(path).reason", reason: "`\(reason)` is not a permitted reason")
-                    }
-                    let clause = DroppedVerificationClause(
-                        cid: try nonEmptyField(item, "cid", path: path),
-                        issueID: try nonEmptyField(item, "issue_id", path: path),
-                        reason: reason
-                    )
-                    guard seen.insert("\(clause.issueID)\u{1F}\(clause.cid)").inserted else {
-                        throw .invalid(
-                            field: "dropped[\(index)]",
-                            reason: "clause \(clause.issueID)/\(clause.cid) appears twice"
-                        )
-                    }
-                    dropped.append(clause)
-                }
-            }
+            let clauses = try verifiedClauses(object, seen: &seen)
+            let dropped = try droppedClauses(object, seen: &seen)
             guard !clauses.isEmpty || !dropped.isEmpty else {
                 throw .invalid(field: "clauses", reason: "must name at least one clause")
             }
@@ -57,6 +19,56 @@ extension ResultFile {
         default:
             throw .invalid(field: "outcome", reason: "unknown outcome `\(outcomeRaw)`")
         }
+    }
+
+    /// The `clauses` list. `seen` is shared with ``droppedClauses(_:seen:)`` so that a clause named in
+    /// both lists is refused.
+    private static func verifiedClauses(
+        _ object: [String: Any], seen: inout Set<String>
+    ) throws(ResultFileError) -> [VerifiedClause] {
+        guard let raw = object["clauses"], !(raw is NSNull) else { return [] }
+        guard let items = raw as? [[String: Any]] else {
+            throw .invalid(field: "clauses", reason: "must be an array of objects")
+        }
+        var clauses: [VerifiedClause] = []
+        for (index, item) in items.enumerated() {
+            let clause = try verifiedClause(item, path: "clauses[\(index)]")
+            guard seen.insert("\(clause.issueID)\u{1F}\(clause.cid)").inserted else {
+                throw .invalid(
+                    field: "clauses[\(index)]", reason: "clause \(clause.issueID)/\(clause.cid) is judged twice"
+                )
+            }
+            clauses.append(clause)
+        }
+        return clauses
+    }
+
+    /// The `dropped` list: each entry names a clause and the one permitted reason.
+    private static func droppedClauses(
+        _ object: [String: Any], seen: inout Set<String>
+    ) throws(ResultFileError) -> [DroppedVerificationClause] {
+        guard let rawDropped = object["dropped"], !(rawDropped is NSNull) else { return [] }
+        guard let items = rawDropped as? [[String: Any]] else {
+            throw .invalid(field: "dropped", reason: "must be an array of objects")
+        }
+        var dropped: [DroppedVerificationClause] = []
+        for (index, item) in items.enumerated() {
+            let path = "dropped[\(index)]"
+            let reason = try nonEmptyField(item, "reason", path: path)
+            guard reason == "asserts landing's own output" else {
+                throw .invalid(field: "\(path).reason", reason: "`\(reason)` is not a permitted reason")
+            }
+            let clause = DroppedVerificationClause(
+                cid: try nonEmptyField(item, "cid", path: path),
+                issueID: try nonEmptyField(item, "issue_id", path: path),
+                reason: reason
+            )
+            guard seen.insert("\(clause.issueID)\u{1F}\(clause.cid)").inserted else {
+                throw .invalid(field: path, reason: "clause \(clause.issueID)/\(clause.cid) appears twice")
+            }
+            dropped.append(clause)
+        }
+        return dropped
     }
 
     private static func verifiedClause(_ item: [String: Any], path: String) throws(ResultFileError) -> VerifiedClause {
