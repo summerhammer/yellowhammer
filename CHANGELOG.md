@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.33.0](https://github.com/summerhammer/yellowhammer/compare/v0.32.0...v0.33.0) (2026-11-02)
+
+
+### Features
+
+* **board-projection:** Setup's closing report recommends grouping Work Cards under their Feature Card ([bf4f0d3](https://github.com/summerhammer/yellowhammer/commit/bf4f0d31744544cd1839df8ed822d42d38aace74))
+* **feature-authoring:** A halted Feature Card shows its Feature-level Definition of Done as editable, and Todo reads the edits as repair input (Halted Authoring Repair Ruling, 2026-10-23) ([8979c6f](https://github.com/summerhammer/yellowhammer/commit/8979c6fd7cbc1f43f9d423c5bf1da7252985411e))
+* **feature-authoring:** Breakdown pass drops a clause that asserts landing's own output and records it on the plan (OQ157, authoring half) ([bcb67ef](https://github.com/summerhammer/yellowhammer/commit/bcb67efa39a59f0aac8d44db46910b5ef04017d0))
+* **feature-authoring:** Halted Feature Card shows its saved Feature-level Definition of Done, and Todo reads the edited text as repair input ([15f4e4d](https://github.com/summerhammer/yellowhammer/commit/15f4e4d5df3f649826aa762819f784a3e3318e4f))
+* **feature-authoring:** Repair diagnostics and outcome comments name failing and dropped Feature-level clauses and unread Feature Card text ([7290007](https://github.com/summerhammer/yellowhammer/commit/7290007b92dfa35762c9ea5166f7378690eb601b))
+* **landing:** Name the Operator's route out in the remote tip failure (OQ194 item 2) ([e75f794](https://github.com/summerhammer/yellowhammer/commit/e75f7949e81d5a94698db6ae697c5992cc1a9fff))
+* **landing:** Pin unpublished Worktree HEADs before cancellation releases them (OQ194 item 3) ([0eb910b](https://github.com/summerhammer/yellowhammer/commit/0eb910b74cc313f7d6c54d3480284c17dde044ba))
+* **landing:** Record and word a cancellation pin as not published (OQ194 item 3) ([b33bfe4](https://github.com/summerhammer/yellowhammer/commit/b33bfe4e2243a03b3cd9a24129ca340f49898063))
+* **settings:** Sample Repo role picker and composed-at-dispatch wording on the prompt template sheet ([0628c2b](https://github.com/summerhammer/yellowhammer/commit/0628c2b628f0e56cdf64e6b69de84e1eb977ac6f)), closes [#710](https://github.com/summerhammer/yellowhammer/issues/710)
+* **verification:** Verification record and clause report hold a screened-out clause with its reason and no verdict (OQ157, record half) ([dff1904](https://github.com/summerhammer/yellowhammer/commit/dff1904a9a174f3dd35a58b2f989bdc557f94cd7))
+* **verification:** Verifier screens Author-supplied clauses and reports the ones it drops (OQ157, screen half) ([2278555](https://github.com/summerhammer/yellowhammer/commit/227855527a70f7edc0362c5bfc9b918db8e1bec3))
+
+
+### Bug Fixes
+
+* **authoring:** preserve Feature prose during halt repair ([#745](https://github.com/summerhammer/yellowhammer/issues/745)) ([ead58da](https://github.com/summerhammer/yellowhammer/commit/ead58dab93cf940c0d4b1503d7c7a156c4370288))
+* **engine:** compact the Verification report to fit the Feature Card's description budget ([#747](https://github.com/summerhammer/yellowhammer/issues/747)) ([52e59c3](https://github.com/summerhammer/yellowhammer/commit/52e59c3ac7fa05dc77c3af0d697e61ceb536b591))
+* **pulse:** label the Awaiting merge count, its stack limit and merge fractions ([e10da52](https://github.com/summerhammer/yellowhammer/commit/e10da5225ce83f77012feea97a48086828877aba))
+
 ## [0.32.0](https://github.com/summerhammer/yellowhammer/compare/v0.31.0...v0.32.0) (2026-10-31)
 
 
