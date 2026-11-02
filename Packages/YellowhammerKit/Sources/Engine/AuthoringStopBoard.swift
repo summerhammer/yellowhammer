@@ -17,7 +17,8 @@ enum AuthoringStopBoard {
     /// is handed the Feature Issue's id before the comment is posted, so the Journal row carries it.
     static func post(
         feature: FeatureName, body: String, context: ActContext,
-        reopenKey: String? = nil, commentSuffix: String? = nil, recordIssue: (String) throws -> Void,
+        reopenKey: String? = nil, commentSuffix: String? = nil,
+        featureClauses: [DefinitionOfDoneClauseDraft]? = nil, recordIssue: (String) throws -> Void,
         recordState: ((BoardObjectID) throws -> Void)? = nil
     ) async throws {
         guard let outbox = context.outbox, let board = context.board else { return }
@@ -33,7 +34,7 @@ enum AuthoringStopBoard {
         let generation = try context.journal.authoredFeatureCount(feature: feature.rawValue)
         let issueKey = createKey(feature, generation: generation)
         let draft = BoardIssueDraft(
-            team: scope.team, title: feature.rawValue, description: ManagedBlockFence.initialDescription(rendered: ""),
+            team: scope.team, title: feature.rawValue, description: initialDescription(featureClauses),
             labels: [featureLabelID], workflowState: waitingOnYouID, assignee: assignee
         )
         let delivery = try await outbox.post(OutboxWrite(key: issueKey, write: .createIssue(draft, parentKey: nil)))
@@ -80,6 +81,13 @@ enum AuthoringStopBoard {
 }
 
 extension AuthoringStopBoard {
+    private static func initialDescription(_ clauses: [DefinitionOfDoneClauseDraft]?) -> String {
+        let empty = ManagedBlockFence.initialDescription(rendered: "")
+        return clauses.flatMap {
+            FeatureAuthoringProse.replace(in: empty, prose: FeatureDefinitionOfDone.render($0))
+        } ?? empty
+    }
+
     /// The Outbox key a stop creates its Feature Issue under. Generation 0 is the key older Journals already
     /// hold entries under, so it stays byte-identical; later generations get their own.
     static func createKey(_ feature: FeatureName, generation: Int) -> String {

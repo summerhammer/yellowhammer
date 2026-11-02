@@ -27,9 +27,17 @@ enum HaltDrafts {
         let journal = context.journal
         guard let outbox = context.outbox, let board = context.board, let parent = halt.issueID,
               let feature = FeatureName(rawValue: halt.featureName),
-              let breakdown = try journal.authoringHaltCheckpoint(haltID: halt.id)?.breakdown,
-              !breakdown.cards.isEmpty
+              let breakdown = try journal.authoringHaltCheckpoint(haltID: halt.id)?.breakdown
         else { return }
+        // This per-halt write also exposes a breakdown produced after a pre-breakdown halt. Once applied,
+        // replay never writes over the Operator's saved-field edits; a crash before delivery retries it.
+        _ = try await outbox.post(OutboxWrite(
+            key: "feature:\(feature.rawValue):authoring-halt:\(halt.id):definition-of-done",
+            write: .rewriteFeatureDefinitionOfDone(
+                issue: BoardObjectID(rawValue: parent),
+                prose: FeatureDefinitionOfDone.render(breakdown.definitionOfDone)
+            )
+        ))
         let seeds = breakdown.cards.enumerated().map { index, card in
             AuthoringHaltDraftSeed(
                 outboxKey: outboxKey(feature: feature, haltID: halt.id, position: index + 1),

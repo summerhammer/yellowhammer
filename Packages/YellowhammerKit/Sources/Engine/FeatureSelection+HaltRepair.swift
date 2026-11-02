@@ -207,7 +207,8 @@ extension FeatureSelection {
             )
             try await HaltedFeatureRepair.postCommentOnce(
                 key: HaltedFeatureRepair.commentKey(halt: halt, seq: seq, kind: "accepted"), issue: issue,
-                body: "Repair of Feature '\(feature)' is accepted: it continues as this same Feature.",
+                body: "Repair of Feature '\(feature)' is accepted: it continues as this same Feature. "
+                    + "Other Feature Card text was not read as repair input.",
                 context: context
             )
         case .halted:
@@ -244,7 +245,8 @@ extension FeatureSelection {
             key: HaltedFeatureRepair.commentKey(halt: halt, seq: seq, kind: "invalid"), issue: issue,
             body: """
                 Repair of Feature '\(feature)' is not accepted: the halt still holds, so the Feature stays halted \
-                and keeps its checkpoint, its drafts and your edits.
+                and keeps its checkpoint, its drafts and your edits. Other Feature Card text was not read as repair \
+                input.
 
                 \(current.content)\(diagnostic)
                 """,

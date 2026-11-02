@@ -38,12 +38,13 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
     public let feature: BoardObjectID
     public let featureRevision: Date
     let featureDefinitionOfDone: [DefinitionOfDoneClauseDraft]
+    let featureProblems: [String]
     public let children: [Child]
     public let excluded: [BoardObjectID]
 
     /// Every problem, each naming its child.
     public var problems: [String] {
-        children.flatMap { child in child.problems.map { "\(child.label): \($0)" } }
+        featureProblems + children.flatMap { child in child.problems.map { "\(child.label): \($0)" } }
     }
 
     /// The breakdown the children make: the Feature's own Definition of Done and one Card per child, in order.
@@ -97,9 +98,10 @@ public struct HaltRepairSnapshot: Equatable, Sendable {
             }
             children.append(child(from: object))
         }
+        let parsed = FeatureDefinitionOfDone.parse(featureObject.description ?? "")
         return HaltRepairSnapshot(
             haltID: halt.id, feature: feature, featureRevision: featureObject.updatedAt,
-            featureDefinitionOfDone: checkpoint.breakdown?.definitionOfDone ?? [], children: children,
+            featureDefinitionOfDone: parsed.clauses, featureProblems: parsed.problems, children: children,
             excluded: excluded
         )
     }

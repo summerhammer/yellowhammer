@@ -132,6 +132,12 @@ struct HaltedFeatureRepairTests {
         let issue = try world.issueID()
         #expect(world.rig.selector.callCount == 1)
         #expect(try await world.state(of: issue) == (try world.scope().id(for: .waitingOnYou)))
+        let description = try #require(await world.writing.issue(issue)?.description)
+        #expect(!description.contains("Definition of done"), "a pre-breakdown halt has no saved Feature field")
+        let operatorProse = try #require(FeatureAuthoringProse.replace(
+            in: description, prose: "## Why this Feature\nOperator reasoning before breakdown."
+        )) + "\n\n## Definition of done\n\n- [ ] Operator prose without a citation."
+        await world.writing.edit(issue, description: operatorProse)
 
         try await world.operatorMoves(issue, to: .todo)
         try await world.runAuthorAct(night: "2026-10-02")

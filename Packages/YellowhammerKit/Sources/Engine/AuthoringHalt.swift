@@ -42,6 +42,7 @@ enum AuthoringHalt {
         try await AuthoringStopBoard.post(
             feature: feature, body: cause.description, context: context, reopenKey: reopenKey,
             commentSuffix: repeatedFault ? context.runID.rawValue : nil,
+            featureClauses: breakdown?.definitionOfDone,
             recordIssue: { try context.journal.recordAuthoringHaltIssue(feature: feature, issueID: $0) },
             // The Feature Card is Waiting on You after this post, so that is the state every later halt-related
             // write is decided against (roadmap P22.5) until the board is read again.
