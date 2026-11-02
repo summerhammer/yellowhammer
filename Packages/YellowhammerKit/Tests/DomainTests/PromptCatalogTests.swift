@@ -16,8 +16,8 @@ struct PromptCatalogTests {
             sha256: "5db550452d8aa0e19286126eba730ebd9646531d712c23ac99a0c0d14a1dedf9"
         ),
         .breakdown: PinRecord(
-            version: 1,
-            sha256: "dfd9d78730508c8ac6ce178630a5273a42e9937496032706b0a435d349cb57c3"
+            version: 2,
+            sha256: "0356fdf0595e95aeb30e84e079df5ac1783b90b00180ccba343dec66321d3186"
         ),
         .architect: PinRecord(
             version: 1,

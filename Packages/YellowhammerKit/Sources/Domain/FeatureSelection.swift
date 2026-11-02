@@ -173,6 +173,9 @@ public struct SelectedFeature: Equatable, Sendable {
 /// the Card it belonged to when it was Card-level, its text, the citation it carried, and why the
 /// resolver refused it.
 public struct UncitableClause: Equatable, Sendable {
+    /// The distinct reason recorded when a clause asserts an output Yellowhammer produces during landing (OQ157).
+    public static let landingOutputReason = "asserts landing's own output"
+
     /// `"feature"` or `"card"`.
     public let level: String
     /// The Card's title, when ``level`` is `"card"`; nil for a Feature-level clause.

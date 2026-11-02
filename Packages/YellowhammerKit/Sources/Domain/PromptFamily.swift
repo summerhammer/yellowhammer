@@ -46,6 +46,8 @@ public enum PromptFamily: String, CaseIterable, Codable, Sendable {
         switch self {
         // 2: the verifier judges the commit its checkout is at, not the head of each Feature Branch (OQ191).
         case .verifier: 2
+        // 2: the breakdown pass drops a clause that asserts landing's own output (OQ157).
+        case .breakdown: 2
         default: 1
         }
     }

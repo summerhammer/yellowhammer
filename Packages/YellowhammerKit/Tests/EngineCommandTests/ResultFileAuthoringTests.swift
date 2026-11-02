@@ -167,6 +167,72 @@ struct BreakdownResultFileTests {
             breakdown(#""outcome": "drafted", "cards": [{\#(card), "kind": "impl"}]"#),
             .breakdown, field: "cards[0].unit_of_work"
         )
+        invalid(
+            breakdown(#"""
+                "outcome": "drafted", "cards": [{\#(card), "kind": "impl.x", "unit_of_work": "U"}],
+                "dropped_clauses": [{"text": "T", "citation": "", "card_title": null, "reason": "bogus"}]
+                """#),
+            .breakdown, field: "dropped_clauses[0].reason"
+        )
+        invalid(
+            breakdown(#"""
+                "outcome": "drafted", "cards": [{\#(card), "kind": "impl.x", "unit_of_work": "U"}],
+                "dropped_clauses": [{"text": "T", "citation": "", "reason": "asserts landing's own output"}]
+                """#),
+            .breakdown, field: "dropped_clauses[0].card_title"
+        )
+    }
+
+    @Test("drafted decodes dropped_clauses at Feature level and Card level, and absent/null field yields empty array")
+    func droppedClausesDecoding() throws {
+        let withDropped = try decode(breakdown("""
+            "outcome": "drafted",
+            "definition_of_done": [{"text": "T", "citation": "e/s"}],
+            "cards": [{
+              "repository": "a", "kind": "impl.x", "title": "C", "unit_of_work": "U", "brief": "B"
+            }],
+            "dropped_clauses": [
+              {
+                "text": "Feature landing drop", "citation": "", "card_title": null,
+                "reason": "asserts landing's own output"
+              },
+              {
+                "text": "Card landing drop", "citation": "e/s2", "card_title": "C",
+                "reason": "asserts landing's own output"
+              }
+            ]
+            """), .breakdown)
+
+        guard case .breakdown(let breakdownResult) = withDropped,
+              case .drafted(let featureBreakdown) = breakdownResult.outcome else {
+            Issue.record("expected drafted breakdown")
+            return
+        }
+        #expect(featureBreakdown.droppedClauses == [
+            DroppedClauseDraft(
+                text: "Feature landing drop", citation: "", cardTitle: nil,
+                reason: "asserts landing's own output"
+            ),
+            DroppedClauseDraft(
+                text: "Card landing drop", citation: "e/s2", cardTitle: "C",
+                reason: "asserts landing's own output"
+            )
+        ])
+
+        let withNull = try decode(breakdown("""
+            "outcome": "drafted",
+            "definition_of_done": [{"text": "T", "citation": "e/s"}],
+            "cards": [{
+              "repository": "a", "kind": "impl.x", "title": "C", "unit_of_work": "U", "brief": "B"
+            }],
+            "dropped_clauses": null
+            """), .breakdown)
+        guard case .breakdown(let nullResult) = withNull,
+              case .drafted(let nullBreakdown) = nullResult.outcome else {
+            Issue.record("expected drafted breakdown")
+            return
+        }
+        #expect(nullBreakdown.droppedClauses.isEmpty)
     }
 
     @Test("A file declaring another pass's schema is a pass mismatch, and an unknown version is refused")
@@ -328,6 +394,37 @@ struct AuthoringFixtureTests {
         #expect(!selection.render().contains("autonomous worker agent CLI"))
         #expect(!selection.render().contains("it must be a file git tracks at that commit"))
         #expect(!selection.render().contains("effective_base(R) <- WC1 <- WC2"))
+    }
+
+    @Test("The breakdown render states the landing-outputs drop test; selection does not (OQ157)")
+    func landingOutputsDropInstructionRendering() throws {
+        let route = Route(cli: "claude", model: "opus", effort: "high")!
+        let breakdown = AuthoringInstruction(
+            pass: .breakdown, route: route,
+            specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
+            repos: [Repo(name: "backend", path: "/b", role: .backend)], mainlines: ResolvedMainlines(),
+            namedFeature: nil, adoptionCandidates: [], selectedFeature: nil
+        ).render()
+        let selection = AuthoringInstruction(
+            pass: .selection, route: route,
+            specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
+            repos: [Repo(name: "backend", path: "/b", role: .backend)], mainlines: ResolvedMainlines(),
+            namedFeature: nil, adoptionCandidates: [], selectedFeature: nil
+        ).render()
+
+        #expect(breakdown.contains("A Definition of Done clause that asserts an output Yellowhammer itself produces"))
+        #expect(breakdown.contains("the push, the pull request, the merge, the Cycle archive, or Yellowhammer's own"))
+        #expect(breakdown.contains("leave such a clause out of `definition_of_done` and list it in `dropped_clauses`"))
+        #expect(breakdown.contains("The test is who performs the action and when, not keywords"))
+        #expect(breakdown.contains(
+            "a clause about pull requests, merges or board writes stays when it describes the Feature's own"
+        ))
+        #expect(breakdown.contains("when it is unclear whether the test applies, keep the clause"))
+        #expect(breakdown.contains("optional `dropped_clauses`"))
+
+        #expect(!selection.contains("landing's own output"))
+        #expect(!selection.contains("dropped_clauses"))
+        #expect(!selection.contains("Cycle archive"))
     }
 
     @Test("The breakdown is told the description budget, apart from how a contract path is read; selection is not")

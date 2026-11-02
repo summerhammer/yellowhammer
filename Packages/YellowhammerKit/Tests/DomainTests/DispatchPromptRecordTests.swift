@@ -8,7 +8,8 @@ struct DispatchPromptRecordTests {
     func promptFamilyProperties() {
         for family in PromptFamily.allCases {
             // The verifier's text changed for OQ191 (it judges the commit its checkout is at).
-            #expect(family.defaultVersion == (family == .verifier ? 2 : 1))
+            // The breakdown's text changed for OQ157 (drops landing's own outputs).
+            #expect(family.defaultVersion == (family == .verifier || family == .breakdown ? 2 : 1))
         }
 
         let productionFamilies: Set<PromptFamily> = [
