@@ -143,7 +143,9 @@ extension JournalStore {
             guard existing == nil else { return nil }
 
             let timestamp = JournalStore.timestamp(now)
-            let worktreeName = WorktreeName(project: projectID.rawValue, feature: plan.name)
+            let worktreeName = WorktreeName(
+                project: projectID.rawValue, feature: plan.name, featureIssueID: featureIssueID
+            )
             try db.execute(
                 sql: """
                 INSERT INTO feature (issue_id, selected_night_id, state, worktree_name, created_at)

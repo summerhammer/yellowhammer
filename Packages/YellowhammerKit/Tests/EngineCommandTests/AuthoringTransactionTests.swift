@@ -59,8 +59,36 @@ struct AuthoringTransactionTests {
 
         #expect(outcome == .authored)
         let (recorded, _) = try #require(try rig.journal.inFlightFeature())
-        let expected = WorktreeName(project: rig.fixture.projectID.rawValue, feature: "FEAT-1")
+        let expected = WorktreeName(
+            project: rig.fixture.projectID.rawValue, feature: "FEAT-1", featureIssueID: recorded.issueID
+        )
         #expect(recorded.worktreeName == expected)
+    }
+
+    @Test("Authoring the same title as separate Features gives each Cycle a distinct Worktree name")
+    func sameTitleFeaturesHaveDistinctWorktreeNames() async throws {
+        let rig = try await AuthoringRig()
+        let context = try rig.context()
+        _ = try await rig.run(context)
+        let (first, _) = try #require(try rig.journal.inFlightFeature())
+        let accepted = try #require(try rig.journal.events(ofType: .featureAuthoringAccepted).first)
+        guard case .featureAuthoringAccepted(let plan) = accepted.event else {
+            Issue.record("Expected the accepted authoring plan")
+            return
+        }
+        let nextPlan = FeatureAuthoringAcceptedPayload(
+            name: plan.name, groupKey: plan.groupKey + ":next", featureKey: plan.featureKey + ":next",
+            nightID: plan.nightID, cards: [], adoptions: [], repositories: plan.repositories, bases: plan.bases
+        )
+        try rig.journal.finaliseAuthoring(
+            AuthoredFeature(plan: nextPlan, featureIssueID: "another-feature", cards: []),
+            runID: context.runID, act: .author, nightID: context.night.id
+        )
+        let second = try #require(try rig.journal.feature(issueID: "another-feature"))
+        #expect(first.worktreeName != second.worktreeName)
+        #expect(second.worktreeName == WorktreeName(
+            project: rig.fixture.projectID.rawValue, feature: plan.name, featureIssueID: "another-feature"
+        ))
     }
 
     @Test("The plan is recorded with the group's keys, and the group carries no Linear milestone or cycle write")
