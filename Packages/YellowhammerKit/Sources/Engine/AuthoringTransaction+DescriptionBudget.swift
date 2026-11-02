@@ -59,6 +59,7 @@ extension AuthoringTransaction {
             existingFeatureIssueID: existing, stopCreateKey: stopCreateKey
         )
         planner.draftChildren = snapshot?.draftChildren ?? []
+        planner.repairing = try context.journal.liveAuthoringHalts().contains { $0.issueID == existing?.rawValue }
         planner.bases = context.featureBases
         var plan = try planner.plan()
         plan.repairSnapshot = snapshot

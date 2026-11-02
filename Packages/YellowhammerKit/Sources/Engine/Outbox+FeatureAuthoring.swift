@@ -51,11 +51,17 @@ extension Outbox {
             )
         case .rewriteFeatureAuthoring(let issue, let prose):
             return try await performFeatureAuthoring(issue: issue, prose: prose, entry: entry)
+        case .rewriteFeatureDefinitionOfDone(let issue, let prose):
+            return try await performFeatureAuthoring(
+                issue: issue, prose: prose, preservingOtherText: true, entry: entry
+            )
         default: throw OutboxError.payloadUnreadable(entryID: entry.id)
         }
     }
 
-    func performFeatureAuthoring(issue: BoardObjectID, prose: String, entry: OutboxEntry) async throws -> Performed {
+    func performFeatureAuthoring(
+        issue: BoardObjectID, prose: String, preservingOtherText: Bool = false, entry: OutboxEntry
+    ) async throws -> Performed {
         let snapshot = try await board.issueDescription(issue)
         let parts: ManagedBlockFence.Parts
         switch ManagedBlockFence.parts(of: snapshot.description) {
@@ -63,13 +69,15 @@ extension Outbox {
         case .success(let value): parts = value
         }
         guard let description = snapshot.description,
-              let composed = FeatureAuthoringProse.replace(in: description, prose: prose) else {
+              let composed = preservingOtherText
+                ? FeatureDefinitionOfDone.replace(in: description, section: prose)
+                : FeatureAuthoringProse.replace(in: description, prose: prose) else {
             return .unfenced(.featureAuthoringMalformed)
         }
         // The Feature's brief and Definition of Done are the Operator's to edit. A region that no longer holds
         // what Yellowhammer last wrote carries such an edit: re-authoring does not replace it.
         let regionKey = FeatureAuthoringProse.regionKey(issue)
-        if let current = FeatureAuthoringProse.current(in: description), current != prose,
+        if !preservingOtherText, let current = FeatureAuthoringProse.current(in: description), current != prose,
            let written = try journal.managedBlockLastPostedHash(issueID: regionKey),
            written != ManagedBlockFence.sha256(current) {
             return .inputInvalid(
@@ -95,7 +103,8 @@ extension Outbox {
         if object?.archivedAt != nil { throw OutboxError.archivedIssue(issue) }
         _ = try await board.updateIssue(issue, BoardIssueChange(description: composed))
         try journal.recordManagedBlockPosted(
-            issueID: regionKey, hash: ManagedBlockFence.sha256(prose), now: clock()
+            issueID: regionKey,
+            hash: ManagedBlockFence.sha256(FeatureAuthoringProse.current(in: composed) ?? prose), now: clock()
         )
         return .fenced(
             ManagedBlockFence.Replacement(description: composed, preservedProse: composedParts.preservedProse),

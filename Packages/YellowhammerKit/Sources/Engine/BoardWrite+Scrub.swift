@@ -1,8 +1,10 @@
 import Domain
 
 extension BoardWrite {
-    /// This write with every narrative string passed through `scrub` (OQ146/OQ147, R23). Identifiers,
-    /// URLs and the Managed Block `prefix` (a match key, not narrative) are left as they are.
+    // This write with every narrative string passed through `scrub` (OQ146/OQ147, R23). Identifiers,
+    // URLs and the Managed Block `prefix` (a match key, not narrative) are left as they are.
+    // Each case is one persisted Board operation.
+    // swiftlint:disable:next cyclomatic_complexity
     func scrubbed(by scrub: NarrativeScrub) -> BoardWrite {
         switch self {
         case .createIssue(var draft, let parentKey):
@@ -17,6 +19,8 @@ extension BoardWrite {
             return .rewriteManagedBlock(issue: issue, rendered: scrub.apply(rendered))
         case .rewriteFeatureAuthoring(let issue, let prose):
             return .rewriteFeatureAuthoring(issue: issue, prose: scrub.apply(prose))
+        case .rewriteFeatureDefinitionOfDone(let issue, let prose):
+            return .rewriteFeatureDefinitionOfDone(issue: issue, prose: scrub.apply(prose))
         case .rewriteManagedBlockCompacting(let issue, let renderings):
             return .rewriteManagedBlockCompacting(issue: issue, renderings: renderings.map(scrub.apply))
         case .updateManagedBlockLine, .updateManagedBlockLinesCompacting:

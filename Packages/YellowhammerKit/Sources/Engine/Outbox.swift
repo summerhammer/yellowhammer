@@ -318,8 +318,8 @@ public struct Outbox: Sendable {
             return .created(try await board.createComment(on: issue, body: body, clientID: entry.clientID))
         case .attachLink(let issue, let url, let title):
             return .created(try await board.attachLink(to: issue, url: url, title: title, clientID: entry.clientID))
-        case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteManagedBlockCompacting,
-             .updateManagedBlockLinesCompacting:
+        case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteFeatureDefinitionOfDone,
+             .rewriteManagedBlockCompacting, .updateManagedBlockLinesCompacting:
             return try await performDescription(write, entry: entry)
         case .updateManagedBlockLine(let issue, let prefix, let line):
             return try await performManagedBlock(

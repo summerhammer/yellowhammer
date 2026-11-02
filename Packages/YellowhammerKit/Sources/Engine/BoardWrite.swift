@@ -19,6 +19,8 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     /// Replaces the engine-authored Feature prose outside the Roll-up's Managed Block, preserving
     /// unrelated text. Used only when an accepted transaction reuses a stopped Feature Issue.
     case rewriteFeatureAuthoring(issue: BoardObjectID, prose: String)
+    /// Replaces only the repaired Feature Definition of Done, preserving every other prose byte.
+    case rewriteFeatureDefinitionOfDone(issue: BoardObjectID, prose: String)
     /// Replaces matching report lines at delivery time, preserving the rest of the current block.
     case updateManagedBlockLine(issue: BoardObjectID, prefix: String, line: String)
     /// Workflow state, labels, assignment, `parentId` and title. Never a description: the Outbox
@@ -51,7 +53,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createIssue: "issueCreate"
         case .createComment: "commentCreate"
         case .attachLink: "attachmentCreate"
-        case .rewriteManagedBlock, .rewriteFeatureAuthoring: "descriptionRewrite"
+        case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteFeatureDefinitionOfDone: "descriptionRewrite"
         case .rewriteManagedBlockCompacting: "descriptionRewrite"
         case .updateManagedBlockLine, .updateManagedBlockLinesCompacting: "descriptionRewrite"
         case .updateIssue: "issueUpdate"
@@ -67,6 +69,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
             nil
         case .createComment(let issue, _), .attachLink(let issue, _, _), .rewriteManagedBlock(let issue, _),
              .rewriteManagedBlockCompacting(let issue, _), .rewriteFeatureAuthoring(let issue, _),
+             .rewriteFeatureDefinitionOfDone(let issue, _),
              .updateIssue(let issue, _, _), .archiveIssue(let issue), .adoptIssue(let issue, _, _),
              .updateManagedBlockLine(let issue, _, _), .updateManagedBlockLinesCompacting(let issue, _, _):
             issue
@@ -76,6 +79,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     /// Whether this is the rewrite of a Feature Issue's authored brief and Definition of Done.
     var isFeatureAuthoring: Bool {
         if case .rewriteFeatureAuthoring = self { return true }
+        if case .rewriteFeatureDefinitionOfDone = self { return true }
         return false
     }
 
@@ -83,7 +87,8 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     var isCreate: Bool {
         switch self {
         case .createIssue, .createComment, .attachLink: true
-        case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteManagedBlockCompacting,
+        case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteFeatureDefinitionOfDone,
+             .rewriteManagedBlockCompacting,
              .updateManagedBlockLine, .updateManagedBlockLinesCompacting, .updateIssue,
              .archiveIssue, .adoptIssue: false
         }

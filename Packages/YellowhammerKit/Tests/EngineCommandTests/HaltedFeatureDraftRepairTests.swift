@@ -11,7 +11,7 @@ import Testing
 // Todo — validates the snapshot with the same validators as a machine-authored plan and reuses the drafts under
 // their existing issue ids. Nothing model-authored is asserted.
 
-private func overlappingBreakdown() throws -> FeatureBreakdown {
+func overlappingBreakdown() throws -> FeatureBreakdown {
     let kind = try authoringKind()
     func card(_ title: String, _ repository: String, contracts: [ContractDraft] = []) -> CardDraft {
         CardDraft(
@@ -35,7 +35,7 @@ private func overlappingBreakdown() throws -> FeatureBreakdown {
 private let noScope = "**Scope:** _none declared_"
 private let docsScope = "**Scope:** `docs/`"
 
-private final class DraftWorld {
+final class DraftWorld {
     let rig: AuthoringRig
     let reading: FakeReadingBoard
     let feature = FeatureName(rawValue: "FEAT-1")!

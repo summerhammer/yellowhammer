@@ -2,8 +2,8 @@ import Domain
 import Foundation
 import Journal
 
-/// Tracks the baseline of a halted Feature Card's title and description outside the Managed Block and
-/// `yh:feature-authoring` region (Halted Authoring Repair Ruling 2026-10-23, item 5; spec:
+/// Tracks a halted Feature Card's title and its prose outside the Managed Block and editable Definition
+/// of Done section (Halted Authoring Repair Ruling 2026-10-23, item 5; spec:
 /// `feature-authoring/select-the-next-feature`, `#feature-dod-repair`).
 enum HaltOtherTextBaseline {
     static let notReadSentence =
@@ -14,8 +14,8 @@ enum HaltOtherTextBaseline {
         "feature-halt-other-text:\(issue.rawValue)"
     }
 
-    /// Strips the Managed Block fence contents and the `yh:feature-authoring` region from `description`,
-    /// and returns the title plus the remaining description.
+    /// Strips the Managed Block and editable Definition of Done, retaining other authored-region prose
+    /// as well as text outside that region. The engine-owned draft headline does not count as an edit.
     static func otherText(title: String, description: String?) -> String {
         let desc = description ?? ""
         var text: String
@@ -29,6 +29,12 @@ enum HaltOtherTextBaseline {
            let end = text.range(of: FeatureAuthoringProse.end, options: .backwards),
            start.lowerBound <= end.upperBound {
             text.removeSubrange(start.lowerBound..<end.upperBound)
+            if var region = FeatureAuthoringProse.current(in: desc) {
+                if let range = FeatureDefinitionOfDone.sectionRange(in: region) { region.removeSubrange(range) }
+                region = region.replacingOccurrences(of: HaltDrafts.featureHeadline, with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !region.isEmpty { text += "\n" + region }
+            }
         }
         return title + "\n" + text
     }
