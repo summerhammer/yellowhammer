@@ -132,7 +132,8 @@ struct VerificationLimitationLandActTests {
         try #require(firing.error == nil)
 
         let block = try queuedReport(world)
-        #expect(occurrences(of: VerificationReport.separateChecksSentence, in: block) == 1)
+        // The queued payload holds the report's whole ladder (#670), the limitation once on each of its 3 rungs.
+        #expect(occurrences(of: VerificationReport.separateChecksSentence, in: block) == 3)
         for repository in ["backend", "mobile"] {
             let body = try await openedBody(world, repository)
             #expect(body.contains(VerificationReport.limitation + " " + VerificationReport.separateChecksSentence))

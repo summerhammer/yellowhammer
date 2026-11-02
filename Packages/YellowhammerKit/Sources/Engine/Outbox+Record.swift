@@ -37,10 +37,8 @@ extension Outbox {
             return try supersedeForImport(entry, write: write, fields: fields)
         case .inputInvalid(_, let reason, let blockHash):
             return try await abortInputInvalid(entry, write: write, reason: reason, blockHash: blockHash)
-        case .overBudget(let length, let budget, let renderingAloneFits):
-            return try await abortOverBudget(
-                entry, write: write, length: length, budget: budget, renderingAloneFits: renderingAloneFits
-            )
+        case .overBudget(let length, let budget, let cause):
+            return try await abortOverBudget(entry, write: write, length: length, budget: budget, cause: cause)
         }
     }
 

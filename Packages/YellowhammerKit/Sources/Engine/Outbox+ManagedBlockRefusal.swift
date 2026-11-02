@@ -7,6 +7,16 @@ import Journal
 // description is left untouched.
 
 extension Outbox {
+    /// What the refusal of an over-budget write is attributed to (issue #670).
+    enum OverBudgetCause: Equatable {
+        /// A whole Managed Block, or a Feature's authored prose; `renderingAloneFits` says whether the most
+        /// compacted block would fit with none of the issue's other text.
+        case blockRewrite(renderingAloneFits: Bool)
+        /// A targeted report, whose lines all start `prefix`; `reportAloneFits` says whether the most
+        /// compacted report would fit with none of the issue's other text.
+        case lineUpdate(prefix: String, reportAloneFits: Bool)
+    }
+
     /// The delimiters of the issue's description could not be located.
     func abortUnfenced(
         _ entry: OutboxEntry, write: BoardWrite, failure: ManagedBlockFence.Failure
@@ -28,7 +38,7 @@ extension Outbox {
 
     /// No rendering offered fits the description budget.
     func abortOverBudget(
-        _ entry: OutboxEntry, write: BoardWrite, length: Int, budget: DescriptionBudget, renderingAloneFits: Bool
+        _ entry: OutboxEntry, write: BoardWrite, length: Int, budget: DescriptionBudget, cause: OverBudgetCause
     ) async throws -> OutboxDelivery {
         guard let issue = write.issueID else { throw OutboxError.payloadUnreadable(entryID: entry.id) }
         let unit = budget.limit.unit.plural
@@ -39,7 +49,7 @@ extension Outbox {
             key: "diagnostic:managed-block-over-budget:\(entry.clientID.uuidString.lowercased())",
             write: .createComment(
                 issue: issue,
-                body: Self.overBudgetComment(length: length, budget: budget, renderingAloneFits: renderingAloneFits)
+                body: Self.overBudgetComment(length: length, budget: budget, cause: cause)
             ),
             cardID: entry.cardID
         ))
@@ -49,21 +59,38 @@ extension Outbox {
         return OutboxDelivery(entry: aborted, outcome: .aborted(reason: reason))
     }
 
-    /// Names the composed size, the budget and its unit, and the likely cause: a Managed Block that cannot
-    /// fit on its own points at a lowered budget or a longer Route id; otherwise the Operator's text does.
-    static func overBudgetComment(length: Int, budget: DescriptionBudget, renderingAloneFits: Bool) -> String {
+    /// Names the composed size, the budget and its unit, and the likely cause. A whole Managed Block that
+    /// cannot fit on its own points at a lowered budget or a longer Route id; otherwise the Operator's text
+    /// does. A targeted report is named by its prefix and is never blamed on either: Yellowhammer wrote it
+    /// (issue #670).
+    static func overBudgetComment(length: Int, budget: DescriptionBudget, cause: OverBudgetCause) -> String {
         let unit = budget.limit.unit.plural
-        let cause = renderingAloneFits
-            ? "The text that takes the room is the Operator's: the prose outside the Managed Block, or the "
-                + "Architectural Brief, Definition of Done and references inside it."
-            : "Even the most compacted Managed Block does not fit on its own, so the likely cause is a "
-                + "description budget lowered after the Card was written, a longer Route id, or the Operator's "
-                + "own text inside the Managed Block."
-        return """
-        Yellowhammer could not update this issue's Managed Block: the whole description would be \(length) \
-        \(unit) long, over the description budget of \(budget.value) \(unit), even with the Managed Block \
-        compacted. The description was left untouched. \(cause)
-        """
+        switch cause {
+        case .blockRewrite(let renderingAloneFits):
+            let reason = renderingAloneFits
+                ? "The text that takes the room is the Operator's: the prose outside the Managed Block, or the "
+                    + "Architectural Brief, Definition of Done and references inside it."
+                : "Even the most compacted Managed Block does not fit on its own, so the likely cause is a "
+                    + "description budget lowered after the Card was written, a longer Route id, or the "
+                    + "Operator's own text inside the Managed Block."
+            return """
+            Yellowhammer could not update this issue's Managed Block: the whole description would be \(length) \
+            \(unit) long, over the description budget of \(budget.value) \(unit), even with the Managed Block \
+            compacted. The description was left untouched. \(reason)
+            """
+        case .lineUpdate(let prefix, let reportAloneFits):
+            let reason = reportAloneFits
+                ? "The report fits the budget on its own, so the rest of the description (the Operator's text, "
+                    + "or the Managed Block's other lines) leaves too little room for it."
+                : "The report itself is longer than the budget: raising the Board Connection's description "
+                    + "budget in Settings › Board connections would let it fit."
+            return """
+            Yellowhammer could not write the report on the lines starting `\(prefix)` into this issue's \
+            Managed Block: the whole description would be \(length) \(unit) long, over the description budget \
+            of \(budget.value) \(unit), even with the report compacted to its shortest form. The description \
+            was left untouched. \(reason) The full report stays in the Journal.
+            """
+        }
     }
 
     static func diagnosticComment(for failure: ManagedBlockFence.Failure) -> String {

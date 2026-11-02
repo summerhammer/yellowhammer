@@ -302,9 +302,9 @@ public struct Outbox: Sendable {
         /// The description holds an edit to a Card's input that cannot be read: nothing is written.
         case inputInvalid(field: String, reason: String, blockHash: String)
         /// Every rendering offered would make the whole description longer than the budget. `length` is the
-        /// composed size of the most compacted one; `renderingAloneFits` says whether that rendering, with
-        /// none of the issue's other text, would fit.
-        case overBudget(length: Int, budget: DescriptionBudget, renderingAloneFits: Bool)
+        /// composed size of the most compacted one; `cause` says whether that rendering, with none of the
+        /// issue's other text, would fit, and whether it was a whole block or a report's lines.
+        case overBudget(length: Int, budget: DescriptionBudget, cause: OverBudgetCause)
     }
 
     private func perform(_ write: BoardWrite, for entry: OutboxEntry) async throws -> Performed {
@@ -319,7 +319,7 @@ public struct Outbox: Sendable {
         case .attachLink(let issue, let url, let title):
             return .created(try await board.attachLink(to: issue, url: url, title: title, clientID: entry.clientID))
         case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteFeatureDefinitionOfDone,
-             .rewriteManagedBlockCompacting:
+             .rewriteManagedBlockCompacting, .updateManagedBlockLinesCompacting:
             return try await performDescription(write, entry: entry)
         case .updateManagedBlockLine(let issue, let prefix, let line):
             return try await performManagedBlock(

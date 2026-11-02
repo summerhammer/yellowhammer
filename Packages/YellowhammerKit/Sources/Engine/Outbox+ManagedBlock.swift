@@ -2,13 +2,6 @@ import Domain
 import Journal
 
 extension Outbox {
-    /// The pre-flight read happens during delivery, under the delivery gate. Targeted reports compose
-    /// with other lanes' queued reports and preserve all unrelated text, including blank lines.
-    ///
-    /// `renderings` run from the full one to the most compacted. With a description budget, the first
-    /// whose whole replaced description fits is the one written, and its own hash is what is recorded;
-    /// when none fits the write is refused (``Performed/overBudget(length:budget:renderingAloneFits:)``).
-    /// A targeted line update, which has no ladder, is refused the same way when it does not fit.
     /// The fresh block with every line starting `prefix` replaced by `line`, appended last.
     private static func patchingLine(
         _ line: String, prefix: String, in description: String?
@@ -25,30 +18,52 @@ extension Outbox {
         }
     }
 
+    private static func patchingLines(
+        _ lines: [String], prefix: String, in description: String?
+    ) -> Result<[String], ManagedBlockFence.Failure> {
+        var blocks: [String] = []
+        for line in lines {
+            switch patchingLine(line, prefix: prefix, in: description) {
+            case .failure(let failure): return .failure(failure)
+            case .success(let patched): blocks.append(patched)
+            }
+        }
+        return .success(blocks)
+    }
+
+    /// The pre-flight read happens during delivery, under the delivery gate. Targeted reports compose
+    /// with other lanes' queued reports and preserve all unrelated text, including blank lines.
+    ///
+    /// `renderings` run from the full one to the most compacted. With a `prefix` each is a report's lines,
+    /// patched into the fresh block (every line starting `prefix` dropped, the rendering appended); without
+    /// one each is the whole block. With a description budget, the first whose whole replaced description
+    /// fits is the one written, and the hash of its block is what is recorded; when none fits the write is
+    /// refused (``Performed/overBudget(length:budget:cause:)``), naming the report by its prefix when there
+    /// is one (spec: board-projection/maintain-the-managed-block, budget on rewrite; issue #670).
     func performManagedBlock(
         issue: BoardObjectID, renderings: [String], replacingPrefix prefix: String? = nil, entry: OutboxEntry
     ) async throws -> Performed {
         let snapshot = try await board.issueDescription(issue)
-        var renderings = renderings
+        var blocks = renderings
         // A targeted line update keeps the rest of the fresh block as read, so it cannot erase an edit; a
         // full rendering can, and imports what the description holds first.
         if prefix == nil, let held = try importFreshInput(from: snapshot, issue: issue, renderings: renderings) {
             return held
         }
-        if let prefix, let line = renderings.first {
-            switch Self.patchingLine(line, prefix: prefix, in: snapshot.description) {
+        if let prefix {
+            switch Self.patchingLines(renderings, prefix: prefix, in: snapshot.description) {
             case .failure(let failure): return .unfenced(failure)
-            case .success(let patched): renderings = [patched]
+            case .success(let patched): blocks = patched
             }
         }
-        var mostCompacted: (length: Int, rendering: String)?
-        for rendered in renderings {
+        var mostCompacted: (length: Int, index: Int)?
+        for (index, rendered) in blocks.enumerated() {
             switch ManagedBlockFence.replace(in: snapshot.description, rendered: rendered) {
             case .failure(let failure):
                 return .unfenced(failure)
             case .success(let replacement):
                 if let descriptionBudget, !descriptionBudget.fits(replacement.description) {
-                    mostCompacted = (descriptionBudget.measure(replacement.description), rendered)
+                    mostCompacted = (descriptionBudget.measure(replacement.description), index)
                     continue
                 }
                 // The description read awaited the board: revalidate immediately before the mutation.
@@ -60,9 +75,12 @@ extension Outbox {
             }
         }
         guard let descriptionBudget, let mostCompacted else { throw OutboxError.payloadUnreadable(entryID: entry.id) }
-        let alone = ManagedBlockFence.initialDescription(rendered: mostCompacted.rendering)
-        return .overBudget(
-            length: mostCompacted.length, budget: descriptionBudget, renderingAloneFits: descriptionBudget.fits(alone)
+        // A report is measured alone as its own lines; a whole block as it is.
+        let alone = descriptionBudget.fits(
+            ManagedBlockFence.initialDescription(rendered: renderings[mostCompacted.index])
         )
+        let cause: OverBudgetCause = prefix.map { .lineUpdate(prefix: $0, reportAloneFits: alone) }
+            ?? .blockRewrite(renderingAloneFits: alone)
+        return .overBudget(length: mostCompacted.length, budget: descriptionBudget, cause: cause)
     }
 }
