@@ -156,3 +156,34 @@ struct PromptCatalogTests {
         }
     }
 }
+
+@Suite("PromptCatalog sample Repo role")
+struct PromptCatalogSampleRoleTests {
+    @Test("Each Repo-dependent family renders the picked role on its Role line")
+    func rendersPickedRole() throws {
+        for family in [PromptFamily.selection, .breakdown, .architect, .worker, .reviewer] {
+            for role in RepoRole.standard {
+                let entry = try #require(PromptCatalog.entry(for: family, role: role))
+                #expect(entry.sampleRole == role)
+                #expect(entry.variants.allSatisfy { $0.template.contains("Role: \(role.rawValue)") })
+                #expect(entry.variants.allSatisfy { !$0.placeholders.contains(role.rawValue) })
+            }
+        }
+    }
+
+    @Test("Families that do not depend on a Repo offer no sample role")
+    func diagnosticFamiliesHaveNoRole() {
+        for entry in PromptCatalog.entries where entry.family.isDiagnostic {
+            #expect(entry.sampleRole == nil)
+        }
+    }
+
+    @Test("Unmarked sample inputs are listed as sample values, not placeholders")
+    func splitsSampleValues() throws {
+        let architect = try #require(PromptCatalog.entry(for: .architect))
+        let variant = try #require(architect.variants.first)
+        #expect(variant.placeholders.allSatisfy { $0.hasPrefix("⟨") && $0.hasSuffix("⟩") })
+        #expect(variant.sampleValues.contains("999"))
+        #expect(variant.sampleValues.contains("9999-12-31"))
+    }
+}
