@@ -65,7 +65,7 @@ struct FeatureGroup: View {
                     .accessibilityIdentifier("feature-slot-free")
             }
             if !stack.isEmpty {
-                AwaitingMergeSection(stack: stack, inspected: inspected)
+                AwaitingMergeSection(stack: stack, inspected: inspected, explainsFullStack: feature != nil)
             }
         }
         .accessibilityIdentifier("pulse-feature")
@@ -86,11 +86,13 @@ private struct FeatureHeader: View {
                 Text(feature.issueIDForDisplay ?? feature.id).font(.caption.monospaced()).foregroundStyle(.secondary)
                 if let state = feature.state {
                     PulseCountBadge(text: state, style: feature.stateStyle)
+                        .help(FeatureInFlight.stateHelp(state))
                 } else {
                     Text("state unknown").font(.caption).foregroundStyle(.secondary)
                 }
                 if let rollupState = feature.rollupState {
                     PulseCountBadge(text: rollupState.rawValue, style: rollupState.style)
+                        .help(rollupState.help)
                 } else {
                     Text("rollup state unknown").font(.caption).foregroundStyle(.secondary)
                 }
@@ -134,11 +136,13 @@ private struct FeatureLaneRow: View {
                 .frame(width: 64)
                 .tint(lane.state.style)
                 .accessibilityHidden(true)
-            Text("\(lane.cardsDone)/\(lane.cardsTotal)")
+            Text(lane.cardsText)
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
+                .help(lane.cardsHelp)
             PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
+                .help(lane.state.help)
             if let pullRequest = lane.pullRequest {
                 PullRequestChipButton(
                     pullRequest: pullRequest,

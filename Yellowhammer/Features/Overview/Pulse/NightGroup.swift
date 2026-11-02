@@ -134,11 +134,11 @@ private struct StackFullSkipRow: View {
         .accessibilityIdentifier("night-stack-full-skip")
     }
 
-    /// `Authored nothing — … is full (2 of 2) · 03:10`, with `· 3 times` when several firings skipped.
+    /// `Authored nothing — … is full (2 awaiting merge · stack limit 2) · 03:10`, with `· 3 times` when several firings skipped.
     private var line: String {
         let time = skip.at.formatted(date: .omitted, time: .shortened)
         let times = skip.count > 1 ? " \u{00B7} \(skip.count) times" : ""
-        let stack = "\(skip.features.count) of \(skip.unmergedFeaturesMax)"
+        let stack = skip.countText
         return "\(StackFullSkip.headline) (\(stack)) \u{00B7} \(time)\(times)"
     }
 }

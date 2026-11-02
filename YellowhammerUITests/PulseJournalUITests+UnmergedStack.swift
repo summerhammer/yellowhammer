@@ -12,7 +12,10 @@ extension PulseJournalUITests {
         XCTAssertTrue(awaiting.waitForExistence(timeout: 10), "the Feature awaiting merge is not listed")
         let row = text(of: awaiting)
         XCTAssertTrue(row.contains("ARC-9"), "feature-awaiting-merge row is \u{201C}\(row)\u{201D}")
-        XCTAssertTrue(row.contains("0 of 1 merged"), "feature-awaiting-merge row is \u{201C}\(row)\u{201D}")
+        XCTAssertTrue(
+            row.contains("0 of 1 Feature Branches merged"),
+            "feature-awaiting-merge row is \u{201C}\(row)\u{201D}"
+        )
         XCTAssertTrue(row.contains("landed tonight"), "feature-awaiting-merge row is \u{201C}\(row)\u{201D}")
         XCTAssertTrue(element("feature-awaiting-merge").exists, "the Awaiting merge heading is missing")
         XCTAssertTrue(element("feature-awaiting-merge-\(issueID(9))-archive-pull-request").exists)
