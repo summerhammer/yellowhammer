@@ -270,7 +270,7 @@ struct HaltedFeatureDraftRepairTests {
     func repeatedIntakeIsIdempotent() async throws {
         let world = try await DraftWorld()
         try await world.haltTheFeature()
-        try await world.repairTheOverlap()
+        _ = try await world.repairTheOverlap()
         try await world.runAuthorAct(night: "2026-10-02")
         let cards = Set(try world.journal.cards().map(\.issueID))
         let issues = await world.writing.liveIssues.count
@@ -342,7 +342,7 @@ struct HaltedFeatureDraftRepairTests {
     func childEditedBeforeAcceptance() async throws {
         let world = try await DraftWorld()
         let halted = try await world.haltTheFeature()
-        try await world.repairTheOverlap()
+        _ = try await world.repairTheOverlap()
         let context = try world.context(night: "2026-10-02")
         try await HaltedFeatureRepair.observe(context: context)
         let checkpoint = try #require(try world.journal.authoringHaltCheckpoint(haltID: halted.id))
@@ -512,7 +512,7 @@ struct HaltedFeatureDraftRepairTests {
     func featureEditedBeforeAcceptance() async throws {
         let world = try await DraftWorld()
         let halted = try await world.haltTheFeature()
-        try await world.repairTheOverlap()
+        _ = try await world.repairTheOverlap()
         let context = try world.context(night: "2026-10-02")
         try await HaltedFeatureRepair.observe(context: context)
         let checkpoint = try #require(try world.journal.authoringHaltCheckpoint(haltID: halted.id))
@@ -554,7 +554,7 @@ struct HaltedFeatureDraftRepairTests {
         let world = try await DraftWorld()
         let halted = try await world.haltTheFeature()
         let issue = try world.issueID()
-        try await world.repairTheOverlap()
+        _ = try await world.repairTheOverlap()
 
         switch edit {
         case .deletedRegion:
@@ -592,6 +592,188 @@ struct HaltedFeatureDraftRepairTests {
         case .notAClauseLine:
             #expect(invalidComment.contains("write `- [ ] text (citation)`"))
         }
+    }
+
+    @Test(
+        "A repair with zero citable Feature-level clauses names each failing clause and its reason, not accepted (c1)"
+    )
+    func repairWithZeroCitableFeatureLevelClauses() async throws {
+        let world = try await DraftWorld()
+        let halted = try await world.haltTheFeature()
+        let issue = try world.issueID()
+        _ = try await world.repairTheOverlap()
+
+        // Replace the citable clause with two uncitable clauses:
+        // One with an unresolved citation and one with no citation.
+        let oldClauses = "- [ ] The Feature is done. (resolvable/story)"
+        let newClauses = """
+        - [ ] Ghost clause (epic/ghost)
+        - [ ] Empty citation clause ()
+        """
+        try await world.operatorEditsFeature(replacing: oldClauses, with: newClauses)
+        try await world.operatorMoves(issue, to: .todo)
+
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        let currentHalt = try #require(try world.journal.authoringHalts(feature: world.feature).last)
+        #expect(currentHalt.id == halted.id)
+        #expect(currentHalt.state != .cleared, "Feature stays halted")
+
+        // No Refusal is recorded
+        #expect(try world.journal.events(ofType: .refusalOpened).isEmpty)
+        #expect(try world.journal.allRefusals().isEmpty)
+
+        // Authoring fault count is unchanged
+        #expect(try world.journal.authoringFaultCount(feature: world.feature).count == Int.zero)
+
+        // No Attempt is spent
+        #expect(try tableRowCount(world.journal, table: "attempt") == 0)
+
+        // Restored to Waiting on You
+        let waitingOnYou = try await world.scope().id(for: .waitingOnYou)
+        #expect(try await world.state(of: issue) == waitingOnYou)
+
+        // The not-accepted comment names each Feature-level clause with its reason
+        let comments = await world.comments(on: issue)
+        let invalidComment = try #require(comments.last { $0.contains("is not accepted") })
+        #expect(invalidComment.contains("Ghost clause"))
+        #expect(invalidComment.contains("not in the fake's resolvable set"))
+        #expect(invalidComment.contains("Empty citation clause"))
+        #expect(invalidComment.contains("the clause has no citation"))
+    }
+
+    @Test("A repair with an empty Feature-level Definition of Done says it has none (c1 empty)")
+    func repairWithEmptyFeatureLevelDefinitionOfDone() async throws {
+        let world = try await DraftWorld()
+        _ = try await world.haltTheFeature()
+        let issue = try world.issueID()
+        _ = try await world.repairTheOverlap()
+
+        // Empty the section under ## Definition of done
+        try await world.operatorEditsFeature(
+            replacing: "- [ ] The Feature is done. (resolvable/story)", with: ""
+        )
+        try await world.operatorMoves(issue, to: .todo)
+
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        let comments = await world.comments(on: issue)
+        let invalidComment = try #require(comments.last { $0.contains("is not accepted") })
+        #expect(invalidComment.contains("the Feature-level Definition of Done has none"))
+    }
+
+    @Test(
+        "A repair mixing citable and uncitable Feature clauses accepts citable only, and comment names dropped (c2)"
+    )
+    func repairMixingCitableAndUncitableFeatureClauses() async throws {
+        let world = try await DraftWorld()
+        _ = try await world.haltTheFeature()
+        let issue = try world.issueID()
+        _ = try await world.repairTheOverlap()
+
+        // Mix citable and uncitable clauses:
+        let oldClauses = "- [ ] The Feature is done. (resolvable/story)"
+        let newClauses = """
+        - [ ] Citable clause one (resolvable/story)
+        - [ ] Uncitable clause two (epic/ghost)
+        """
+        try await world.operatorEditsFeature(replacing: oldClauses, with: newClauses)
+        try await world.operatorMoves(issue, to: .todo)
+
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        #expect(try world.steps().contains("accepted"))
+
+        // Accepted Feature Card lists only the citable clauses:
+        let descAfter = try await world.featureDescription()
+        #expect(descAfter.contains("Citable clause one"))
+        #expect(!descAfter.contains("Uncitable clause two"))
+
+        // The acceptance comment names each dropped Feature-level clause and why:
+        let comments = await world.comments(on: issue)
+        let acceptedComment = try #require(comments.last { $0.contains("is accepted") })
+        #expect(acceptedComment.contains("Uncitable clause two"))
+        #expect(acceptedComment.contains("not in the fake's resolvable set"))
+    }
+
+    @Test(
+        "Operator changes Feature Card text outside DoD: outcome comment says not read as repair input, preserved (c3)"
+    )
+    func operatorChangesTextOutsideFeatureDefinitionOfDone() async throws {
+        let world = try await DraftWorld()
+        _ = try await world.haltTheFeature()
+        let issue = try world.issueID()
+        _ = try await world.repairTheOverlap()
+
+        // Change Feature Card text outside the Feature-level Definition of Done during the halt
+        let extraProse = "\n\nOperator custom notes: user story context."
+        let descBefore = try await world.featureDescription()
+        try await world.operatorEditsFeature(description: descBefore + extraProse)
+
+        try await world.operatorMoves(issue, to: .todo)
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        #expect(try world.steps().contains("accepted"))
+
+        // The outcome comment says that text was not read as repair input:
+        let comments = await world.comments(on: issue)
+        let acceptedComment = try #require(comments.last { $0.contains("is accepted") })
+        #expect(acceptedComment.contains(HaltOtherTextBaseline.notReadSentence))
+
+        // After acceptance that text is still on the Feature Card, byte for byte:
+        let descAfter = try await world.featureDescription()
+        #expect(descAfter.contains(extraProse))
+    }
+
+    @Test(
+        "When no Feature Card text outside Definition of Done changed, comment carries no not-read sentence (c4)"
+    )
+    func noFeatureCardTextOutsideDefinitionOfDoneChanged() async throws {
+        let world = try await DraftWorld()
+        _ = try await world.haltTheFeature()
+        let issue = try world.issueID()
+        _ = try await world.repairTheOverlap()
+
+        // Operator edits ONLY inside the Definition of Done:
+        let oldClauses = "- [ ] The Feature is done. (resolvable/story)"
+        let newClauses = "- [ ] The Feature is edited and done. (resolvable/story)"
+        try await world.operatorEditsFeature(replacing: oldClauses, with: newClauses)
+
+        try await world.operatorMoves(issue, to: .todo)
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        #expect(try world.steps().contains("accepted"))
+
+        // The outcome comment carries no not-read sentence:
+        let comments = await world.comments(on: issue)
+        let acceptedComment = try #require(comments.last { $0.contains("is accepted") })
+        #expect(!acceptedComment.contains("not read as repair input"))
+        #expect(!acceptedComment.contains("The Feature Card's other text changed"))
+    }
+
+    @Test("Invalid repair when other Feature Card text changed: not-accepted comment adds not-read sentence")
+    func invalidRepairWithOtherTextChanged() async throws {
+        let world = try await DraftWorld()
+        _ = try await world.haltTheFeature()
+        let issue = try world.issueID()
+        _ = try await world.repairTheOverlap()
+
+        // Operator edits text outside DoD:
+        let extraProse = "\n\nOperator notes here."
+        let descBefore = try await world.featureDescription()
+        try await world.operatorEditsFeature(description: descBefore + extraProse)
+
+        // Make DoD invalid (zero citable clauses):
+        try await world.operatorEditsFeature(
+            replacing: "- [ ] The Feature is done. (resolvable/story)",
+            with: "- [ ] Ghost clause (epic/ghost)"
+        )
+        try await world.operatorMoves(issue, to: .todo)
+        try await world.runAuthorAct(night: "2026-10-02")
+
+        let comments = await world.comments(on: issue)
+        let invalidComment = try #require(comments.last { $0.contains("is not accepted") })
+        #expect(invalidComment.contains(HaltOtherTextBaseline.notReadSentence))
     }
 }
 

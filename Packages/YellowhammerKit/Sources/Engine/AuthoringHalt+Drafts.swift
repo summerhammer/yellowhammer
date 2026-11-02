@@ -57,6 +57,10 @@ enum HaltDrafts {
             key: key,
             write: .rewriteFeatureAuthoring(issue: BoardObjectID(rawValue: parent), prose: prose)
         ))
+        let baselineKey = HaltOtherTextBaseline.baselineKey(BoardObjectID(rawValue: parent))
+        if try journal.managedBlockLastPostedHash(issueID: baselineKey) == nil {
+            try await HaltOtherTextBaseline.record(issue: BoardObjectID(rawValue: parent), context: context)
+        }
     }
 
     /// Posts every draft the checkpointed breakdown asks for that has no issue yet. Safe to run again after a
