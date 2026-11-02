@@ -4,11 +4,11 @@ import Foundation
 // swiftlint:disable function_body_length
 extension PromptCatalog {
     /// Builds the entry through the real renderer, composed with the Project's instructions when given.
-    static func selectionEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
+    static func selectionEntry(_ projectInstructions: String?, role: RepoRole) -> PromptCatalogEntry {
         let repo = Repo(
             name: "⟨repo name⟩",
             path: "⟨repo path⟩",
-            role: .backend,
+            role: role,
             consumes: [RepoDependency(producer: "⟨producer repo⟩", via: .tag)]
         )
         let specRepo = Repo(name: "⟨specification repository⟩", path: "⟨specification path⟩", role: .spec)
@@ -88,7 +88,6 @@ extension PromptCatalog {
             "⟨specification path⟩",
             "⟨specification commit⟩",
             "⟨repo name⟩",
-            "backend",
             "⟨repo path⟩",
             "⟨mainline commit⟩",
             "⟨landed feature⟩",
@@ -125,13 +124,14 @@ extension PromptCatalog {
                 + "respecting dependency order and board state.",
             defaultVersion: PromptFamily.selection.defaultVersion,
             acceptsProjectInstructions: PromptFamily.selection.acceptsProjectInstructions,
+            sampleRole: role,
             variants: [variant]
         )
     }
 
     /// Builds the entry through the real renderer, composed with the Project's instructions when given.
-    static func breakdownEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
-        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
+    static func breakdownEntry(_ projectInstructions: String?, role: RepoRole) -> PromptCatalogEntry {
+        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: role)
         let specRepo = Repo(name: "⟨specification repository⟩", path: "⟨specification path⟩", role: .spec)
         let instruction = AuthoringInstruction(
             pass: .breakdown,
@@ -185,7 +185,6 @@ extension PromptCatalog {
             "⟨specification path⟩",
             "⟨specification commit⟩",
             "⟨repo name⟩",
-            "backend",
             "⟨repo path⟩",
             "⟨mainline commit⟩",
             "⟨selected feature name⟩",
@@ -214,13 +213,14 @@ extension PromptCatalog {
             purpose: "Drafts a selected Feature's Work Cards, Definition of Done, and contract boundaries.",
             defaultVersion: PromptFamily.breakdown.defaultVersion,
             acceptsProjectInstructions: PromptFamily.breakdown.acceptsProjectInstructions,
+            sampleRole: role,
             variants: [variant]
         )
     }
 
     /// Builds the entry through the real renderer, composed with the Project's instructions when given.
-    static func architectEntry(_ projectInstructions: String?) -> PromptCatalogEntry {
-        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: .backend)
+    static func architectEntry(_ projectInstructions: String?, role: RepoRole) -> PromptCatalogEntry {
+        let repo = Repo(name: "⟨repo name⟩", path: "⟨repo path⟩", role: role)
         let instruction = Instruction(
             pass: .architect,
             card: InstructionCard(
@@ -285,7 +285,6 @@ extension PromptCatalog {
             "⟨clause text⟩",
             "⟨epic⟩/⟨story⟩",
             "⟨repo name⟩",
-            "backend",
             "⟨worktree path⟩",
             "⟨feature branch⟩",
             "⟨check command⟩",
@@ -306,6 +305,7 @@ extension PromptCatalog {
             purpose: "Plans a Work Card's implementation approach and verifies cross-repository boundaries.",
             defaultVersion: PromptFamily.architect.defaultVersion,
             acceptsProjectInstructions: PromptFamily.architect.acceptsProjectInstructions,
+            sampleRole: role,
             variants: [variant]
         )
     }

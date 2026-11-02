@@ -59,7 +59,7 @@ struct CardRunOverrideTests {
         #expect(rehearsal.answered.isEmpty)
         #expect(try world.attempts("BACK-1").isEmpty)
         #expect(try world.card("BACK-1").state == .todo)
-        let comments = await try #require(world.boards).writing.comments
+        let comments = try await #require(world.boards).writing.comments
         #expect(comments.count == 1)
         #expect(comments.first?.issue == BoardObjectID(rawValue: "BACK-1"))
         #expect(comments.first?.body.contains("`agy` rejected model `opus`") == true)
@@ -128,7 +128,7 @@ struct CardRunOverrideTests {
 
         #expect(try world.attempts("BACK-1").isEmpty)
         #expect(rehearsal.answered.isEmpty)
-        let comments = await try #require(world.boards).writing.comments
+        let comments = try await #require(world.boards).writing.comments
         #expect(comments.first?.body.contains("Card override `codex/o3/high` pins `codex`") == true)
     }
 

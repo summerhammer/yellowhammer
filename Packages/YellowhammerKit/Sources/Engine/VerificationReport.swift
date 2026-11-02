@@ -74,23 +74,36 @@ public struct VerificationReport: Equatable, Sendable {
     /// `cid · clause text · Spec Citation (<location_id>) · [provenance] · verdict · what was checked ·
     /// interpretation verified under`. The `cid` is prefixed with its issue id: clause ids are unique
     /// only within one issue. A clause whose text or citation was edited on the board after authoring
-    /// says so in its text field.
+    /// says so in its text field. A dropped clause puts `dropped: <reason>` in the verdict slot and shows
+    /// no verdict word (OQ157).
     public static func line(for clause: ClauseVerificationRecord) -> String {
         fields(for: clause).map(singleLine).joined(separator: " · ")
     }
 
-    /// The seven fields of ``line(for:)``, unsanitised, in order.
+    /// The fields of ``line(for:)``, unsanitised, in order: seven for a judged clause; for a dropped clause the
+    /// first five, then what was checked and the interpretation only when present.
     private static func fields(for clause: ClauseVerificationRecord) -> [String] {
         let text = clause.invalidatedCause.map { "\(clause.text) (invalidated: \($0))" } ?? clause.text
-        return [
+        let verdictSlot = clause.verdict?.rawValue ?? "dropped: \(clause.droppedReason ?? "")"
+        var fields = [
             "\(clause.issueID) \(clause.cid)",
             text,
             "Spec Citation (\(clause.locationID))",
             "[\(clause.citationProvenance)]",
-            clause.verdict.rawValue,
-            clause.whatWasChecked,
-            clause.interpretation
+            verdictSlot
         ]
+        if clause.verdict != nil {
+            fields.append(clause.whatWasChecked)
+            fields.append(clause.interpretation)
+        } else {
+            if !clause.whatWasChecked.isEmpty {
+                fields.append(clause.whatWasChecked)
+            }
+            if !clause.interpretation.isEmpty {
+                fields.append(clause.interpretation)
+            }
+        }
+        return fields
     }
 
     private static let managedBlockHeader =
@@ -119,14 +132,15 @@ public struct VerificationReport: Equatable, Sendable {
     /// rung keeps the report per clause, with no aggregate or count, and ends with the limitation statement.
     /// - Rung 1: ``managedBlockLines()``.
     /// - Rung 2: each clause without what was checked and the interpretation, and a note saying so.
-    /// - Rung 3: each clause as its id and verdict only, and a note naming all that is left out.
+    /// - Rung 3: each clause as its id and verdict slot only (`dropped: <reason>` for a dropped clause), and a
+    ///   note naming all that is left out.
     public func managedBlockRenderings() -> [String] {
         let prefix = Self.managedBlockPrefix
         let header = prefix + Self.managedBlockHeader
         let kept = "The full report stays in the Journal and is in the body of each pull request Yellowhammer "
             + "opens for this Feature."
         let withoutChecks = clauses.map { clause in
-            prefix + Self.fields(for: clause).dropLast(2).map(Self.singleLine).joined(separator: " · ")
+            prefix + Self.fields(for: clause).prefix(5).map(Self.singleLine).joined(separator: " · ")
         }
         let verdictsOnly = clauses.map { clause in
             let fields = Self.fields(for: clause)

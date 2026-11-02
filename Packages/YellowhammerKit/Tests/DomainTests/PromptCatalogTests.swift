@@ -16,8 +16,8 @@ struct PromptCatalogTests {
             sha256: "5db550452d8aa0e19286126eba730ebd9646531d712c23ac99a0c0d14a1dedf9"
         ),
         .breakdown: PinRecord(
-            version: 1,
-            sha256: "dfd9d78730508c8ac6ce178630a5273a42e9937496032706b0a435d349cb57c3"
+            version: 2,
+            sha256: "0356fdf0595e95aeb30e84e079df5ac1783b90b00180ccba343dec66321d3186"
         ),
         .architect: PinRecord(
             version: 1,
@@ -32,8 +32,8 @@ struct PromptCatalogTests {
             sha256: "2dc1cbeee48a2992c56e5e2ca0d45b34a512bcbb91e3835d9ed451db4a426a54"
         ),
         .verifier: PinRecord(
-            version: 2,
-            sha256: "9c6d09f81491b4f6b6f29fff9a5462b649935c92dff30622d8975a5f0238e2fd"
+            version: 3,
+            sha256: "484aaa434c361aac8114031ef4d87462c27dc8b5711314ae45890cf3d9845ff8"
         ),
         .unattendedProbe: PinRecord(
             version: 1,
@@ -154,5 +154,36 @@ struct PromptCatalogTests {
                 #expect(family.defaultVersion == pin.version, "defaultVersion for \(family) changed but text did not")
             }
         }
+    }
+}
+
+@Suite("PromptCatalog sample Repo role")
+struct PromptCatalogSampleRoleTests {
+    @Test("Each Repo-dependent family renders the picked role on its Role line")
+    func rendersPickedRole() throws {
+        for family in [PromptFamily.selection, .breakdown, .architect, .worker, .reviewer] {
+            for role in RepoRole.standard {
+                let entry = try #require(PromptCatalog.entry(for: family, role: role))
+                #expect(entry.sampleRole == role)
+                #expect(entry.variants.allSatisfy { $0.template.contains("Role: \(role.rawValue)") })
+                #expect(entry.variants.allSatisfy { !$0.placeholders.contains(role.rawValue) })
+            }
+        }
+    }
+
+    @Test("Families that do not depend on a Repo offer no sample role")
+    func diagnosticFamiliesHaveNoRole() {
+        for entry in PromptCatalog.entries where entry.family.isDiagnostic {
+            #expect(entry.sampleRole == nil)
+        }
+    }
+
+    @Test("Unmarked sample inputs are listed as sample values, not placeholders")
+    func splitsSampleValues() throws {
+        let architect = try #require(PromptCatalog.entry(for: .architect))
+        let variant = try #require(architect.variants.first)
+        #expect(variant.placeholders.allSatisfy { $0.hasPrefix("⟨") && $0.hasSuffix("⟩") })
+        #expect(variant.sampleValues.contains("999"))
+        #expect(variant.sampleValues.contains("9999-12-31"))
     }
 }

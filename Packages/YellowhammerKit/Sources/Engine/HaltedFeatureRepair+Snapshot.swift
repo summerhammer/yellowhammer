@@ -16,6 +16,12 @@ extension HaltedFeatureRepair {
            let fresh = try await HaltRepairSnapshot.take(halt: halt, checkpoint: checkpoint, context: context),
            fresh.fingerprint == snapshot.fingerprint {
             try journal.recordAuthoringHaltAdmittedRevisions(haltID: halt.id, revisions: snapshot.admittedRevisions)
+            if let region = snapshot.featureAuthoringRegion {
+                let regionKey = FeatureAuthoringProse.regionKey(issue)
+                try journal.recordManagedBlockPosted(
+                    issueID: regionKey, hash: ManagedBlockFence.sha256(region)
+                )
+            }
             let revisions = snapshot.children.map {
                 "\($0.issue.rawValue)@\(ISO8601DateFormatter().string(from: $0.revision))"
             }

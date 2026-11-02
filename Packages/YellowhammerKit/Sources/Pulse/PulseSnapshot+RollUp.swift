@@ -21,10 +21,11 @@ extension PulseSnapshot {
             record.clauses.count { $0.verdict == .unmet || $0.verdict == .unresolved }
         }
         let notCheckedCount = verification?.clauses.count { $0.verdict == .notChecked } ?? 0
+        let judged = verification?.clauses.filter { $0.verdict != nil } ?? []
         return RollUpLattice.rollUp(
             liveCardStates: live,
             lanesPushed: try journal.isCycleLanded(cycleID: inFlight.cycleID),
-            verificationPassed: verification?.clauses.allSatisfy { $0.verdict == .met } ?? false,
+            verificationPassed: !judged.isEmpty && judged.allSatisfy { $0.verdict == .met },
             unmetClauseCount: unmetCount,
             notCheckedClauseCount: notCheckedCount,
             mergedFraction: MergedFraction(

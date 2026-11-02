@@ -44,8 +44,10 @@ public enum PromptFamily: String, CaseIterable, Codable, Sendable {
     /// It must change whenever that family's shipped text changes.
     public var defaultVersion: Int {
         switch self {
-        // 2: the verifier judges the commit its checkout is at, not the head of each Feature Branch (OQ191).
-        case .verifier: 2
+        // 3: the verifier screens Author-supplied clauses and reports dropped clauses (OQ157).
+        case .verifier: 3
+        // 2: the breakdown pass drops a clause that asserts landing's own output (OQ157).
+        case .breakdown: 2
         default: 1
         }
     }

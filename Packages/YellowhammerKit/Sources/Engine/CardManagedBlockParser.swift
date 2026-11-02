@@ -346,7 +346,7 @@ public enum CardManagedBlockParser {
 
     /// Parses one `- [ ] <!-- yh:clause:<cid> --> text (citation)` line. The `<!-- yh:clause:... -->`
     /// marker is optional (an untagged human line); the trailing `(<citation>)` is optional too.
-    private static func parseClauseLine(_ line: String) -> ParsedClause? {
+    static func parseClauseLine(_ line: String) -> ParsedClause? {
         var rest = line
         guard rest.hasPrefix("- [ ]") || rest.hasPrefix("- [x]") else { return nil }
         rest.removeFirst(5)

@@ -54,7 +54,10 @@ enum AuthoringHalt {
         )
         // The breakdown is in the checkpoint now, so its Work Cards may be posted as draft children (roadmap P22.6).
         if breakdown != nil, let halt = try context.journal.authoringHalts(feature: feature).last {
+            try await HaltDrafts.ensureFeatureDefinitionOfDonePosted(halt: halt, context: context)
             try await HaltDrafts.ensurePosted(halt: halt, context: context)
+        } else if let halt = try context.journal.authoringHalts(feature: feature).last, let issueID = halt.issueID {
+            try await HaltOtherTextBaseline.record(issue: BoardObjectID(rawValue: issueID), context: context)
         }
         return .halted
     }

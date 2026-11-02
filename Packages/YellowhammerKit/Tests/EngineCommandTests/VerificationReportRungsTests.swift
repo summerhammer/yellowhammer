@@ -55,7 +55,7 @@ struct VerificationReportRungsTests {
             for clause in report.clauses {
                 let expected = "\(clause.issueID) \(clause.cid)"
                 let line = rendering.split(separator: "\n").first { $0.contains(expected) }
-                #expect(line?.contains(clause.verdict.rawValue) == true)
+                #expect(line?.contains(clause.verdict?.rawValue ?? "dropped") == true)
             }
             #expect(!rendering.contains("passed"))
             #expect(!rendering.contains("3 met"))
@@ -106,5 +106,20 @@ struct VerificationReportRungsTests {
             let lines = rendering.split(separator: "\n", omittingEmptySubsequences: false)
             #expect(lines.allSatisfy { $0.hasPrefix(VerificationReport.managedBlockPrefix) })
         }
+    }
+
+    @Test("A dropped clause keeps its citation and dropped reason on rung 2, and its reason on rung 3 (OQ157)")
+    func droppedClause() {
+        let dropped = ClauseVerificationRecord(
+            issueID: "FEAT-1", cid: "c9", level: "feature", text: "Clause text of c9", locationID: "epic/story",
+            citationProvenance: "machine-found", verdict: nil, droppedReason: "asserts landing's own output",
+            whatWasChecked: "", interpretation: "", judgedBy: .agent, invalidatedCause: nil
+        )
+        let renderings = VerificationReport(clauses: [dropped, clause("BACK-1", "c1")]).managedBlockRenderings()
+        #expect(renderings[1].contains(
+            "Verification: FEAT-1 c9 · Clause text of c9 · Spec Citation (epic/story) · [machine-found] · "
+                + "dropped: asserts landing's own output\n"
+        ))
+        #expect(renderings[2].contains("Verification: FEAT-1 c9 · dropped: asserts landing's own output\n"))
     }
 }

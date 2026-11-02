@@ -198,6 +198,7 @@ extension FeatureSelection {
         let (halt, feature) = (request.halt, request.feature)
         guard let issue = request.issue else { return outcome }
         let seq = request.checkpoint.repairSeq
+        let otherTextChanged = try await HaltOtherTextBaseline.hasChanged(issue: issue, context: context)
         switch outcome {
         case .authored:
             try journal.markAuthoringRepairHandled(haltID: halt.id, seq: seq)
@@ -205,18 +206,37 @@ extension FeatureSelection {
                 feature: feature, step: "accepted",
                 nightID: context.night.id, act: context.act, runID: context.runID
             )
+            let droppedClauses: [PlannedUncitableClause]
+            if let lastPlan = try journal.events(ofType: .featureAuthoringAccepted).last(where: {
+                if case .featureAuthoringAccepted(let plan) = $0.event {
+                    return plan.name == feature.rawValue
+                }
+                return false
+            }), case .featureAuthoringAccepted(let plan) = lastPlan.event {
+                droppedClauses = plan.uncitableClauses.filter { $0.level == "feature" }
+            } else {
+                droppedClauses = []
+            }
+            var body = "Repair of Feature '\(feature)' is accepted: it continues as this same Feature."
+            if otherTextChanged {
+                body += " " + HaltOtherTextBaseline.notReadSentence
+            }
+            for dropped in droppedClauses {
+                let citation = dropped.citation.isEmpty ? "" : " (\(dropped.citation))"
+                body += "\n- \"\(dropped.text)\"\(citation): \(dropped.reason)"
+            }
             try await HaltedFeatureRepair.postCommentOnce(
                 key: HaltedFeatureRepair.commentKey(halt: halt, seq: seq, kind: "accepted"), issue: issue,
-                body: "Repair of Feature '\(feature)' is accepted: it continues as this same Feature.",
+                body: body,
                 context: context
             )
         case .halted:
-            try await stillHalted(request, context: context)
+            try await stillHalted(request, otherTextChanged: otherTextChanged, context: context)
         case .refused:
             try journal.markAuthoringRepairHandled(haltID: halt.id, seq: seq)
         case .authoringRolledBack where halt.causeKind == "authoring-repeatedly-faulted":
             // The Operator's Todo was the intervention this halt waits for, and the attempt faulted again.
-            try await stillHalted(request, context: context)
+            try await stillHalted(request, otherTextChanged: otherTextChanged, context: context)
         case .authoringRolledBack, .authoringPending, .releaseGateHeld, .noWorkAvailable:
             // Not concluded: an accepted plan still delivering is finished by a later Act (the halt clears when it
             // is), and a plan that fails there leaves this request unhandled for the next validation.
@@ -228,7 +248,9 @@ extension FeatureSelection {
     /// An invalid or empty repair: the same Feature stays halted with a diagnostic comment, and the halted
     /// position is restored under a write decided against the Todo the Operator set. It spent no Attempt and no
     /// authoring fault, and it did not touch the clock.
-    private func stillHalted(_ request: RepairRequest, context: ActContext) async throws {
+    private func stillHalted(
+        _ request: RepairRequest, otherTextChanged: Bool, context: ActContext
+    ) async throws {
         let journal = context.journal
         let (halt, feature, seq) = (request.halt, request.feature, request.checkpoint.repairSeq)
         guard let issue = request.issue else { return }
@@ -240,11 +262,12 @@ extension FeatureSelection {
         )
         let found = try journal.authoringHaltCheckpoint(haltID: halt.id)?.repairDiagnostic
         let diagnostic = found.map { "\n\nWhat to fix:\n\($0)" } ?? ""
+        let otherText = otherTextChanged ? " " + HaltOtherTextBaseline.notReadSentence : ""
         try await HaltedFeatureRepair.postCommentOnce(
             key: HaltedFeatureRepair.commentKey(halt: halt, seq: seq, kind: "invalid"), issue: issue,
             body: """
                 Repair of Feature '\(feature)' is not accepted: the halt still holds, so the Feature stays halted \
-                and keeps its checkpoint, its drafts and your edits.
+                and keeps its checkpoint, its drafts and your edits.\(otherText)
 
                 \(current.content)\(diagnostic)
                 """,

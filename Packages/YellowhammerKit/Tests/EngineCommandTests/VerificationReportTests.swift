@@ -82,18 +82,65 @@ struct VerificationReportTests {
         #expect(lines.last?.hasPrefix("Known limitation:") == true)
     }
 
-    @Test("unmetOrUnresolved is every clause the report did not find met, excluding not checked")
+    @Test("unmetOrUnresolved is every clause the report did not find met, excluding not checked and dropped")
     func unmetOrUnresolved() {
+        let dropped = ClauseVerificationRecord(
+            issueID: "BACK-1", cid: "c4", level: "card", text: "Pushes the branch.",
+            locationID: "epic/story", citationProvenance: "Author-supplied",
+            droppedReason: "asserts landing's own output"
+        )
         let reportWithNotChecked = VerificationReport(clauses: [
             clause("FEAT-1", "c1", verdict: .met),
             clause("BACK-1", "c1", verdict: .unmet),
             clause("BACK-1", "c2", verdict: .unresolved),
-            clause("BACK-1", "c3", verdict: .notChecked)
+            clause("BACK-1", "c3", verdict: .notChecked),
+            dropped
         ])
         #expect(reportWithNotChecked.unmetOrUnresolved.map(\.cid) == ["c1", "c2"])
         #expect(reportWithNotChecked.unmetOrUnresolved.map(\.verdict) == [.unmet, .unresolved])
         #expect(reportWithNotChecked.notChecked.map(\.cid) == ["c3"])
         #expect(reportWithNotChecked.notChecked.map(\.verdict) == [.notChecked])
+    }
+
+    @Test(
+        "A dropped clause shows its fields, dropped reason in verdict slot, and no verdict word on both surfaces"
+    )
+    func droppedClauseRendering() {
+        let dropped = ClauseVerificationRecord(
+            issueID: "FEAT-1", cid: "c4", level: "feature",
+            text: "A Night ships its change as a pushed Feature Branch with one pull request. (G1)",
+            locationID: "vision/risks", citationProvenance: "Author-supplied",
+            droppedReason: "asserts landing's own output"
+        )
+        let line = VerificationReport.line(for: dropped)
+        #expect(
+            line == "FEAT-1 c4 · A Night ships its change as a pushed Feature Branch with one pull request. (G1) "
+                + "· Spec Citation (vision/risks) · [Author-supplied] · dropped: asserts landing's own output"
+        )
+
+        // Assert it shows cid, text, Spec Citation, provenance and dropped reason
+        #expect(line.contains("FEAT-1 c4"))
+        #expect(line.contains("A Night ships its change as a pushed Feature Branch with one pull request. (G1)"))
+        #expect(line.contains("Spec Citation (vision/risks)"))
+        #expect(line.contains("[Author-supplied]"))
+        #expect(line.contains("dropped: asserts landing's own output"))
+
+        // Assert it shows no verdict word: met, unmet, unresolved, not checked
+        let verdictWords = ["met", "unmet", "unresolved", "not checked"]
+        for word in verdictWords {
+            #expect(!line.contains(" · \(word) · "))
+            #expect(!line.contains(" \(word) "))
+        }
+
+        let report = VerificationReport(clauses: [clause(), dropped])
+
+        // Managed Block surface
+        let block = report.managedBlockLines()
+        #expect(block.contains("Verification: " + line))
+
+        // Pull request body section surface
+        let section = report.markdownSection()
+        #expect(section.contains("- " + line))
     }
 }
 
