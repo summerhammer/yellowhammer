@@ -9,6 +9,8 @@ import SwiftUI
 struct AwaitingMergeSection: View {
     let stack: UnmergedFeatureStack
     let inspected: PulseSelection?
+    /// Whether this section states the full-stack note itself; false when another line already says it.
+    var explainsFullStack = false
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
@@ -17,8 +19,12 @@ struct AwaitingMergeSection: View {
             Spacer(minLength: 8)
             Text(stack.countText).font(.caption).monospacedDigit().foregroundStyle(.secondary)
         }
+        .help(stack.limitHelp)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("feature-awaiting-merge")
+        if explainsFullStack, let note = stack.fullNote {
+            Text(note).font(.caption).foregroundStyle(.secondary)
+        }
         ForEach(stack.features) { feature in
             VStack(alignment: .leading, spacing: 4) {
                 Button { openDestination(.inspector(.feature(feature.id))) } label: {
@@ -39,7 +45,7 @@ struct AwaitingMergeSection: View {
     }
 }
 
-/// A Feature of U: its identifier, a `landed tonight` badge when it is, and `k of N merged`.
+/// A Feature of U: its identifier, a `landed tonight` badge when it is, and `k of N Feature Branches merged`.
 private struct AwaitingMergeHeader: View {
     let feature: AwaitingMergeFeature
 
@@ -48,12 +54,14 @@ private struct AwaitingMergeHeader: View {
             Text(feature.displayIdentifier).fontWeight(.medium).font(.callout.monospaced())
             if feature.landedTonight {
                 PulseCountBadge(text: "landed tonight", style: ThemeShapeStyle<Color>.info)
+                    .help(AwaitingMergeFeature.landedTonightHelp)
             }
             Spacer(minLength: 8)
-            Text("\(feature.mergedCount) of \(feature.pushedCount) merged")
+            Text(feature.mergedText)
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
+                .help(feature.mergedHelp)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(.rect)
@@ -73,11 +81,12 @@ private struct AwaitingMergeRepositoryLine: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Label(
-                repository.merged ? "in mainline" : "not in mainline",
+                repository.mainlineText,
                 systemImage: repository.merged ? "checkmark.circle.fill" : "circle.dashed"
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+            .help(repository.mainlineHelp)
             if let observation = repository.pullRequestObservation {
                 PullRequestObservationLabel(
                     observation: observation,
@@ -101,19 +110,6 @@ private struct AwaitingMergeRepositoryLine: View {
 }
 
 // MARK: For display
-
-extension UnmergedFeatureStack {
-    /// `m of max`, or just `m` while the Bound was not read.
-    var countText: String {
-        guard let unmergedFeaturesMax else { return "\(count)" }
-        return "\(count) of \(unmergedFeaturesMax)"
-    }
-
-    /// `m of max awaiting merge`, or `m awaiting merge` while the Bound was not read.
-    var awaitingText: String {
-        "\(countText) awaiting merge"
-    }
-}
 
 extension AwaitingMergeFeature {
     /// The readable identifier, else the Linear link's, else the Journal id.
