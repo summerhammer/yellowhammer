@@ -248,8 +248,9 @@ public struct FeatureSelection: FeatureAuthoring {
     }
 
     /// Validates what the selector returned, engine-side, in the order the story requires: the forced
-    /// name must match, the repositories must resolve to this Project's own, and adoption is narrowed
-    /// to real candidates before anything is recorded.
+    /// name must match, unmerged re-selection is refused, adoption is narrowed to real candidates and
+    /// each adopted candidate's repository is added to the selected repositories, before halt and
+    /// release-gate checks run and before anything is recorded.
     ///
     /// `repairing` is the Operator's Todo on this Feature's halt (roadmap P22.5): the Feature was chosen by an
     /// earlier selection, so the forced-name check does not apply. `ignoringFaultBound` is set only for an
@@ -267,29 +268,21 @@ public struct FeatureSelection: FeatureAuthoring {
         if let refused = try refuseUnmergedReselection(selected, scope: scope, context: context) {
             return refused
         }
-        let sortedRepositories = Set(selected.repositories).sorted()
+        let resolved = Self.resolveAdoptedRepositories(selected: selected, candidates: candidates)
         let checkpointed = SelectedFeature(
             name: selected.name, reasoning: selected.reasoning, sequence: selected.sequence,
-            repositories: sortedRepositories, adoptedCardIssueIDs: selected.adoptedCardIssueIDs
+            repositories: resolved.repositories, adoptedCardIssueIDs: resolved.adopted
         )
-        if let cause = Self.haltCause(forRepositories: sortedRepositories, in: repositories) {
+        if let cause = Self.haltCause(forRepositories: resolved.repositories, in: repositories) {
             return try await recordHalt(feature: selected.name, cause: cause, selection: checkpointed, context: context)
         }
-        let holding = scope.held.filter { sortedRepositories.contains($0.consumer) }
-        if let held = try recordReleaseGateHold(selected, holding: holding, context: context) {
+        let holding = scope.held.filter { resolved.repositories.contains($0.consumer) }
+        if let held = try recordReleaseGateHold(checkpointed, holding: holding, context: context) {
             return held
         }
 
-        let candidateIDs = Set(candidates.map(\.issueID))
-        let adopted = Set(selected.adoptedCardIssueIDs).intersection(candidateIDs).sorted()
-        let adoptedSet = Set(adopted)
-        let unadopted = candidates.map(\.issueID).filter { !adoptedSet.contains($0) }.sorted()
-
-        let validated = SelectedFeature(
-            name: selected.name, reasoning: selected.reasoning, sequence: selected.sequence,
-            repositories: sortedRepositories, adoptedCardIssueIDs: adopted
-        )
-        try recordSelected(validated, unadopted: unadopted, context: context)
+        let validated = checkpointed
+        try recordSelected(validated, unadopted: resolved.unadopted, context: context)
 
         let faults = try context.journal.authoringFaultCount(feature: validated.name)
         if !ignoringFaultBound, !context.trigger.isForced, faults.count >= consecutiveAuthoringFaultsMax {
