@@ -10,6 +10,15 @@ import Testing
 // `EngineInvocation`, which would also require a real Board Port for the Night Card) against real
 // fixture git repositories with local bare remotes, mirroring `FeatureBranchPusherTests`.
 
+private func markTrashed(_ journal: JournalStore, cardID: Int64) throws {
+    try journal.write { db in
+        try db.execute(
+            sql: "UPDATE card SET removed_from_board = ? WHERE id = ?",
+            arguments: [CardRemoval.trashed.rawValue, cardID]
+        )
+    }
+}
+
 @Suite("Land Act push (P10.2)")
 struct LandActPushTests {
     @Test("A pushed Feature Branch lands the tip on the remote, records the push, and comments on each done Card")
@@ -110,7 +119,7 @@ struct LandActPushTests {
         #expect(try env.journal.noPushedBranchRepositories(featureID: feature.id) == ["backend"])
     }
 
-    @Test("Branch protection on the remote records a failed step and comments on the Feature Issue")
+    @Test("Branch protection records a failed step and comments once per cause on the Feature Card and Done Cards")
     func branchProtectionRefusal() async throws {
         let local = TestGitRepo(name: "push-protected-local")
         await local.initRepo(defaultBranch: "main")
@@ -133,13 +142,17 @@ struct LandActPushTests {
         let repo = Repo(name: "backend", path: local.path, role: .backend, defaultBranch: "main")
         let env = try await Environment.make(repos: [repo])
         await env.board.seed(issue: "FEAT-1", description: nil)
+        await env.board.seed(issue: "BACK-1", description: nil)
+        await env.board.seed(issue: "BACK-2", description: nil)
         let (feature, cycleID) = try env.setUpFeature()
+        let removedID = try insertReconcilerCard(
+            env.journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .done
+        )
+        try markTrashed(env.journal, cardID: removedID)
 
         let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
-        let failure = await land.run(
-            lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
-            feature: feature, cycleID: cycleID, context: env.context
-        )
+        let lane = RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID))
+        let failure = await land.run(lane: lane, feature: feature, cycleID: cycleID, context: env.context)
         #expect(failure == nil)
 
         let step = try #require(env.pushStep(repository: "backend"))
@@ -147,10 +160,26 @@ struct LandActPushTests {
         await #expect(remote.revParse("refs/heads/yh-proj-feat") == nil)
 
         let comments = await env.board.comments
-        #expect(comments.contains {
-            $0.issue.rawValue == "FEAT-1" && $0.body.contains("backend") && $0.body.contains("yh-proj-feat")
-                && $0.body.contains("branch protection")
-        })
+        let protectionComments = comments.filter { $0.body.contains("branch protection") }
+        #expect(protectionComments.count == 2)
+        #expect(protectionComments.allSatisfy { $0.body.contains("backend") && $0.body.contains("yh-proj-feat") })
+        #expect(Set(protectionComments.map(\.issue.rawValue)) == ["FEAT-1", "BACK-1"])
+        #expect(!comments.contains { $0.issue.rawValue == "BACK-2" })
+
+        let outbox = try #require(env.context.outbox)
+        for issue in ["FEAT-1", "BACK-1"] {
+            let key = "land:\(cycleID):backend:push-failed:branch-protection:\(issue)"
+            #expect(try env.journal.outboxEntry(clientID: outbox.clientID(for: key)) != nil)
+        }
+
+        // The push landStep detail is the comment body's tail after "did not complete: ".
+        let body = try #require(protectionComments.first?.body)
+        let marker = try #require(body.range(of: "did not complete: "))
+        #expect(step.detail == String(body[marker.upperBound...]))
+
+        // The same cause on a later firing posts nothing more.
+        _ = await land.run(lane: lane, feature: feature, cycleID: cycleID, context: env.context)
+        #expect(await env.board.comments.count == comments.count)
     }
 
     @Test("A token closure that throws is reported as missing credentials; the remote is never touched")

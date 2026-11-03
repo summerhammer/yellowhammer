@@ -38,8 +38,8 @@ public struct RemoteFeatureBranchRead: Sendable {
 // it does not: the open-pull-request step fails, the lane's Worktree stays held, the Cycle stays unlanded, and
 // the next land firing checks again. The other lanes still publish and release in that firing (OQ194, the
 // Operator's decision as built). The failure is a Journal event, a comment on the Feature Card and on each Work
-// Card of the lane, and the failed land step's detail, which the Night Summary counts as a failed landing step;
-// for at-another-commit and absent, the failure names both routes out (OQ194 item 2).
+// Card of the lane, and the failed land step's detail, which the Night Summary renders as a landing Failure
+// Notice; for at-another-commit and absent, the failure names both routes out (OQ194 item 2).
 
 extension FeatureBranchPullRequest {
     /// Nil when the remote Feature Branch is at the Pushed Tip, so the pull request may open; else the outcome
