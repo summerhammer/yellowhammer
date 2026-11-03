@@ -105,10 +105,10 @@ extension NightWording {
                 headline: "\(card(cardID)): Attempt ended",
                 detail: "\(outcome) on \(route.description)\(routeExcluded ? "; Route excluded" : "")"
             )
-        case .checkRan(let cardID, _, _, let result, let exitStatus, _, _, _):
+        case .checkRan(let payload):
             NightWords(
-                headline: "\(card(cardID)): \(checkWords(result))",
-                detail: exitStatus.map { "Exit status \($0)" }
+                headline: "\(card(payload.cardID)): \(checkWords(payload.result))",
+                detail: payload.exitStatus.map { "Exit status \($0)" }
             )
         case .cardStateTransitioned(let cardID, _, let from, let to, let waitingReason, let blockReason):
             NightWords(

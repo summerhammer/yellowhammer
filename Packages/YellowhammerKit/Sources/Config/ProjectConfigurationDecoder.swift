@@ -119,7 +119,7 @@ struct ProjectConfigurationDecoder {
 
     private func repo(_ table: TOMLTable, path: String) throws(ConfigurationError) -> RepoDeclaration {
         try decoding.rejectUnknownKeys(
-            in: table, path: path, allowed: ["name", "path", "role", "check", "protected_paths", "consumes"]
+            in: table, path: path, allowed: ["name", "path", "role", "check", "protected_paths", "consumes", "lockfile"]
         )
         let check = try decoding.requiredString("check", in: table, path: path)
         let name = try decoding.requiredString("name", in: table, path: path)
@@ -130,7 +130,8 @@ struct ProjectConfigurationDecoder {
             // A missing `check` was refused above: silence is never read as `none`.
             check: check == "none" ? .none : .command(check),
             protectedPaths: try protectedPaths(in: table, path: path),
-            consumes: try repoDependencies(in: table, path: path, consumer: name)
+            consumes: try repoDependencies(in: table, path: path, consumer: name),
+            lockfile: try lockfile(in: table, path: path)
         )
     }
 

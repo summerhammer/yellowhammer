@@ -9,7 +9,7 @@ struct DispatchPromptRecordTests {
         // A family's version moves only with its text; keep this table in step with the pins in
         // `PromptCatalogTests.pinnedVersions`. Families not listed are at version 1.
         let changed: [PromptFamily: Int] = [
-            .verifier: 3, // OQ157: screens Author-supplied clauses.
+            .verifier: 4, // OQ157: screens Author-supplied clauses.
             .breakdown: 2, // OQ157: drops landing's own outputs.
             .selection: 2 // OQ195 item 2 (#748): `repositories` includes every adopted Card's repository.
         ]

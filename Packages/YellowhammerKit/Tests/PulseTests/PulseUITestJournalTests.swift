@@ -164,10 +164,10 @@ private func seedAttempts(
         cardID: blocked, route: route(), routeSource: "entry", runID: runID, nightID: nightID, now: seededAt
     )
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: blocked, issueID: issueID(11), attemptID: failed.id, result: .failed,
             exitStatus: 1, output: "swift test: 3 failures", judgedCommit: nil
-        ),
+        )),
         runID: runID, nightID: nightID, now: seededAt.addingTimeInterval(240)
     )
     _ = try journal.endAttempt(

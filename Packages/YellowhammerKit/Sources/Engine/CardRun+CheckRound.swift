@@ -81,29 +81,36 @@ extension CardRun {
     /// judged — a passing Check writes no Round, so the event is the only record of which commit went green).
     func runCheck(frame: CardRunFrame, attemptID: Int64, commit: String) async throws -> RepositoryCheckResult {
         try frame.revalidateLease()
+        let others = siblingRepositories(frame: frame)
+        let headsBefore = await siblingHeads(frame: frame, repositories: others)
         let checked = try await check.run(
             repository: frame.card.repository, check: frame.check, worktreePath: frame.worktree.path
         )
+        let headsAfter = await siblingHeads(frame: frame, repositories: others)
+        let siblings = siblingStates(repositories: others, before: headsBefore, after: headsAfter)
+        let lockfile = await lockfileIdentity(frame: frame, commit: commit)
         try frame.revalidateLease()
         try frame.record(.check, detail: Self.describe(checked))
         let card = frame.card
         let event: JournalEvent
         switch checked {
         case .passed(let printed):
-            event = .checkRan(
+            event = .checkRan(CheckRanPayload(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .passed, exitStatus: 0,
-                output: printed, judgedCommit: commit, command: frame.check.description
-            )
+                output: printed, judgedCommit: commit, command: frame.check.description,
+                siblings: siblings, lockfile: lockfile
+            ))
         case .failed(let printed, let status):
-            event = .checkRan(
+            event = .checkRan(CheckRanPayload(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .failed, exitStatus: status,
-                output: printed, judgedCommit: commit, command: frame.check.description
-            )
+                output: printed, judgedCommit: commit, command: frame.check.description,
+                siblings: siblings, lockfile: lockfile
+            ))
         case .declaredNone:
-            event = .checkRan(
+            event = .checkRan(CheckRanPayload(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .declaredNone,
-                exitStatus: nil, output: nil, judgedCommit: commit
-            )
+                exitStatus: nil, output: nil, judgedCommit: commit, siblings: siblings, lockfile: lockfile
+            ))
         }
         try frame.journal.append(
             event, act: frame.context.act.act, runID: frame.context.act.runID, nightID: frame.context.act.night.id

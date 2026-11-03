@@ -44,8 +44,9 @@ extension NightAccount {
     /// events ``NightWording`` words with a Card's name.
     static func cardID(of event: JournalEvent) -> Int64? {
         switch event {
+        case .checkRan(let payload):
+            payload.cardID
         case .attemptEnded(let id, _, _, _, _, _),
-            .checkRan(let id, _, _, _, _, _, _, _),
             .cardStateTransitioned(let id, _, _, _, _, _),
             .cardLeaseReclaimed(let id, _, _),
             .readinessCheckFailed(let id, _, _):
@@ -179,7 +180,7 @@ extension NightAccount {
         switch record.event {
         case .actIncomplete: true
         case .repoLaneEnded(_, _, .some, _): true
-        case .checkRan(_, _, _, let result, _, _, _, _): result == .failed
+        case .checkRan(let payload): payload.result == .failed
         case .landStep(_, _, let outcome, _): outcome == .failed
         case .attemptEnded(_, _, _, _, let outcome, _): outcome == AttemptOutcome.hardFailure.rawValue
         default: problemTypes.contains(record.type)

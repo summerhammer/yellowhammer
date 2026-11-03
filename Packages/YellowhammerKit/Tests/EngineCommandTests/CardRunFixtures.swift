@@ -62,7 +62,7 @@ final class CardRunWorktreeFixture: Sendable {
 func makeCardRunWorld(
     journal: JournalStore, cards: [(issueID: String, repository: String)] = [("BACK-1", "backend")],
     withBoard: Bool = true, worktreePath: ((String) -> String)? = nil,
-    operatorIdentity: OperatorIdentity = .none
+    operatorIdentity: OperatorIdentity = .none, repositories: ProjectRepositories? = nil
 ) async throws -> CardRunWorld {
     let runID = RunID()
     guard case .claimed = try journal.claimActLease(act: .build, runID: runID, mode: .rehearsal) else {
@@ -106,7 +106,7 @@ func makeCardRunWorld(
     }
     let actContext = ActContext(
         act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: night,
-        outbox: outbox, board: actBoard, operatorIdentity: operatorIdentity
+        outbox: outbox, board: actBoard, repositories: repositories, operatorIdentity: operatorIdentity
     )
     let context = BuildActContext(
         act: actContext, feature: try #require(try journal.inFlightFeature()).0, cycleID: cycleID,

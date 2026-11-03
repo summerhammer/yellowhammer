@@ -182,10 +182,10 @@ struct ManagedBlockInputPreservationTests {
         let route = try #require(Route(cli: "claude", model: "opus", effort: "high"))
         let attempt = try journal.recordAttempt(cardID: rig.cardID, route: route, runID: rig.runID, now: outboxEpoch)
         try journal.append(
-            .checkRan(
+            .checkRan(CheckRanPayload(
                 cardID: rig.cardID, issueID: "issue-1", attemptID: attempt.id, result: .failed, exitStatus: 1,
                 output: nil, judgedCommit: nil
-            ),
+            )),
             runID: rig.runID, now: outboxEpoch
         )
         _ = try await rig.maintain()
