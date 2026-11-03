@@ -27,6 +27,20 @@ public enum UnpublishedHeadPinResult: Equatable, Sendable {
     case failed(reason: String)
 }
 
+/// What pinning a Feature Branch in the main repository before release did.
+public enum UnpublishedBranchPinResult: Equatable, Sendable {
+    /// The branch was pinned at `ref`, a local ref outside `refs/heads/`.
+    case pinned(ref: String, relation: WorktreeHeadRelation)
+    /// The branch was already pinned at `ref` by an earlier firing: nothing was written this time.
+    case alreadyPinned(ref: String)
+    /// The branch is at the recorded commit: nothing to pin.
+    case notNeeded
+    /// The repository is readable and has no such branch.
+    case absent
+    /// The repository is missing or unreadable, or git failed; the reason says why.
+    case failed(reason: String)
+}
+
 /// The local git behind the unpublished-commits pin (spec: landing/open-one-pull-request-per-repository,
 /// `#unpublished-commits-pin`; OQ191 items 6 and 9): how a held Worktree's HEAD stands against its recorded
 /// commit, and the pin that keeps a HEAD that is not the recorded commit — descendant or not — once the Worktree
@@ -56,12 +70,19 @@ public struct UnpublishedHeadPin: Sendable {
         guard resolved.isSuccess, !head.isEmpty else {
             return .unreadable(reason: resolved.failureReason(fallback: "HEAD of \(worktreePath) does not resolve"))
         }
+        return await commitRelation(head: head, recordedCommit: recordedCommit, gitDirectory: worktreePath)
+    }
+
+    /// How the commit `head` in `gitDirectory` stands against `recordedCommit`.
+    public func commitRelation(
+        head: String, recordedCommit: String, gitDirectory: String
+    ) async -> WorktreeHeadRelation {
         if head == recordedCommit { return .atRecordedCommit }
 
-        let ancestry = await git.run(["-C", worktreePath, "merge-base", "--is-ancestor", recordedCommit, head])
+        let ancestry = await git.run(["-C", gitDirectory, "merge-base", "--is-ancestor", recordedCommit, head])
         switch ancestry.exitCode {
         case 0:
-            let count = await git.run(["-C", worktreePath, "rev-list", "--count", "\(recordedCommit)..\(head)"])
+            let count = await git.run(["-C", gitDirectory, "rev-list", "--count", "\(recordedCommit)..\(head)"])
             guard count.isSuccess, let commits = Int(count.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
             else {
                 return .unreadable(reason: count.failureReason(fallback: "git rev-list exited \(count.exitCode)"))
@@ -77,7 +98,8 @@ public struct UnpublishedHeadPin: Sendable {
     }
 
     /// Pins the HEAD of the Worktree at `worktreePath` at ``ref(for:)`` when it is not `recordedCommit`, whether
-    /// or not it descends from it. Never pushes. A HEAD at `recordedCommit` writes nothing, and nor does one the pin already points at.
+    /// or not it descends from it. Never pushes. A HEAD at `recordedCommit` writes nothing, and nor does one the pin
+    /// already points at.
     public func pinUnpublishedHead(
         worktreePath: String, recordedCommit: String, branch: FeatureBranch
     ) async -> UnpublishedHeadPinResult {
@@ -97,6 +119,50 @@ public struct UnpublishedHeadPin: Sendable {
             return .alreadyPinned(ref: ref)
         }
         let written = await git.run(["-C", worktreePath, "update-ref", ref, head])
+        guard written.isSuccess else {
+            return .failed(reason: written.failureReason(fallback: "git update-ref exited \(written.exitCode)"))
+        }
+        return .pinned(ref: ref, relation: relation)
+    }
+
+    /// Pins `branch` in the main repository at `repositoryPath` at ``ref(for:)`` when it is not `recordedCommit`.
+    /// Tells "the branch does not exist" apart from "git failed" by verifying `--git-dir` first through
+    /// ``FeatureBranchRecoveryPin/tip(of:repositoryPath:)``.
+    public func pinFeatureBranch(
+        repositoryPath: String, recordedCommit: String, branch: FeatureBranch
+    ) async -> UnpublishedBranchPinResult {
+        let recoveryPin = FeatureBranchRecoveryPin(git: git)
+        let tipLookup = await recoveryPin.tip(of: branch, repositoryPath: repositoryPath)
+        let branchCommit: String
+        switch tipLookup {
+        case .absent:
+            return .absent
+        case .failed(let reason):
+            return .failed(reason: reason)
+        case .commit(let commit):
+            branchCommit = commit
+        }
+
+        let relation = await commitRelation(
+            head: branchCommit, recordedCommit: recordedCommit, gitDirectory: repositoryPath
+        )
+        switch relation {
+        case .atRecordedCommit:
+            return .notNeeded
+        case .unreadable(let reason):
+            return .failed(reason: reason)
+        case .after, .differs:
+            break
+        }
+
+        let ref = Self.ref(for: branch)
+        let existing = await git.run([
+            "-C", repositoryPath, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"
+        ])
+        if existing.isSuccess, existing.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == branchCommit {
+            return .alreadyPinned(ref: ref)
+        }
+        let written = await git.run(["-C", repositoryPath, "update-ref", ref, branchCommit])
         guard written.isSuccess else {
             return .failed(reason: written.failureReason(fallback: "git update-ref exited \(written.exitCode)"))
         }

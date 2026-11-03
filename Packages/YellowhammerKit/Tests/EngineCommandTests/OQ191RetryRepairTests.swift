@@ -67,8 +67,8 @@ struct OQ191RetryRepairTests {
         #expect(await oq191RevParse(backend.clone.path, pinRef) == backend.tip)
     }
 
-    // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
-    @Test("a Worktree directory that is no longer a git work tree is released, saying nothing was pinned")
+    // landing/stories/open-one-pull-request-per-repository.md#uncommitted-snapshot
+    @Test("a Worktree directory that is no longer a git work tree stays held (OQ196 item 2); once removed, releases")
     func notAWorkTreeIsReleased() async throws {
         let world = try await heldAfterRefusedPullRequest()
         let backend = world["backend"]
@@ -78,10 +78,17 @@ struct OQ191RetryRepairTests {
 
         #expect(second.error == nil)
         let step = try #require(world.env.releaseWorktreeStep(repository: "backend"))
-        #expect(step.outcome == .completed)
-        #expect(step.detail?.contains("nothing was pinned") == true)
+        #expect(step.outcome == .failed)
+        #expect(step.detail?.contains("is not a git work tree") == true)
+        #expect(try !world.isCycleLanded)
+
+        // Once the directory is removed, the next firing treats it as gone and releases it
+        try FileManager.default.removeItem(atPath: backend.worktree)
+        let third = await world.fire()
+        #expect(third.error == nil)
+        let stepThird = try #require(world.env.releaseWorktreeStep(repository: "backend"))
+        #expect(stepThird.outcome == .completed)
         #expect(try world.isCycleLanded)
-        #expect(try world.env.journal.events(ofType: .unpublishedCommitsPinned).isEmpty)
     }
 
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin

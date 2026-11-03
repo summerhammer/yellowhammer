@@ -47,6 +47,8 @@ struct StubPush: LanePushing {
     var throwing: Set<String> = []
     /// Repositories whose Feature Branch is at its base: the push reports no completed work.
     var noCompletedWork: Set<String> = []
+    /// Repositories with specific pushed commits.
+    var pushedCommits: [String: String] = [:]
 
     struct PushError: Error, Equatable {}
 
@@ -61,7 +63,8 @@ struct StubPush: LanePushing {
         if notPushed.contains(context.lane.repository) {
             return LanePushOutcome(pushed: false, reason: "rejected")
         }
-        return LanePushOutcome(pushed: true, commit: "deadbeef-\(context.lane.repository)")
+        let commit = pushedCommits[context.lane.repository] ?? "deadbeef-\(context.lane.repository)"
+        return LanePushOutcome(pushed: true, commit: commit)
     }
 }
 
@@ -107,6 +110,26 @@ struct StubArchiveCycle: CycleArchiving {
     }
 }
 
+/// Real throwaway repositories for fixture tests where held Worktrees are at non-existent paths.
+/// The clones are initialized with default branch `main` and have no feature branches, so the
+/// branch step in the main clone evaluates to `.absent` and the Worktree releases with nothing pinned.
+let landThrowawayRepositories: ProjectRepositories = {
+    let root = FileManager.default.temporaryDirectory
+        .appending(component: "land-fixture-clones-\(UUID().uuidString)", directoryHint: .isDirectory)
+    var repos: [Repo] = []
+    for name in ["backend", "mobile"] {
+        let dir = root.appending(component: name, directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: GitRunner.findGitExecutable())
+        process.arguments = ["-C", dir.path, "init", "--quiet", "--initial-branch=main"]
+        try? process.run()
+        process.waitUntilExit()
+        repos.append(Repo(name: name, path: dir.path, role: .backend, defaultBranch: "main"))
+    }
+    return ProjectRepositories(workingRepos: repos, specSource: SpecSource(path: "/repos/spec"))
+}()
+
 /// A fixture Feature → Cycle → two Cards in two repositories (one lane each), with a Feature Branch
 /// recorded and, when `worktrees` is true, a held Worktree per lane.
 struct LandFixture {
@@ -114,6 +137,7 @@ struct LandFixture {
     let featureID: Int64
     let cycleID: Int64
     let repositories = ["backend", "mobile"]
+    let projectRepositories = landThrowawayRepositories
 
     static func make(_ journal: JournalStore, runID: RunID, worktrees: Bool = true) throws -> LandFixture {
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")

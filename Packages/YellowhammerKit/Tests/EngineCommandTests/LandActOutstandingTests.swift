@@ -12,7 +12,8 @@ import Testing
 private func fire(_ act: LandAct, journal: JournalStore, runID: RunID) async throws {
     let invocation = EngineInvocation(
         act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-        runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+        runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+        work: act.work
     )
     try await invocation.run()
 }

@@ -132,11 +132,12 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
 
     /// Stop-with-salvage: every Waiting on You Card is auto-Blocked `reply overdue`, while Todo and In
     /// Progress Cards are auto-Blocked `feature abandoned` (``CardAutoBlock``). Blocked Cards are detached from the
-    /// Feature Issue, each held Worktree whose HEAD is not the recorded commit has that HEAD pinned under
-    /// `refs/yellowhammer/unpublished/<branch>` before release (OQ194 item 3), every held Worktree is released,
-    /// and the Cycle is archived without `closed_by` (never a closure route; `abandoned_at` is the marker).
-    /// The Feature Issue itself is never archived and its workflow state is never rewritten: it stays in the
-    /// Operator's own *abandoned* state, re-enterable.
+    /// Feature Issue, each held Worktree whose commit is not the recorded commit has that commit pinned under
+    /// `refs/yellowhammer/unpublished/<branch>` before release (OQ194 item 3, Pin Failure item 2); a gone Worktree
+    /// has its Feature Branch pinned from the main clone, while a non-git Worktree directory keeps the Worktree held
+    /// (OQ196 item 2). Every releasable held Worktree is released, and the Cycle is archived without `closed_by`
+    /// (never a closure route; `abandoned_at` is the marker). The Feature Issue itself is never archived and its
+    /// workflow state is never rewritten: it stays in the Operator's own *abandoned* state, re-enterable.
     ///
     private func applyAbandoned(
         feature: FeatureRecord, cycleID: Int64, cards: [CardRecord], context: ActContext
@@ -200,9 +201,10 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         let triagedNightID: Int64
     }
 
-    /// Releases every held Worktree for `featureID`. The HEAD of each held Worktree has already been
-    /// pinned before release (OQ194 item 3), making the discard safe. A no-op on a Partial Landing — the
-    /// land Act has already released every Worktree it could push.
+    /// Releases every held Worktree for `featureID`. The HEAD of each held Worktree (or the Feature Branch from the
+    /// main clone for a gone Worktree) has already been pinned before release (OQ194 item 3, Pin Failure item 2),
+    /// making the discard safe. A non-git Worktree directory stays held (OQ196 item 2). A no-op on a Partial
+    /// Landing — the land Act has already released every Worktree it could push.
     private func releaseWorktrees(featureID: Int64, context: ActContext) async throws {
         guard let workspace = context.workspace else { return }
         let held = try context.journal.worktrees(featureID: featureID).filter(\.isHeld)

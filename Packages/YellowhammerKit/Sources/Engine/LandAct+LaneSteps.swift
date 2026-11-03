@@ -268,8 +268,9 @@ extension LandAct {
     /// completed work (``JournalStore/releaseWorktree(id:runID:now:)``'s own refusal is defence in
     /// depth, not relied on here). Never throws for an unsafe push outcome — that is recorded skipped,
     /// and the Worktree stays held. A HEAD that is not the recorded commit is pinned first, on a lane with
-    /// no completed work too (``pinUnpublishedHead(held:laneContext:pushOutcome:context:)``); a pin that
-    /// cannot be written fails the step and keeps the Worktree held.
+    /// no completed work too (``pinUnpublishedHead(held:laneContext:pushOutcome:context:)``). A gone or non-git
+    /// Worktree has its Feature Branch pinned from the main clone before release, and a non-git directory stays held
+    /// (OQ196 item 2). A pin that cannot be written fails the step and keeps the Worktree held.
     private func runReleaseWorktree(
         _ laneContext: LandActLaneContext, pushOutcome: LanePushOutcome?, context: ActContext
     ) async -> LandStepResult {
