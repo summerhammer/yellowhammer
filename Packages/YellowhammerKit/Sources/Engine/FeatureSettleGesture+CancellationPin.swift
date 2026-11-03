@@ -26,9 +26,11 @@ extension FeatureSettleGesture {
         return nil
     }
 
-    /// Pins the HEAD of each held Worktree whose HEAD is not the recorded commit before release
-    /// (OQ194 item 3). Defers the abandon by throwing ``CycleArchiveFault`` when a pin cannot be written
-    /// or a moved HEAD has no Feature Branch to pin it under, keeping every Worktree held.
+    /// Pins the HEAD (or the main clone's Feature Branch if the Worktree directory is gone or not a git work tree)
+    /// of each held Worktree whose commit is not the recorded commit before release (OQ194 item 3, Pin Failure
+    /// item 2). Defers the abandon by throwing ``CycleArchiveFault`` when a pin cannot be written, a moved HEAD
+    /// has no Feature Branch to pin it under, or the directory is not a git work tree so uncommitted changes
+    /// cannot be saved (OQ196 item 2), keeping every Worktree held.
     func pinWorktrees(
         feature: FeatureRecord, cycleID: Int64, cards: [CardRecord], context: ActContext
     ) async throws {
@@ -36,29 +38,38 @@ extension FeatureSettleGesture {
         let held = try journal.worktrees(featureID: feature.id).filter(\.isHeld)
         guard !held.isEmpty else { return }
 
+        let pinContext = CancellationPinContext(
+            feature: feature, cycleID: cycleID, cards: cards, context: context
+        )
         for worktree in held {
-            try await pinHeldWorktree(
-                worktree, feature: feature, cycleID: cycleID, cards: cards, context: context
-            )
+            try await pinHeldWorktree(worktree, pinContext: pinContext)
         }
     }
 
+    private struct CancellationPinContext {
+        let feature: FeatureRecord
+        let cycleID: Int64
+        let cards: [CardRecord]
+        let context: ActContext
+    }
+
     private func pinHeldWorktree(
-        _ worktree: WorktreeRecord, feature: FeatureRecord, cycleID: Int64, cards: [CardRecord],
-        context: ActContext
+        _ worktree: WorktreeRecord, pinContext: CancellationPinContext
     ) async throws {
-        let journal = context.journal
+        let journal = pinContext.context.journal
         let repository = worktree.repository
-        guard let recorded = recordedCommit(
-            held: worktree, cycleID: cycleID, featureID: feature.id, journal: journal
-        ) else {
-            return
+        let recorded = recordedCommit(
+            held: worktree, cycleID: pinContext.cycleID, featureID: pinContext.feature.id, journal: journal
+        )
+        let branch = try? journal.resolvedFeatureBranch(feature: pinContext.feature, repository: repository)
+        let mainClonePath = pinContext.context.repositories?.repositoryPath(named: repository).map {
+            WorktreeReconciler.expandedPath($0)
         }
-        let branch = try? journal.resolvedFeatureBranch(feature: feature, repository: repository)
+
         switch await UnpublishedPinDecision.evaluate(
-            worktreePath: worktree.path, recordedCommit: recorded.commit, branch: branch
+            worktreePath: worktree.path, mainClonePath: mainClonePath, recordedCommit: recorded?.commit, branch: branch
         ) {
-        case .missingWorktree, .notGitWorktree, .notNeeded, .alreadyPinned:
+        case .notNeeded, .alreadyPinned:
             return
         case .noFeatureBranch(let commit):
             throw CycleArchiveFault(
@@ -71,25 +82,101 @@ extension FeatureSettleGesture {
                     + "the Worktree stays held and the next author firing retries"
             )
         case .pinned(let ref, let relation):
-            guard let unpublished = UnpublishedHead(
-                relation, repository: repository, recordedCommit: recorded.commit,
-                noPushedBranch: recorded.noPushedBranch
-            ) else {
-                return
+            if let recorded {
+                await reportPinned(
+                    relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
+                )
             }
-            _ = try? context.journal.append(
-                .unpublishedCommitsPinnedAtCancellation(cycleID: cycleID, unpublished: unpublished, pinRef: ref),
-                act: context.act, runID: context.runID, nightID: context.night.id
+
+        case .gone(let step):
+            try await handleGoneWorktree(
+                step: step, repository: repository, recorded: recorded, pinContext: pinContext
             )
-            let laneCards = cards.filter { $0.repository == repository }
-            let placement = LandCommentPlacement(
-                cycleID: cycleID, repository: repository, featureIssueID: feature.issueID, laneCards: laneCards
+
+        case .notGitWorktree(let step):
+            try await handleNotGitWorktree(
+                step: step, repository: repository, recorded: recorded, pinContext: pinContext
             )
-            await UnpublishedCommitsReport.post(
-                UnpublishedCommitsReport.atCancellation(unpublished, pinRef: ref),
-                kind: .cancellation,
-                at: placement,
-                outbox: context.outbox
+        }
+    }
+
+    private func reportPinned(
+        relation: WorktreeHeadRelation, ref: String, repository: String, recorded: WorktreeRecordedCommit,
+        pinContext: CancellationPinContext
+    ) async {
+        guard let unpublished = UnpublishedHead(
+            relation, repository: repository, recordedCommit: recorded.commit,
+            noPushedBranch: recorded.noPushedBranch
+        ) else { return }
+        let context = pinContext.context
+        _ = try? context.journal.append(
+            .unpublishedCommitsPinnedAtCancellation(cycleID: pinContext.cycleID, unpublished: unpublished, pinRef: ref),
+            act: context.act, runID: context.runID, nightID: context.night.id
+        )
+        let laneCards = pinContext.cards.filter { $0.repository == repository }
+        let placement = LandCommentPlacement(
+            cycleID: pinContext.cycleID, repository: repository,
+            featureIssueID: pinContext.feature.issueID, laneCards: laneCards
+        )
+        await UnpublishedCommitsReport.post(
+            UnpublishedCommitsReport.atCancellation(unpublished, pinRef: ref),
+            kind: .cancellation,
+            at: placement,
+            outbox: context.outbox
+        )
+    }
+
+    private func handleGoneWorktree(
+        step: UnpublishedPinDecision.MainCloneBranchStep, repository: String, recorded: WorktreeRecordedCommit?,
+        pinContext: CancellationPinContext
+    ) async throws {
+        switch step {
+        case .notNeeded, .absent, .alreadyPinned, .noFeatureBranch:
+            return
+        case .failed(let reason):
+            throw CycleArchiveFault(
+                reason: "the Worktree in \(repository) could not be pinned before release (\(reason)); "
+                    + "the Worktree stays held and the next author firing tries again"
+            )
+        case .pinned(let ref, let relation):
+            if let recorded {
+                await reportPinned(
+                    relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
+                )
+            }
+        }
+    }
+
+    private func handleNotGitWorktree(
+        step: UnpublishedPinDecision.MainCloneBranchStep, repository: String, recorded: WorktreeRecordedCommit?,
+        pinContext: CancellationPinContext
+    ) async throws {
+        let baseFault = "the Worktree directory in \(repository) is not a git work tree, so its uncommitted "
+            + "changes cannot be saved"
+        switch step {
+        case .notNeeded, .absent, .noFeatureBranch:
+            throw CycleArchiveFault(
+                reason: "\(baseFault); the Worktree stays held and the next author firing tries again"
+            )
+        case .alreadyPinned(let ref):
+            throw CycleArchiveFault(
+                reason: "\(baseFault); already pinned at \(ref); the Worktree stays held and the next author "
+                    + "firing tries again"
+            )
+        case .failed(let reason):
+            throw CycleArchiveFault(
+                reason: "the Worktree in \(repository) could not be pinned before release (\(reason)); "
+                    + "the Worktree stays held and the next author firing tries again"
+            )
+        case .pinned(let ref, let relation):
+            if let recorded {
+                await reportPinned(
+                    relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
+                )
+            }
+            throw CycleArchiveFault(
+                reason: "\(baseFault); pinned at \(ref); the Worktree stays held and the next author "
+                    + "firing tries again"
             )
         }
     }

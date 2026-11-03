@@ -95,7 +95,7 @@ final class SettleWorld {
         let board = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
         return ActContext(
             act: .author, mode: .real, trigger: .scheduled, runID: runID, journal: journal, night: opening.night,
-            outbox: outbox, board: board, workspace: workspace, repositories: repositories
+            outbox: outbox, board: board, workspace: workspace, repositories: repositories ?? landThrowawayRepositories
         )
     }
 

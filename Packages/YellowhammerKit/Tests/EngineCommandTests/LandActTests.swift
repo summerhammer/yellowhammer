@@ -31,7 +31,8 @@ struct LandActTests {
         )
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         try await invocation.run()
@@ -88,7 +89,8 @@ struct LandActTests {
         )
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         try await invocation.run()
@@ -136,7 +138,8 @@ struct LandActTests {
         )
         let invocation = EngineInvocation(
             act: .land, mode: .rehearsal, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         try await invocation.run()
@@ -189,7 +192,8 @@ struct LandActTests {
         )
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         try await invocation.run()
@@ -228,7 +232,8 @@ struct LandActTests {
         )
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         try await invocation.run()
@@ -255,7 +260,8 @@ struct LandActTests {
         )
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         await #expect(throws: (any Error).self) {
@@ -287,7 +293,8 @@ struct LandActTests {
         let act = LandAct()
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         try await invocation.run()
@@ -317,8 +324,7 @@ struct LandActTests {
         try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: landBranch.rawValue))
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         try insertReconcilerCard(
-            journal, cycleID: cycleID, issueID: "WC1", repository: "backend", state: .blocked,
-            title: "Add the endpoint"
+            journal, cycleID: cycleID, issueID: "WC1", repository: "backend", state: .blocked, title: "Add the endpoint"
         )
         _ = try journal.transitionCard(
             cardID: try #require(try journal.card(issueID: "WC1")?.id),
@@ -329,14 +335,13 @@ struct LandActTests {
             nightID: nil,
             now: landEpoch
         )
+        let docs = "Document the endpoint"
         try insertReconcilerCard(
-            journal, cycleID: cycleID, issueID: "WC2", repository: "backend", state: .todo,
-            title: "Document the endpoint"
+            journal, cycleID: cycleID, issueID: "WC2", repository: "backend", state: .todo, title: docs
         )
         try recordTouchedRepositories(journal, featureID: featureID, repositories: ["backend"])
         try journal.recordWorktree(
-            featureID: featureID, repository: "backend", worktreeID: "wt-backend",
-            path: "/tmp/backend", runID: runID
+            featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: "/tmp/wt", runID: runID
         )
 
         let log = LandCallLog()
@@ -351,7 +356,8 @@ struct LandActTests {
         )
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: landNightStart, journal: journal, trigger: .scheduled,
-            runID: runID, workspace: ReconcilerFakeWorkspace(), work: act.work
+            runID: runID, repositories: landThrowawayRepositories, workspace: ReconcilerFakeWorkspace(),
+            work: act.work
         )
 
         try await invocation.run()

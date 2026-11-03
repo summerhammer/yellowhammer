@@ -28,8 +28,8 @@ extension LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
         let workspace = ReconcilerFakeWorkspace()
         let context = mergeContext(env, commit: mainSHA, workspace: workspace)
-        // The merge test reads the main clone only. The held Worktree's directory is gone, so release compares no
-        // HEAD with the stub push's commit, which is no commit of this repository, and pins nothing.
+        // The merge test reads the main clone only. The held Worktree's directory is gone, and the main clone's
+        // Feature Branch is at the pushed commit, so release pins nothing and releases the Worktree.
         let absentWorktree = FileManager.default.temporaryDirectory
             .appending(component: "merge-wt-\(UUID().uuidString)").path(percentEncoded: false)
         try env.journal.recordWorktree(
@@ -41,10 +41,9 @@ extension LandActPushTests {
         let headBefore = await local.revParse("HEAD")
         let indexBefore = try Data(contentsOf: local.url.appendingPathComponent(".git/index"))
         let log = LandCallLog()
-        let land = LandAct(
-            mergeTest: FeatureBranchLaneMergeTest(), push: StubPush(log: log),
-            openPullRequest: StubPullRequest(log: log)
-        )
+        let push = StubPush(log: log, pushedCommits: ["backend": branchSHA])
+        let opening = StubPullRequest(log: log)
+        let land = LandAct(mergeTest: FeatureBranchLaneMergeTest(), push: push, openPullRequest: opening)
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: context
@@ -54,14 +53,22 @@ extension LandActPushTests {
         #expect(log.all == ["push:backend", "openPullRequest:backend"])
         #expect(workspace.removeCalls.map(\.id) == [WorktreeID(rawValue: "merge-wt")])
         #expect(branchSHA != mainSHA)
-        let statusAfter = await local.run(["status", "--porcelain"]).stdout
+        #expect(statusBefore == (await local.run(["status", "--porcelain"]).stdout))
         let refsAfter = await local.run(["for-each-ref"]).stdout
-        let headAfter = await local.revParse("HEAD")
-        #expect(statusBefore == statusAfter)
-        #expect(refsBefore == refsAfter)
-        #expect(headBefore == headAfter)
+        // The landed-tip pin is the only ref landing writes in the main clone.
+        let landedRef = "refs/yellowhammer/landed/\(landBranch.name)"
+        #expect(refsBefore == Self.refs(refsAfter, excluding: landedRef))
+        #expect(refsAfter.contains(landedRef))
+        #expect(headBefore == (await local.revParse("HEAD")))
         #expect(indexBefore == (try Data(contentsOf: local.url.appendingPathComponent(".git/index"))))
         try await assertConflictReports(env, context: context)
+    }
+
+    /// `listing` (`git for-each-ref` output) without the lines naming `ref`.
+    private static func refs(_ listing: String, excluding ref: String) -> String {
+        listing.split(separator: "\n", omittingEmptySubsequences: true)
+            .filter { !$0.contains(ref) }
+            .joined(separator: "\n") + (listing.hasSuffix("\n") ? "\n" : "")
     }
 
     private func assertConflictReports(_ env: Environment, context: ActContext) async throws {
