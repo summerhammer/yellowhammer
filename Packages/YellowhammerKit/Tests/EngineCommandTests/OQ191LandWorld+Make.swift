@@ -171,6 +171,11 @@ final class OQ191LandWorld {
         try await OQ191Probe.unpublishedCommitsReports(env.journal, board: env.board, repository: repository)
     }
 
+    /// The held-Worktree comments posted on `issue` (the Feature Card, `FEAT-1`, or a Done Work Card, `BACK-1`).
+    func heldWorktreeComments(_ repository: String, on issue: String) async -> [String] {
+        await OQ191Probe.heldWorktreeComments(board: env.board, issue: issue, repository: repository)
+    }
+
     func remoteTipFailures(_ repository: String) async throws -> [String]? {
         try await OQ191Probe.remoteTipFailures(env.journal, board: env.board, repository: repository)
     }

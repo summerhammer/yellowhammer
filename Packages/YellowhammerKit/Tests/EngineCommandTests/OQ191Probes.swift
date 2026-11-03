@@ -96,6 +96,20 @@ enum OQ191Probe {
             .filter { $0.contains(" in \(repository) ") }
         return failures.isEmpty ? nil : failures
     }
+
+    /// Pin Failure item 2; `landing/stories/open-one-pull-request-per-repository.md#pin-failure`: the comments the
+    /// land Act posted on `issue` for `repository` when a pin or a non-git directory kept a Worktree held ("Not
+    /// landed: ..." at the land Act, "Not cancelled: ..." at cancellation), in the order made; empty when none.
+    static func heldWorktreeComments(
+        board: FakeWritingBoard, issue: String, repository: String
+    ) async -> [String] {
+        await board.comments
+            .filter { $0.issue.rawValue == issue }
+            .map(\.body)
+            .filter { $0.hasPrefix("Not landed: ") || $0.hasPrefix("Not cancelled: ") }
+            .filter { $0.contains("`\(repository)`") }
+            .filter { $0.contains("could not be pinned before release") || $0.contains("is not a git work tree") }
+    }
 }
 
 extension OQ191JudgedCheckout {

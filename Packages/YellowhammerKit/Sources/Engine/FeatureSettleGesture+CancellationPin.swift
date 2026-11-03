@@ -77,9 +77,9 @@ extension FeatureSettleGesture {
                     + "Feature Branch is recorded to pin it under; the Worktree stays held"
             )
         case .failed(let reason):
-            throw CycleArchiveFault(
-                reason: "the Worktree's HEAD in \(repository) could not be pinned before release (\(reason)); "
-                    + "the Worktree stays held and the next author firing retries"
+            try await failPin(
+                reason: reason, subject: .worktreeHead, repository: repository, recorded: recorded,
+                pinContext: pinContext
             )
         case .pinned(let ref, let relation):
             if let recorded {
@@ -90,12 +90,12 @@ extension FeatureSettleGesture {
 
         case .gone(let step):
             try await handleGoneWorktree(
-                step: step, repository: repository, recorded: recorded, pinContext: pinContext
+                step: step, worktree: worktree, branch: branch, recorded: recorded, pinContext: pinContext
             )
 
         case .notGitWorktree(let step):
             try await handleNotGitWorktree(
-                step: step, repository: repository, recorded: recorded, pinContext: pinContext
+                step: step, worktree: worktree, branch: branch, recorded: recorded, pinContext: pinContext
             )
         }
     }
@@ -126,17 +126,42 @@ extension FeatureSettleGesture {
         )
     }
 
-    private func handleGoneWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, repository: String, recorded: WorktreeRecordedCommit?,
+    /// Posts `comment` on the Feature Card and the repository's Cards, then defers the cancellation with the
+    /// comment's own text as the fault's reason. The Outbox row is persisted although the Act ends incomplete.
+    private func failCancellation(
+        _ comment: (body: String, keySuffix: String), repository: String, pinContext: CancellationPinContext
+    ) async throws -> Never {
+        let placement = LandCommentPlacement(
+            cycleID: pinContext.cycleID, repository: repository, featureIssueID: pinContext.feature.issueID,
+            laneCards: pinContext.cards.filter { $0.repository == repository }
+        )
+        await placement.post(comment.body, keySuffix: comment.keySuffix, outbox: pinContext.context.outbox)
+        throw CycleArchiveFault(reason: comment.body)
+    }
+
+    private func failPin(
+        reason: String, subject: PinSubject, repository: String, recorded: WorktreeRecordedCommit?,
         pinContext: CancellationPinContext
+    ) async throws -> Never {
+        let comment = LandFailureComment.pinFailed(
+            subject: subject, repository: repository, reason: reason, recordedCommit: recorded?.commit,
+            moment: .cancellation
+        )
+        try await failCancellation(comment, repository: repository, pinContext: pinContext)
+    }
+
+    private func handleGoneWorktree(
+        step: UnpublishedPinDecision.MainCloneBranchStep, worktree: WorktreeRecord, branch: FeatureBranch?,
+        recorded: WorktreeRecordedCommit?, pinContext: CancellationPinContext
     ) async throws {
+        let repository = worktree.repository
         switch step {
         case .notNeeded, .absent, .alreadyPinned, .noFeatureBranch:
             return
         case .failed(let reason):
-            throw CycleArchiveFault(
-                reason: "the Worktree in \(repository) could not be pinned before release (\(reason)); "
-                    + "the Worktree stays held and the next author firing tries again"
+            try await failPin(
+                reason: reason, subject: branch.map(PinSubject.featureBranch) ?? .worktreeHead,
+                repository: repository, recorded: recorded, pinContext: pinContext
             )
         case .pinned(let ref, let relation):
             if let recorded {
@@ -148,25 +173,20 @@ extension FeatureSettleGesture {
     }
 
     private func handleNotGitWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, repository: String, recorded: WorktreeRecordedCommit?,
-        pinContext: CancellationPinContext
+        step: UnpublishedPinDecision.MainCloneBranchStep, worktree: WorktreeRecord, branch: FeatureBranch?,
+        recorded: WorktreeRecordedCommit?, pinContext: CancellationPinContext
     ) async throws {
-        let baseFault = "the Worktree directory in \(repository) is not a git work tree, so its uncommitted "
-            + "changes cannot be saved"
+        let repository = worktree.repository
+        var pinRef: String?
         switch step {
         case .notNeeded, .absent, .noFeatureBranch:
-            throw CycleArchiveFault(
-                reason: "\(baseFault); the Worktree stays held and the next author firing tries again"
-            )
+            break
         case .alreadyPinned(let ref):
-            throw CycleArchiveFault(
-                reason: "\(baseFault); already pinned at \(ref); the Worktree stays held and the next author "
-                    + "firing tries again"
-            )
+            pinRef = ref
         case .failed(let reason):
-            throw CycleArchiveFault(
-                reason: "the Worktree in \(repository) could not be pinned before release (\(reason)); "
-                    + "the Worktree stays held and the next author firing tries again"
+            try await failPin(
+                reason: reason, subject: branch.map(PinSubject.featureBranch) ?? .worktreeHead,
+                repository: repository, recorded: recorded, pinContext: pinContext
             )
         case .pinned(let ref, let relation):
             if let recorded {
@@ -174,10 +194,11 @@ extension FeatureSettleGesture {
                     relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
                 )
             }
-            throw CycleArchiveFault(
-                reason: "\(baseFault); pinned at \(ref); the Worktree stays held and the next author "
-                    + "firing tries again"
-            )
+            pinRef = ref
         }
+        let comment = LandFailureComment.notGitWorktree(
+            repository: repository, path: worktree.path, pinRef: pinRef, moment: .cancellation
+        )
+        try await failCancellation(comment, repository: repository, pinContext: pinContext)
     }
 }

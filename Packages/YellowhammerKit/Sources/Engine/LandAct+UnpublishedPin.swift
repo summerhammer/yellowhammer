@@ -14,7 +14,9 @@ import Repositories
 // release; if it resolves and is not the recorded commit, it is pinned under `refs/yellowhammer/unpublished/<branch>`.
 // A gone directory is released after the branch pin, while a non-git directory stays held because its uncommitted
 // changes cannot be saved (OQ196 item 2). A pin an earlier firing already wrote at the same commit is neither
-// reported nor posted again. Uncommitted changes are not saved (OQ196 item 1 snapshot not yet built).
+// reported nor posted again. A pin or non-git directory that keeps the Worktree held posts a board comment naming the
+// cause and a route out (``LandFailureComment``), and the release step's detail is that same text. Uncommitted
+// changes are not saved (OQ196 item 1 snapshot not yet built).
 
 /// What evaluating and attempting to pin a held Worktree's HEAD or main-clone Feature Branch produced.
 enum UnpublishedPinDecision: Sendable {
@@ -143,10 +145,11 @@ extension LandAct {
         case .alreadyPinned(let ref):
             return .release(detail: "already pinned at \(ref)")
         case .failed(let reason):
-            return .keepHeld(
-                "the Worktree's HEAD in \(repository) could not be pinned before release (\(reason)); the Worktree "
-                    + "stays held and the next land firing retries"
+            let comment = LandFailureComment.pinFailed(
+                subject: .worktreeHead, repository: repository, reason: reason, recordedCommit: recordedCommit,
+                moment: .land
             )
+            return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
         case .pinned(let ref, let relation):
             guard let recordedCommit,
                   let unpublished = UnpublishedHead(
@@ -160,32 +163,70 @@ extension LandAct {
 
         case .gone(let step):
             return await handleGoneWorktree(
-                step: step, recordedCommit: recordedCommit,
+                step: step, held: HeldPinFacts(recordedCommit: recordedCommit, branch: branch, path: held.path),
                 pushOutcome: pushOutcome, laneContext: laneContext, context: context
             )
 
         case .notGitWorktree(let step):
             return await handleNotGitWorktree(
-                step: step, recordedCommit: recordedCommit,
+                step: step, held: HeldPinFacts(recordedCommit: recordedCommit, branch: branch, path: held.path),
                 pushOutcome: pushOutcome, laneContext: laneContext, context: context
             )
         }
     }
 
+    /// Posts `comment` on the Feature Card and the Done lane Cards, and keeps the Worktree held with the comment's
+    /// own text as the release step's detail, so the Journal and the board read one text.
+    private func keepHeldWithComment(
+        _ comment: (body: String, keySuffix: String), laneContext: LandActLaneContext, context: ActContext
+    ) async -> UnpublishedPinStep {
+        let placement = LandCommentPlacement(
+            cycleID: laneContext.cycleID, repository: laneContext.lane.repository,
+            featureIssueID: laneContext.feature.issueID, laneCards: laneContext.lane.cards
+        )
+        await placement.post(comment.body, keySuffix: comment.keySuffix, outbox: context.outbox)
+        return .keepHeld(comment.body)
+    }
+
+    private func branchPinFailed(
+        reason: String, branch: FeatureBranch?, recordedCommit: String?, laneContext: LandActLaneContext,
+        context: ActContext
+    ) async -> UnpublishedPinStep {
+        let comment = LandFailureComment.pinFailed(
+            subject: branch.map(PinSubject.featureBranch) ?? .worktreeHead,
+            repository: laneContext.lane.repository, reason: reason, recordedCommit: recordedCommit, moment: .land
+        )
+        return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
+    }
+
+    /// What the gone and non-git handlers know of the held Worktree.
+    struct HeldPinFacts {
+        let recordedCommit: String?
+        let branch: FeatureBranch?
+        let path: String
+    }
+
     private func handleGoneWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, recordedCommit: String?,
+        step: UnpublishedPinDecision.MainCloneBranchStep, held: HeldPinFacts,
         pushOutcome: LanePushOutcome, laneContext: LandActLaneContext, context: ActContext
     ) async -> UnpublishedPinStep {
+        let (recordedCommit, branch) = (held.recordedCommit, held.branch)
         let repository = laneContext.lane.repository
         switch step {
-        case .notNeeded, .absent, .noFeatureBranch:
+        case .notNeeded, .noFeatureBranch:
             return .release(detail: nil)
+        case .absent:
+            // `.absent` is only read for a recorded Feature Branch; the name is left out if none is.
+            let name = branch.map { " `\($0.rawValue)`" } ?? ""
+            return .release(
+                detail: "nothing was pinned: the Feature Branch\(name) does not resolve in the main clone"
+            )
         case .alreadyPinned(let ref):
             return .release(detail: "already pinned at \(ref)")
         case .failed(let reason):
-            return .keepHeld(
-                "the Worktree in \(repository) could not be pinned before release (\(reason)); the Worktree "
-                    + "stays held and the next land firing retries"
+            return await branchPinFailed(
+                reason: reason, branch: branch, recordedCommit: recordedCommit, laneContext: laneContext,
+                context: context
             )
         case .pinned(let ref, let relation):
             guard let recordedCommit,
@@ -201,24 +242,21 @@ extension LandAct {
     }
 
     private func handleNotGitWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, recordedCommit: String?,
+        step: UnpublishedPinDecision.MainCloneBranchStep, held: HeldPinFacts,
         pushOutcome: LanePushOutcome, laneContext: LandActLaneContext, context: ActContext
     ) async -> UnpublishedPinStep {
+        let (recordedCommit, branch, worktreePath) = (held.recordedCommit, held.branch, held.path)
         let repository = laneContext.lane.repository
-        let baseHeld = "the Worktree directory in \(repository) is not a git work tree, so its uncommitted "
-            + "changes cannot be saved"
+        var pinRef: String?
         switch step {
         case .notNeeded, .absent, .noFeatureBranch:
-            return .keepHeld("\(baseHeld); the Worktree stays held and the next land firing tries again")
+            break
         case .alreadyPinned(let ref):
-            return .keepHeld(
-                "\(baseHeld); already pinned at \(ref); the Worktree stays held and the next land "
-                    + "firing tries again"
-            )
+            pinRef = ref
         case .failed(let reason):
-            return .keepHeld(
-                "the Worktree in \(repository) could not be pinned before release (\(reason)); the Worktree "
-                    + "stays held and the next land firing retries"
+            return await branchPinFailed(
+                reason: reason, branch: branch, recordedCommit: recordedCommit, laneContext: laneContext,
+                context: context
             )
         case .pinned(let ref, let relation):
             if let recordedCommit,
@@ -228,10 +266,12 @@ extension LandAct {
                ) {
                 await reportPinned(unpublished, pinRef: ref, laneContext: laneContext, context: context)
             }
-            return .keepHeld(
-                "\(baseHeld); pinned at \(ref); the Worktree stays held and the next land firing tries again"
-            )
+            pinRef = ref
         }
+        let comment = LandFailureComment.notGitWorktree(
+            repository: repository, path: worktreePath, pinRef: pinRef, moment: .land
+        )
+        return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
     }
 
     /// The Pushed Tip this Cycle recorded (the push's own commit when none is recorded), or, with no completed work,
