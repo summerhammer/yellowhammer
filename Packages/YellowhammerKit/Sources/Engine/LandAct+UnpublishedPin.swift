@@ -15,8 +15,10 @@ import Repositories
 // A gone directory is released after the branch pin, while a non-git directory stays held because its uncommitted
 // changes cannot be saved (OQ196 item 2). A pin an earlier firing already wrote at the same commit is neither
 // reported nor posted again. A pin or non-git directory that keeps the Worktree held posts a board comment naming the
-// cause and a route out (``LandFailureComment``), and the release step's detail is that same text. Uncommitted
-// changes are not saved (OQ196 item 1 snapshot not yet built).
+// cause and a route out (``LandFailureComment``), and the release step's detail is that same text. Once the pin
+// decision allows a present git Worktree to be released, its uncommitted changes are saved as a snapshot under
+// `refs/yellowhammer/snapshot/<branch>` (``UncommittedSnapshot``, OQ196 item 1) and reported as not published; a
+// snapshot that cannot be written keeps the Worktree held and the next land firing tries again.
 
 /// What evaluating and attempting to pin a held Worktree's HEAD or main-clone Feature Branch produced.
 enum UnpublishedPinDecision: Sendable {
@@ -136,14 +138,19 @@ extension LandAct {
             worktreePath: held.path, mainClonePath: mainClonePath, recordedCommit: recordedCommit, branch: branch
         ) {
         case .notNeeded:
-            return .release(detail: nil)
+            return await snapshotBeforeRelease(
+                pinDetail: nil, held: held, branch: branch, laneContext: laneContext, context: context
+            )
         case .noFeatureBranch(let commit):
             return .keepHeld(
                 "the Worktree's HEAD in \(repository) is not the recorded commit \(commit.prefix(7)), and no "
                     + "Feature Branch is recorded to pin it under; the Worktree stays held"
             )
         case .alreadyPinned(let ref):
-            return .release(detail: "already pinned at \(ref)")
+            return await snapshotBeforeRelease(
+                pinDetail: "already pinned at \(ref)", held: held, branch: branch, laneContext: laneContext,
+                context: context
+            )
         case .failed(let reason):
             let comment = LandFailureComment.pinFailed(
                 subject: .worktreeHead, repository: repository, reason: reason, recordedCommit: recordedCommit,
@@ -151,15 +158,13 @@ extension LandAct {
             )
             return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
         case .pinned(let ref, let relation):
-            guard let recordedCommit,
-                  let unpublished = UnpublishedHead(
-                      relation, repository: repository, recordedCommit: recordedCommit,
-                      noPushedBranch: !pushOutcome.pushed
-                  ) else {
-                return .release(detail: nil)
-            }
-            await reportPinned(unpublished, pinRef: ref, laneContext: laneContext, context: context)
-            return .release(detail: "pinned \(unpublished.head.prefix(7)) at \(ref)")
+            let pinDetail = await reportWorktreePin(
+                pin: (ref, relation), recordedCommit: recordedCommit, pushOutcome: pushOutcome,
+                laneContext: laneContext, context: context
+            )
+            return await snapshotBeforeRelease(
+                pinDetail: pinDetail, held: held, branch: branch, laneContext: laneContext, context: context
+            )
 
         case .gone(let step):
             return await handleGoneWorktree(
@@ -172,6 +177,49 @@ extension LandAct {
                 step: step, held: HeldPinFacts(recordedCommit: recordedCommit, branch: branch, path: held.path),
                 pushOutcome: pushOutcome, laneContext: laneContext, context: context
             )
+        }
+    }
+
+    /// Reports a pinned Worktree HEAD; the release step's detail naming the pin, nil when nothing differs to report.
+    private func reportWorktreePin(
+        pin: (ref: String, relation: WorktreeHeadRelation), recordedCommit: String?, pushOutcome: LanePushOutcome,
+        laneContext: LandActLaneContext, context: ActContext
+    ) async -> String? {
+        guard let recordedCommit,
+              let unpublished = UnpublishedHead(
+                  pin.relation, repository: laneContext.lane.repository, recordedCommit: recordedCommit,
+                  noPushedBranch: !pushOutcome.pushed
+              ) else { return nil }
+        let ref = pin.ref
+        await reportPinned(unpublished, pinRef: ref, laneContext: laneContext, context: context)
+        return "pinned \(unpublished.head.prefix(7)) at \(ref)"
+    }
+
+    /// Saves the present git Worktree's uncommitted changes before release. A saved snapshot is recorded and reported
+    /// and named in the release step's detail after the pin's; one that cannot be saved keeps the Worktree held.
+    private func snapshotBeforeRelease(
+        pinDetail: String?, held: WorktreeRecord, branch: FeatureBranch?, laneContext: LandActLaneContext,
+        context: ActContext
+    ) async -> UnpublishedPinStep {
+        let repository = laneContext.lane.repository
+        switch await WorktreeSnapshotDecision.evaluate(
+            worktreePath: held.path, repository: repository, branch: branch, moment: .land
+        ) {
+        case .nothingToSave:
+            return .release(detail: pinDetail)
+        case .keepHeld(let comment):
+            return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
+        case .saved(let saved):
+            _ = try? context.journal.append(
+                .uncommittedChangesSnapshotted(cycleID: laneContext.cycleID, snapshot: saved),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            let placement = LandCommentPlacement(
+                cycleID: laneContext.cycleID, repository: repository,
+                featureIssueID: laneContext.feature.issueID, laneCards: laneContext.lane.cards
+            )
+            await UnpublishedCommitsReport.postSnapshot(saved, at: placement, outbox: context.outbox)
+            return .release(detail: [pinDetail, "snapshot at \(saved.ref)"].compactMap { $0 }.joined(separator: "; "))
         }
     }
 

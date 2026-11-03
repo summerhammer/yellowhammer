@@ -68,6 +68,49 @@ enum LandFailureComment {
         return (body, "pin-failed-\(moment.rawValue):\(digest)")
     }
 
+    // draft-based: agent ruling 2026-11-02 item 2 shape, OQ196 item 1
+    static func snapshotFailed(
+        repository: String, reason: String, moment: Moment
+    ) -> (body: String, keySuffix: String) {
+        let cause = "Cause: git reported: \(oneParagraph(reason))."
+        let body: String
+        switch moment {
+        case .land:
+            body = "Not landed: the uncommitted changes in the Worktree for `\(repository)` could not be saved as a "
+                + "snapshot before release. \(cause) The Worktree stays held and the Cycle is not landed; the next "
+                + "land firing tries the snapshot again. \(snapshotRouteOut(firing: "land"))"
+        case .cancellation:
+            body = "Not cancelled: the uncommitted changes in the Worktree for `\(repository)` could not be saved "
+                + "as a snapshot before release. \(cause) Every Worktree stays held, the Cycle is not archived and "
+                + "no next Feature is selected; the next author firing tries the snapshot again. "
+                + snapshotRouteOut(firing: "author")
+        }
+        let digest = String(ManagedBlockFence.sha256(reason).prefix(12))
+        return (body, "snapshot-failed-\(moment.rawValue):\(digest)")
+    }
+
+    // draft-based: agent ruling 2026-11-02 item 2 shape, OQ196 item 1
+    static func snapshotWithoutBranch(repository: String, moment: Moment) -> (body: String, keySuffix: String) {
+        let route = "Route out: commit or discard the changes yourself, so that there is nothing to save."
+        let body: String
+        switch moment {
+        case .land:
+            body = "Not landed: the Worktree for `\(repository)` has uncommitted changes, and no Feature Branch is "
+                + "recorded to save a snapshot under. The Worktree stays held and the Cycle is not landed; the next "
+                + "land firing tries again. \(route)"
+        case .cancellation:
+            body = "Not cancelled: the Worktree for `\(repository)` has uncommitted changes, and no Feature Branch is "
+                + "recorded to save a snapshot under. Every Worktree stays held, the Cycle is not archived and no "
+                + "next Feature is selected; the next author firing tries again. \(route)"
+        }
+        return (body, "snapshot-no-branch-\(moment.rawValue)")
+    }
+
+    private static func snapshotRouteOut(firing: String) -> String {
+        "Route out: fix what git names, and the next \(firing) firing saves it; "
+            + "or commit or discard the changes yourself, so that there is nothing to save."
+    }
+
     // draft-based: agent ruling 2026-11-02 item 2 (pins and landing failures), pending sponsor review
     static func notGitWorktree(
         repository: String, path: String, pinRef: String?, moment: Moment

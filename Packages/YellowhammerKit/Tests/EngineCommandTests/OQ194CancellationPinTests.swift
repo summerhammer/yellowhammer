@@ -10,41 +10,6 @@ import Testing
 // recorded commit, it pins that HEAD under refs/yellowhammer/unpublished/<branch>, as the land Act does at release
 // (OQ191 item 6); the pinned commits are the Operator's (OQ193).
 
-private struct TestWorktreeEnvironment {
-    let clone: TestGitRepo
-    let remote: TestGitRepo
-    let worktreePath: String
-    let base: String
-}
-
-private func makeGitWorktree(
-    name: String = "backend", branch: String = settleFeatureBranch
-) async throws -> TestWorktreeEnvironment {
-    let clone = TestGitRepo(name: "oq194-\(name)-clone")
-    await clone.initRepo(defaultBranch: "main")
-    let base = try await clone.commit(filename: "README.md", content: name, message: "initial")
-    let remote = TestGitRepo(name: "oq194-\(name)-remote")
-    await remote.initRepo(bare: true, defaultBranch: "main")
-    await clone.addRemote(url: remote.path)
-    #expect(await clone.run(["push", "origin", "main"]).isSuccess)
-    let worktreeURL = clone.url.appending(component: "wt-\(name)", directoryHint: .isDirectory)
-    let worktreePath = worktreeURL.path(percentEncoded: false)
-    #expect(await clone.run(["worktree", "add", "-b", branch, worktreePath]).isSuccess)
-    return TestWorktreeEnvironment(clone: clone, remote: remote, worktreePath: worktreePath, base: base)
-}
-
-private func commitInWorktree(
-    _ worktreePath: String, filename: String = "work.txt", content: String = "content", message: String = "commit"
-) async throws -> String {
-    let fileURL = URL(fileURLWithPath: worktreePath).appendingPathComponent(filename)
-    try content.write(to: fileURL, atomically: true, encoding: .utf8)
-    let git = GitRunner()
-    _ = await git.run(["-C", worktreePath, "add", "."])
-    _ = await git.run(["-C", worktreePath, "commit", "-m", message])
-    let res = await git.run(["-C", worktreePath, "rev-parse", "--verify", "HEAD"])
-    return res.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-}
-
 private func moveBranchInClone(_ clonePath: String, branch: String, base: String) async throws -> String {
     let git = GitRunner()
     let filename = "extra-\(UUID().uuidString).txt"
@@ -74,22 +39,6 @@ private func unexpectedPins(in path: String) async -> [String] {
     return listed.split(separator: "\n").map(String.init).filter {
         $0.hasPrefix("refs/yellowhammer/unpublished/")
     }
-}
-
-private func inFlightFeature(_ world: SettleWorld) throws -> FeatureRecord {
-    try #require(try world.journal.inFlightFeature()?.feature)
-}
-
-/// Records `commit` as the Pushed Tip of the world's Cycle in `repository`, under an Act lease.
-private func recordPushedTip(_ world: SettleWorld, repository: String, commit: String) throws {
-    let runID = RunID()
-    guard case .claimed = try world.journal.claimActLease(act: .land, runID: runID, mode: .real) else {
-        throw JournalError.actLeaseLost(runID: runID, holder: nil)
-    }
-    try world.journal.recordPushedTip(
-        cycleID: world.cycleID, repository: repository, commit: commit, runID: runID
-    )
-    try world.journal.releaseActLease(runID: runID)
 }
 
 @Suite("OQ194 cancellation pin: pin unpublished Worktree HEADs before cancellation releases them", .serialized)

@@ -122,6 +122,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case unpublishedCommitsReported = "UnpublishedCommitsReported"
     case unpublishedCommitsPinned = "UnpublishedCommitsPinned"
     case unpublishedCommitsPinnedAtCancellation = "UnpublishedCommitsPinnedAtCancellation"
+    case uncommittedChangesSnapshotted = "UncommittedChangesSnapshotted"
     case featureVerified = "FeatureVerified"
     case featureReturned = "FeatureReturned"
     case cycleArchived = "CycleArchived"

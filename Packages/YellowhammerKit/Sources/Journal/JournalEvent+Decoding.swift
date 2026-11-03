@@ -311,6 +311,7 @@ extension JournalEvent {
             try Self.decodeRemoteTip(type, reader)
         case .unpublishedCommitsReported, .unpublishedCommitsPinned, .unpublishedCommitsPinnedAtCancellation:
             try Self.decodeUnpublishedCommits(type, reader)
+        case .uncommittedChangesSnapshotted: try Self.decodeUncommittedSnapshot(reader)
         case .cycleLanded: .cycleLanded(cycleID: try reader.int64("cycle_id"))
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared, .authoringHaltRepair:

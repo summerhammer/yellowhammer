@@ -130,4 +130,40 @@ struct LandFailureCommentTests {
         #expect(notGit(.land) == "worktree-not-git-land")
         #expect(notGit(.cancellation) == "worktree-not-git-cancellation")
     }
+
+    // landing/open-one-pull-request-per-repository#uncommitted-snapshot
+    @Test("snapshot failed, land and cancellation")
+    func snapshotFailed() {
+        let land = LandFailureComment.snapshotFailed(repository: "backend", reason: "error: a\nfatal: b", moment: .land)
+        #expect(land.body == "Not landed: the uncommitted changes in the Worktree for `backend` could not be saved as "
+            + "a snapshot before release. Cause: git reported: error: a fatal: b. The Worktree stays held and the "
+            + "Cycle is not landed; the next land firing tries the snapshot again. Route out: fix what git names, "
+            + "and the next land firing saves it; or commit or discard the changes yourself, so that there is "
+            + "nothing to save.")
+        let cancel = LandFailureComment.snapshotFailed(repository: "backend", reason: "x", moment: .cancellation)
+        #expect(cancel.body == "Not cancelled: the uncommitted changes in the Worktree for `backend` could not be "
+            + "saved as a snapshot before release. Cause: git reported: x. Every Worktree stays held, the Cycle is "
+            + "not archived and no next Feature is selected; the next author firing tries the snapshot again. "
+            + "Route out: fix what git names, and the next author firing saves it; or commit or discard the "
+            + "changes yourself, so that there is nothing to save.")
+        let digest = String(ManagedBlockFence.sha256("error: a\nfatal: b").prefix(12))
+        #expect(land.keySuffix == "snapshot-failed-land:" + digest)
+        #expect(cancel.keySuffix.hasPrefix("snapshot-failed-cancellation:"))
+        #expect(!land.body.contains("\n"))
+    }
+
+    // landing/open-one-pull-request-per-repository#uncommitted-snapshot
+    @Test("snapshot without a recorded Feature Branch, land and cancellation")
+    func snapshotWithoutBranch() {
+        let land = LandFailureComment.snapshotWithoutBranch(repository: "backend", moment: .land)
+        #expect(land.body == "Not landed: the Worktree for `backend` has uncommitted changes, and no Feature Branch "
+            + "is recorded to save a snapshot under. The Worktree stays held and the Cycle is not landed; the next "
+            + "land firing tries again. Route out: commit or discard the changes yourself, so that there is "
+            + "nothing to save.")
+        #expect(land.keySuffix == "snapshot-no-branch-land")
+        let cancel = LandFailureComment.snapshotWithoutBranch(repository: "backend", moment: .cancellation)
+        #expect(cancel.body.hasPrefix("Not cancelled: the Worktree for `backend` has uncommitted changes"))
+        #expect(cancel.body.contains("the next author firing tries again."))
+        #expect(cancel.keySuffix == "snapshot-no-branch-cancellation")
+    }
 }
