@@ -49,6 +49,7 @@ struct FeatureSelectionAdoptedRepositoryTests {
         let handed = try #require(transaction.lastSelection)
         #expect(handed.repositories == ["backend", "mobile"])
         #expect(handed.adoptedCardIssueIDs == ["MOB-1"])
+        #expect(handed.engineAddedRepositories == ["mobile"])
 
         let events = try journal.events()
         let event = try #require(events.first { $0.type == .featureSelected })
@@ -59,6 +60,57 @@ struct FeatureSelectionAdoptedRepositoryTests {
         #expect(payload.name == "FEAT-1")
         #expect(payload.repositories == ["backend", "mobile"])
         #expect(payload.adoptedCardIssueIDs == ["MOB-1"])
+        #expect(payload.engineAddedRepositories == ["mobile"])
+    }
+
+    @Test("A halt repair's selection, already widened, still names the repository the engine added")
+    func repairedSelectionKeepsEngineAddedRepository() throws {
+        // On halt repair the selection comes back from the checkpoint with the widened repositories.
+        let checkpointed = SelectedFeature(
+            name: try #require(FeatureName(rawValue: "FEAT-1")), reasoning: "Omits mobile.", sequence: nil,
+            repositories: ["backend", "mobile"], adoptedCardIssueIDs: ["MOB-1"],
+            engineAddedRepositories: ["mobile"]
+        )
+        let candidates = [AdoptionCandidate(issueID: "MOB-1", repository: "mobile")]
+
+        let resolved = FeatureSelection.resolveAdoptedRepositories(selected: checkpointed, candidates: candidates)
+
+        #expect(resolved.repositories == ["backend", "mobile"])
+        #expect(resolved.engineAdded == ["mobile"])
+    }
+
+    @Test("A selection that already lists the adopted Card's repository records no engine-added repository")
+    func selectorListedRepositoryIsNotEngineAdded() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let (_, cycleID) = try insertFeatureSelectionAdoptionFixture(journal, closedFeatureIssueID: "OLD-1")
+        try insertFeatureSelectionAdoptionCard(
+            journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", order: 1
+        )
+        let selected = SelectedFeature(
+            name: try #require(FeatureName(rawValue: "FEAT-1")),
+            reasoning: "Lists mobile itself.",
+            sequence: nil,
+            repositories: ["backend", "mobile"],
+            adoptedCardIssueIDs: ["MOB-1"]
+        )
+        let transaction = ScriptedSelectedFeatureAuthoring()
+        let selection = FeatureSelection(
+            selector: ScriptedFeatureSelector(outcome: .selected(selected)), transaction: transaction
+        )
+        let (context, _) = try makeSelectionContext(journal, repositories: selectionRepositories())
+
+        let outcome = try await selection.selectAndAuthor(context)
+
+        #expect(outcome == .authored)
+        #expect(try #require(transaction.lastSelection).engineAddedRepositories == [])
+        let event = try #require(try journal.events().first { $0.type == .featureSelected })
+        guard case .featureSelected(let payload) = event.event else {
+            Issue.record("expected featureSelected")
+            return
+        }
+        #expect(payload.repositories == ["backend", "mobile"])
+        #expect(payload.engineAddedRepositories == [])
     }
 
     @Test("A repository added only through an adopted Card triggers the Repo Dependency Authoring Halt")
@@ -115,6 +167,8 @@ struct FeatureSelectionAdoptedRepositoryTests {
         let checkpoint = try #require(try journal.authoringHaltCheckpoint(haltID: halt.id))
         #expect(checkpoint.selection?.repositories == ["backend", "contracts"])
         #expect(checkpoint.selection?.adoptedCardIssueIDs == ["BACK-1"])
+        // The engine added "backend" (the selector named only "contracts"); the halt checkpoint keeps that.
+        #expect(checkpoint.selection?.engineAddedRepositories == ["backend"])
     }
 
     @Test("A repository added only through an adopted Card triggers the release-gate hold")

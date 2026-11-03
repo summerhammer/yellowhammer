@@ -471,6 +471,9 @@ extension JournalEvent {
                 if let seam = payload.seam {
                     dict["seam"] = seam
                 }
+                if !payload.engineAddedRepositories.isEmpty {
+                    dict["engine_added_repositories"] = payload.engineAddedRepositories.joined(separator: "\u{1F}")
+                }
                 return dict
             }()
         case .featureAuthoringHalted(let name, let reasonKind, let detail):

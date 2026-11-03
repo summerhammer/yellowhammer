@@ -88,6 +88,14 @@ struct AuthoringInstructionBoardStateTests {
         #expect(rendered.contains("Blocked Cards left by closed Features are listed under Adoption candidates."))
     }
 
+    @Test("The selection instruction says a Card's repository is part of the selection and added when left out")
+    func selectionNamesAdoptedCardRepositories() throws {
+        let adoption = [AdoptionCandidate(issueID: "a-1", repository: "backend")]
+        let rendered = try instruction(.selection, boardState: SelectionBoardState(), adoption: adoption)
+        #expect(rendered.contains("includes the repository of every Card in `adopted_card_issue_ids`"))
+        #expect(rendered.contains("Adopting a Card adds its repository to `repositories`."))
+    }
+
     @Test("The selection pass lists each Feature awaiting merge, the breakdown pass does not")
     func unmergedGroup() throws {
         let state = SelectionBoardState(unmergedFeatures: [

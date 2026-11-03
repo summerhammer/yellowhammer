@@ -93,6 +93,7 @@ extension JournalEvent {
         let rawRepositories = try reader.require("repositories")
         let rawAdopted = try reader.require("adopted_card_issue_ids")
         let rawUnadopted = try reader.require("unadopted_card_issue_ids")
+        let rawEngineAdded = reader.payload?["engine_added_repositories"] ?? ""
         let payload = FeatureSelectedPayload(
             name: try reader.require("name"),
             reasoning: try reader.require("reasoning"),
@@ -101,7 +102,8 @@ extension JournalEvent {
             seam: reader.payload?["seam"],
             repositories: rawRepositories.isEmpty ? [] : rawRepositories.components(separatedBy: "\u{1F}"),
             adoptedCardIssueIDs: rawAdopted.isEmpty ? [] : rawAdopted.components(separatedBy: "\u{1F}"),
-            unadoptedCardIssueIDs: rawUnadopted.isEmpty ? [] : rawUnadopted.components(separatedBy: "\u{1F}")
+            unadoptedCardIssueIDs: rawUnadopted.isEmpty ? [] : rawUnadopted.components(separatedBy: "\u{1F}"),
+            engineAddedRepositories: rawEngineAdded.isEmpty ? [] : rawEngineAdded.components(separatedBy: "\u{1F}")
         )
         return .featureSelected(payload)
     }

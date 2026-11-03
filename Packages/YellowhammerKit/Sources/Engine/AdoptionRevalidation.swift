@@ -42,9 +42,13 @@ enum AdoptionRevalidation {
             }
         }
 
+        // The repositories pass through unchanged on purpose: a Card refused here keeps its repository
+        // selected, because the halt and the release gate already counted it (OQ195 item 2 adds it before
+        // those checks; Operator decision for #748).
         let narrowed = SelectedFeature(
             name: selection.name, reasoning: selection.reasoning, sequence: selection.sequence,
-            repositories: selection.repositories, adoptedCardIssueIDs: kept
+            repositories: selection.repositories, adoptedCardIssueIDs: kept,
+            engineAddedRepositories: selection.engineAddedRepositories
         )
         return Outcome(selection: narrowed, hadRefusals: hadRefusals)
     }

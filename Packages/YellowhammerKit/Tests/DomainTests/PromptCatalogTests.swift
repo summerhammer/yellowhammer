@@ -12,8 +12,8 @@ struct PromptCatalogTests {
 
     private static let pinnedVersions: [PromptFamily: PinRecord] = [
         .selection: PinRecord(
-            version: 1,
-            sha256: "5db550452d8aa0e19286126eba730ebd9646531d712c23ac99a0c0d14a1dedf9"
+            version: 2,
+            sha256: "2f6d467327be00d4cea9916ec1264ca0c833dbd6103f18bea63ee248c0b6cc60"
         ),
         .breakdown: PinRecord(
             version: 2,

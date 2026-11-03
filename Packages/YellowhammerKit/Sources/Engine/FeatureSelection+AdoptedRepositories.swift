@@ -10,6 +10,8 @@ extension FeatureSelection {
     /// and every adopted candidate's repository is added to the selected repositories.
     struct AdoptedRepositoryResolution: Equatable {
         let repositories: [String]
+        /// The repositories in ``repositories`` the selector did not itself list.
+        let engineAdded: [String]
         let adopted: [String]
         let unadopted: [String]
     }
@@ -27,9 +29,13 @@ extension FeatureSelection {
 
         let adoptedRepos = candidates.filter { adoptedSet.contains($0.issueID) }.map(\.repository)
         let repositories = Set(selected.repositories).union(adoptedRepos).sorted()
+        // On halt repair the selection is already widened; carry what the engine added before.
+        let selectorOwn = Set(selected.repositories).subtracting(selected.engineAddedRepositories)
+        let engineAdded = Set(repositories).subtracting(selectorOwn).sorted()
 
         return AdoptedRepositoryResolution(
             repositories: repositories,
+            engineAdded: engineAdded,
             adopted: adopted,
             unadopted: unadopted
         )

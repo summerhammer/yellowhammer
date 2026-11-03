@@ -52,12 +52,15 @@ struct ProjectInstructionsTests {
     func simulatedBump() {
         var reviewed = PromptFamily.productionDefaultVersions
         reviewed[.reviewer] = nil
+        let selection = PromptFamily.selection.defaultVersion
         var current = PromptFamily.productionDefaultVersions
-        current[.selection] = 2
+        current[.selection] = selection + 1
         current[.reviewer] = 1
         let changes = revision(reviewed).defaultChanges(current: current)
         #expect(changes == [
-            ProjectInstructionsDefaultChange(family: .selection, reviewedVersion: 1, currentVersion: 2),
+            ProjectInstructionsDefaultChange(
+                family: .selection, reviewedVersion: selection, currentVersion: selection + 1
+            ),
             ProjectInstructionsDefaultChange(family: .reviewer, reviewedVersion: nil, currentVersion: 1)
         ])
     }

@@ -141,7 +141,8 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
             : selected.adoptedCardIssueIDs
         let adjusted = SelectedFeature(
             name: name, reasoning: selected.reasoning, sequence: selected.sequence,
-            repositories: selected.repositories, adoptedCardIssueIDs: adoptedCardIssueIDs
+            repositories: selected.repositories, adoptedCardIssueIDs: adoptedCardIssueIDs,
+            engineAddedRepositories: selected.engineAddedRepositories
         )
         let mapped = RehearsalFixtureMapping(repos: instruction.repos, storyIDs: []).apply(to: adjusted)
         return .completed(.selection(SelectionResult(outcome: .selected(mapped))))

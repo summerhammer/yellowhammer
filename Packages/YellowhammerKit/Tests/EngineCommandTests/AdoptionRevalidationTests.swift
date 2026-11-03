@@ -71,6 +71,33 @@ struct AdoptionRevalidationTests {
         #expect(live.filter { $0.parent == feature.id }.count == 2)
     }
 
+    // feature-authoring/select-the-next-feature#adopted-repository (OQ195 item 2, #748; Operator decision):
+    // the halt and the release gate already counted the added repository, so a refusal never un-adds it.
+    @Test("A Card refused at revalidation keeps its repository selected")
+    func refusedCardKeepsItsRepositorySelected() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        _ = try await seedCandidate(journal, boards: boards)
+        let (context, _) = try context(journal, nightStart: "2026-09-20", boards: boards)
+        let selected = SelectedFeature(
+            name: try #require(FeatureName(rawValue: "FEAT-1")), reasoning: "Because.", sequence: nil,
+            repositories: ["backend", "mobile"], adoptedCardIssueIDs: ["CARD-OLD"],
+            engineAddedRepositories: ["backend"]
+        )
+
+        let outcome = try await AdoptionRevalidation.revalidate(
+            selected,
+            provenance: FakeProvenanceTester(verdicts: ["backend": .stale(changedPaths: ["contract.swift"])]),
+            context: context
+        )
+
+        #expect(outcome.hadRefusals)
+        #expect(outcome.selection.adoptedCardIssueIDs.isEmpty)
+        #expect(outcome.selection.repositories == ["backend", "mobile"])
+        #expect(outcome.selection.engineAddedRepositories == ["backend"])
+    }
+
     @Test("A second refusal on a later Night: two Divergence rows, one current notice naming the newer paths")
     func secondRefusalReplacesTheNotice() async throws {
         let fixture = try OutboxJournalFixture()

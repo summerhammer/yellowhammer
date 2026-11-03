@@ -54,12 +54,19 @@ struct RehearsalFixtureMapping: Equatable, Sendable {
     }
 
     /// `selected` with its repositories mapped (duplicates dropped, first-seen order); every other field kept.
+    /// A mapped engine-added repository stays engine-added only when no repository the selector listed itself
+    /// maps to the same name.
     func apply(to selected: SelectedFeature) -> SelectedFeature {
         var seen = Set<String>()
         let mapped = selected.repositories.map(repository).filter { seen.insert($0).inserted }
+        var listed = Set(
+            selected.repositories.filter { !selected.engineAddedRepositories.contains($0) }.map(repository)
+        )
+        let engineAdded = selected.engineAddedRepositories.map(repository).filter { listed.insert($0).inserted }
         return SelectedFeature(
             name: selected.name, reasoning: selected.reasoning, sequence: selected.sequence,
-            repositories: mapped, adoptedCardIssueIDs: selected.adoptedCardIssueIDs
+            repositories: mapped, adoptedCardIssueIDs: selected.adoptedCardIssueIDs,
+            engineAddedRepositories: engineAdded
         )
     }
 
