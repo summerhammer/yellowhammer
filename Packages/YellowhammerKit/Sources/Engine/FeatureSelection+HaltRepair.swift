@@ -97,7 +97,12 @@ extension FeatureSelection {
                 _ = try AuthoringTransaction.invalidRepair(snapshot, diagnostics: snapshot.problems, context: context)
                 return try await conclude(.halted, request, context: context)
             }
-        } else if Self.haltCause(forRepositories: Set(selection.repositories).sorted(), in: repositories) == nil {
+        } else if Self.haltCause(
+            forRepositories: Self.resolveAdoptedRepositories(
+                selected: selection, candidates: scope.candidates
+            ).repositories,
+            in: repositories
+        ) == nil {
             // The breakdown is not part of the checkpoint (it is rebuilt, not reused), so it is the stage that runs.
             try journal.recordAuthoringRepairStep(
                 feature: feature, step: "stage",
