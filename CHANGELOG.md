@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.34.0](https://github.com/summerhammer/yellowhammer/compare/v0.33.1...v0.34.0) (2026-11-03)
+
+
+### Features
+
+* **feature-authoring:** Add every adopted Work Card's repository to the selected repositories (OQ195 item 2) ([0964e30](https://github.com/summerhammer/yellowhammer/commit/0964e30600a7719a7e94a34ee22d294d697eb811))
+* **feature-authoring:** name the repositories the engine added for adopted Work Cards ([#748](https://github.com/summerhammer/yellowhammer/issues/748)) ([e3b58aa](https://github.com/summerhammer/yellowhammer/commit/e3b58aab9b3c744690cac294e8bcd9a74e7b9d3d))
+* **landing:** Pin a gone or non-git Worktree's Feature Branch from the main clone before release, and keep a non-git one held ([5151704](https://github.com/summerhammer/yellowhammer/commit/5151704caae5eadf8593cc1ed339591265d4d6e7))
+* **landing:** snapshot a held Worktree's uncommitted changes before release ([#749](https://github.com/summerhammer/yellowhammer/issues/749)) ([4d85569](https://github.com/summerhammer/yellowhammer/commit/4d855697cdb5bb973f1c4a62545a2e8a152a571d))
+* **verification:** record sibling Worktree HEADs and a configured lockfile in each Check record ([#750](https://github.com/summerhammer/yellowhammer/issues/750)) ([23a295d](https://github.com/summerhammer/yellowhammer/commit/23a295d11560cb2a8974a810bb3942b1c051c1e1))
+
+
+### Bug Fixes
+
+* **engine:** report a refused push on each lane Work Card and name failed landing steps in the Night Summary ([#752](https://github.com/summerhammer/yellowhammer/issues/752)) ([5245021](https://github.com/summerhammer/yellowhammer/commit/524502179c7130e550175c0cc1f6051c64bacd38))
+* **landing:** name the route out of a failed pin and a non-git Worktree, and say when nothing was pinned ([#751](https://github.com/summerhammer/yellowhammer/issues/751)) ([c089e53](https://github.com/summerhammer/yellowhammer/commit/c089e5392be34a3ee1a77c221aa89ec09aeeb094))
+
 ## [0.33.1](https://github.com/summerhammer/yellowhammer/compare/v0.33.0...v0.33.1) (2026-11-02)
 
 
