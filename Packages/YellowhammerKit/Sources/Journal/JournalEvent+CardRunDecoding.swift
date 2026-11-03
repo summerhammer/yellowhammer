@@ -68,7 +68,7 @@ extension JournalEvent {
         guard let result = CheckRunResult(rawValue: try reader.require("result")) else {
             throw JournalError.eventUnreadable(id: reader.rowID)
         }
-        return .checkRan(
+        return .checkRan(CheckRanPayload(
             cardID: try reader.int64("card_id"),
             issueID: try reader.require("issue_id"),
             attemptID: try reader.int64("attempt_id"),
@@ -76,7 +76,11 @@ extension JournalEvent {
             exitStatus: reader.payload?["exit_status"].flatMap { Int32($0) },
             output: reader.payload?["output"],
             judgedCommit: reader.payload?["judged_commit"],
-            command: reader.payload?["command"]
-        )
+            command: reader.payload?["command"],
+            siblings: CheckRanPayload.decodeSiblings(reader.payload?["sibling_heads"]),
+            lockfile: CheckRanPayload.decodeLockfile(
+                path: reader.payload?["lockfile_path"], identity: reader.payload?["lockfile_identity"]
+            )
+        ))
     }
 }

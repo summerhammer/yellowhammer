@@ -45,18 +45,18 @@ func checkRanRoundTrips() throws {
     let run = RunID()
     let epoch = Date(timeIntervalSince1970: 1_800_000_000)
     let events: [JournalEvent] = [
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: 7, issueID: "BACK-1", attemptID: 3, result: .passed, exitStatus: 0, output: "ok\n",
             judgedCommit: "b763aff", command: "swift test --filter \"Check Tests\""
-        ),
-        .checkRan(
+        )),
+        .checkRan(CheckRanPayload(
             cardID: 7, issueID: "BACK-1", attemptID: 3, result: .failed, exitStatus: 127, output: "line\n\"quoted\"\n",
             judgedCommit: nil, command: "pnpm --filter relay test"
-        ),
-        .checkRan(
+        )),
+        .checkRan(CheckRanPayload(
             cardID: 7, issueID: "BACK-1", attemptID: 3, result: .declaredNone, exitStatus: nil, output: nil,
             judgedCommit: "fddeef4"
-        )
+        ))
     ]
 
     for event in events {
@@ -66,8 +66,38 @@ func checkRanRoundTrips() throws {
 
     #expect(records.map(\.event) == events)
     #expect(Set(events.compactMap { event -> CheckRunResult? in
-        if case .checkRan(_, _, _, let result, _, _, _, _) = event { result } else { nil }
+        if case .checkRan(let payload) = event { payload.result } else { nil }
     }) == Set(CheckRunResult.allCases))
+}
+
+@Test("checkRan event round-trips its sibling Worktree HEADs and each lockfile identity (OQ198 item 3)")
+func checkRanRoundTripsSiblingsAndLockfile() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-journal-checkran-siblings-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let sha = "b763aff0b763aff0b763aff0b763aff0b763aff0"
+    let siblings = [
+        CheckSiblingState(repository: "web", before: .commit(sha), after: .commit("fddeef4")),
+        CheckSiblingState(repository: "mobile", before: .noHeldWorktree, after: .noHeldWorktree),
+        CheckSiblingState(repository: "api", before: .unreadable(reason: "x"), after: .commit(sha))
+    ]
+    let lockfiles: [LockfileIdentity] = [
+        .unknown, .absent(path: "pnpm-lock.yaml"), .blob(path: "Package.resolved", objectID: "e69de29")
+    ]
+    let events: [JournalEvent] = lockfiles.map { lockfile in
+        .checkRan(CheckRanPayload(
+            cardID: 7, issueID: "BACK-1", attemptID: 3, result: .passed, exitStatus: 0, output: nil,
+            judgedCommit: sha, command: "make test", siblings: siblings, lockfile: lockfile
+        ))
+    }
+    for event in events {
+        try journal.append(event, act: .build, runID: RunID(), now: Date(timeIntervalSince1970: 1_800_000_000))
+    }
+
+    #expect(try journal.events(ofType: .checkRan).map(\.event) == events)
 }
 
 @Test("A legacy checkRan payload decodes without inventing its command or judged commit")
@@ -97,11 +127,15 @@ func checkRanWithoutJudgedCommitDecodes() throws {
     #expect(records.first.flatMap(CheckRunRecord.init)?.command == nil)
 
     #expect(records.map(\.event) == [
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: 7, issueID: "BACK-1", attemptID: 3, result: .passed, exitStatus: 0, output: nil,
             judgedCommit: nil
-        )
+        ))
     ])
+    if case .checkRan(let payload)? = records.first?.event {
+        #expect(payload.siblings.isEmpty)
+        #expect(payload.lockfile == .unknown)
+    }
 }
 
 @Test("failureCauseRecorded event round-trips")

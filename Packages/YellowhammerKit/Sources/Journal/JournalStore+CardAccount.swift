@@ -16,10 +16,16 @@ public struct CheckRunRecord: Equatable, Sendable {
     public let occurredAt: Date
     /// The actual command executed, nil for a declared-none Check.
     public let command: String?
+    /// Every other touched repository's held Worktree HEAD before and after the Check (OQ198 item 3); empty
+    /// for a single-repository Feature or an event written before they were recorded.
+    public let siblings: [CheckSiblingState]
+    /// The configured lockfile's identity at the judged commit; `.unknown` when none was configured.
+    public let lockfile: LockfileIdentity
 
     public init(
         eventID: Int64, attemptID: Int64, result: CheckRunResult, exitStatus: Int32?, output: String?,
-        judgedCommit: String?, occurredAt: Date, command: String? = nil
+        judgedCommit: String?, occurredAt: Date, command: String? = nil,
+        siblings: [CheckSiblingState] = [], lockfile: LockfileIdentity = .unknown
     ) {
         self.eventID = eventID
         self.attemptID = attemptID
@@ -29,27 +35,28 @@ public struct CheckRunRecord: Equatable, Sendable {
         self.judgedCommit = judgedCommit
         self.occurredAt = occurredAt
         self.command = command
+        self.siblings = siblings
+        self.lockfile = lockfile
     }
 }
 
 extension CheckRunRecord {
     /// The run `record` is, or `nil` when the event is not a `checkRan`.
     public init?(_ record: JournalEventRecord) {
-        guard case .checkRan(
-            _, _, let attemptID, let result, let exitStatus, let output, let judgedCommit, let command
-        ) = record.event
-        else {
+        guard case .checkRan(let payload) = record.event else {
             return nil
         }
         self.init(
             eventID: record.id,
-            attemptID: attemptID,
-            result: result,
-            exitStatus: exitStatus,
-            output: output,
-            judgedCommit: judgedCommit,
+            attemptID: payload.attemptID,
+            result: payload.result,
+            exitStatus: payload.exitStatus,
+            output: payload.output,
+            judgedCommit: payload.judgedCommit,
             occurredAt: record.occurredAt,
-            command: command
+            command: payload.command,
+            siblings: payload.siblings,
+            lockfile: payload.lockfile
         )
     }
 }
@@ -106,8 +113,8 @@ extension JournalStore {
                 arguments: [featureID, repository]
             ))
             return try Self.events(db, ofType: .checkRan).compactMap { record in
-                guard case .checkRan(let cardID, _, _, let result, _, _, _, _) = record.event,
-                      cardIDs.contains(cardID), result != .declaredNone else { return nil }
+                guard case .checkRan(let payload) = record.event,
+                      cardIDs.contains(payload.cardID), payload.result != .declaredNone else { return nil }
                 return CheckRunRecord(record)
             }
         }
@@ -115,7 +122,7 @@ extension JournalStore {
 
     private static func checkRuns(_ db: Database, cardID: Int64) throws -> [CheckRunRecord] {
         try events(db, ofType: .checkRan).compactMap { record in
-            guard case .checkRan(let recordCardID, _, _, _, _, _, _, _) = record.event, recordCardID == cardID else {
+            guard case .checkRan(let payload) = record.event, payload.cardID == cardID else {
                 return nil
             }
             return CheckRunRecord(record)

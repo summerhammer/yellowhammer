@@ -123,6 +123,9 @@ enum ConfigurationRendering {
             }.joined(separator: ", ")
             lines.append("consumes = [\(items)]")
         }
+        if let lockfile = repo.lockfile {
+            lines.append("lockfile = \(quoted(lockfile))")
+        }
         return lines.joined(separator: "\n")
     }
 

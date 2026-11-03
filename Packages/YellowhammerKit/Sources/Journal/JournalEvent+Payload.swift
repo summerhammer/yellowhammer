@@ -345,27 +345,8 @@ extension JournalEvent {
         case .featureAuthoringFailed, .featureBreakdownRejected, .authoringDispatched, .authoringRouteRejected,
             .featureSelectionFailed:
             authoringFaultPayload
-        case .checkRan(
-            let cardID, let issueID, let attemptID, let result, let exitStatus, let output,
-            let judgedCommit, let command
-        ):
-            {
-                var dict: [String: String] = [
-                    "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
-                    "result": result.rawValue
-                ]
-                if let exitStatus {
-                    dict["exit_status"] = String(exitStatus)
-                }
-                if let output {
-                    dict["output"] = output
-                }
-                if let judgedCommit {
-                    dict["judged_commit"] = judgedCommit
-                }
-                if let command { dict["command"] = command }
-                return dict
-            }()
+        case .checkRan(let payload):
+            payload.journalPayload
         case .attemptWorkPreserved(let cardID, let issueID, let attemptID, let ref, let commit, let resetTo):
             [
                 "attempt_id": String(attemptID), "card_id": String(cardID), "commit": commit,

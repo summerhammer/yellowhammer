@@ -293,9 +293,7 @@ extension FeatureVerification {
                 name: name, directory: checkout.directory, featureBranch: branch?.name ?? "not recorded",
                 judgedCommit: checkout.judged?.commit, noPushedBranch: checkout.judged?.noPushedBranch ?? false,
                 checkResults: try act.journal.checkRuns(featureID: context.feature.id, repository: name).map {
-                    VerificationCheckResult(
-                        command: $0.command, judgedCommit: $0.judgedCommit, exitStatus: $0.exitStatus
-                    )
+                    Self.verificationCheckResult($0, repository: name, checkouts: checkouts)
                 },
                 checkDeclaredNone: noCheckRepositories.contains(name)
             )

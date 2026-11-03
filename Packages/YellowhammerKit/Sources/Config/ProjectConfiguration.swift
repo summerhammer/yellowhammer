@@ -112,7 +112,8 @@ public struct ProjectConfiguration: Sendable {
         let workingRepos = repos.map {
             Repo(
                 name: $0.name, path: ($0.path as NSString).expandingTildeInPath,
-                role: $0.role, protectedPaths: $0.protectedPaths, consumes: $0.consumes
+                role: $0.role, protectedPaths: $0.protectedPaths, consumes: $0.consumes,
+                lockfile: $0.lockfile
             )
         }
         let spec = specSource.map { SpecSource(path: ($0 as NSString).expandingTildeInPath) }
@@ -257,10 +258,13 @@ public struct RepoDeclaration: Equatable, Sendable {
     public var protectedPaths: [String]
     /// The Repo Dependencies this Repo, as consumer, declares (`consumes`); none when the key is absent.
     public var consumes: [RepoDependency]
+    /// The repository-relative path of the lockfile the Check record identifies (OQ198 item 3); none when
+    /// the key is absent.
+    public var lockfile: String?
 
     public init(
         name: String, path: String, role: RepoRole, check: Check, protectedPaths: [String] = [],
-        consumes: [RepoDependency] = []
+        consumes: [RepoDependency] = [], lockfile: String? = nil
     ) {
         self.name = name
         self.path = path
@@ -268,6 +272,7 @@ public struct RepoDeclaration: Equatable, Sendable {
         self.check = check
         self.protectedPaths = protectedPaths
         self.consumes = consumes
+        self.lockfile = lockfile
     }
 }
 

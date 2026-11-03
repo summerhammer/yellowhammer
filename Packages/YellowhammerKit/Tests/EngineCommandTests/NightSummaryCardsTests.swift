@@ -83,10 +83,10 @@ private func seedCheckFailedThenPassed(
         cardID: cardID, route: agyRoute, runID: context.runID, act: context.act, nightID: context.night.id
     )
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: cardID, issueID: issueID, attemptID: attempt.id, result: .failed, exitStatus: 1,
             output: "red", judgedCommit: "fddeef4"
-        ),
+        )),
         act: context.act, runID: context.runID, nightID: context.night.id
     )
     try journal.recordRound(
@@ -94,10 +94,10 @@ private func seedCheckFailedThenPassed(
         judgedCommit: "fddeef4", runID: context.runID
     )
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: cardID, issueID: issueID, attemptID: attempt.id, result: .passed, exitStatus: 0,
             output: nil, judgedCommit: "b763aff"
-        ),
+        )),
         act: context.act, runID: context.runID, nightID: context.night.id
     )
     try journal.endAttempt(
@@ -137,10 +137,10 @@ struct NightSummaryCardsTests {
             )
             // A passing Check writes no Round: only its `checkRan` event records it.
             try journal.append(
-                .checkRan(
+                .checkRan(CheckRanPayload(
                     cardID: seeded.cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed,
                     exitStatus: 0, output: nil, judgedCommit: "abc1234"
-                ),
+                )),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
             try journal.endAttempt(

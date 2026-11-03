@@ -69,10 +69,12 @@ public struct RepoDraft: Equatable, Sendable {
     public var protectedPaths: [String]
     /// The Repo Dependencies this Repo, as consumer, declares; rendered only when non-empty.
     public var consumes: [RepoDependency]
+    /// The repository-relative lockfile path; rendered only when set.
+    public var lockfile: String?
 
     public init(
         name: String, path: String, role: String, check: String, protectedPaths: [String] = [],
-        consumes: [RepoDependency] = []
+        consumes: [RepoDependency] = [], lockfile: String? = nil
     ) {
         self.name = name
         self.path = path
@@ -80,6 +82,7 @@ public struct RepoDraft: Equatable, Sendable {
         self.check = check
         self.protectedPaths = protectedPaths
         self.consumes = consumes
+        self.lockfile = lockfile
     }
 
     public init(_ repo: RepoDeclaration) {
@@ -89,7 +92,8 @@ public struct RepoDraft: Equatable, Sendable {
             role: repo.role.rawValue,
             check: repo.check.description,
             protectedPaths: repo.protectedPaths,
-            consumes: repo.consumes
+            consumes: repo.consumes,
+            lockfile: repo.lockfile
         )
     }
 }

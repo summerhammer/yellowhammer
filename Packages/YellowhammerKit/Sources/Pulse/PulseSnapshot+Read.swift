@@ -311,8 +311,9 @@ extension PulseSnapshot {
         }
         for record in events {
             switch record.event {
+            case .checkRan(let payload):
+                touched.insert(payload.cardID)
             case .attemptEnded(let cardID, _, _, _, _, _),
-                .checkRan(let cardID, _, _, _, _, _, _, _),
                 .cardRunStep(let cardID, _, _, _),
                 .cardStateTransitioned(let cardID, _, _, _, _, _),
                 .routeRetried(let cardID, _, _, _, _),

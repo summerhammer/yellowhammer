@@ -240,11 +240,11 @@ extension ShowcaseRun {
         let repo = try required(Showcase.cards.first { $0.number == number }).repo
         try step(number, .worker, "completed", at: time)
         try record(
-            .checkRan(
+            .checkRan(CheckRanPayload(
                 cardID: cardID(number), issueID: Showcase.issueID(number), attemptID: attempt, result: .passed,
                 exitStatus: 0, output: "All tests passed", judgedCommit: "c0ffee\(number)",
                 command: Showcase.checkCommand(for: repo)
-            ),
+            )),
             at: time + 20
         )
         try step(number, .check, "passed", at: time + 21)

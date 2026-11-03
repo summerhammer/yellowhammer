@@ -80,10 +80,10 @@ struct ManagedBlockMaintenanceTests {
         )
         // The Check result is the Attempt's `checkRan` runs, not its Rounds.
         try journal.append(
-            .checkRan(
+            .checkRan(CheckRanPayload(
                 cardID: cardID, issueID: "issue-1", attemptID: attempt.id, result: .failed, exitStatus: 1,
                 output: nil, judgedCommit: nil
-            ),
+            )),
             runID: runID, now: outboxEpoch
         )
 

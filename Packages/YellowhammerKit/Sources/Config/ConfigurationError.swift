@@ -73,6 +73,9 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case repoDependencyCycle(path: [String])
         /// A Repo Dependency's `via` is neither `mainline` nor `tag`.
         case invalidRepoDependencyVia(String)
+        /// A `[[repos]]` `lockfile` that is not a plain repository-relative path: absolute (`/` or `~`), with a
+        /// `..` component, or with a glob character (`*?[`).
+        case invalidLockfilePath(String)
         /// A Board Mapping names an id already named by an earlier key: no id serves two meanings.
         case duplicateMappingID(firstKey: String)
         /// Two Projects on the same Linear project declare Board Mappings that disagree: `role` is mapped to
@@ -209,6 +212,9 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "Repo Dependencies form a cycle: \(path.joined(separator: " -> "))"
         case .invalidRepoDependencyVia(let value):
             return "expected \"mainline\" or \"tag\", got \"\(value)\""
+        case .invalidLockfilePath(let value):
+            return "expected a repository-relative file path (no leading / or ~, no .. component, no * ? [), "
+                + "got \"\(value)\""
         }
     }
 }

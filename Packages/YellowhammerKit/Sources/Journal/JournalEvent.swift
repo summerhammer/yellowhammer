@@ -332,11 +332,9 @@ public enum JournalEvent: Equatable, Sendable {
     /// what it printed, already capped by the runner; it is empty or nil when nothing ran. `judgedCommit`
     /// is the worker commit the Check judged: a passing Check writes no Round, so this event is the only
     /// place a Check's result is tied to a commit. `command` is the actual executed command, never current
-    /// configuration. Both are nil on events written before they were recorded.
-    case checkRan(
-        cardID: Int64, issueID: String, attemptID: Int64, result: CheckRunResult, exitStatus: Int32?, output: String?,
-        judgedCommit: String?, command: String? = nil
-    )
+    /// configuration. Both are nil on events written before they were recorded. The sibling Worktree HEADs
+    /// and the lockfile identity are in ``CheckRanPayload``.
+    case checkRan(CheckRanPayload)
 
     /// The fence → WIP-commit → preserve → reset sequence preserved an Attempt's work under a git ref
     /// before resetting the Worktree and the Feature Branch tip to `resetTo`, the last known-good

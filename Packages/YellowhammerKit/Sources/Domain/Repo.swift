@@ -30,6 +30,9 @@ public struct Repo: Equatable, Hashable, Sendable {
     public let protectedPaths: [String]
     /// The Repo Dependencies this Repo, as consumer, declares on sibling Repos of its Project (its producers).
     public let consumes: [RepoDependency]
+    /// The repository-relative path of the lockfile the Check record identifies (OQ198 item 3); nil when
+    /// none is configured.
+    public let lockfile: String?
 
     public init(
         name: String,
@@ -37,7 +40,8 @@ public struct Repo: Equatable, Hashable, Sendable {
         role: RepoRole,
         defaultBranch: String? = nil,
         protectedPaths: [String] = [],
-        consumes: [RepoDependency] = []
+        consumes: [RepoDependency] = [],
+        lockfile: String? = nil
     ) {
         self.name = name
         self.path = path
@@ -45,6 +49,7 @@ public struct Repo: Equatable, Hashable, Sendable {
         self.defaultBranch = defaultBranch
         self.protectedPaths = protectedPaths
         self.consumes = consumes
+        self.lockfile = lockfile
     }
 }
 

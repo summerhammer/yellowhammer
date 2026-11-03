@@ -77,10 +77,10 @@ private func seedTwoAttemptCard(_ journal: JournalStore) throws -> SeededAttempt
         judgedCommit: "abc123", runID: runID, now: epoch.addingTimeInterval(10)
     )
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: cardID, issueID: "CARD-1", attemptID: first.id, result: .failed,
             exitStatus: 1, output: "build failed: line 42", judgedCommit: nil
-        ),
+        )),
         runID: runID, now: epoch.addingTimeInterval(11)
     )
     _ = try journal.endAttempt(
@@ -95,27 +95,27 @@ private func seedTwoAttemptCard(_ journal: JournalStore) throws -> SeededAttempt
         judgedCommit: "def456", runID: runID, now: epoch.addingTimeInterval(40)
     )
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: cardID, issueID: "CARD-1", attemptID: second.id, result: .passed, exitStatus: 0, output: nil,
             judgedCommit: nil
-        ),
+        )),
         runID: runID, now: epoch.addingTimeInterval(41)
     )
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: cardID, issueID: "CARD-1", attemptID: second.id, result: .declaredNone,
             exitStatus: nil, output: nil, judgedCommit: nil
-        ),
+        )),
         runID: runID, now: epoch.addingTimeInterval(42)
     )
 
     // Another Card's checkRan event must not leak into CARD-1's account.
     let otherAttempt = try journal.recordAttempt(cardID: otherCardID, route: routeA, runID: runID, now: epoch)
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: otherCardID, issueID: "CARD-2", attemptID: otherAttempt.id, result: .passed,
             exitStatus: 0, output: nil, judgedCommit: nil
-        ),
+        )),
         runID: runID, now: epoch.addingTimeInterval(50)
     )
 
@@ -237,10 +237,10 @@ func readOnlyOpenAndReadsDoNotModifyTheFile() throws {
     try claimLease(journal, runID: runID)
     let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed, exitStatus: 0, output: nil,
             judgedCommit: nil
-        ),
+        )),
         runID: runID, now: epoch.addingTimeInterval(1)
     )
 
@@ -281,10 +281,10 @@ private func seedOneCheckRun(directory: URL, projectID: ProjectID) throws -> URL
     try claimLease(journal, runID: runID)
     let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed, exitStatus: 0, output: nil,
             judgedCommit: nil
-        ),
+        )),
         runID: runID, now: epoch
     )
     return journal.fileURL

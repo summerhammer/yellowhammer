@@ -79,10 +79,10 @@ private func seedThreeRuns(_ journal: JournalStore) throws -> SeededNight {
     _ = try journal.claimActLease(act: .land, runID: land, mode: .real, now: epoch.addingTimeInterval(20))
     try journal.append(.actStarted, act: .land, runID: land, nightID: night.id, now: epoch.addingTimeInterval(21))
     try journal.append(
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: card, issueID: "ALPHA-1", attemptID: 1, result: .failed, exitStatus: 1,
             output: outputTail, judgedCommit: nil
-        ),
+        )),
         act: .land, runID: land, nightID: night.id, now: epoch.addingTimeInterval(22)
     )
     _ = try journal.releaseActLease(runID: land)
@@ -360,9 +360,9 @@ func nightAccountNamesCards() {
 @Test("A Check that passed is not a problem; one that failed is; a repo lane failure is, a clean one is not")
 func nightAccountProblemEntries() {
     func check(_ result: CheckRunResult) -> JournalEvent {
-        .checkRan(
+        .checkRan(CheckRanPayload(
             cardID: 1, issueID: "A-1", attemptID: 1, result: result, exitStatus: nil, output: nil, judgedCommit: nil
-        )
+        ))
     }
 
     #expect(!entry(check(.passed)).isProblem)

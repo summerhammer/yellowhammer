@@ -24,17 +24,72 @@ public struct VerificationClause: Equatable, Sendable {
     public var authorSupplied: Bool { isAuthorSupplied }
 }
 
+/// One other touched repository's held Worktree HEAD before and after a Check, as the instruction names them:
+/// a 7-character short SHA, `no held Worktree`, or `unreadable: <reason>` (OQ198 item 3).
+public struct VerificationSiblingHead: Equatable, Sendable {
+    /// One HEAD reading.
+    public enum Head: Equatable, Sendable {
+        /// The 7-character short SHA.
+        case commit(String)
+        case noHeldWorktree
+        case unreadable(reason: String)
+
+        public var display: String {
+            switch self {
+            case .commit(let short): short
+            case .noHeldWorktree: "no held Worktree"
+            case .unreadable(let reason): "unreadable: \(reason)"
+            }
+        }
+
+        fileprivate var isCommit: Bool {
+            if case .commit = self { true } else { false }
+        }
+    }
+
+    public let repository: String
+    public let before: Head
+    public let after: Head
+
+    public init(repository: String, before: Head, after: Head) {
+        self.repository = repository
+        self.before = before
+        self.after = after
+    }
+}
+
+/// Whether a Check record's evidence is decisive, computed by the engine and never by the verifier (OQ198
+/// item 3): decisive when every other touched repository's held Worktree was at its recorded commit both
+/// before and after the Check.
+public enum VerificationCheckEvidence: Equatable, Sendable {
+    case decisive
+    case notDecisive(String)
+}
+
 /// One Check result recorded for a Feature's Work Cards, never reconstructed from current configuration.
 public struct VerificationCheckResult: Equatable, Sendable {
     /// A declared-none Check records no command; an absent value is not evidence of success.
     public let command: String?
     public let judgedCommit: String?
     public let exitStatus: Int32?
+    /// The other touched repositories' held Worktree HEADs around the Check; empty for a single-repository
+    /// Feature or a record written before they were recorded.
+    public let siblings: [VerificationSiblingHead]
+    /// The configured lockfile's identity at the judged commit, as displayed.
+    public let lockfile: String
+    public let evidence: VerificationCheckEvidence
 
-    public init(command: String?, judgedCommit: String?, exitStatus: Int32?) {
+    public init(
+        command: String?, judgedCommit: String?, exitStatus: Int32?,
+        siblings: [VerificationSiblingHead] = [], lockfile: String = "unknown (none configured)",
+        evidence: VerificationCheckEvidence = .decisive
+    ) {
         self.command = command
         self.judgedCommit = judgedCommit
         self.exitStatus = exitStatus
+        self.siblings = siblings
+        self.lockfile = lockfile
+        self.evidence = evidence
     }
 }
 
@@ -152,8 +207,10 @@ public struct VerificationInstruction: Equatable, Sendable {
         Pushed Tip or, marked no pushed branch, its recorded base commit. Use the recorded Check results \
         below to judge clauses they cover, on any Route. A record whose judged commit is not the commit you \
         judge does not decide a clause: name that record beside the clause in `what_was_checked`. A record \
-        with an unavailable command, judged commit or exit status cannot establish what ran successfully at \
-        that commit.
+        marked `Evidence: not decisive` does not decide a clause either: name that record and its reason \
+        beside the clause in `what_was_checked`. The lockfile identity is for your information and never \
+        decides evidence. A record with an unavailable command, judged commit or exit status cannot \
+        establish what ran successfully at that commit.
 
         Report every build or test clause no recorded Check covers, naming the command it would need in \
         `what_was_checked`, so the Operator sees the gap in the Repo's Check command. Judge it when your \
@@ -196,6 +253,7 @@ public struct VerificationInstruction: Equatable, Sendable {
                     lines.append("  - Command: \(result.command ?? "not recorded")")
                     lines.append("    Judged commit: \(result.judgedCommit ?? "not recorded")")
                     lines.append("    Exit status: \(result.exitStatus.map(String.init) ?? "not recorded")")
+                    lines.append(contentsOf: result.siblingLines)
                 }
             }
         }
@@ -224,5 +282,30 @@ extension VerificationRepository {
         return noPushedBranch
             ? "\(judgedCommit) (no pushed branch: the recorded base commit)"
             : "\(judgedCommit) (the Pushed Tip)"
+    }
+}
+
+extension VerificationCheckResult {
+    /// The sibling, lockfile and evidence lines. A record with no siblings and decisive evidence belongs to a
+    /// single-repository Feature and renders none, as it always has; in a multi-repository Feature the engine
+    /// marks such a record not decisive, so its lines render with the siblings "not recorded".
+    fileprivate var siblingLines: [String] {
+        if siblings.isEmpty, evidence == .decisive { return [] }
+        let heads = siblings.map { sibling -> String in
+            let bothCommits = sibling.before.isCommit && sibling.after.isCommit
+            return "`\(sibling.repository)`" + (bothCommits ? " at " : ": ")
+                + "\(sibling.before.display) before, \(sibling.after.display) after"
+        }
+        let headsText = heads.isEmpty ? "not recorded" : heads.joined(separator: "; ")
+        let evidenceLine: String
+        switch evidence {
+        case .decisive: evidenceLine = "    Evidence: decisive"
+        case .notDecisive(let reason): evidenceLine = "    Evidence: not decisive — \(reason)"
+        }
+        return [
+            "    Other repositories when the Check ran: " + headsText,
+            "    Lockfile: \(lockfile)",
+            evidenceLine
+        ]
     }
 }

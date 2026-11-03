@@ -45,7 +45,8 @@ public enum PromptFamily: String, CaseIterable, Codable, Sendable {
     public var defaultVersion: Int {
         switch self {
         // 3: the verifier screens Author-supplied clauses and reports dropped clauses (OQ157).
-        case .verifier: 3
+        // 4: Check records name sibling Worktree HEADs, the lockfile and engine-computed evidence (OQ198 item 3, #750).
+        case .verifier: 4
         // 2: the breakdown pass drops a clause that asserts landing's own output (OQ157).
         case .breakdown: 2
         // 2: `repositories` includes every adopted Card's repository (OQ195 item 2, #748).
