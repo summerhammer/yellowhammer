@@ -271,7 +271,8 @@ public struct FeatureSelection: FeatureAuthoring {
         let resolved = Self.resolveAdoptedRepositories(selected: selected, candidates: candidates)
         let checkpointed = SelectedFeature(
             name: selected.name, reasoning: selected.reasoning, sequence: selected.sequence,
-            repositories: resolved.repositories, adoptedCardIssueIDs: resolved.adopted
+            repositories: resolved.repositories, adoptedCardIssueIDs: resolved.adopted,
+            engineAddedRepositories: resolved.engineAdded
         )
         if let cause = Self.haltCause(forRepositories: resolved.repositories, in: repositories) {
             return try await recordHalt(feature: selected.name, cause: cause, selection: checkpointed, context: context)
@@ -313,7 +314,8 @@ public struct FeatureSelection: FeatureAuthoring {
                 seam: validated.sequence?.seam,
                 repositories: validated.repositories,
                 adoptedCardIssueIDs: validated.adoptedCardIssueIDs,
-                unadoptedCardIssueIDs: unadopted
+                unadoptedCardIssueIDs: unadopted,
+                engineAddedRepositories: validated.engineAddedRepositories
             )),
             act: context.act, runID: context.runID, nightID: context.night.id
         )

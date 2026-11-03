@@ -48,6 +48,8 @@ public enum PromptFamily: String, CaseIterable, Codable, Sendable {
         case .verifier: 3
         // 2: the breakdown pass drops a clause that asserts landing's own output (OQ157).
         case .breakdown: 2
+        // 2: `repositories` includes every adopted Card's repository (OQ195 item 2, #748).
+        case .selection: 2
         default: 1
         }
     }

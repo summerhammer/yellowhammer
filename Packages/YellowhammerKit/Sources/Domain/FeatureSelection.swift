@@ -152,19 +152,24 @@ public struct SelectedFeature: Equatable, Sendable {
     public let sequence: FeatureSequence?
     public let repositories: [String]
     public let adoptedCardIssueIDs: [String]
+    /// The repositories the engine added because an adopted Work Card is in them and the selector left
+    /// them out (OQ195 item 2); always a subset of ``repositories``.
+    public let engineAddedRepositories: [String]
 
     public init(
         name: FeatureName,
         reasoning: String,
         sequence: FeatureSequence?,
         repositories: [String],
-        adoptedCardIssueIDs: [String]
+        adoptedCardIssueIDs: [String],
+        engineAddedRepositories: [String] = []
     ) {
         self.name = name
         self.reasoning = reasoning
         self.sequence = sequence
         self.repositories = repositories
         self.adoptedCardIssueIDs = adoptedCardIssueIDs
+        self.engineAddedRepositories = engineAddedRepositories
     }
 }
 

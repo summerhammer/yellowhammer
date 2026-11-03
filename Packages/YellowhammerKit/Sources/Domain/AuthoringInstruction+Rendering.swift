@@ -139,8 +139,11 @@ extension AuthoringInstruction {
             return bullet
         }
         return (
-            ["## Adoption candidates", "", "Blocked Cards left by a closed Feature, which a Feature may adopt:", ""]
-                + bullets
+            [
+                "## Adoption candidates", "",
+                "Adopting a Card adds its repository to `repositories`.", "",
+                "Blocked Cards left by a closed Feature, which a Feature may adopt:", ""
+            ] + bullets
         ).joined(separator: "\n")
     }
 
@@ -355,7 +358,10 @@ extension AuthoringInstruction {
                 + "must lie within the file at mainline; `failed` carries `reason`."
         default:
             return "`selected` carries `name`, `reasoning`, `repositories`, `adopted_card_issue_ids` and an "
-                + "optional `sequence` (`preceded_by`, `followed_by`, `seam`); `halted` carries `feature` "
+                + "optional `sequence` (`preceded_by`, `followed_by`, `seam`); "
+                + "`repositories` includes the repository of every Card in `adopted_card_issue_ids` — when one "
+                + "is left out, Yellowhammer adds it before the Repo Dependency and release-gate checks, so a "
+                + "selection is never refused for it; `halted` carries `feature` "
                 + "and `halt_cause` (`no-backward-compatible-seam` with `halt_seam`, "
                 + "`repositories-undetermined`, or `contract-outside-project` with `halt_repository`); "
                 + "`failed` carries `reason`."

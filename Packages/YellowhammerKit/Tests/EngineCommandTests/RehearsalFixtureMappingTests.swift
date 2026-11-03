@@ -46,6 +46,20 @@ struct RehearsalFixtureMappingTests {
         #expect(result.name == selected([]).name)
     }
 
+    @Test("Engine-added repositories map, dedupe, and drop when a listed repository maps to the same name")
+    func engineAddedRepositoriesMapAndDedupe() throws {
+        let mapping = RehearsalFixtureMapping(repos: [repo("app"), repo("web-app", role: .web)], storyIDs: [])
+        let widened = SelectedFeature(
+            name: try #require(FeatureName(rawValue: "Feature")), reasoning: "Because.", sequence: nil,
+            repositories: ["fixture-backend", "fixture-mobile", "fixture-web"], adoptedCardIssueIDs: ["X-1"],
+            engineAddedRepositories: ["fixture-mobile", "fixture-web"]
+        )
+        let result = mapping.apply(to: widened)
+        // fixture-mobile maps to `app`, which the selector listed itself (fixture-backend); fixture-web does not.
+        #expect(result.repositories == ["app", "web-app"])
+        #expect(result.engineAddedRepositories == ["web-app"])
+    }
+
     @Test("A spec-role repo is never a target")
     func specRepoIsNeverATarget() {
         let mapping = RehearsalFixtureMapping(

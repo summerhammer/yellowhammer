@@ -233,6 +233,8 @@ extension JournalStore {
         var seam: String?
         var repositories: [String]
         var adoptedCardIssueIDs: [String]
+        /// Absent in a selection stored before the engine recorded it; reads as empty.
+        var engineAddedRepositories: [String]?
     }
 
     private static func encodeSelection(_ selection: SelectedFeature?) throws -> String? {
@@ -241,7 +243,8 @@ extension JournalStore {
             name: selection.name.rawValue, reasoning: selection.reasoning,
             precededBy: selection.sequence?.precededBy, followedBy: selection.sequence?.followedBy,
             seam: selection.sequence?.seam, repositories: selection.repositories,
-            adoptedCardIssueIDs: selection.adoptedCardIssueIDs
+            adoptedCardIssueIDs: selection.adoptedCardIssueIDs,
+            engineAddedRepositories: selection.engineAddedRepositories
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
@@ -257,7 +260,8 @@ extension JournalStore {
         }
         return SelectedFeature(
             name: name, reasoning: stored.reasoning, sequence: sequence, repositories: stored.repositories,
-            adoptedCardIssueIDs: stored.adoptedCardIssueIDs
+            adoptedCardIssueIDs: stored.adoptedCardIssueIDs,
+            engineAddedRepositories: stored.engineAddedRepositories ?? []
         )
     }
 }

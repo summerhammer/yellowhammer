@@ -17,6 +17,9 @@ public struct FeatureSelectedPayload: Equatable, Sendable {
     /// Adoption candidates this selection did not take up — the Night Summary's standing line names
     /// them later (roadmap P12), so that work no Feature covers is never merely invisible.
     public let unadoptedCardIssueIDs: [String]
+    /// The repositories the engine added to ``repositories`` because an adopted Work Card is in them and
+    /// the selector left them out (OQ195 item 2); always a subset of ``repositories``.
+    public let engineAddedRepositories: [String]
 
     public init(
         name: String,
@@ -26,7 +29,8 @@ public struct FeatureSelectedPayload: Equatable, Sendable {
         seam: String?,
         repositories: [String],
         adoptedCardIssueIDs: [String],
-        unadoptedCardIssueIDs: [String]
+        unadoptedCardIssueIDs: [String],
+        engineAddedRepositories: [String] = []
     ) {
         self.name = name
         self.reasoning = reasoning
@@ -36,6 +40,7 @@ public struct FeatureSelectedPayload: Equatable, Sendable {
         self.repositories = repositories
         self.adoptedCardIssueIDs = adoptedCardIssueIDs
         self.unadoptedCardIssueIDs = unadoptedCardIssueIDs
+        self.engineAddedRepositories = engineAddedRepositories
     }
 }
 

@@ -238,7 +238,8 @@ func featureSelectedRoundTripsFullyPopulated() throws {
         name: "FEAT-1", reasoning: "Splits the seam cleanly.",
         precededBy: "FEAT-0", followedBy: "FEAT-2", seam: "the endpoint contract",
         repositories: ["backend", "mobile"],
-        adoptedCardIssueIDs: ["BACK-1"], unadoptedCardIssueIDs: ["BACK-2"]
+        adoptedCardIssueIDs: ["BACK-1"], unadoptedCardIssueIDs: ["BACK-2"],
+        engineAddedRepositories: ["mobile"]
     )
 
     try journal.append(.featureSelected(payload), act: .author, runID: run, now: epoch)
@@ -276,6 +277,44 @@ func featureSelectedRoundTripsMinimal() throws {
     #expect(read.seam == nil)
     #expect(read.adoptedCardIssueIDs.isEmpty)
     #expect(read.unadoptedCardIssueIDs.isEmpty)
+}
+
+@Test("featureSelected writes no engine_added_repositories key when empty, and a payload without it decodes to empty")
+func featureSelectedWithoutEngineAddedKeyDecodesToEmpty() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let payload = FeatureSelectedPayload(
+        name: "FEAT-1", reasoning: "Lists everything itself.",
+        precededBy: nil, followedBy: nil, seam: nil,
+        repositories: ["backend"], adoptedCardIssueIDs: [], unadoptedCardIssueIDs: []
+    )
+    try journal.append(.featureSelected(payload), act: .author, runID: run, now: epoch)
+    let stored = try journal.write { db in
+        try String.fetchOne(db, sql: "SELECT payload FROM event WHERE type = 'FeatureSelected'")
+    }
+    #expect(try #require(stored).contains("engine_added_repositories") == false)
+
+    // A row written before the key existed.
+    try journal.write { db in
+        try db.execute(
+            sql: """
+            INSERT INTO event (type, occurred_at, payload)
+            VALUES ('FeatureSelected', ?, ?)
+            """,
+            arguments: [
+                JournalStore.timestamp(epoch),
+                #"{"name":"FEAT-2","reasoning":"Old.","repositories":"backend","#
+                    + #""adopted_card_issue_ids":"","unadopted_card_issue_ids":""}"#
+            ]
+        )
+    }
+    let reads = try journal.events().compactMap { record -> FeatureSelectedPayload? in
+        if case .featureSelected(let read) = record.event { return read }
+        return nil
+    }
+    #expect(reads.count == 2)
+    #expect(reads.allSatisfy { $0.engineAddedRepositories.isEmpty })
 }
 
 @Test("featureAuthoringHalted event round-trips with a detail")
