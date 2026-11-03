@@ -159,6 +159,8 @@ public struct UncommittedSnapshot: Sendable {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             if FileManager.default.fileExists(atPath: realIndex) {
+                // The copy must keep the index file's mtime (`copyItem` does). A copy with a fresh mtime makes git's
+                // racy-index check trust stale stat data, so a same-size edit in the same second would be missed.
                 try FileManager.default.copyItem(atPath: realIndex, toPath: indexPath)
             } else if case .failure(let reason) = await run(["read-tree", "HEAD"], indexed, worktreePath) {
                 return .failure(reason)
