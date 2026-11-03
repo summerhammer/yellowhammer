@@ -15,13 +15,15 @@ extension LandAct {
         case .noCompletedWork:
             return .skipped("no completed work")
         case .refusedByBranchProtection, .credentialsMissingOrInsufficient, .refusedMainline, .failed:
-            return .failed(outcome.reason)
+            return .failed(pushFailureWording(for: outcome))
         }
     }
 
     /// Posts this push's outcome to the board, through the Outbox when one is bound. A pushed commit
     /// gets one comment on each `.done` Card of the lane; every refusal or failure gets one comment on
-    /// the Feature Issue naming the repository, the Feature Branch, and what happened. `.noCompletedWork`
+    /// the Feature Card and on each Done Work Card of the lane still on the board (``LandCommentPlacement``),
+    /// naming the repository, the Feature Branch, and what happened, once per cause: a retry with the same
+    /// cause posts nothing, a changed cause posts again. `.noCompletedWork`
     /// posts nothing — it is not a fault, and the pull request step is then skipped as "not pushed". An
     /// Outbox post failure is best-effort here and must never fault the lane.
     func recordPushOutcome(_ outcome: LanePushOutcome, laneContext: LandActLaneContext, context: ActContext) async {
@@ -59,12 +61,20 @@ extension LandAct {
         let branchName = resolved?.name ?? repository
         let body = "The push of Feature Branch `\(branchName)` for repository `\(repository)` did not "
             + "complete: \(pushFailureWording(for: outcome))"
-        let key = "land:\(laneContext.cycleID):\(repository):push-failed"
-        let write = OutboxWrite(
-            key: key,
-            write: .createComment(issue: BoardObjectID(rawValue: laneContext.feature.issueID), body: body)
+        let placement = LandCommentPlacement(
+            cycleID: laneContext.cycleID, repository: repository, featureIssueID: laneContext.feature.issueID,
+            laneCards: laneContext.lane.cards
         )
-        _ = try? await outbox.post(write)
+        await placement.post(body, keySuffix: "push-failed:\(failureClassKey(for: outcome))", outbox: outbox)
+    }
+
+    private func failureClassKey(for outcome: LanePushOutcome) -> String {
+        switch outcome.kind {
+        case .refusedByBranchProtection: "branch-protection"
+        case .credentialsMissingOrInsufficient: "credentials"
+        case .refusedMainline: "mainline"
+        case .failed, .pushed, .noCompletedWork: "failed"
+        }
     }
 
     private func pushFailureWording(for outcome: LanePushOutcome) -> String {

@@ -9,11 +9,13 @@ import Journal
 // Board Connection, Routing Table, Act.
 
 extension NightSummary {
-    /// The `**Failures:**` section's bullets: one per Failure Notice no later run recovered, in Journal order,
-    /// then — when the Night also had failures that are no Act failure — one pointer bullet to the sections
-    /// that state them. Empty when the Night has neither, so a quiet Night renders no section.
+    /// The `**Failures:**` section's bullets, in three parts. First, one per Act failure no later run recovered, in
+    /// Journal order. Then the failed landing steps (``landingFailureLines``): unrecovered ones, followed by
+    /// recovered ones that say when they recovered. A failed landing step is a Failure Notice but no Act failure.
+    /// Last, when the Night also had other failures that are no Act failure, one pointer bullet to the sections that
+    /// state them. Empty when the Night has none of these, so a quiet Night renders no section.
     ///
-    /// A notice is recovered by the same per-run reading the `**Exceptions:**` recovered lines use, so the
+    /// An Act failure is recovered by the same per-run reading the `**Exceptions:**` recovered lines use, so the
     /// Night Card never says a failure is both recovered and standing. The log path is rendered with `~`,
     /// never the machine's home directory: the block is hashed for Outbox idempotency.
     public static func failureLines(
@@ -38,6 +40,7 @@ extension NightSummary {
                     + "Details: \(guidance.details). Next: \(guidance.next). You may: \(guidance.mayDo)."
             )
         }
+        lines += landingFailureLines(events: events, calendar: calendar, projectID: journal.projectID)
         if let pointer = alsoThisNightLine(events: events, renderingRunID: renderingRunID) {
             lines.append(pointer)
         }
@@ -74,13 +77,13 @@ extension NightSummary {
         return events.filter { record in record.runID.map { !flushRuns.contains($0) } ?? true }
     }
 
-    private static func clock(_ date: Date, _ calendar: Calendar) -> String {
+    static func clock(_ date: Date, _ calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 
     /// The reason on one line, without a closing full stop (the bullet adds its own).
-    private static func oneLine(_ reason: String) -> String {
+    static func oneLine(_ reason: String) -> String {
         var text = DescriptionBudgetOverrun.oneLineReason(reason)
         while text.hasSuffix(".") { text.removeLast() }
         return text
@@ -144,7 +147,7 @@ extension NightSummary {
         }
     }
 
-    private static func logPointer(_ act: Act?, _ actName: String, _ projectID: ProjectID) -> String {
+    static func logPointer(_ act: Act?, _ actName: String, _ projectID: ProjectID) -> String {
         guard let act else { return "the Night's account in Yellowhammer" }
         return "the \(actName) Act's log, `\(act.logPath(projectID: projectID, homeDirectory: "~"))`"
     }
@@ -155,14 +158,12 @@ extension NightSummary {
         var boardWrites = 0
         var reclaims = 0
         var hardFailedAttempts = 0
-        var failedLandSteps = 0
         for record in events {
             switch record.event {
             case .boardWriteFailed: boardWrites += 1
             case .leaseReclaimed, .cardLeaseReclaimed, .nightOpenedAndDied: reclaims += 1
             case .attemptEnded(_, _, _, _, let outcome, _) where outcome == AttemptOutcome.hardFailure.rawValue:
                 hardFailedAttempts += 1
-            case .landStep(_, _, .failed, _): failedLandSteps += 1
             default: break
             }
         }
@@ -173,8 +174,7 @@ extension NightSummary {
             (reclaims, "crash\(reclaims == 1 ? "" : "es") or reclaimed Lease\(reclaims == 1 ? "" : "s")",
                 "see Crashes and reclaims below"),
             (crashedRuns, "crashed run\(crashedRuns == 1 ? "" : "s")", account),
-            (hardFailedAttempts, "hard-failed Attempt\(hardFailedAttempts == 1 ? "" : "s")", "see Cards below"),
-            (failedLandSteps, "failed landing step\(failedLandSteps == 1 ? "" : "s")", account)
+            (hardFailedAttempts, "hard-failed Attempt\(hardFailedAttempts == 1 ? "" : "s")", "see Cards below")
         ].filter { $0.0 > 0 }.map { "\($0.0) \($0.1) — \($0.2)" }
         return parts.isEmpty ? nil : "Also this Night: \(parts.joined(separator: ", "))."
     }

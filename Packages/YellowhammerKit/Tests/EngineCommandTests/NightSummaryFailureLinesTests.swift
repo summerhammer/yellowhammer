@@ -164,13 +164,19 @@ struct NightSummaryFailureLinesTests {
         try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T02:00:00Z", ending: .unterminated)
 
         let bullets = try lines(night, journal)
+        #expect(bullets.count == 2)
+        // The failed landing step is a Failure Notice of its own (disclose-a-failure#what-is-a-failure); the
+        // pointer no longer counts it.
         #expect(
-            bullets == [
-                "Also this Night: 1 board write failed permanently — see Exceptions below, "
-                    + "1 crash or reclaimed Lease — see Crashes and reclaims below, "
-                    + "1 crashed run — see the Night's account in Yellowhammer, "
-                    + "1 failed landing step — see the Night's account in Yellowhammer."
-            ]
+            bullets.first?.hasPrefix(
+                "**Landing `backend` failed: the push** — cause: the push was refused or failed; "
+                    + "no reason was recorded. "
+            ) == true
+        )
+        #expect(
+            bullets.last == "Also this Night: 1 board write failed permanently — see Exceptions below, "
+                + "1 crash or reclaimed Lease — see Crashes and reclaims below, "
+                + "1 crashed run — see the Night's account in Yellowhammer."
         )
     }
 
@@ -201,5 +207,138 @@ struct NightSummaryFailureLinesTests {
         let verdict = try #require(description.range(of: "**Verdict:**"))
         let failures = try #require(description.range(of: "**Failures:**"))
         #expect(verdict.upperBound < failures.lowerBound)
+    }
+}
+
+@Suite("Night Summary: failed landing steps are Failure Notices")
+struct NightSummaryLandingFailureLinesTests {
+    private func lines(_ night: NightRecord, _ journal: JournalStore) throws -> [String] {
+        try NightSummary.failureLines(
+            night: night, journal: journal, renderingRunID: nil, consecutiveAuthoringFaultsMax: 3, timeZone: utc
+        )
+    }
+
+    private func landRun(
+        _ journal: JournalStore, _ night: NightRecord, at startedAt: String, _ steps: [JournalEvent]
+    ) throws {
+        try appendRun(
+            to: journal, night: night, act: .land, startedAt: startedAt,
+            steps.enumerated().map { (TimeInterval($0.offset + 1), $0.element) } + [(10, .actEnded)]
+        )
+    }
+
+    private func push(_ outcome: LandStepOutcome, _ detail: String? = nil) -> JournalEvent {
+        .landStep(step: .push, repository: "backend", outcome: outcome, detail: detail)
+    }
+
+    private func openNight(_ fixture: borrowing NightCardJournalFixture) async throws -> (JournalStore, NightRecord) {
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        return (journal, try await openFailureNight(journal: journal, board: board))
+    }
+
+    @Test("A failure after a recovery starts a new bullet; the recovered one keeps its own line")
+    func recoveryBreaksTheFold() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.failed, "GH006: Protected branch.")])
+        try landRun(journal, night, at: "2026-10-08T02:00:00Z", [push(.completed, "abc1234")])
+        try landRun(journal, night, at: "2026-10-08T04:00:00Z", [push(.failed, "GH006: Protected branch.")])
+
+        let bullets = try lines(night, journal).filter { $0.hasPrefix("**Landing") }
+        #expect(bullets.count == 2)
+        let standing = try #require(bullets.first)
+        let recovered = try #require(bullets.last)
+        #expect(standing.hasPrefix("**Landing `backend` failed: the push** — cause: "))
+        #expect(!standing.contains("times"))
+        #expect(!standing.contains("recovered at"))
+        #expect(recovered.hasPrefix("**Landing `backend` failed: the push** — cause: "))
+        #expect(recovered.hasSuffix(" — recovered at 02:00"))
+    }
+
+    @Test("Two runs failing the same way are one bullet with the run count and span")
+    func foldsAcrossRuns() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.failed, "GH006: Protected branch.")])
+        try landRun(journal, night, at: "2026-10-08T02:00:00Z", [push(.failed, "GH006: Protected branch.")])
+
+        let bullets = try lines(night, journal)
+        #expect(bullets.count == 1)
+        let bullet = try #require(bullets.first)
+        #expect(bullet.hasPrefix("**Landing `backend` failed: the push** · 2 times, 01:00–02:00 — cause: "))
+        #expect(bullet.contains("the push was refused or failed; GH006: Protected branch. Details: the comment on"))
+        #expect(bullet.contains("the Feature Card, and the land Act's log, `~/"))
+        #expect(bullet.contains("Next: the next land firing retries the push. You may: correct the credential"))
+    }
+
+    @Test("Different details are two bullets; a later completed push recovers one and lists it last")
+    func recoveredListedAfterUnrecovered() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.failed, "first cause")])
+        try landRun(
+            journal, night, at: "2026-10-08T02:00:00Z",
+            [.landStep(step: .mergeTest, repository: "backend", outcome: .failed, detail: "merge cause")]
+        )
+        try landRun(journal, night, at: "2026-10-08T03:00:00Z", [push(.completed, "abc123")])
+
+        let bullets = try lines(night, journal)
+        #expect(bullets.count == 2)
+        #expect(bullets[0].hasPrefix("**Landing `backend` failed: the merge test**"))
+        #expect(!bullets[0].contains("recovered"))
+        #expect(bullets[1].hasPrefix("**Landing `backend` failed: the push**"))
+        #expect(bullets[1].hasSuffix(" — recovered at 03:00"))
+    }
+
+    @Test("Pull request and Worktree release failures render their detail; a flush firing's failure is ignored")
+    func otherStepsAndFlushFirings() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(
+            journal, night, at: "2026-10-08T01:00:00Z",
+            [
+                .landStep(step: .openPullRequest, repository: "backend", outcome: .failed,
+                          detail: "Not landed: the remote tip could not be read."),
+                .landStep(step: .releaseWorktree, repository: "backend", outcome: .failed,
+                          detail: "Snapshot failed.")
+            ]
+        )
+        try landRun(journal, night, at: "2026-10-08T02:00:00Z", [
+            .flushFiringRan(outcome: .closedNight, detail: nil), push(.failed, "flush only")
+        ])
+
+        let bullets = try lines(night, journal)
+        #expect(bullets.count == 2)
+        #expect(
+            bullets[0].contains(
+                "failed: the pull request** — cause: the pull request did not open; "
+                    + "Not landed: the remote tip could not be read."
+            )
+        )
+        #expect(
+            bullets[1].contains(
+                "failed: the Worktree release** — cause: the Worktree was not released; Snapshot failed."
+            )
+        )
+        #expect(bullets[1].contains("Next: the Worktree stays held and the next land firing tries again"))
+        #expect(!bullets.contains { $0.contains("flush only") })
+    }
+
+    @Test("No failed step renders no landing bullet; the completed Night Card carries a failed one")
+    func quietAndNightCard() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.completed, "abc123")])
+        #expect(try lines(night, journal).isEmpty)
+
+        try landRun(journal, night, at: "2026-10-08T02:00:00Z", [
+            .landStep(step: .push, repository: nil, outcome: .failed, detail: nil)
+        ])
+        let block = NightCardBlock.completed(
+            night: night, projectID: journal.projectID, failureLines: try lines(night, journal)
+        )
+        #expect(block.contains("**Failures:**\n- **Landing failed: the push**"))
     }
 }
