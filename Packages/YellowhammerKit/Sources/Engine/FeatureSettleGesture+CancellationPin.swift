@@ -70,7 +70,7 @@ extension FeatureSettleGesture {
             worktreePath: worktree.path, mainClonePath: mainClonePath, recordedCommit: recorded?.commit, branch: branch
         ) {
         case .notNeeded, .alreadyPinned:
-            return
+            try await snapshotBeforeRelease(worktree: worktree, branch: branch, pinContext: pinContext)
         case .noFeatureBranch(let commit):
             throw CycleArchiveFault(
                 reason: "the Worktree's HEAD in \(repository) is not the recorded commit \(commit.prefix(7)), and no "
@@ -87,6 +87,7 @@ extension FeatureSettleGesture {
                     relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
                 )
             }
+            try await snapshotBeforeRelease(worktree: worktree, branch: branch, pinContext: pinContext)
 
         case .gone(let step):
             try await handleGoneWorktree(
@@ -124,6 +125,33 @@ extension FeatureSettleGesture {
             at: placement,
             outbox: context.outbox
         )
+    }
+
+    /// Saves the present git Worktree's uncommitted changes before release (OQ196 item 1). A saved snapshot is
+    /// recorded and reported; one that cannot be saved defers the whole cancellation, as a failed pin does.
+    private func snapshotBeforeRelease(
+        worktree: WorktreeRecord, branch: FeatureBranch?, pinContext: CancellationPinContext
+    ) async throws {
+        let repository = worktree.repository
+        switch await WorktreeSnapshotDecision.evaluate(
+            worktreePath: worktree.path, repository: repository, branch: branch, moment: .cancellation
+        ) {
+        case .nothingToSave:
+            return
+        case .keepHeld(let comment):
+            try await failCancellation(comment, repository: repository, pinContext: pinContext)
+        case .saved(let saved):
+            let context = pinContext.context
+            _ = try? context.journal.append(
+                .uncommittedChangesSnapshotted(cycleID: pinContext.cycleID, snapshot: saved),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            let placement = LandCommentPlacement(
+                cycleID: pinContext.cycleID, repository: repository, featureIssueID: pinContext.feature.issueID,
+                laneCards: pinContext.cards.filter { $0.repository == repository }
+            )
+            await UnpublishedCommitsReport.postSnapshot(saved, at: placement, outbox: context.outbox)
+        }
     }
 
     /// Posts `comment` on the Feature Card and the repository's Cards, then defers the cancellation with the

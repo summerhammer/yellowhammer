@@ -82,19 +82,20 @@ final class SettleWorld {
     /// Builds a fresh `ActContext` for an author Act firing on `nightStart`: claims the Act Lease,
     /// opens the Night, and wires a fresh Outbox, board and Workspace to it.
     func makeContext(
-        nightStart: NightStart = settleObservingNightStart, repositories: ProjectRepositories? = nil
+        nightStart: NightStart = settleObservingNightStart, repositories: ProjectRepositories? = nil,
+        mode: NightMode = .real
     ) throws -> ActContext {
         let runID = RunID()
-        guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .real) else {
+        guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: mode) else {
             throw JournalError.actLeaseLost(runID: runID, holder: nil)
         }
-        let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: runID)
+        let opening = try journal.openNight(nightStart: nightStart, mode: mode, act: .author, runID: runID)
         let outbox = Outbox(
             journal: journal, board: boards.writing, runID: runID, act: .author, nightID: opening.night.id
         )
         let board = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
         return ActContext(
-            act: .author, mode: .real, trigger: .scheduled, runID: runID, journal: journal, night: opening.night,
+            act: .author, mode: mode, trigger: .scheduled, runID: runID, journal: journal, night: opening.night,
             outbox: outbox, board: board, workspace: workspace, repositories: repositories ?? landThrowawayRepositories
         )
     }
@@ -279,4 +280,58 @@ private func openAndCloseSettleNight(_ journal: JournalStore, nightStart: NightS
     try journal.closeNight(id: opening.night.id, reason: .nightEnd, act: .author, runID: runID)
     try journal.releaseActLease(runID: runID)
     return opening.night.id
+}
+
+// Real-git fixtures shared by the cancellation pin (OQ194) and snapshot (OQ196) suites: a main clone with a bare
+// `origin` and a `git worktree add` Worktree on the Feature Branch.
+
+struct TestWorktreeEnvironment {
+    let clone: TestGitRepo
+    let remote: TestGitRepo
+    let worktreePath: String
+    let base: String
+}
+
+func makeGitWorktree(
+    name: String = "backend", branch: String = settleFeatureBranch
+) async throws -> TestWorktreeEnvironment {
+    let clone = TestGitRepo(name: "oq194-\(name)-clone")
+    await clone.initRepo(defaultBranch: "main")
+    let base = try await clone.commit(filename: "README.md", content: name, message: "initial")
+    let remote = TestGitRepo(name: "oq194-\(name)-remote")
+    await remote.initRepo(bare: true, defaultBranch: "main")
+    await clone.addRemote(url: remote.path)
+    #expect(await clone.run(["push", "origin", "main"]).isSuccess)
+    let worktreeURL = clone.url.appending(component: "wt-\(name)", directoryHint: .isDirectory)
+    let worktreePath = worktreeURL.path(percentEncoded: false)
+    #expect(await clone.run(["worktree", "add", "-b", branch, worktreePath]).isSuccess)
+    return TestWorktreeEnvironment(clone: clone, remote: remote, worktreePath: worktreePath, base: base)
+}
+
+func commitInWorktree(
+    _ worktreePath: String, filename: String = "work.txt", content: String = "content", message: String = "commit"
+) async throws -> String {
+    let fileURL = URL(fileURLWithPath: worktreePath).appendingPathComponent(filename)
+    try content.write(to: fileURL, atomically: true, encoding: .utf8)
+    let git = GitRunner()
+    _ = await git.run(["-C", worktreePath, "add", "."])
+    _ = await git.run(["-C", worktreePath, "commit", "-m", message])
+    let res = await git.run(["-C", worktreePath, "rev-parse", "--verify", "HEAD"])
+    return res.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+func inFlightFeature(_ world: SettleWorld) throws -> FeatureRecord {
+    try #require(try world.journal.inFlightFeature()?.feature)
+}
+
+/// Records `commit` as the Pushed Tip of the world's Cycle in `repository`, under an Act lease.
+func recordPushedTip(_ world: SettleWorld, repository: String, commit: String) throws {
+    let runID = RunID()
+    guard case .claimed = try world.journal.claimActLease(act: .land, runID: runID, mode: .real) else {
+        throw JournalError.actLeaseLost(runID: runID, holder: nil)
+    }
+    try world.journal.recordPushedTip(
+        cycleID: world.cycleID, repository: repository, commit: commit, runID: runID
+    )
+    try world.journal.releaseActLease(runID: runID)
 }

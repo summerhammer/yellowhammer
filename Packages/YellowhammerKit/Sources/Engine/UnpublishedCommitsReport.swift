@@ -64,9 +64,43 @@ enum UnpublishedCommitsReport {
             atRelease(unpublished, pinRef: pinRef)
         case .unpublishedCommitsPinnedAtCancellation(_, let unpublished, let pinRef):
             atCancellation(unpublished, pinRef: pinRef)
+        case .uncommittedChangesSnapshotted(_, let snapshot):
+            Self.snapshot(snapshot)
         default:
             nil
         }
+    }
+
+    /// "2 modified and 1 untracked file", "1 modified file", "3 untracked files".
+    static func snapshotCounts(modified: Int, untracked: Int) -> String {
+        func files(_ count: Int) -> String { count == 1 ? "file" : "files" }
+        switch (modified, untracked) {
+        case (_, 0): return "\(modified) modified \(files(modified))"
+        case (0, _): return "\(untracked) untracked \(files(untracked))"
+        default: return "\(modified) modified and \(untracked) untracked \(files(modified + untracked))"
+        }
+    }
+
+    // draft-based: engine wording; the ruling fixes only that the report names the ref as not published
+    /// The report made when uncommitted changes were saved as a snapshot before the Worktree was released.
+    static func snapshot(_ saved: UncommittedChangesSnapshot) -> String {
+        let counts = snapshotCounts(modified: saved.modified, untracked: saved.untracked)
+        let verb = saved.modified + saved.untracked == 1 ? "was" : "were"
+        let moment = saved.atCancellation ? "the Feature was cancelled" : "the Worktree was released"
+        return "Not published: \(counts) in `\(saved.repository)` \(verb) saved as a snapshot at `\(saved.ref)` "
+            + "(\(GitCommit.short(saved.commit))) before \(moment). "
+            + "The snapshot is yours: Yellowhammer never pushes it or deletes the ref."
+    }
+
+    /// Posts the snapshot report at `placement`. The key carries the snapshot commit: a changed snapshot posts
+    /// again, and a retry of the same tree posts nothing.
+    static func postSnapshot(
+        _ saved: UncommittedChangesSnapshot, at placement: LandCommentPlacement, outbox: Outbox?
+    ) async {
+        let moment = saved.atCancellation ? "cancellation" : "release"
+        await placement.post(
+            snapshot(saved), keySuffix: "snapshot-\(moment):\(GitCommit.short(saved.commit))", outbox: outbox
+        )
     }
 
     /// Posts `body` at `placement`. One key per Cycle, repository and kind: a later firing posts nothing again.

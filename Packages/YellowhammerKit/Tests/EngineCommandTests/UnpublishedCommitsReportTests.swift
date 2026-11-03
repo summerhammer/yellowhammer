@@ -195,4 +195,44 @@ struct UnpublishedCommitsReportTests {
         let expected = UnpublishedCommitsReport.atCancellation(unpublished, pinRef: pinRef)
         #expect(notes.contains(expected))
     }
+
+    private func snapshotted(
+        modified: Int, untracked: Int, atCancellation: Bool = false
+    ) -> UncommittedChangesSnapshot {
+        UncommittedChangesSnapshot(
+            repository: "backend", ref: "refs/yellowhammer/snapshot/b",
+            commit: "0123456789abcdef0123456789abcdef01234567", modified: modified, untracked: untracked,
+            atCancellation: atCancellation
+        )
+    }
+
+    // landing/open-one-pull-request-per-repository#uncommitted-snapshot
+    @Test("the snapshot report names the ref as not published, with plural counts")
+    func snapshotReportWordingAndPlurals() {
+        let tail = "`refs/yellowhammer/snapshot/b` (0123456) before the Worktree was released. "
+            + "The snapshot is yours: Yellowhammer never pushes it or deletes the ref."
+        #expect(UnpublishedCommitsReport.snapshot(snapshotted(modified: 1, untracked: 0))
+            == "Not published: 1 modified file in `backend` was saved as a snapshot at " + tail)
+        #expect(UnpublishedCommitsReport.snapshot(snapshotted(modified: 3, untracked: 0))
+            == "Not published: 3 modified files in `backend` were saved as a snapshot at " + tail)
+        #expect(UnpublishedCommitsReport.snapshot(snapshotted(modified: 0, untracked: 1))
+            == "Not published: 1 untracked file in `backend` was saved as a snapshot at " + tail)
+        #expect(UnpublishedCommitsReport.snapshot(snapshotted(modified: 0, untracked: 2))
+            == "Not published: 2 untracked files in `backend` were saved as a snapshot at " + tail)
+        #expect(UnpublishedCommitsReport.snapshot(snapshotted(modified: 1, untracked: 2))
+            == "Not published: 1 modified and 2 untracked files in `backend` were saved as a snapshot at " + tail)
+        #expect(UnpublishedCommitsReport.snapshot(snapshotted(modified: 2, untracked: 1))
+            == "Not published: 2 modified and 1 untracked files in `backend` were saved as a snapshot at " + tail)
+    }
+
+    // landing/open-one-pull-request-per-repository#uncommitted-snapshot
+    @Test("the cancellation snapshot report says the Feature was cancelled, and the event renders it")
+    func snapshotReportAtCancellation() {
+        let saved = snapshotted(modified: 1, untracked: 0, atCancellation: true)
+        let text = UnpublishedCommitsReport.snapshot(saved)
+
+        #expect(text.contains("before the Feature was cancelled. The snapshot is yours"))
+        #expect(!text.contains("pull request"))
+        #expect(UnpublishedCommitsReport.text(of: .uncommittedChangesSnapshotted(cycleID: 1, snapshot: saved)) == text)
+    }
 }

@@ -518,6 +518,7 @@ extension JournalEvent {
             landActPayload
         case .unpublishedCommitsReported, .unpublishedCommitsPinned, .unpublishedCommitsPinnedAtCancellation:
             unpublishedCommitsPayload
+        case .uncommittedChangesSnapshotted: uncommittedSnapshotPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared, .authoringHaltRepair:
             authoringStopPayload
