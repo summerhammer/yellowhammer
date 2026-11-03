@@ -6,11 +6,15 @@ import Testing
 struct DispatchPromptRecordTests {
     @Test("PromptFamily raw values, diagnostic state, instructions acceptance, and default versions")
     func promptFamilyProperties() {
+        // A family's version moves only with its text; keep this table in step with the pins in
+        // `PromptCatalogTests.pinnedVersions`. Families not listed are at version 1.
+        let changed: [PromptFamily: Int] = [
+            .verifier: 3, // OQ157: screens Author-supplied clauses.
+            .breakdown: 2, // OQ157: drops landing's own outputs.
+            .selection: 2 // OQ195 item 2 (#748): `repositories` includes every adopted Card's repository.
+        ]
         for family in PromptFamily.allCases {
-            // The verifier's text changed for OQ157 (screens Author-supplied clauses).
-            // The breakdown's text changed for OQ157 (drops landing's own outputs).
-            let expectedVersion = family == .verifier ? 3 : (family == .breakdown ? 2 : 1)
-            #expect(family.defaultVersion == expectedVersion)
+            #expect(family.defaultVersion == changed[family, default: 1], "\(family)")
         }
 
         let productionFamilies: Set<PromptFamily> = [
