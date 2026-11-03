@@ -598,3 +598,128 @@ extension OQ194CancellationPinTests {
         #expect(await unexpectedPins(in: env.clone.path).isEmpty)
     }
 }
+
+extension OQ194CancellationPinTests {
+    /// The "Not cancelled:" comments on `issue` for `repository`, in the order made.
+    private func notCancelledComments(_ world: SettleWorld, on issue: String = "FEAT-1") async -> [String] {
+        await world.boards.writing.comments
+            .filter { $0.issue.rawValue == issue && $0.body.hasPrefix("Not cancelled: ") }
+            .map(\.body)
+    }
+
+    // landing/open-one-pull-request-per-repository#pin-failure
+    @Test("Case 13: a failed pin posts the Not cancelled comment, and the fault carries the same text")
+    func failedPinPostsNotCancelledComment() async throws {
+        let world = try await makeSettleWorld()
+        let env = try await makeGitWorktree()
+        let pushedTip = try await commitInWorktree(env.worktreePath, filename: "pushed.txt", message: "pushed")
+        _ = try await commitInWorktree(env.worktreePath, filename: "unpublished.txt", message: "unpublished")
+
+        try world.journal.recordFeatureBranch(
+            featureID: world.featureID, repository: "backend", branch: FeatureBranch(rawValue: settleFeatureBranch)
+        )
+        try recordPushedTip(world, repository: "backend", commit: pushedTip)
+        try world.holdWorktree(repository: "backend", path: env.worktreePath, pushedCommit: pushedTip)
+        let blockerURL = env.clone.url.appendingPathComponent(".git/refs/yellowhammer/unpublished")
+        try FileManager.default.createDirectory(
+            at: blockerURL.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        try "blocker".write(to: blockerURL, atomically: true, encoding: .utf8)
+
+        await world.seedFeatureCancelled()
+        let context = try world.makeContext()
+
+        var reason: String?
+        do {
+            try await FeatureSettleGesture().settle(
+                feature: try inFlightFeature(world), cycleID: world.cycleID, context: context
+            )
+        } catch let fault as CycleArchiveFault {
+            reason = fault.reason
+        }
+        let body = try #require(reason)
+
+        #expect(body.hasPrefix("Not cancelled: the Worktree's HEAD in `backend` could not be pinned before release."))
+        #expect(body.contains("Cause: git reported: "))
+        #expect(body.contains("the next author firing pins it"))
+        #expect(body.contains("recorded commit \(pushedTip.prefix(7))"))
+        #expect(await notCancelledComments(world) == [body])
+        #expect(world.workspace.removeCalls.isEmpty)
+        #expect(try world.journal.heldWorktree(featureID: world.featureID, repository: "backend") != nil)
+    }
+
+    // landing/open-one-pull-request-per-repository#pin-failure
+    @Test("Case 14: a gone directory whose Feature Branch does not resolve is released and the cancellation proceeds")
+    func goneDirectoryWithAbsentBranchReleases() async throws {
+        let world = try await makeSettleWorld()
+        let env = try await makeGitWorktree()
+        let pushedTip = try await commitInWorktree(env.worktreePath, filename: "pushed.txt", message: "pushed")
+        try FileManager.default.removeItem(atPath: env.worktreePath)
+        _ = await GitRunner().run(["-C", env.clone.path, "worktree", "prune"])
+        _ = await GitRunner().run(["-C", env.clone.path, "branch", "-D", settleFeatureBranch])
+
+        try world.journal.recordFeatureBranch(
+            featureID: world.featureID, repository: "backend", branch: FeatureBranch(rawValue: settleFeatureBranch)
+        )
+        try recordPushedTip(world, repository: "backend", commit: pushedTip)
+        try world.holdWorktree(repository: "backend", path: env.worktreePath, pushedCommit: pushedTip)
+
+        await world.seedFeatureCancelled()
+        let repos = ProjectRepositories(workingRepos: [Repo(name: "backend", path: env.clone.path, role: .backend)])
+        let context = try world.makeContext(repositories: repos)
+
+        try await FeatureSettleGesture().settle(
+            feature: try inFlightFeature(world), cycleID: world.cycleID, context: context
+        )
+
+        #expect(await unexpectedPins(in: env.clone.path).isEmpty)
+        #expect(await notCancelledComments(world).isEmpty)
+        #expect(world.workspace.removeCalls.contains { $0.id.rawValue == "wt-backend" })
+        #expect(try world.journal.heldWorktree(featureID: world.featureID, repository: "backend") == nil)
+        #expect(try world.journal.inFlightCycleID() == nil)
+    }
+
+    // landing/open-one-pull-request-per-repository#uncommitted-snapshot
+    @Test("Case 15: a non-git directory posts the Not cancelled comment once across retries")
+    func nonGitDirectoryPostsNotCancelledCommentOnce() async throws {
+        let world = try await makeSettleWorld()
+        let env = try await makeGitWorktree()
+        let pushedTip = try await commitInWorktree(env.worktreePath, filename: "pushed.txt", message: "pushed")
+        let branchCommit = try await moveBranchInClone(
+            env.clone.path, branch: settleFeatureBranch, base: pushedTip
+        )
+        try FileManager.default.removeItem(atPath: env.worktreePath)
+        try FileManager.default.createDirectory(atPath: env.worktreePath, withIntermediateDirectories: true)
+
+        try world.journal.recordFeatureBranch(
+            featureID: world.featureID, repository: "backend", branch: FeatureBranch(rawValue: settleFeatureBranch)
+        )
+        try recordPushedTip(world, repository: "backend", commit: pushedTip)
+        try world.holdWorktree(repository: "backend", path: env.worktreePath, pushedCommit: pushedTip)
+
+        await world.seedFeatureCancelled()
+        let repos = ProjectRepositories(workingRepos: [Repo(name: "backend", path: env.clone.path, role: .backend)])
+        let context = try world.makeContext(repositories: repos)
+
+        var reason: String?
+        for _ in 0..<2 {
+            do {
+                try await FeatureSettleGesture().settle(
+                    feature: try inFlightFeature(world), cycleID: world.cycleID, context: context
+                )
+            } catch let fault as CycleArchiveFault {
+                reason = fault.reason
+            }
+        }
+        let body = try #require(reason)
+
+        let pinRef = "refs/yellowhammer/unpublished/\(settleFeatureBranch)"
+        #expect(await unpublishedPins(at: branchCommit, in: env.clone.path) == [pinRef])
+        #expect(body.hasPrefix("Not cancelled: the Worktree directory for `backend` at `"))
+        #expect(body.contains("is not a git work tree"))
+        #expect(body.contains("Its Feature Branch is pinned at `\(pinRef)`."))
+        #expect(body.contains("repair the directory so git can read it, or remove it"))
+        #expect(await notCancelledComments(world) == [body])
+        #expect(world.workspace.removeCalls.isEmpty)
+    }
+}
