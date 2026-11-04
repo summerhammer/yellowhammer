@@ -16,7 +16,8 @@ and put the manifest inside the cached DerivedData with `--manifest`. Only regul
 files participate: a tracked symlink may point outside the checkout and must not be followed.
 
 Exit codes:
-  0 - done (a missing manifest on restore is not an error: there is nothing to restore)
+  0 - done (a missing manifest, or a tracked file missing from the working tree, is not
+      an error on restore: there is nothing to restore for it)
   2 - usage error
 """
 
@@ -65,15 +66,24 @@ def restore(root: Path, manifest: Path) -> int:
         print(f"No manifest at {manifest}; nothing to restore")
         return 0
     recorded = json.loads(manifest.read_text())
-    restored = changed = 0
+    restored = changed = missing = 0
     for path, blob in tracked_blobs(root).items():
         entry = recorded.get(path)
         if entry is None or entry[0] != blob:
             changed += 1
             continue
-        os.utime(root / path, ns=(entry[1], entry[1]))
+        # A tracked file absent from the working tree (sparse checkout, removed by an
+        # earlier step, skipped by the checkout) has no mtime to restore, as in `record`.
+        try:
+            os.utime(root / path, ns=(entry[1], entry[1]))
+        except FileNotFoundError:
+            missing += 1
+            continue
         restored += 1
-    print(f"Restored {restored} source mtimes; {changed} new or changed files keep the checkout time")
+    print(
+        f"Restored {restored} source mtimes; {changed} new or changed files keep the checkout time; "
+        f"{missing} tracked files are missing from the working tree"
+    )
     return 0
 
 

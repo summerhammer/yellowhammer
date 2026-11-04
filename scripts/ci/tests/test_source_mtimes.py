@@ -3,7 +3,9 @@
 Unit tests for source_mtimes.py
 """
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -64,6 +66,26 @@ class TestSourceMtimes(unittest.TestCase):
 
     def test_missing_manifest_is_not_an_error(self):
         self.assertEqual(source_mtimes.restore(self.root, self.manifest), 0)
+
+    def test_tracked_file_missing_from_the_working_tree_is_not_an_error(self):
+        source_mtimes.record(self.root, self.manifest)
+        self.checkout()
+        (self.root / "Edited.swift").unlink()
+
+        self.assertEqual(source_mtimes.restore(self.root, self.manifest), 0)
+
+        self.assertFalse((self.root / "Edited.swift").exists())
+        self.assertEqual((self.root / "Unchanged.swift").stat().st_mtime_ns, OLD)
+
+    def test_restore_reports_a_missing_tracked_file_in_the_summary(self):
+        source_mtimes.record(self.root, self.manifest)
+        (self.root / "Edited.swift").unlink()
+
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            source_mtimes.restore(self.root, self.manifest)
+
+        self.assertIn("Restored 1 source mtimes", output.getvalue())
+        self.assertIn("1 tracked files are missing", output.getvalue())
 
     def test_record_excludes_a_tracked_symlink_to_an_external_file(self):
         with tempfile.TemporaryDirectory() as external:
