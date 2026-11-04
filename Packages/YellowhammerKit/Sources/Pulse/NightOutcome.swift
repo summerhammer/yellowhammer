@@ -71,9 +71,13 @@ public struct NightOutcome: Equatable, Sendable {
     /// Distinct Cards with an Attempt that ended this Night, and the Attempts that ended.
     public internal(set) var cardsWorked = 0
     public internal(set) var attemptsEnded = 0
-    /// Whether the Night delivered work: a Cycle landed, a pull request opened, or a Card reached Done. A Card
-    /// reaching Done counts so that a Feature spanning Nights, whose pull request opens on a later Night, does not
-    /// read as a failed Night.
+    /// Distinct Cards with an Attempt that ended in an outcome, not in a decision or an Operator gesture: an Attempt
+    /// that asked a question (the Card waits on you), or was cancelled or aborted, is not work that failed to ship
+    /// (morning-report/disclose-a-failure: a decision must never read as a failure). A usage limit still counts.
+    public internal(set) var cardsWithOutcome = 0
+    /// Whether the Night delivered work: a Cycle landed, a pull request opened, a Card reached Done, or an Attempt
+    /// succeeded. A Card reaching Done or an Attempt succeeding counts so that a Feature spanning Nights, whose pull
+    /// request opens on a later Night, does not read as a failed Night.
     public internal(set) var deliveredWork = false
     public internal(set) var roundsExhausted: [CardProblem] = []
     /// Outcome "hard failure", which covers timeouts and contract violations.

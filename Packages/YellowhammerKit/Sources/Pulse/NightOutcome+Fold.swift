@@ -19,6 +19,7 @@ extension NightOutcome {
         let recovered: Set<Int64>
         var outcome = NightOutcome()
         var worked: Set<Int64> = []
+        var withOutcome: Set<Int64> = []
         var rounds: [Int64: CardProblem] = [:]
         var hard: [Int64: CardProblem] = [:]
         var checkFailures: [Int64: CardProblem] = [:]
@@ -70,6 +71,8 @@ extension NightOutcome {
                 = record.event else { return }
             outcome.attemptsEnded += 1
             worked.insert(cardID)
+            if !Self.decisionEndings.contains(ending) { withOutcome.insert(cardID) }
+            if ending == AttemptOutcome.success.rawValue { outcome.deliveredWork = true }
             guard !recovered.contains(cardID) else { return }
             let card = name(cardID, issueID)
             if ending == AttemptOutcome.roundsExhausted.rawValue {
@@ -144,6 +147,11 @@ extension NightOutcome {
             }
         }
 
+        /// Endings that are a decision or an Operator gesture, never work that failed to ship.
+        static let decisionEndings: Set<String> = [
+            AttemptOutcome.question.rawValue, AttemptOutcome.cancelled.rawValue, AttemptOutcome.aborted.rawValue
+        ]
+
         static func bump(
             _ problems: inout [Int64: CardProblem], _ cardID: Int64, _ card: String, _ record: JournalEventRecord
         ) {
@@ -158,6 +166,7 @@ extension NightOutcome {
         func finish() -> NightOutcome {
             var result = outcome
             result.cardsWorked = worked.count
+            result.cardsWithOutcome = withOutcome.count
             result.roundsExhausted = Self.ordered(rounds.values)
             result.hardFailures = Self.ordered(hard.values)
             result.redChecks = Self.ordered(checkFailures.filter {
