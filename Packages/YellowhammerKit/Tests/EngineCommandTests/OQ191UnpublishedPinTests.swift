@@ -46,6 +46,45 @@ private func releasedWithMovedHead(descending: Bool) async throws -> (world: OQ1
 
 @Suite("OQ191 unpublished commits: pinned before release, never published", .serialized, .tags(.oq191))
 struct OQ191UnpublishedPinTests {
+    @Test("A thrown pin-decision Journal read keeps the Worktree held", arguments:
+        ["pushed_tip", "feature_base", "feature_repository"], [false, true])
+    func journalReadFailureKeepsHeld(table: String, gone: Bool) async throws {
+        let world = try await OQ191LandWorld.make(withMobile: false)
+        let journal = world.env.journal
+        let cards = try journal.cards(cycleID: world.cycleID)
+        let held = try #require(try journal.heldWorktree(featureID: world.feature.id, repository: "backend"))
+        if gone { try FileManager.default.removeItem(atPath: held.path) }
+        let lane = LandActLaneContext(
+            act: world.env.context, feature: world.feature, cycleID: world.cycleID,
+            lane: RepoLane(repository: "backend", cards: cards)
+        )
+        for card in cards {
+            _ = try journal.claimCardLease(cardID: card.id, runID: world.env.runID)
+        }
+        try journal.write { try $0.execute(sql: "ALTER TABLE \(table) RENAME TO unreadable_pin_fixture") }
+        defer {
+            try? journal.write { try $0.execute(sql: "ALTER TABLE unreadable_pin_fixture RENAME TO \(table)") }
+        }
+        let push = table == "feature_base"
+            ? LanePushOutcome(kind: .noCompletedWork)
+            : LanePushOutcome(pushed: true, commit: world["backend"].tip)
+        let result = await LandAct().pinUnpublishedHead(
+            held: held, laneContext: lane, pushOutcome: push, context: world.env.context
+        )
+        guard case .keepHeld(let reason) = result else {
+            Issue.record("A thrown read allowed release")
+            return
+        }
+        #expect(reason.contains("Journal could not be read before the pin"))
+        #expect(reason.contains("Worktree stays held"))
+        #expect(try journal.heldWorktree(featureID: world.feature.id, repository: "backend") != nil)
+        #expect(world.env.releaseWorktreeStep(repository: "backend")?.outcome != .completed)
+        let comments = await world.env.board.comments
+        #expect(comments.contains { $0.issue.rawValue == "FEAT-1" && $0.body == reason })
+        #expect(comments.contains { $0.issue.rawValue == "BACK-1" && $0.body == reason })
+        #expect(try journal.cards(cycleID: world.cycleID).map(\.state) == cards.map(\.state))
+    }
+
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
     @Test(
         "item 6: a Worktree HEAD after the Pushed Tip is pinned under a local ref outside refs/heads/",

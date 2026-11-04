@@ -43,6 +43,43 @@ private func unexpectedPins(in path: String) async -> [String] {
 
 @Suite("OQ194 cancellation pin: pin unpublished Worktree HEADs before cancellation releases them", .serialized)
 struct OQ194CancellationPinTests {
+    @Test("A thrown pin-decision Journal read defers cancellation", arguments:
+        ["pushed_tip", "feature_base", "feature_repository"], [false, true])
+    func journalReadFailureDefersCancellation(table: String, gone: Bool) async throws {
+        let world = try await makeSettleWorld()
+        let env = try await makeGitWorktree()
+        let journal = world.journal
+        try journal.recordFeatureBranch(
+            featureID: world.featureID, repository: "backend", branch: FeatureBranch(rawValue: settleFeatureBranch)
+        )
+        try world.holdWorktree(repository: "backend", path: env.worktreePath, pushedCommit: nil)
+        if gone { try FileManager.default.removeItem(atPath: env.worktreePath) }
+        let context = try world.makeContext()
+        let feature = try inFlightFeature(world)
+        let cards = try journal.cards(cycleID: world.cycleID)
+        for card in cards {
+            _ = try journal.claimCardLease(cardID: card.id, runID: context.runID)
+        }
+        try journal.write { try $0.execute(sql: "ALTER TABLE \(table) RENAME TO unreadable_pin_fixture") }
+        defer {
+            try? journal.write { try $0.execute(sql: "ALTER TABLE unreadable_pin_fixture RENAME TO \(table)") }
+        }
+        await #expect(throws: CycleArchiveFault.self) {
+            try await FeatureSettleGesture().pinWorktrees(
+                feature: feature, cycleID: world.cycleID, cards: cards, context: context
+            )
+        }
+        #expect(world.workspace.removeCalls.isEmpty)
+        #expect(try journal.heldWorktree(featureID: world.featureID, repository: "backend") != nil)
+        #expect(try journal.inFlightCycleID() == world.cycleID)
+        #expect(try journal.events(ofType: .featureReleased).isEmpty)
+        #expect(try journal.cards(cycleID: world.cycleID).map(\.state) == cards.map(\.state))
+        let comments = await world.boards.writing.comments
+        #expect(comments.contains {
+            $0.issue.rawValue == "FEAT-1" && $0.body.contains("Journal could not be read before the pin")
+        })
+    }
+
     // landing/stories/open-one-pull-request-per-repository.md#unpublished-commits-pin
     @Test("Case 1: HEAD after Pushed Tip is pinned, recorded, commented, worktree removed, abandonedAt set, survives")
     func descendantHeadIsPinned() async throws {
