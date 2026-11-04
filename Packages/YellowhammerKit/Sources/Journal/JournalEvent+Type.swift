@@ -196,6 +196,8 @@ extension JournalEvent {
             .cardCommitTrailerMissing
         case .cardCommitTrailersUnread:
             .cardCommitTrailersUnread
+        case .cardReportedCommitUnresolved:
+            .cardReportedCommitUnresolved
         case .leftoverProcessRecorded:
             .leftoverProcessRecorded
         case .featureSelected:

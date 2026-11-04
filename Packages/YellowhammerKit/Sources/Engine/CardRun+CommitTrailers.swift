@@ -1,8 +1,33 @@
 import Domain
 import Foundation
 import Journal
+import Repositories
 
 extension CardRun {
+    /// The commit the worker reported, resolved in the Worktree it ran in (issue #727). The report is
+    /// model-authored and may name no commit at all; then the Worktree's HEAD is used in its place and
+    /// `cardReportedCommitUnresolved` records both. A short sha is widened to the full one. When neither
+    /// resolves (a work tree with no commit) the report is kept as written, and the trailer read records
+    /// it unread. Recorded only: it never changes the Card's outcome and never creates a Round.
+    func resolveReportedCommit(_ reported: String, attemptID: Int64, frame: CardRunFrame) async throws -> String {
+        switch await ReportedCommitResolver(git: git).resolve(reported, worktreePath: frame.worktree.path) {
+        case .resolved(let commit):
+            return commit
+        case .unresolvable:
+            return reported
+        case .substitutedHead(let head):
+            let act = frame.context.act
+            try frame.journal.append(
+                .cardReportedCommitUnresolved(
+                    cardID: frame.card.id, issueID: frame.card.issueID, attemptID: attemptID,
+                    reported: reported, resolved: head
+                ),
+                act: act.act, runID: act.runID, nightID: act.night.id
+            )
+            return head
+        }
+    }
+
     /// After a worker reports a commit, reads LKG..commit with `git log` and records each commit missing
     /// the `Yellowhammer-Work-Card` trailer (graph-execution/run-a-card). Recorded only: it never changes the
     /// Card's outcome, never creates a Round and never touches the board. A commit already recorded for

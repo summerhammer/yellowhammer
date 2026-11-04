@@ -23,4 +23,14 @@ extension JournalEvent {
             reason: try reader.require("reason")
         )
     }
+
+    static func decodeCardReportedCommitUnresolved(_ reader: PayloadReader) throws -> JournalEvent {
+        .cardReportedCommitUnresolved(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            attemptID: try reader.int64("attempt_id"),
+            reported: try reader.require("reported"),
+            resolved: try reader.require("resolved")
+        )
+    }
 }

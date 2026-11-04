@@ -107,7 +107,10 @@ extension CardRun {
             throw CardRunError.unexpectedResult(expected: .worker, found: worker.result.pass)
         }
         switch work.outcome {
-        case .completed(let commit, _):
+        case .completed(let reported, _):
+            // Every later consumer — the trailer read, the Check's judged commit, the reviewer, the
+            // approved commit — reads this value, so it is resolved here once (issue #727).
+            let commit = try await resolveReportedCommit(reported, attemptID: attemptID, frame: frame)
             try await recordMissingTrailers(commit: commit, attemptID: attemptID, frame: frame)
             return (commit, worker.session)
         case .question(let text):

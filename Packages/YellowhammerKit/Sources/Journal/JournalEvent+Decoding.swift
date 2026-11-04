@@ -239,6 +239,8 @@ extension JournalEvent {
             try Self.decodeCardCommitTrailerMissing(reader)
         case .cardCommitTrailersUnread:
             try Self.decodeCardCommitTrailersUnread(reader)
+        case .cardReportedCommitUnresolved:
+            try Self.decodeCardReportedCommitUnresolved(reader)
         case .leftoverProcessRecorded:
             try Self.decodeLeftoverProcessRecorded(reader)
         case .featureSelected:

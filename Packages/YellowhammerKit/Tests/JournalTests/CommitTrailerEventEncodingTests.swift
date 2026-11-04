@@ -60,6 +60,21 @@ func cardCommitTrailersUnreadRoundTrips() throws {
     #expect(records[0].event == event)
 }
 
+@Test("cardReportedCommitUnresolved event round-trips")
+func cardReportedCommitUnresolvedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let event = JournalEvent.cardReportedCommitUnresolved(
+        cardID: 7, issueID: "ENG-7", attemptID: 4, reported: "faa7f7aeb9f5", resolved: String(repeating: "f", count: 40)
+    )
+    try journal.append(event, act: .build, runID: RunID(), now: epoch)
+    let records = try journal.events(ofType: .cardReportedCommitUnresolved)
+
+    #expect(records.count == 1)
+    #expect(records[0].event == event)
+}
+
 @Test("commitsRecordedMissingTrailer returns only that Card's missing-trailer commits")
 func commitsRecordedMissingTrailerFiltersByCard() throws {
     let fixture = try JournalFixture()

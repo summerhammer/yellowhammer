@@ -55,7 +55,7 @@ func eventTypeRawValues() {
         "CardRunStep", "CheckRan", "AttemptWorkPreserved", "FailureCauseRecorded", "LaneHoleRecorded",
         "CardReclaimed", "CardReclaimDeferred", "AgentCLIProcessSpawned", "RehearsalFixtureAnswered",
         "PromptCaptureRequested", "RoutePreflightPromptCaptureRequested",
-        "CardCommitTrailerMissing", "CardCommitTrailersUnread",
+        "CardCommitTrailerMissing", "CardCommitTrailersUnread", "CardReportedCommitUnresolved",
         "LeftoverProcessRecorded",
         "FeatureSelected", "FeatureAuthoringHalted", "FeatureAuthoringAccepted", "FeatureAuthored",
         "FeatureAuthoringFailed", "FeatureBreakdownRejected", "AuthoringDispatched", "AuthoringRouteRejected",
