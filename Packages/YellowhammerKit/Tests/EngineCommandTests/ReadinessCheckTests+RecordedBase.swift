@@ -78,7 +78,7 @@ struct RecordedBaseReadinessTests {
             act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: opened.night,
             mainlines: mainlines, repositories: repositories
         )
-        let recorded = try AuthoringBases.fromRecord(journal: journal, featureID: feature.id, context: act)
+        let recorded = try await AuthoringBases.fromRecord(journal: journal, featureID: feature.id, context: act)
         let readiness = ReadinessCheck(provenance: FakeProvenanceTester(), citations: FileAtMainlineResolver())
 
         let atRecordedBase = BuildActContext(

@@ -206,7 +206,7 @@ public struct BuildAct: Sendable {
             act: context.act, runID: context.runID, nightID: context.night.id
         )
 
-        let buildContext = try BuildActContext.dispatching(
+        let buildContext = try await BuildActContext.dispatching(
             feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: deltaRead, act: context
         )
 

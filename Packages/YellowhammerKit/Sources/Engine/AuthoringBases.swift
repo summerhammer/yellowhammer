@@ -105,11 +105,19 @@ public enum AuthoringBases {
         )
     }
 
-    /// The bases a selected Feature was authored against, from its `feature_base` record — what the build Act
-    /// resolves a Card against (roadmap P23.3). A touched repository with no record faults.
+    /// The bases a selected Feature is dispatched against — what the build Act resolves a Card against (roadmap
+    /// P23.3; spec: feature-authoring/select-the-next-feature, `#effective-base`; issue #731).
+    ///
+    /// A repository the Feature records a `feature_base` row for reads that row. A touched repository with no row
+    /// faults. A working repository the Feature neither touches nor records (a Card may still transcribe a
+    /// contract from it) has no lane cut from a recorded base, so it reads `effective_base(R)` as it stands now,
+    /// excluding this Feature: the Pushed Tip pin of the latest Feature in the Unmerged Feature Stack that pushed
+    /// there, else the real mainline. Authoring recorded a Transcription Block of that repository at that same
+    /// base, so reading the real mainline here would read the predecessor's own change as a Divergence. An
+    /// unresolvable base is a fault, never a fallback to mainline. `records` stays the `feature_base` rows.
     public static func fromRecord(
-        journal: JournalStore, featureID: Int64, context: ActContext
-    ) throws -> AuthoringBasesResult {
+        journal: JournalStore, featureID: Int64, context: ActContext, git: GitRunner = GitRunner()
+    ) async throws -> AuthoringBasesResult {
         let records = try journal.featureBases(featureID: featureID)
         let touched = try journal.touchedRepositories(featureID: featureID)
         var entries = context.mainlines.workingRepos
@@ -122,7 +130,23 @@ public enum AuthoringBases {
             )
         }
         let recorded = Set(records.map(\.repository))
-        let faults = touched.filter { !recorded.contains($0) }.map { AuthoringBaseFault.missingRecord(repository: $0) }
+        var faults = touched.filter { !recorded.contains($0) }.map { AuthoringBaseFault.missingRecord(repository: $0) }
+        let skipped = recorded.union(touched)
+        for repo in context.repositories?.workingRepos ?? [] where !skipped.contains(repo.name) {
+            guard let base = try journal.effectiveBase(repository: repo.name, excludingFeatureID: featureID) else {
+                continue
+            }
+            switch await resolve(base, in: repo, git: git) {
+            case .success(let resolved):
+                entries[repo.name] = ResolvedMainline(
+                    repository: repo.name,
+                    defaultBranch: context.mainlines[repo]?.defaultBranch ?? repo.defaultBranch ?? "main",
+                    ref: resolved.ref, commit: resolved.commit
+                )
+            case .failure(let fault):
+                faults.append(fault)
+            }
+        }
         return AuthoringBasesResult(
             mainlines: ResolvedMainlines(workingRepos: entries, specSource: context.mainlines.specSource),
             records: records, faults: faults
