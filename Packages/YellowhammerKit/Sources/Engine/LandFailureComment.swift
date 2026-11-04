@@ -27,6 +27,21 @@ enum LandFailureComment {
         reason.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
+    static func journalReadFailed(
+        repository: String, reason: String, moment: Moment
+    ) -> (body: String, keySuffix: String) {
+        let headline = moment == .land ? "Not landed" : "Not cancelled"
+        let retry = moment == .land ? "land" : "author"
+        let consequence = moment == .land
+            ? "The Worktree stays held and the Cycle is not landed"
+            : "Every Worktree stays held, the Cycle is not archived and no next Feature is selected"
+        let body = "\(headline): the Journal could not be read before the pin in `\(repository)`. "
+            + "Cause: \(oneParagraph(reason)). \(consequence); the next \(retry) firing tries again. "
+            + "Route out: restore access to the Journal so the next \(retry) firing can read it before release."
+        let digest = String(ManagedBlockFence.sha256(reason).prefix(12))
+        return (body, "pin-journal-read-failed-\(moment.rawValue):\(digest)")
+    }
+
     // draft-based: agent ruling 2026-11-02 item 2 (pins and landing failures), pending sponsor review
     static func pinFailed(
         subject: PinSubject, repository: String, reason: String, recordedCommit: String?, moment: Moment

@@ -128,15 +128,40 @@ extension LandAct {
         held: WorktreeRecord, laneContext: LandActLaneContext, pushOutcome: LanePushOutcome, context: ActContext
     ) async -> UnpublishedPinStep {
         let repository = laneContext.lane.repository
-        let recordedCommit = recordedCommit(laneContext: laneContext, pushOutcome: pushOutcome, context: context)
-        let branch = try? context.journal.resolvedFeatureBranch(feature: laneContext.feature, repository: repository)
+        let recordedCommit: String?
+        let branch: FeatureBranch?
+        do {
+            recordedCommit = try self.recordedCommit(
+                laneContext: laneContext, pushOutcome: pushOutcome, context: context
+            )
+            branch = try context.journal.resolvedFeatureBranch(feature: laneContext.feature, repository: repository)
+        } catch {
+            let comment = LandFailureComment.journalReadFailed(
+                repository: repository, reason: String(describing: error), moment: .land
+            )
+            return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
+        }
         let mainClonePath = context.repositories?.repositoryPath(named: repository).map {
             WorktreeReconciler.expandedPath($0)
         }
 
-        switch await UnpublishedPinDecision.evaluate(
+        let decision = await UnpublishedPinDecision.evaluate(
             worktreePath: held.path, mainClonePath: mainClonePath, recordedCommit: recordedCommit, branch: branch
-        ) {
+        )
+        return await handlePinDecision(
+            decision, held: held, facts: HeldPinFacts(recordedCommit: recordedCommit, branch: branch, path: held.path),
+            laneContext: laneContext, pushOutcome: pushOutcome
+        )
+    }
+
+    private func handlePinDecision(
+        _ decision: UnpublishedPinDecision, held: WorktreeRecord, facts: HeldPinFacts,
+        laneContext: LandActLaneContext, pushOutcome: LanePushOutcome
+    ) async -> UnpublishedPinStep {
+        let context = laneContext.act
+        let (recordedCommit, branch) = (facts.recordedCommit, facts.branch)
+        let repository = laneContext.lane.repository
+        switch decision {
         case .notNeeded:
             return await snapshotBeforeRelease(
                 pinDetail: nil, held: held, branch: branch, laneContext: laneContext, context: context
@@ -326,14 +351,14 @@ extension LandAct {
     /// the repository's recorded base commit.
     private func recordedCommit(
         laneContext: LandActLaneContext, pushOutcome: LanePushOutcome, context: ActContext
-    ) -> String? {
+    ) throws -> String? {
         let repository = laneContext.lane.repository
         if pushOutcome.pushed {
-            let recorded = try? context.journal.pushedTip(cycleID: laneContext.cycleID, repository: repository)
+            let recorded = try context.journal.pushedTip(cycleID: laneContext.cycleID, repository: repository)
             return recorded ?? pushOutcome.commit
         }
-        let bases = try? context.journal.featureBases(featureID: laneContext.feature.id)
-        return bases?.first { $0.repository == repository }?.baseCommit
+        let bases = try context.journal.featureBases(featureID: laneContext.feature.id)
+        return bases.first { $0.repository == repository }?.baseCommit
     }
 
     private func reportPinned(

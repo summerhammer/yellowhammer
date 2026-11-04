@@ -11,16 +11,16 @@ extension FeatureSettleGesture {
 
     func recordedCommit(
         held: WorktreeRecord, cycleID: Int64, featureID: Int64, journal: JournalStore
-    ) -> WorktreeRecordedCommit? {
+    ) throws -> WorktreeRecordedCommit? {
         let repository = held.repository
-        if let pushedTip = try? journal.pushedTip(cycleID: cycleID, repository: repository) {
+        if let pushedTip = try journal.pushedTip(cycleID: cycleID, repository: repository) {
             return WorktreeRecordedCommit(commit: pushedTip, noPushedBranch: false)
         }
         if let pushedCommit = held.pushedCommit {
             return WorktreeRecordedCommit(commit: pushedCommit, noPushedBranch: false)
         }
-        if let bases = try? journal.featureBases(featureID: featureID),
-           let baseCommit = bases.first(where: { $0.repository == repository })?.baseCommit {
+        let bases = try journal.featureBases(featureID: featureID)
+        if let baseCommit = bases.first(where: { $0.repository == repository })?.baseCommit {
             return WorktreeRecordedCommit(commit: baseCommit, noPushedBranch: true)
         }
         return nil
@@ -58,10 +58,19 @@ extension FeatureSettleGesture {
     ) async throws {
         let journal = pinContext.context.journal
         let repository = worktree.repository
-        let recorded = recordedCommit(
-            held: worktree, cycleID: pinContext.cycleID, featureID: pinContext.feature.id, journal: journal
-        )
-        let branch = try? journal.resolvedFeatureBranch(feature: pinContext.feature, repository: repository)
+        let recorded: WorktreeRecordedCommit?
+        let branch: FeatureBranch?
+        do {
+            recorded = try recordedCommit(
+                held: worktree, cycleID: pinContext.cycleID, featureID: pinContext.feature.id, journal: journal
+            )
+            branch = try journal.resolvedFeatureBranch(feature: pinContext.feature, repository: repository)
+        } catch {
+            let comment = LandFailureComment.journalReadFailed(
+                repository: repository, reason: String(describing: error), moment: .cancellation
+            )
+            try await failCancellation(comment, repository: repository, pinContext: pinContext)
+        }
         let mainClonePath = pinContext.context.repositories?.repositoryPath(named: repository).map {
             WorktreeReconciler.expandedPath($0)
         }
