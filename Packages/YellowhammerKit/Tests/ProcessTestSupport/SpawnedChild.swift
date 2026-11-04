@@ -44,10 +44,16 @@ public final class SpawnedChild: @unchecked Sendable {
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
+        // Only the three descriptors opened above reach the child. Without CLOEXEC_DEFAULT the child
+        // inherits whatever this test process has open at the instant of the spawn — a file another
+        // test is writing inside its own Worktree included — and that test's fence then rightly kills
+        // the child as a holder of its Worktree.
+        var flags = Int32(POSIX_SPAWN_CLOEXEC_DEFAULT)
         if newProcessGroup {
-            posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
+            flags |= Int32(POSIX_SPAWN_SETPGROUP)
             posix_spawnattr_setpgroup(&attr, 0)
         }
+        posix_spawnattr_setflags(&attr, Int16(flags))
 
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(executable)]
         argv.append(contentsOf: arguments.map { strdup($0) })
