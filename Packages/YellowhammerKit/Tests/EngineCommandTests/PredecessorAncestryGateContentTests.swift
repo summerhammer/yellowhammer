@@ -501,7 +501,9 @@ struct PredecessorAncestryGateUnresolvedTests {
         let events = try journal.events(ofType: .authoringPredecessorIndeterminate)
         #expect(events.count == 1)
         #expect(
-            events[0].event == .authoringPredecessorIndeterminate(featureIssueID: "FEAT-IN", repositories: ["backend"])
+            events[0].event == .authoringPredecessorIndeterminate(
+                featureIssueID: "FEAT-IN", repositories: ["backend": .tipUnreadable]
+            )
         )
         #expect(try journal.events().map(\.type).last == .actEnded)
     }
@@ -547,7 +549,7 @@ struct PredecessorAncestryGateUnresolvedTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .indeterminate(predecessorIssueID: "FEAT-LB", repositories: ["backend"]))
+        #expect(outcome == .indeterminate(predecessorIssueID: "FEAT-LB", repositories: ["backend": .tipUnreadable]))
         #expect(try journal.landings(featureID: featureID).isEmpty)
         #expect(try journal.events(ofType: .mainlineConflictDetected).isEmpty)
     }

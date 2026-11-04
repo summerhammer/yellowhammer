@@ -187,7 +187,7 @@ public struct PredecessorAncestryGate: PredecessorGate {
         )
         let pass = AncestryTestResult(
             merged: (pushedRepositories.filter { recordedLandings[$0] != nil } + tested.merged).sorted(),
-            unmerged: tested.unmerged.sorted(), indeterminate: tested.indeterminate.sorted()
+            unmerged: tested.unmerged.sorted(), indeterminate: tested.indeterminate
         )
         try await recordPassOutcome(feature: feature, pass: pass, context: context)
         return pass
@@ -212,13 +212,15 @@ public struct PredecessorAncestryGate: PredecessorGate {
             try await closure?.closeByMerge(feature: feature, context: context)
         }
 
-        let unmerged = (pass.unmerged + pass.indeterminate).sorted()
+        let unmerged = pass.unmerged
         let previousEvents = try journal.events(ofType: .predecessorAncestryObserved)
         if let previousInRun = previousEvents.last(where: {
-            guard case .predecessorAncestryObserved(let id, _, _) = $0.event else { return false }
+            guard case .predecessorAncestryObserved(let id, _, _, _) = $0.event else { return false }
             return id == feature.issueID && $0.runID == context.runID
-        }), case .predecessorAncestryObserved(_, let prevMerged, let prevUnmerged) = previousInRun.event,
-           prevMerged == pass.merged && prevUnmerged == unmerged {
+        }), case .predecessorAncestryObserved(
+            _, let prevMerged, let prevUnmerged, let prevIndeterminate
+        ) = previousInRun.event,
+           prevMerged == pass.merged && prevUnmerged == unmerged && prevIndeterminate == pass.indeterminate {
             return
         }
 
@@ -226,7 +228,7 @@ public struct PredecessorAncestryGate: PredecessorGate {
             .predecessorAncestryObserved(
                 featureIssueID: feature.issueID,
                 mergedRepositories: pass.merged,
-                unmergedRepositories: unmerged
+                unmergedRepositories: unmerged, indeterminateRepositories: pass.indeterminate
             ),
             act: context.act, runID: context.runID, nightID: context.night.id
         )

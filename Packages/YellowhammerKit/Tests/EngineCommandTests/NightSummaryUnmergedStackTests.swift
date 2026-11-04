@@ -215,3 +215,27 @@ struct NightSummaryUnmergedStackTests {
         #expect(!lines[1].contains("same paths"))
     }
 }
+
+extension NightSummaryUnmergedStackTests {
+    @Test("An indeterminate stack member waits for observation and does not repeat its old conflict (#732)")
+    func indeterminateStackMember() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let night = try await openNight(journal, "2026-09-15")
+        _ = try seedUnmerged(journal, issueID: "FEAT-1", pushing: ["backend"], landedIn: night)
+        let run = RunID()
+        try journal.append(.mainlineConflictDetected(
+            featureIssueID: "FEAT-1", repository: "backend", paths: ["old-conflict.txt"]
+        ), act: .author, runID: run, nightID: night.id)
+        try journal.append(.predecessorAncestryObserved(
+            featureIssueID: "FEAT-1", mergedRepositories: [], unmergedRepositories: [],
+            indeterminateRepositories: ["backend": .landingCommitUnreadable]
+        ), act: .author, runID: run, nightID: night.id)
+        let line = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+        #expect(line.contains("awaiting merge observation for 1 Night"))
+        #expect(line.contains("The merge observation is retried on a later author Act."))
+        #expect(!line.contains("git merge -s ours"))
+        #expect(line.contains("backend: merged into mainline; landing commit could not be read"))
+        #expect(!line.contains("old-conflict.txt"))
+    }
+}

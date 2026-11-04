@@ -36,7 +36,7 @@ struct NightCardAuthoringCopyTests {
         }
 
         let indeterminate = JournalEvent.authoringPredecessorIndeterminate(
-            featureIssueID: featureUUID, repositories: ["yellowhammer"]
+            featureIssueID: featureUUID, repositories: ["yellowhammer": .tipUnreadable]
         )
         let indeterminateLine = try #require(NightCardMaintenance.authoringLine(for: indeterminate, journal: journal))
         #expect(!indeterminateLine.contains(featureUUID))
@@ -83,7 +83,7 @@ struct NightCardAuthoringCopyTests {
         }
 
         let event = JournalEvent.authoringPredecessorIndeterminate(
-            featureIssueID: featureUUID, repositories: ["yellowhammer"]
+            featureIssueID: featureUUID, repositories: ["yellowhammer": .tipUnreadable]
         )
         let line = try #require(NightCardMaintenance.authoringLine(for: event, journal: journal))
         #expect(!line.contains(featureUUID))
@@ -135,7 +135,7 @@ struct NightCardAuthoringCopyTests {
         #expect(notLandedLine.contains("A quiet Night, not a failure."))
 
         let indeterminate = JournalEvent.authoringPredecessorIndeterminate(
-            featureIssueID: "FEAT-1", repositories: ["backend"]
+            featureIssueID: "FEAT-1", repositories: ["backend": .tipUnreadable]
         )
         let indeterminateLine = try #require(NightCardMaintenance.authoringLine(for: indeterminate))
         #expect(indeterminateLine.contains("A quiet Night, not a failure."))

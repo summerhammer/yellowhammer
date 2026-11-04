@@ -137,7 +137,7 @@ struct UnmergedStackGateTests {
 
         let outcome = try await PredecessorAncestryGate().check(context, unmergedFeaturesMax: 3)
 
-        #expect(outcome == .indeterminate(predecessorIssueID: "F1", repositories: ["backend"]))
+        #expect(outcome == .indeterminate(predecessorIssueID: "F1", repositories: ["backend": .tipUnreadable]))
     }
 
     // Every Feature in U is tested, not only the most recent archived one: an upper Feature merging does not take

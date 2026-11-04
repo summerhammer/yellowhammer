@@ -19,24 +19,29 @@ extension NightSummary {
         var lines: [String] = []
         for member in stack {
             let issueID = member.feature.issueID
-            let conflicts = try FeatureMainlineObservationReader.conflicts(
-                featureIssueID: issueID, unmergedRepositories: member.unmergedRepositories, journal: journal
+            let observation = try FeatureMainlineObservationReader.latestAncestryObservation(
+                featureIssueID: issueID, journal: journal
             )
-            let recordedStacked = try journal.featureBases(featureID: member.feature.id)
-                .contains { $0.stackedOnFeatureID != nil }
-            let isStacked = stackings.stackedOn[issueID] != nil || recordedStacked
-            let identifier = member.feature.displayIdentifier
-            let awaited = try awaitedPhrase(member, night: night, journal: journal)
-            var line = "`\(identifier)` — " + awaited + "; "
+            let conflicts = try FeatureMainlineObservationReader.conflicts(
+                featureIssueID: issueID, unmergedRepositories: observation?.unmerged ?? member.unmergedRepositories,
+                journal: journal
+            )
+            let awaited = try awaitedPhrase(
+                member, night: night, journal: journal, indeterminate: observation?.indeterminate.isEmpty == false
+            )
+            var line = "`\(member.feature.displayIdentifier)` — " + awaited + "; "
                 + "\(member.mergedRepositories.count) of \(member.pushedRepositories.count) Feature Branches merged"
+            let indeterminateNotes = PredecessorIndeterminateDescription.notes(observation?.indeterminate ?? [:])
+            if !indeterminateNotes.isEmpty { line += "; " + indeterminateNotes }
             if let note = try stackingNote(issueID: issueID, stackings: stackings, journal: journal) {
                 line += "; \(note)"
             }
             if !conflicts.isEmpty {
+                let stacked = try isStacked(member, stackings: stackings, journal: journal)
                 let named = conflicts.keys.sorted().map { repository in
                     conflictPhrase(
                         repository: repository, paths: conflicts[repository] ?? [],
-                        below: isStacked ? conflictsBelow : []
+                        below: stacked ? conflictsBelow : []
                     )
                 }
                 line += "; " + named.joined(separator: "; ")
@@ -51,24 +56,36 @@ extension NightSummary {
             line += try FeatureCancellationAnnotation.suffix(
                 featureID: member.feature.id, issueID: issueID, journal: journal
             )
-            line += " " + MergeRouteOut.nightCard
-            lines.append(line)
-            conflictsBelow.append((identifier, conflicts))
+            lines.append(line + " " + routeOut(observation))
+            conflictsBelow.append((member.feature.displayIdentifier, conflicts))
             below.append(member)
         }
         return lines
     }
 
+    private static func routeOut(_ observation: FeatureMainlineObservation?) -> String {
+        observation?.indeterminate.isEmpty == false
+            ? "The merge observation is retried on a later author Act." : MergeRouteOut.nightCard
+    }
+
+    private static func isStacked(
+        _ member: UnmergedFeature, stackings: Stackings, journal: JournalStore
+    ) throws -> Bool {
+        if stackings.stackedOn[member.feature.issueID] != nil { return true }
+        return try journal.featureBases(featureID: member.feature.id).contains { $0.stackedOnFeatureID != nil }
+    }
+
     /// `awaiting merge for <n> Night(s)`, counted from the Night of the Feature's `cycleLanded` event.
     private static func awaitedPhrase(
-        _ member: UnmergedFeature, night: NightRecord, journal: JournalStore
+        _ member: UnmergedFeature, night: NightRecord, journal: JournalStore, indeterminate: Bool
     ) throws -> String {
         guard let landedNight = try journal.landedNightID(featureID: member.feature.id),
             let awaited = try journal.nightsHeld(selectedNightID: landedNight, asOf: night.nightStart)
         else {
             return "the Night it landed is not recorded"
         }
-        return "awaiting merge for \(awaited) Night\(awaited == 1 ? "" : "s")"
+        let standing = indeterminate ? "awaiting merge observation" : "awaiting merge"
+        return "\(standing) for \(awaited) Night\(awaited == 1 ? "" : "s")"
     }
 
     /// `[conflict: <repo>] (<paths>)`; where a Feature below it in the stack conflicts on a subset of the same

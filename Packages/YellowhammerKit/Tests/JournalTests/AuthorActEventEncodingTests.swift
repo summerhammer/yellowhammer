@@ -78,7 +78,9 @@ func authoringPredecessorIndeterminateRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let run = RunID()
-    let repositories = ["backend, inc", "mobile"]
+    let repositories: [String: PredecessorIndeterminateCause] = [
+        "backend, inc": .tipUnreadable, "mobile": .landingCommitUnreadable
+    ]
 
     try journal.append(
         .authoringPredecessorIndeterminate(featureIssueID: "FEAT-0", repositories: repositories),
@@ -102,7 +104,7 @@ func authoringPredecessorIndeterminateRoundTripsEmptyRepositories() throws {
     let run = RunID()
 
     try journal.append(
-        .authoringPredecessorIndeterminate(featureIssueID: "FEAT-0", repositories: []),
+        .authoringPredecessorIndeterminate(featureIssueID: "FEAT-0", repositories: [:]),
         act: .author, runID: run, now: epoch
     )
     let records = try journal.events()
@@ -151,7 +153,7 @@ func predecessorAncestryObservedRoundTrips() throws {
 
     #expect(records.count == 1)
     guard
-        case .predecessorAncestryObserved(let featureIssueID, let merged, let unmerged) = records[0].event
+        case .predecessorAncestryObserved(let featureIssueID, let merged, let unmerged, _) = records[0].event
     else {
         Issue.record("Event is not predecessorAncestryObserved")
         return
@@ -174,7 +176,7 @@ func predecessorAncestryObservedRoundTripsEmptyLists() throws {
     let records = try journal.events()
 
     guard
-        case .predecessorAncestryObserved(_, let merged, let unmerged) = records[0].event
+        case .predecessorAncestryObserved(_, let merged, let unmerged, _) = records[0].event
     else {
         Issue.record("Event is not predecessorAncestryObserved")
         return

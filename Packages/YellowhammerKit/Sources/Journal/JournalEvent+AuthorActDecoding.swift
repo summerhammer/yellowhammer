@@ -44,9 +44,26 @@ extension JournalEvent {
         return (try? encoder.encode(features)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
     }
 
+    static func indeterminateJSON(_ repositories: [String: PredecessorIndeterminateCause]) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(repositories)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+
+    private static func decodeIndeterminate(
+        _ reader: PayloadReader, key: String
+    ) throws -> [String: PredecessorIndeterminateCause] {
+        do {
+            return try JSONDecoder().decode(
+                [String: PredecessorIndeterminateCause].self, from: Data(try reader.require(key).utf8)
+            )
+        } catch {
+            throw JournalError.eventUnreadable(id: reader.rowID)
+        }
+    }
+
     static func decodeAuthoringPredecessorIndeterminate(_ reader: PayloadReader) throws -> JournalEvent {
-        let raw = try reader.require("repositories")
-        let repositories = raw.isEmpty ? [] : raw.components(separatedBy: "\u{1F}")
+        let repositories = try decodeIndeterminate(reader, key: "repositories")
         return .authoringPredecessorIndeterminate(
             featureIssueID: try reader.require("feature_issue_id"),
             repositories: repositories
@@ -59,7 +76,8 @@ extension JournalEvent {
         return .predecessorAncestryObserved(
             featureIssueID: try reader.require("feature_issue_id"),
             mergedRepositories: rawMerged.isEmpty ? [] : rawMerged.components(separatedBy: "\u{1F}"),
-            unmergedRepositories: rawUnmerged.isEmpty ? [] : rawUnmerged.components(separatedBy: "\u{1F}")
+            unmergedRepositories: rawUnmerged.isEmpty ? [] : rawUnmerged.components(separatedBy: "\u{1F}"),
+            indeterminateRepositories: try decodeIndeterminate(reader, key: "indeterminate_repositories")
         )
     }
 

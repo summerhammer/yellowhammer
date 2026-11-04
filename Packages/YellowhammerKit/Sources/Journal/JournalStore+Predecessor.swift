@@ -57,11 +57,12 @@ extension JournalStore {
     public func predecessorAncestryPreviouslyFullyMerged(featureIssueID: String) throws -> Bool {
         try events(ofType: .predecessorAncestryObserved).contains { record in
             guard case .predecessorAncestryObserved(
-                let observed, let mergedRepositories, let unmergedRepositories
+                let observed, let mergedRepositories, let unmergedRepositories, let indeterminateRepositories
             ) = record.event else {
                 return false
             }
             return observed == featureIssueID && !mergedRepositories.isEmpty && unmergedRepositories.isEmpty
+                && indeterminateRepositories.isEmpty
         }
     }
 

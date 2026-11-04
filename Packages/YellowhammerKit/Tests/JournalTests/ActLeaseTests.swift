@@ -35,10 +35,10 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
 @Test("A fresh Journal has the single schema migration applied, and the act_lease table")
 func freshJournalHasSchemaAndActLease() throws {
-    #expect(JournalStore.migrationIdentifiers == ["journal-schema-32"])
+    #expect(JournalStore.migrationIdentifiers == ["journal-schema-33"])
     let fixture = try JournalFixture()
     let journal = try fixture.open()
-    #expect(try journal.appliedMigrations() == ["journal-schema-32"])
+    #expect(try journal.appliedMigrations() == ["journal-schema-33"])
     #expect(try journal.tableNames().contains("act_lease"))
 }
 

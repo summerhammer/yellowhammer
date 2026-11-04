@@ -61,7 +61,8 @@ public struct FeatureRollUpMaintenance: Sendable {
             issueStanding: .authoring,
             cancellationSuffix: try FeatureCancellationAnnotation.suffix(
                 featureID: feature.id, issueID: feature.issueID, journal: journal
-            )
+            ),
+            indeterminateRepositories: observation?.indeterminate ?? [:]
         )
     }
 
@@ -335,7 +336,7 @@ extension FeatureRollUpMaintenance {
     ) async throws {
         for record in try journal.events(ofType: .predecessorAncestryObserved) where record.nightID == night.id {
             guard
-                case .predecessorAncestryObserved(let issueID, _, _) = record.event, !processed.contains(issueID),
+                case .predecessorAncestryObserved(let issueID, _, _, _) = record.event, !processed.contains(issueID),
                 let feature = try journal.feature(issueID: issueID),
                 let cycleID = try journal.cycleID(featureID: feature.id)
             else {

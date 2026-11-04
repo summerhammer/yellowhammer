@@ -88,10 +88,12 @@ public enum JournalEvent: Equatable, Sendable {
     /// select-the-next-feature, `#unmerged-feature-stack`): the author Act authored nothing, dispatched nothing.
     /// Names every Feature in U with its unmerged repositories and Feature Branches. A quiet Night, not a failure.
     case authoringSkippedUnmergedStackFull(features: [UnmergedStackEntry], unmergedFeaturesMax: Int)
-    /// The predecessor-ancestry gate (P9.9) could not find a Feature in the unmerged Feature stack's
-    /// Feature Branch in one or more repositories that have no recorded landing either: the author Act authored
-    /// nothing, dispatched nothing. A quiet Night, not a failure.
-    case authoringPredecessorIndeterminate(featureIssueID: String, repositories: [String])
+    /// The predecessor gate could not record an Observed Merge: a repository's Pushed Tip could not be read,
+    /// or ancestry proved the merge but its landing commit could not be read and the pull request test did not
+    /// hold. Carries the cause per repository. The author Act authored nothing: a quiet Night, not a failure.
+    case authoringPredecessorIndeterminate(
+        featureIssueID: String, repositories: [String: PredecessorIndeterminateCause]
+    )
     /// A release-shaped tag of a producer Repo was first observed to contain a Feature's work there (an
     /// Observed Release; feature-authoring/select-the-next-feature, `#release-gate`). Journal-only: no Night
     /// Card or Night Summary line.
@@ -112,7 +114,8 @@ public enum JournalEvent: Equatable, Sendable {
     /// The predecessor-ancestry gate (P9.2) evaluated a pass of ancestry for the predecessor Feature:
     /// the merged fraction k of N repositories observed on this pass.
     case predecessorAncestryObserved(
-        featureIssueID: String, mergedRepositories: [String], unmergedRepositories: [String]
+        featureIssueID: String, mergedRepositories: [String], unmergedRepositories: [String],
+        indeterminateRepositories: [String: PredecessorIndeterminateCause] = [:]
     )
     /// The predecessor-ancestry gate's merge test found an unmerged repository whose Feature Branch
     /// will not merge cleanly into mainline: a Mainline Conflict. Reported only — no Card state

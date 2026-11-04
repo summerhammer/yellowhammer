@@ -35,7 +35,7 @@ private func nextContext(
 
 private func observations(_ journal: JournalStore) throws -> [(merged: [String], unmerged: [String])] {
     try journal.events(ofType: .predecessorAncestryObserved).compactMap {
-        if case .predecessorAncestryObserved(_, let merged, let unmerged) = $0.event { return (merged, unmerged) }
+        if case .predecessorAncestryObserved(_, let merged, let unmerged, _) = $0.event { return (merged, unmerged) }
         return nil
     }
 }
