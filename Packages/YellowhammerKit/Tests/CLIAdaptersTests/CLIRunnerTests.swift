@@ -119,11 +119,12 @@ struct CLIRunnerTests {
         #expect(recorder.launches.first?.record.id == "rec-order-test")
     }
 
-    @Test("The record reads launched while the CLI is still running, not only after it exits")
+    @Test("The record reads launched while the CLI is still running, not only after it exits", .timeLimit(.minutes(5)))
     func launchIsMarkedAtSpawn() async throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
-        let recorder = FakePromptRecorder()
+        let (launches, continuation) = AsyncStream<DispatchLaunch>.makeStream()
+        let recorder = FakePromptRecorder(onLaunch: { continuation.yield($0) })
         let gate = fixture.tempDir.appendingPathComponent("gate-\(UUID().uuidString)")
         let script = try Self.makeStubScript(
             in: fixture.tempDir,
@@ -136,13 +137,18 @@ struct CLIRunnerTests {
         let adapter = SpyAdapter(recorder: recorder)
         let runner = CLIRunner(recorder: recorder)
 
-        let running = Task { try await runner.run(dispatch, adapter: adapter) }
-        // The stub blocks until the gate exists, so a long wait cannot let the run return first. On a
-        // loaded CI runner the spawn alone has taken more than 4 s.
-        let deadline = ContinuousClock.now + .seconds(60)
-        while recorder.launches.isEmpty, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(20))
+        let running = Task {
+            defer { continuation.finish() }
+            return try await runner.run(dispatch, adapter: adapter)
         }
+        defer {
+            FileManager.default.createFile(atPath: gate.path, contents: Data())
+            running.cancel()
+        }
+        // Await the recorder's signal instead of assuming a loaded CI runner spawns within a fixed delay.
+        // Finishing the stream when the run ends also makes a missing launch mark fail this assertion.
+        var iterator = launches.makeAsyncIterator()
+        #expect(await iterator.next() == .launched)
         // The stub is still blocked on the gate, so the run has not returned: the mark came from the spawn.
         #expect(recorder.launches.map(\.launch) == [.launched])
         #expect(!FileManager.default.fileExists(atPath: gate.path))
@@ -233,7 +239,12 @@ struct CLIRunnerTests {
         private let lock = NSLock()
         private var _captured: [DispatchPromptRecord] = []
         private var _launches: [(launch: DispatchLaunch, record: DispatchPromptRecord)] = []
+        private let onLaunch: @Sendable (DispatchLaunch) -> Void
         var captureResult: DispatchPromptCapture = .recorded(id: "fake-id")
+
+        init(onLaunch: @escaping @Sendable (DispatchLaunch) -> Void = { _ in }) {
+            self.onLaunch = onLaunch
+        }
 
         var captured: [DispatchPromptRecord] {
             lock.lock()
@@ -258,6 +269,7 @@ struct CLIRunnerTests {
             lock.lock()
             _launches.append((launch, record))
             lock.unlock()
+            onLaunch(launch)
             return true
         }
     }
