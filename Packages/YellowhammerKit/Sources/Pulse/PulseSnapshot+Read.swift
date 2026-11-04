@@ -38,6 +38,9 @@ extension PulseSnapshot {
             nightCard: selectedNight.flatMap(nightCardLink)
         )
         let outboxFlags = try Self.undeliveredBoardWrites(journal)
+        let selectedOutcome = try selectedNight.map { ($0, try nightOutcome($0, journal: journal, events: events)) }
+        let nightFlags = selectedOutcome.map { HealthFlag.nightFlags($0.1, nightID: $0.0.id) } ?? []
+        let healthFlags = failures.flags + nightFlags + outboxFlags
         let liveRunID = runningAct != nil ? try journal.currentActLease()?.runID : nil
         return PulseSnapshot(
             needsYou: try needsYou(journal, inFlight: inFlight, night: selectedNight),
@@ -47,8 +50,8 @@ extension PulseSnapshot {
                 now: now,
                 runningLanes: runningLanes(night: selectedNight, events: events, liveRunID: liveRunID)
             ),
-            night: try selectedNight.map { try night($0, journal: journal, events: events) },
-            health: (failures.flags + outboxFlags).isEmpty ? nil : failures.flags + outboxFlags,
+            night: try selectedOutcome.map { try night($0.0, journal: journal, events: events, outcome: $0.1) },
+            health: healthFlags.isEmpty ? nil : healthFlags,
             unmergedFeatures: try unmergedFeatures(journal, night: selectedNight)
         )
     }
@@ -174,7 +177,8 @@ extension PulseSnapshot {
                 url: inFlight.feature.issueURL
             ),
             verification: try verification.map { try counts(of: $0, journal, cycleID: inFlight.cycleID) },
-            stackedOn: try stackedOn(journal, featureID: featureID)
+            stackedOn: try stackedOn(journal, featureID: featureID),
+            stallNote: try stallNote(journal, cards: cards, runningAttempts: now.attempts)
         )
     }
 
@@ -257,8 +261,9 @@ extension PulseSnapshot {
     }
 
     private static func night(
-        _ night: NightRecord, journal: JournalStore, events: [JournalEventRecord]
+        _ night: NightRecord, journal: JournalStore, events: [JournalEventRecord], outcome: NightOutcome
     ) throws -> NightPulse {
+        let standing = NightStanding(outcome: outcome, mode: night.mode, isClosed: night.state != .opened)
         // Unstamped invocation failures belong in Health, not in a Night they never reached.
         let nightCard = nightCardLink(night)
         let nightEvents = events.filter { $0.nightID == night.id }
@@ -283,14 +288,17 @@ extension PulseSnapshot {
             state: night.state == .opened ? .running : .done,
             startedAt: night.openedAt,
             verdictLine: try verdictLine(
-                nightEvents: nightEvents, failedRunCount: failures.failedRunCount,
-                recoveredRunCount: failures.recoveredRunCount, journal: journal, authoringDecisions: decisions
+                nightEvents: nightEvents, failures: failures, journal: journal, authoringDecisions: decisions,
+                standing: standing
             ),
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
             cardsAbsence: absence,
             nightCard: nightCard,
             firstFailureHeadline: failures.firstHeadline, failureNotices: failures.notices,
-            stackFullSkip: stackFullSkip(nightEvents: nightEvents)
+            stackFullSkip: stackFullSkip(nightEvents: nightEvents),
+            mode: night.mode,
+            endedWithoutShipping: standing.endedWithoutShipping,
+            problemHeadline: standing.problemHeadline(nightID: night.id)
         )
     }
 

@@ -203,6 +203,10 @@ public struct FeatureInFlight: Equatable, Sendable {
     /// Per repository, the display identifier of the Feature in the Unmerged Feature Stack that this Feature's
     /// recorded base stacks on. Empty when every base is mainline.
     public var stackedOn: [String: String]
+    /// Set when no Attempt runs and every remaining Card is Todo with its latest Attempt rounds-exhausted,
+    /// hard-failed or usage limited: nothing will move without the Operator or a usage limit's end. Not a Roll-up
+    /// state and not a lane state; nil otherwise.
+    public var stallNote: String?
 
     public init(
         id: String,
@@ -213,7 +217,8 @@ public struct FeatureInFlight: Equatable, Sendable {
         lanes: [RepoLaneSnapshot],
         link: LinearIssueLink? = nil,
         verification: VerificationCounts? = nil,
-        stackedOn: [String: String] = [:]
+        stackedOn: [String: String] = [:],
+        stallNote: String? = nil
     ) {
         self.id = id
         self.issueIDForDisplay = issueIDForDisplay
@@ -224,6 +229,7 @@ public struct FeatureInFlight: Equatable, Sendable {
         self.lanes = lanes
         self.link = link
         self.stackedOn = stackedOn
+        self.stallNote = stallNote
     }
 
     public init(

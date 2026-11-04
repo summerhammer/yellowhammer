@@ -21,6 +21,7 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
     case landedMidNight = "Landed mid-Night, slot free"
     case stackFull = "Unmerged stack full"
     case inFlightOverStack = "In flight over the stack"
+    case nightShippedNothing = "Night shipped nothing"
 
     var id: Self { self }
     var description: String { rawValue }
@@ -88,6 +89,8 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
             pulse = PulseFixtures.stackFullPulse(from: pulse)
         case .inFlightOverStack:
             pulse = PulseFixtures.inFlightOverStackPulse()
+        case .nightShippedNothing:
+            pulse = PulseFixtures.shippedNothingPulse(from: pulse)
         }
         project.pulse = pulse
         return project
@@ -373,15 +376,7 @@ extension PulseSnapshot {
         var kinds = Set((health ?? []).map(\.kind))
         if raised { kinds.insert(kind) } else { kinds.remove(kind) }
         health = HealthFlagKind.allCases.filter(kinds.contains).map { kind in
-            let detail = switch kind {
-            case .staleOperatorIdentity: "The Operator identity was last confirmed 41 days ago."
-            case .appInstallationRevoked: "The Linear workspace revoked the Board Connection."
-            case .codeHostingConnectionRefused: "Code Hosting Connection github: GitHub rejected the token."
-            case .probeFailure: "codex failed its Probe: exit status 127."
-            case .actFailure: "build · main: Worktree allocation failed."
-            case .boardProvisioningFailure: "The board is missing a provisioned label"
-            case .undeliveredBoardWrites: "Linear not updated"
-            }
+            let detail = PulseFixtures.healthDetails[kind] ?? "A finding."
             return HealthFlag(
                 kind: kind, detail: detail,
                 pendingWriteCount: kind == .undeliveredBoardWrites ? 2 : 0,

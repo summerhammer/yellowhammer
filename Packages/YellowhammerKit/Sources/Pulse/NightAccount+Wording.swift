@@ -175,14 +175,15 @@ extension NightAccount {
     /// Whether the event is a problem the account puts first. Agrees with `JournalFailures` where they
     /// overlap: an `actIncomplete`, and a `repoLaneEnded` that records a failure. A Check declared none
     /// ran nothing, so only a failed Check is one; likewise only a failed land step and only an Attempt that
-    /// hard-failed. Authoring decisions are actionable problems without being failed Acts; usage limits remain deferrals.
+    /// hard-failed or exhausted its Rounds. Authoring decisions are actionable problems without being failed Acts; usage limits remain deferrals.
     static func isProblem(_ record: JournalEventRecord) -> Bool {
         switch record.event {
         case .actIncomplete: true
         case .repoLaneEnded(_, _, .some, _): true
         case .checkRan(let payload): payload.result == .failed
         case .landStep(_, _, let outcome, _): outcome == .failed
-        case .attemptEnded(_, _, _, _, let outcome, _): outcome == AttemptOutcome.hardFailure.rawValue
+        case .attemptEnded(_, _, _, _, let outcome, _):
+            outcome == AttemptOutcome.hardFailure.rawValue || outcome == AttemptOutcome.roundsExhausted.rawValue
         default: problemTypes.contains(record.type)
         }
     }
