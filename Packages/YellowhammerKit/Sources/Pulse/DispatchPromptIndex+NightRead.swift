@@ -66,7 +66,7 @@ extension DispatchPromptIndex {
             case .authoringSkippedUnmergedStackFull:
                 return "Unmerged feature stack full."
             case .authoringPredecessorIndeterminate(let featureIssueID, _):
-                return "Predecessor indeterminate: \(featureIssueID)."
+                return "Predecessor merge observation indeterminate: \(featureIssueID)."
             default:
                 break
             }

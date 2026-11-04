@@ -120,7 +120,9 @@ struct NightSummaryInFlightFeatureTests {
         let observation = try FeatureMainlineObservationReader.latestAncestryObservation(
             featureIssueID: "FEAT-1", journal: journal
         )
-        #expect(observation == FeatureMainlineObservation(merged: ["backend"], unmerged: ["frontend"]))
+        #expect(observation == FeatureMainlineObservation(
+            merged: ["backend"], unmerged: ["frontend"], indeterminate: [:]
+        ))
         let line = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
         #expect(line.contains("1 of 2 Feature Branches merged"))
     }
@@ -304,5 +306,37 @@ struct NightSummaryInFlightFeatureTests {
         #expect(authoringLine?.contains("`FEAT-OLD`") == true)
         #expect(authoringLine?.contains("backend") == true)
         #expect(authoringLine?.contains("frontend") == true)
+    }
+}
+
+extension NightSummaryInFlightFeatureTests {
+    @Test("An indeterminate Partial Landing reports the read cause and excludes stale Mainline Conflicts (#732)")
+    func indeterminatePartialLanding() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        try await EngineInvocation(
+            act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        ).run()
+        let night = try #require(try journal.currentNight())
+        let ids = try insertInFlightFeature(journal, featureIssueID: "FEAT-1", repositories: ["backend", "mobile"])
+        let run = RunID()
+        try journal.append(.mainlineConflictDetected(
+            featureIssueID: "FEAT-1", repository: "backend", paths: ["old-conflict.txt"]
+        ), act: .author, runID: run, nightID: night.id)
+        try journal.append(.predecessorAncestryObserved(
+            featureIssueID: "FEAT-1", mergedRepositories: [], unmergedRepositories: [],
+            indeterminateRepositories: ["backend": .landingCommitUnreadable, "mobile": .tipUnreadable]
+        ), act: .author, runID: run, nightID: night.id)
+        let line = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+        #expect(line.contains("backend: merged into mainline; landing commit could not be read"))
+        #expect(line.contains("mobile: pushed tip could not be read; merge observation indeterminate"))
+        #expect(!line.contains("old-conflict.txt"))
+        let feature = try #require(try journal.feature(issueID: "FEAT-1"))
+        let rollUp = try FeatureRollUpMaintenance.rollUp(feature: feature, cycleID: ids.cycleID, journal: journal)
+        #expect(rollUp.sentence.contains("backend: merged into mainline; landing commit could not be read"))
+        #expect(rollUp.conflictingRepositories.isEmpty)
     }
 }

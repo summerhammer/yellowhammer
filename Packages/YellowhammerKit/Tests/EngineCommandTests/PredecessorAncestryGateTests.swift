@@ -70,7 +70,7 @@ struct PredecessorAncestryGateTests {
 
         let events = try journal.events()
         let observed = try #require(events.first { $0.type == .predecessorAncestryObserved })
-        guard case .predecessorAncestryObserved(let issueID, let merged, let unmerged) = observed.event else {
+        guard case .predecessorAncestryObserved(let issueID, let merged, let unmerged, _) = observed.event else {
             Issue.record("expected predecessorAncestryObserved")
             return
         }

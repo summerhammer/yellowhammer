@@ -75,7 +75,9 @@ extension NightSummary {
         // At N = 0 there is nothing to read: no ancestry observation will ever exist.
         if pushedRepositories.isEmpty { return "0 of 0 Feature Branches merged" }
         guard let observation else { return "the merge state has not been read yet" }
-        return "\(observation.merged.count) of \(pushedRepositories.count) Feature Branches merged"
+        let fraction = "\(observation.merged.count) of \(pushedRepositories.count) Feature Branches merged"
+        let notes = PredecessorIndeterminateDescription.notes(observation.indeterminate)
+        return notes.isEmpty ? fraction : fraction + "; " + notes
     }
 
     /// Which of the still-unmerged Feature Branches carry a Mainline Conflict (``FeatureMainlineObservationReader``),

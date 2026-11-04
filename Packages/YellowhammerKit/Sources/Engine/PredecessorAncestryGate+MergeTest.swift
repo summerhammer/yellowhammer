@@ -19,7 +19,7 @@ extension PredecessorAncestryGate {
     struct AncestryTestResult {
         var merged: [String] = []
         var unmerged: [String] = []
-        var indeterminate: [String] = []
+        var indeterminate: [String: PredecessorIndeterminateCause] = [:]
     }
 
     /// What one pass's merge tests share: the Feature, the Project's `Repo`s under test, the tip tested per
@@ -78,7 +78,7 @@ extension PredecessorAncestryGate {
                 )
                 result.merged.append(repoResult.repository)
             } else if repoResult.branchCommit == nil {
-                result.indeterminate.append(repoResult.repository)
+                result.indeterminate[repoResult.repository] = .tipUnreadable
             } else {
                 ancestryUnrecorded.append(repoResult)
             }
@@ -86,7 +86,9 @@ extension PredecessorAncestryGate {
 
         let notByPullRequest = try await testPullRequests(of: ancestryUnrecorded, scope: scope, into: &result)
         // An ancestor reaches here only when its landing commit could not be read; the content test cannot hold for it.
-        result.indeterminate += notByPullRequest.filter(\.isAncestor).map(\.repository)
+        for repository in notByPullRequest.filter(\.isAncestor).map(\.repository) {
+            result.indeterminate[repository] = .landingCommitUnreadable
+        }
         try await testContent(of: notByPullRequest.filter { !$0.isAncestor }, scope: scope, into: &result)
         return result
     }

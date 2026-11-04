@@ -11,11 +11,11 @@ public enum PredecessorGateOutcome: Equatable, Sendable {
     /// feature-authoring/select-the-next-feature, `#unmerged-feature-stack`): authoring must not proceed.
     /// Names every Feature in U, oldest first.
     case stackFull(features: [UnmergedStackEntry])
-    /// Neither the commit the land Act recorded nor the Feature Branch of a Feature in U could be found in one
-    /// or more repositories that have no Observed Merge either (roadmap P9.9; spec:
-    /// feature-authoring/select-the-next-feature, #tested-tip): authoring must not proceed, whatever |U| is.
+    /// A repository has no readable Pushed Tip, or ancestry proves its merge but its landing commit cannot be
+    /// read and the pull request test does not hold. No Observed Merge can be recorded in either case:
+    /// authoring must not proceed, whatever |U| is (feature-authoring/select-the-next-feature, #merge-test).
     /// Names the oldest such Feature. Takes precedence over ``stackFull(features:)``.
-    case indeterminate(predecessorIssueID: String, repositories: [String])
+    case indeterminate(predecessorIssueID: String, repositories: [String: PredecessorIndeterminateCause])
 }
 
 /// Checks whether the Feature about to be authored may proceed, given the merges of the Unmerged Feature Stack
@@ -205,7 +205,7 @@ public struct AuthorAct: Sendable {
                 .authoringPredecessorIndeterminate(featureIssueID: predecessorIssueID, repositories: repositories),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            try await skipAuthoring(because: .indeterminateTip, context: context)
+            try await skipAuthoring(because: .indeterminatePredecessor, context: context)
             return
         case .open:
             break

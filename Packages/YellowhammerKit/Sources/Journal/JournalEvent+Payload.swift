@@ -51,15 +51,18 @@ extension JournalEvent {
         case .authoringPredecessorIndeterminate(let featureIssueID, let repositories):
             [
                 "feature_issue_id": featureIssueID,
-                "repositories": repositories.joined(separator: "\u{1F}")
+                "repositories": Self.indeterminateJSON(repositories)
             ]
         case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
             ["feature_issue_id": featureIssueID]
-        case .predecessorAncestryObserved(let featureIssueID, let mergedRepositories, let unmergedRepositories):
+        case .predecessorAncestryObserved(
+            let featureIssueID, let mergedRepositories, let unmergedRepositories, let indeterminateRepositories
+        ):
             [
                 "feature_issue_id": featureIssueID,
                 "merged_repositories": mergedRepositories.joined(separator: "\u{1F}"),
-                "unmerged_repositories": unmergedRepositories.joined(separator: "\u{1F}")
+                "unmerged_repositories": unmergedRepositories.joined(separator: "\u{1F}"),
+                "indeterminate_repositories": Self.indeterminateJSON(indeterminateRepositories)
             ]
         case .pullRequestReadFailed(let repository, let reason):
             ["reason": reason.rawValue, "repository": repository]

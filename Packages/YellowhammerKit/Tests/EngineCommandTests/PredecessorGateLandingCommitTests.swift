@@ -119,9 +119,16 @@ struct PredecessorGateLandingCommitTests {
 
         let outcome = try await gate(git: git, publication: read).check(context, unmergedFeaturesMax: 1)
 
-        #expect(outcome == .indeterminate(predecessorIssueID: "FEAT-LC", repositories: ["backend"]))
+        #expect(outcome == .indeterminate(
+            predecessorIssueID: "FEAT-LC", repositories: ["backend": .landingCommitUnreadable]
+        ))
         #expect(try journal.landings(featureID: featureID).isEmpty)
         #expect(try journal.events(ofType: .mainlineConflictDetected).isEmpty)
+        let observed = try #require(try journal.events(ofType: .predecessorAncestryObserved).last)
+        #expect(observed.event == .predecessorAncestryObserved(
+            featureIssueID: "FEAT-LC", mergedRepositories: [], unmergedRepositories: [],
+            indeterminateRepositories: ["backend": .landingCommitUnreadable]
+        ))
         let invocations = git.invocations
         #expect(invocations.contains { $0.contains("rev-list --first-parent --reverse") })
         #expect(!invocations.contains { $0.contains(" merge-tree ") })

@@ -91,7 +91,7 @@ struct FeatureSettleAuthorActTests {
         #expect(!types.contains(.authoringSkippedFeatureInFlight))
         let observedEvents = try world.journal.events(ofType: .predecessorAncestryObserved)
         let feat1Observations = observedEvents.filter {
-            guard case .predecessorAncestryObserved(let id, _, _) = $0.event else { return false }
+            guard case .predecessorAncestryObserved(let id, _, _, _) = $0.event else { return false }
             return id == "FEAT-1"
         }
         #expect(

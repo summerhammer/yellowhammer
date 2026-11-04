@@ -9,6 +9,7 @@ public struct FeatureMainlineObservation: Equatable, Sendable {
     public let merged: [String]
     /// Repositories `predecessorAncestryObserved` most recently found still unmerged.
     public let unmerged: [String]
+    public let indeterminate: [String: PredecessorIndeterminateCause]
 }
 
 public enum FeatureMainlineObservationReader {
@@ -18,12 +19,12 @@ public enum FeatureMainlineObservationReader {
     ) throws -> FeatureMainlineObservation? {
         let events = try journal.events(ofType: .predecessorAncestryObserved)
         guard let latest = events.last(where: { record in
-            guard case .predecessorAncestryObserved(let observed, _, _) = record.event else { return false }
+            guard case .predecessorAncestryObserved(let observed, _, _, _) = record.event else { return false }
             return observed == featureIssueID
-        }), case .predecessorAncestryObserved(_, let merged, let unmerged) = latest.event else {
+        }), case .predecessorAncestryObserved(_, let merged, let unmerged, let indeterminate) = latest.event else {
             return nil
         }
-        return FeatureMainlineObservation(merged: merged, unmerged: unmerged)
+        return FeatureMainlineObservation(merged: merged, unmerged: unmerged, indeterminate: indeterminate)
     }
 
     /// Which of `unmergedRepositories` carry a Mainline Conflict, from the most recent Night that

@@ -121,7 +121,8 @@ public struct FeatureRollUp: Sendable {
         noPullRequestRepositories: [String] = [],
         pushedRepositories: Set<String> = [],
         issueStanding: FeatureIssueStanding,
-        cancellationSuffix: String = ""
+        cancellationSuffix: String = "",
+        indeterminateRepositories: [String: PredecessorIndeterminateCause] = [:]
     ) {
         self.members = members
         self.lanesPushed = lanesPushed
@@ -144,7 +145,8 @@ public struct FeatureRollUp: Sendable {
             mergedFraction: mergedFraction, issueStanding: issueStanding
         )
         self.state = state
-        self.sentence = sentence
+        self.sentence = indeterminateRepositories.isEmpty ? sentence
+            : sentence + " " + PredecessorIndeterminateDescription.notes(indeterminateRepositories)
         self.conflictsSuffix = Self.conflictsSuffix(conflictingRepositories)
         self.noPullRequestSuffix = noPullRequestRepositories.isEmpty
             ? "" : " " + Self.noPullRequestNotes(noPullRequestRepositories)

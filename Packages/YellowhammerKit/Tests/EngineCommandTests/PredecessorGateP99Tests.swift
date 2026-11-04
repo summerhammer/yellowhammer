@@ -55,7 +55,7 @@ struct PredecessorGateP99Tests {
         let events = try journal.events()
         #expect(events.contains { $0.type == .authoringSkippedFeatureInFlight })
         let observed = try #require(events.first { $0.type == .predecessorAncestryObserved })
-        guard case .predecessorAncestryObserved(let issueID, let merged, let unmerged) = observed.event else {
+        guard case .predecessorAncestryObserved(let issueID, let merged, let unmerged, _) = observed.event else {
             Issue.record("expected predecessorAncestryObserved")
             return
         }
@@ -278,7 +278,7 @@ struct PredecessorGateLandingTests {
             return
         }
         #expect(issueID == "FEAT-GHOST-BRANCH")
-        #expect(repos == ["backend"])
+        #expect(repos == ["backend": .tipUnreadable])
 
         let line = try #require(NightCardMaintenance.authoringLine(for: indeterminate.event))
         #expect(line.contains("FEAT-GHOST-BRANCH"))

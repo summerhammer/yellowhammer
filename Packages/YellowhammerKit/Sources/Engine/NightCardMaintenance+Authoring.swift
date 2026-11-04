@@ -182,12 +182,20 @@ extension NightCardMaintenance {
         case .authoringSkippedUnmergedStackFull(let features, let unmergedFeaturesMax):
             return unmergedStackFullLine(features: features, unmergedFeaturesMax: unmergedFeaturesMax, journal: journal)
         case .authoringPredecessorIndeterminate(let featureIssueID, let repositories):
-            let named = repositories.joined(separator: ", ")
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
-            return """
-                Authoring was skipped: the pushed tip of Feature \(featureRef) in the unmerged Feature stack \
-                could not be found in \(named). A quiet Night, not a failure.
-                """
+            let unreadableTips = repositories.filter { $0.value == .tipUnreadable }.keys.sorted()
+            let unreadableLandings = repositories.filter { $0.value == .landingCommitUnreadable }.keys.sorted()
+            var sentences: [String] = []
+            if !unreadableTips.isEmpty {
+                sentences.append("the pushed tip of Feature \(featureRef) in the unmerged Feature stack "
+                    + "could not be found in \(unreadableTips.joined(separator: ", ")).")
+            }
+            if !unreadableLandings.isEmpty {
+                sentences.append("Feature \(featureRef) is merged into mainline in "
+                    + "\(unreadableLandings.joined(separator: ", ")), but its landing commit could not be read. "
+                    + "The Observed Merge is recorded on a later author Act when the read succeeds.")
+            }
+            return "Authoring was skipped: " + sentences.joined(separator: " ") + " A quiet Night, not a failure."
         case .authoringReleaseGateHeld(_, let consumer, let producer, let producerFeatureIssueID, let hold):
             return releaseGateHeldLine(
                 consumer: consumer, producer: producer, producerFeatureIssueID: producerFeatureIssueID,
