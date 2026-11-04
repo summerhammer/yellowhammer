@@ -126,7 +126,10 @@ jobs:
           swift --version
 
       # A PR can restore main's cache or its own previous cache; PR caches are scoped to its
-      # merge ref and cannot be restored by main or another PR. Save each compiled revision.
+      # merge ref and cannot be restored by main or another PR. Only main saves this entry:
+      # at ~800 MB a revision, per-PR saves would push main's entry out of the 10 GB
+      # repository cache (least recently restored goes first) and leave the next PR cold.
+      # PRs restore main's entry and the mtime restore keeps unchanged modules warm.
       # SwiftPM rebuilds any source whose mtime differs from the one it recorded, and a checkout
       # stamps every file with the checkout time: without the mtime restore below, every one of
       # our modules recompiles on every run and the cache saves only the dependencies.
@@ -153,14 +156,27 @@ jobs:
           mkdir -p build/test-results
           swift build --package-path Packages/YellowhammerKit --build-tests --disable-index-store 2>&1 | tee build/test-results/compile.log
 
+      - name: Summarize SwiftPM cache
+        if: always()
+        env:
+          CACHE_HIT: ${{ steps.swiftpm-cache.outputs.cache-hit }}
+          MATCHED_KEY: ${{ steps.swiftpm-cache.outputs.cache-matched-key }}
+        run: |
+          {
+            echo "### SwiftPM cache"
+            echo "- exact hit: \`${CACHE_HIT:-false}\`"
+            echo "- matched key: \`${MATCHED_KEY:-none (cold)}\`"
+            echo "- saved by this run: \`${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.swiftpm-cache.outputs.cache-hit != 'true' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # Save before executing tests so a failure does not discard a successful compilation.
       # Both test steps use this build, including on a cache miss.
       - name: Record source mtimes
-        if: steps.swiftpm-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.swiftpm-cache.outputs.cache-hit != 'true'
         run: python3 scripts/ci/source_mtimes.py record --root Packages/YellowhammerKit
 
       - name: Save SwiftPM cache
-        if: steps.swiftpm-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.swiftpm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -229,7 +245,8 @@ jobs:
             sourcepackages-
 
       # Cache compiled output as well as dependency checkouts. As with the test cache,
-      # PRs can reuse their own previous revision without publishing a cache to main.
+      # PRs can reuse their own previous revision without publishing a cache to main. This
+      # entry is smaller than the SwiftPM one, so PR revisions still save it.
       - name: Restore Xcode build cache
         id: xcode-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -238,6 +255,18 @@ jobs:
           key: xcode-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Yellowhammer.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
             xcode-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Yellowhammer.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
+
+      - name: Summarize Xcode build cache
+        if: always()
+        env:
+          CACHE_HIT: ${{ steps.xcode-cache.outputs.cache-hit }}
+          MATCHED_KEY: ${{ steps.xcode-cache.outputs.cache-matched-key }}
+        run: |
+          {
+            echo "### Xcode build cache"
+            echo "- exact hit: \`${CACHE_HIT:-false}\`"
+            echo "- matched key: \`${MATCHED_KEY:-none (cold)}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Preserve timestamps only for unchanged tracked files, including the app and local
       # package sources, so Xcode can reuse the restored build without hiding real edits.
