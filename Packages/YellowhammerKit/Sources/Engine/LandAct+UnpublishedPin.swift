@@ -26,12 +26,12 @@ enum UnpublishedPinDecision: Sendable {
     case alreadyPinned(ref: String)
     case noFeatureBranch(recordedCommit: String)
     case failed(reason: String)
-    case pinned(ref: String, relation: WorktreeHeadRelation)
+    case pinned(ref: String, unpublished: UnpublishedHead)
     case gone(MainCloneBranchStep)
     case notGitWorktree(MainCloneBranchStep)
 
     enum MainCloneBranchStep: Sendable {
-        case pinned(ref: String, relation: WorktreeHeadRelation)
+        case pinned(ref: String, unpublished: UnpublishedHead)
         case alreadyPinned(ref: String)
         case notNeeded
         case absent
@@ -41,7 +41,7 @@ enum UnpublishedPinDecision: Sendable {
 
     static func evaluate(
         worktreePath: String, mainClonePath: String?, recordedCommit: String?, branch: FeatureBranch?,
-        pin: UnpublishedHeadPin = UnpublishedHeadPin()
+        reporting: (repository: String, noPushedBranch: Bool), pin: UnpublishedHeadPin = UnpublishedHeadPin()
     ) async -> UnpublishedPinDecision {
         let path = (worktreePath as NSString).expandingTildeInPath
         let exists = FileManager.default.fileExists(atPath: path)
@@ -51,7 +51,8 @@ enum UnpublishedPinDecision: Sendable {
 
         if !exists || !isGitWorktree {
             let branchStep = await evaluateMainClone(
-                mainClonePath: mainClonePath, recordedCommit: recordedCommit, branch: branch, pin: pin
+                mainClonePath: mainClonePath, recordedCommit: recordedCommit, branch: branch,
+                reporting: reporting, pin: pin
             )
             return exists ? .notGitWorktree(branchStep) : .gone(branchStep)
         }
@@ -75,12 +76,17 @@ enum UnpublishedPinDecision: Sendable {
         case .failed(let reason):
             return .failed(reason: reason)
         case .pinned(let ref, let relation):
-            return .pinned(ref: ref, relation: relation)
+            guard let unpublished = UnpublishedHead(
+                relation, repository: reporting.repository, recordedCommit: recordedCommit,
+                noPushedBranch: reporting.noPushedBranch
+            ) else { return .failed(reason: "the pinned HEAD has no unpublished commit relation") }
+            return .pinned(ref: ref, unpublished: unpublished)
         }
     }
 
     private static func evaluateMainClone(
-        mainClonePath: String?, recordedCommit: String?, branch: FeatureBranch?, pin: UnpublishedHeadPin
+        mainClonePath: String?, recordedCommit: String?, branch: FeatureBranch?,
+        reporting: (repository: String, noPushedBranch: Bool), pin: UnpublishedHeadPin
     ) async -> MainCloneBranchStep {
         // Lead decision: No Feature Branch recorded gives nil -> nothing to read.
         guard let branch else { return .noFeatureBranch }
@@ -99,7 +105,11 @@ enum UnpublishedPinDecision: Sendable {
             repositoryPath: mainClonePath, recordedCommit: recordedCommit, branch: branch
         ) {
         case .pinned(let ref, let relation):
-            return .pinned(ref: ref, relation: relation)
+            guard let unpublished = UnpublishedHead(
+                relation, repository: reporting.repository, recordedCommit: recordedCommit,
+                noPushedBranch: reporting.noPushedBranch
+            ) else { return .failed(reason: "the pinned HEAD has no unpublished commit relation") }
+            return .pinned(ref: ref, unpublished: unpublished)
         case .alreadyPinned(let ref):
             return .alreadyPinned(ref: ref)
         case .notNeeded:
@@ -146,17 +156,18 @@ extension LandAct {
         }
 
         let decision = await UnpublishedPinDecision.evaluate(
-            worktreePath: held.path, mainClonePath: mainClonePath, recordedCommit: recordedCommit, branch: branch
+            worktreePath: held.path, mainClonePath: mainClonePath, recordedCommit: recordedCommit, branch: branch,
+            reporting: (repository, !pushOutcome.pushed)
         )
         return await handlePinDecision(
             decision, held: held, facts: HeldPinFacts(recordedCommit: recordedCommit, branch: branch, path: held.path),
-            laneContext: laneContext, pushOutcome: pushOutcome
+            laneContext: laneContext
         )
     }
 
     private func handlePinDecision(
         _ decision: UnpublishedPinDecision, held: WorktreeRecord, facts: HeldPinFacts,
-        laneContext: LandActLaneContext, pushOutcome: LanePushOutcome
+        laneContext: LandActLaneContext
     ) async -> UnpublishedPinStep {
         let context = laneContext.act
         let (recordedCommit, branch) = (facts.recordedCommit, facts.branch)
@@ -182,42 +193,21 @@ extension LandAct {
                 moment: .land
             )
             return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
-        case .pinned(let ref, let relation):
-            let pinDetail = await reportWorktreePin(
-                pin: (ref, relation), recordedCommit: recordedCommit, pushOutcome: pushOutcome,
+        case .pinned(let ref, let unpublished):
+            await reportPinned(unpublished, pinRef: ref, laneContext: laneContext, context: context)
+            return await snapshotBeforeRelease(
+                pinDetail: "pinned \(unpublished.head.prefix(7)) at \(ref)", held: held, branch: branch,
                 laneContext: laneContext, context: context
             )
-            return await snapshotBeforeRelease(
-                pinDetail: pinDetail, held: held, branch: branch, laneContext: laneContext, context: context
-            )
-
         case .gone(let step):
-            return await handleGoneWorktree(
-                step: step, held: HeldPinFacts(recordedCommit: recordedCommit, branch: branch, path: held.path),
-                pushOutcome: pushOutcome, laneContext: laneContext, context: context
+            return await handleHeldWorktree(
+                step: step, isGone: true, held: facts, laneContext: laneContext, context: context
             )
-
         case .notGitWorktree(let step):
-            return await handleNotGitWorktree(
-                step: step, held: HeldPinFacts(recordedCommit: recordedCommit, branch: branch, path: held.path),
-                pushOutcome: pushOutcome, laneContext: laneContext, context: context
+            return await handleHeldWorktree(
+                step: step, isGone: false, held: facts, laneContext: laneContext, context: context
             )
         }
-    }
-
-    /// Reports a pinned Worktree HEAD; the release step's detail naming the pin, nil when nothing differs to report.
-    private func reportWorktreePin(
-        pin: (ref: String, relation: WorktreeHeadRelation), recordedCommit: String?, pushOutcome: LanePushOutcome,
-        laneContext: LandActLaneContext, context: ActContext
-    ) async -> String? {
-        guard let recordedCommit,
-              let unpublished = UnpublishedHead(
-                  pin.relation, repository: laneContext.lane.repository, recordedCommit: recordedCommit,
-                  noPushedBranch: !pushOutcome.pushed
-              ) else { return nil }
-        let ref = pin.ref
-        await reportPinned(unpublished, pinRef: ref, laneContext: laneContext, context: context)
-        return "pinned \(unpublished.head.prefix(7)) at \(ref)"
     }
 
     /// Saves the present git Worktree's uncommitted changes before release. A saved snapshot is recorded and reported
@@ -261,90 +251,20 @@ extension LandAct {
         return .keepHeld(comment.body)
     }
 
-    private func branchPinFailed(
-        reason: String, branch: FeatureBranch?, recordedCommit: String?, laneContext: LandActLaneContext,
-        context: ActContext
+    private func handleHeldWorktree(
+        step: UnpublishedPinDecision.MainCloneBranchStep, isGone: Bool, held: HeldPinFacts,
+        laneContext: LandActLaneContext, context: ActContext
     ) async -> UnpublishedPinStep {
-        let comment = LandFailureComment.pinFailed(
-            subject: branch.map(PinSubject.featureBranch) ?? .worktreeHead,
-            repository: laneContext.lane.repository, reason: reason, recordedCommit: recordedCommit, moment: .land
+        let verdict = HeldWorktreeVerdict.evaluate(
+            step: step, isGone: isGone, held: held, repository: laneContext.lane.repository, moment: .land
         )
-        return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
-    }
-
-    /// What the gone and non-git handlers know of the held Worktree.
-    struct HeldPinFacts {
-        let recordedCommit: String?
-        let branch: FeatureBranch?
-        let path: String
-    }
-
-    private func handleGoneWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, held: HeldPinFacts,
-        pushOutcome: LanePushOutcome, laneContext: LandActLaneContext, context: ActContext
-    ) async -> UnpublishedPinStep {
-        let (recordedCommit, branch) = (held.recordedCommit, held.branch)
-        let repository = laneContext.lane.repository
-        switch step {
-        case .notNeeded, .noFeatureBranch:
-            return .release(detail: nil)
-        case .absent:
-            // `.absent` is only read for a recorded Feature Branch; the name is left out if none is.
-            let name = branch.map { " `\($0.rawValue)`" } ?? ""
-            return .release(
-                detail: "nothing was pinned: the Feature Branch\(name) does not resolve in the main clone"
-            )
-        case .alreadyPinned(let ref):
-            return .release(detail: "already pinned at \(ref)")
-        case .failed(let reason):
-            return await branchPinFailed(
-                reason: reason, branch: branch, recordedCommit: recordedCommit, laneContext: laneContext,
-                context: context
-            )
-        case .pinned(let ref, let relation):
-            guard let recordedCommit,
-                  let unpublished = UnpublishedHead(
-                      relation, repository: repository, recordedCommit: recordedCommit,
-                      noPushedBranch: !pushOutcome.pushed
-                  ) else {
-                return .release(detail: nil)
-            }
-            await reportPinned(unpublished, pinRef: ref, laneContext: laneContext, context: context)
-            return .release(detail: "pinned \(unpublished.head.prefix(7)) at \(ref)")
+        if let report = verdict.report {
+            await reportPinned(report.unpublished, pinRef: report.ref, laneContext: laneContext, context: context)
         }
-    }
-
-    private func handleNotGitWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, held: HeldPinFacts,
-        pushOutcome: LanePushOutcome, laneContext: LandActLaneContext, context: ActContext
-    ) async -> UnpublishedPinStep {
-        let (recordedCommit, branch, worktreePath) = (held.recordedCommit, held.branch, held.path)
-        let repository = laneContext.lane.repository
-        var pinRef: String?
-        switch step {
-        case .notNeeded, .absent, .noFeatureBranch:
-            break
-        case .alreadyPinned(let ref):
-            pinRef = ref
-        case .failed(let reason):
-            return await branchPinFailed(
-                reason: reason, branch: branch, recordedCommit: recordedCommit, laneContext: laneContext,
-                context: context
-            )
-        case .pinned(let ref, let relation):
-            if let recordedCommit,
-               let unpublished = UnpublishedHead(
-                   relation, repository: repository, recordedCommit: recordedCommit,
-                   noPushedBranch: !pushOutcome.pushed
-               ) {
-                await reportPinned(unpublished, pinRef: ref, laneContext: laneContext, context: context)
-            }
-            pinRef = ref
+        if let comment = verdict.failure {
+            return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
         }
-        let comment = LandFailureComment.notGitWorktree(
-            repository: repository, path: worktreePath, pinRef: pinRef, moment: .land
-        )
-        return await keepHeldWithComment(comment, laneContext: laneContext, context: context)
+        return .release(detail: verdict.detail)
     }
 
     /// The Pushed Tip this Cycle recorded (the push's own commit when none is recorded), or, with no completed work,

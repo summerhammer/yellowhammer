@@ -28,7 +28,8 @@ struct UnpublishedPinDecisionTests {
     @Test("Lead judgement: a gone directory with no recorded commit pins nothing, even with no main clone")
     func goneWithoutRecordedCommitIsNotNeeded() async {
         let decision = await UnpublishedPinDecision.evaluate(
-            worktreePath: gonePath(), mainClonePath: nil, recordedCommit: nil, branch: decisionBranch
+            worktreePath: gonePath(), mainClonePath: nil, recordedCommit: nil,
+            branch: decisionBranch, reporting: ("repo", false)
         )
         guard case .gone(.notNeeded) = decision else {
             Issue.record("expected .gone(.notNeeded), got \(decision)")
@@ -40,7 +41,8 @@ struct UnpublishedPinDecisionTests {
     @Test("Lead judgement: a gone directory with no configured main clone fails the branch step")
     func goneWithoutMainCloneFails() async {
         let decision = await UnpublishedPinDecision.evaluate(
-            worktreePath: gonePath(), mainClonePath: nil, recordedCommit: "abc1234", branch: decisionBranch
+            worktreePath: gonePath(), mainClonePath: nil, recordedCommit: "abc1234",
+            branch: decisionBranch, reporting: ("repo", false)
         )
         guard case .gone(.failed) = decision else {
             Issue.record("expected .gone(.failed), got \(decision)")
@@ -53,7 +55,8 @@ struct UnpublishedPinDecisionTests {
     func goneWithUnreadableMainCloneFails() async throws {
         let decision = await UnpublishedPinDecision.evaluate(
             worktreePath: gonePath(), mainClonePath: try scratchDirectory("decision-not-a-clone"),
-            recordedCommit: "abc1234", branch: decisionBranch
+            recordedCommit: "abc1234",
+            branch: decisionBranch, reporting: ("repo", false)
         )
         guard case .gone(.failed) = decision else {
             Issue.record("expected .gone(.failed), got \(decision)")
@@ -67,7 +70,8 @@ struct UnpublishedPinDecisionTests {
         let decision = await UnpublishedPinDecision.evaluate(
             worktreePath: try scratchDirectory("decision-not-git"),
             mainClonePath: try scratchDirectory("decision-not-a-clone"),
-            recordedCommit: "abc1234", branch: decisionBranch
+            recordedCommit: "abc1234",
+            branch: decisionBranch, reporting: ("repo", false)
         )
         guard case .notGitWorktree(.failed) = decision else {
             Issue.record("expected .notGitWorktree(.failed), got \(decision)")
@@ -80,7 +84,7 @@ struct UnpublishedPinDecisionTests {
     func notGitWithoutRecordedCommitIsNotNeeded() async throws {
         let decision = await UnpublishedPinDecision.evaluate(
             worktreePath: try scratchDirectory("decision-not-git"), mainClonePath: nil, recordedCommit: nil,
-            branch: decisionBranch
+            branch: decisionBranch, reporting: ("repo", false)
         )
         guard case .notGitWorktree(.notNeeded) = decision else {
             Issue.record("expected .notGitWorktree(.notNeeded), got \(decision)")

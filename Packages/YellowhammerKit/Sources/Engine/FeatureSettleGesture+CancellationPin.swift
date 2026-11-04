@@ -76,7 +76,8 @@ extension FeatureSettleGesture {
         }
 
         switch await UnpublishedPinDecision.evaluate(
-            worktreePath: worktree.path, mainClonePath: mainClonePath, recordedCommit: recorded?.commit, branch: branch
+            worktreePath: worktree.path, mainClonePath: mainClonePath, recordedCommit: recorded?.commit, branch: branch,
+            reporting: (repository, recorded?.noPushedBranch ?? false)
         ) {
         case .notNeeded, .alreadyPinned:
             try await snapshotBeforeRelease(worktree: worktree, branch: branch, pinContext: pinContext)
@@ -90,34 +91,28 @@ extension FeatureSettleGesture {
                 reason: reason, subject: .worktreeHead, repository: repository, recorded: recorded,
                 pinContext: pinContext
             )
-        case .pinned(let ref, let relation):
-            if let recorded {
-                await reportPinned(
-                    relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
-                )
-            }
+        case .pinned(let ref, let unpublished):
+            await reportPinned(unpublished, ref: ref, pinContext: pinContext)
             try await snapshotBeforeRelease(worktree: worktree, branch: branch, pinContext: pinContext)
-
         case .gone(let step):
-            try await handleGoneWorktree(
-                step: step, worktree: worktree, branch: branch, recorded: recorded, pinContext: pinContext
+            try await handleHeldWorktree(
+                step: step, isGone: true, worktree: worktree,
+                held: HeldPinFacts(recordedCommit: recorded?.commit, branch: branch, path: worktree.path),
+                pinContext: pinContext
             )
-
         case .notGitWorktree(let step):
-            try await handleNotGitWorktree(
-                step: step, worktree: worktree, branch: branch, recorded: recorded, pinContext: pinContext
+            try await handleHeldWorktree(
+                step: step, isGone: false, worktree: worktree,
+                held: HeldPinFacts(recordedCommit: recorded?.commit, branch: branch, path: worktree.path),
+                pinContext: pinContext
             )
         }
     }
 
     private func reportPinned(
-        relation: WorktreeHeadRelation, ref: String, repository: String, recorded: WorktreeRecordedCommit,
-        pinContext: CancellationPinContext
+        _ unpublished: UnpublishedHead, ref: String, pinContext: CancellationPinContext
     ) async {
-        guard let unpublished = UnpublishedHead(
-            relation, repository: repository, recordedCommit: recorded.commit,
-            noPushedBranch: recorded.noPushedBranch
-        ) else { return }
+        let repository = unpublished.repository
         let context = pinContext.context
         _ = try? context.journal.append(
             .unpublishedCommitsPinnedAtCancellation(cycleID: pinContext.cycleID, unpublished: unpublished, pinRef: ref),
@@ -187,55 +182,20 @@ extension FeatureSettleGesture {
         try await failCancellation(comment, repository: repository, pinContext: pinContext)
     }
 
-    private func handleGoneWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, worktree: WorktreeRecord, branch: FeatureBranch?,
-        recorded: WorktreeRecordedCommit?, pinContext: CancellationPinContext
+    private func handleHeldWorktree(
+        step: UnpublishedPinDecision.MainCloneBranchStep, isGone: Bool, worktree: WorktreeRecord,
+        held: HeldPinFacts, pinContext: CancellationPinContext
     ) async throws {
-        let repository = worktree.repository
-        switch step {
-        case .notNeeded, .absent, .alreadyPinned, .noFeatureBranch:
-            return
-        case .failed(let reason):
-            try await failPin(
-                reason: reason, subject: branch.map(PinSubject.featureBranch) ?? .worktreeHead,
-                repository: repository, recorded: recorded, pinContext: pinContext
-            )
-        case .pinned(let ref, let relation):
-            if let recorded {
-                await reportPinned(
-                    relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
-                )
-            }
-        }
-    }
-
-    private func handleNotGitWorktree(
-        step: UnpublishedPinDecision.MainCloneBranchStep, worktree: WorktreeRecord, branch: FeatureBranch?,
-        recorded: WorktreeRecordedCommit?, pinContext: CancellationPinContext
-    ) async throws {
-        let repository = worktree.repository
-        var pinRef: String?
-        switch step {
-        case .notNeeded, .absent, .noFeatureBranch:
-            break
-        case .alreadyPinned(let ref):
-            pinRef = ref
-        case .failed(let reason):
-            try await failPin(
-                reason: reason, subject: branch.map(PinSubject.featureBranch) ?? .worktreeHead,
-                repository: repository, recorded: recorded, pinContext: pinContext
-            )
-        case .pinned(let ref, let relation):
-            if let recorded {
-                await reportPinned(
-                    relation: relation, ref: ref, repository: repository, recorded: recorded, pinContext: pinContext
-                )
-            }
-            pinRef = ref
-        }
-        let comment = LandFailureComment.notGitWorktree(
-            repository: repository, path: worktree.path, pinRef: pinRef, moment: .cancellation
+        let verdict = HeldWorktreeVerdict.evaluate(
+            step: step, isGone: isGone,
+            held: held,
+            repository: worktree.repository, moment: .cancellation
         )
-        try await failCancellation(comment, repository: repository, pinContext: pinContext)
+        if let report = verdict.report {
+            await reportPinned(report.unpublished, ref: report.ref, pinContext: pinContext)
+        }
+        if let comment = verdict.failure {
+            try await failCancellation(comment, repository: worktree.repository, pinContext: pinContext)
+        }
     }
 }
