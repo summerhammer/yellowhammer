@@ -9,10 +9,11 @@ struct NightStanding: Equatable, Sendable {
     /// Whether the Night is closed (done), not still running.
     let isClosed: Bool
 
-    /// A closed real Night in which Cards were worked and nothing was delivered. A rehearsal Night never is: it
-    /// ships nothing by definition.
+    /// A closed real Night in which Cards were worked to an outcome and nothing was delivered. A rehearsal Night
+    /// never is: it ships nothing by definition. A Night whose Attempts only asked questions, or were cancelled or
+    /// aborted, is not: those are decisions, not failures.
     var endedWithoutShipping: Bool {
-        isClosed && mode == .real && outcome.cardsWorked > 0 && !outcome.deliveredWork
+        isClosed && mode == .real && outcome.cardsWithOutcome > 0 && !outcome.deliveredWork
     }
 
     /// `1 Attempt`, `2 Attempts`.
@@ -25,7 +26,7 @@ struct NightStanding: Equatable, Sendable {
         var facts: [String] = []
         if mode == .rehearsal { facts.append("Rehearsal Night — nothing ships in a rehearsal") }
         if endedWithoutShipping {
-            let cards = Self.counted(outcome.cardsWorked, "Card")
+            let cards = Self.counted(outcome.cardsWithOutcome, "Card")
             facts.append("Nothing shipped — \(cards) worked, no Cycle landed")
         }
         if let fact = Self.attemptFact(outcome.roundsExhausted, ending: "rounds-exhausted") { facts.append(fact) }

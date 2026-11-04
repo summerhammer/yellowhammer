@@ -189,6 +189,35 @@ func standingNeverEndedWithoutShipping() {
     #expect(!closedRehearsal.verdictFacts.contains { $0.hasPrefix("Nothing shipped") })
 }
 
+@Test(
+    "A Night whose Attempts only asked a question, or were cancelled or aborted, is a decision, not a failure",
+    arguments: [AttemptOutcome.question, .cancelled, .aborted]
+)
+func standingDecisionIsNotAFailure(ending: AttemptOutcome) {
+    let outcome = fold([ended(406, ending)])
+    #expect(outcome.cardsWorked == 1)
+    #expect(outcome.cardsWithOutcome == 0)
+    let standing = standing(outcome)
+    #expect(!standing.endedWithoutShipping)
+    #expect(standing.problemHeadline(nightID: nightID) == nil)
+    #expect(!standing.verdictFacts.contains { $0.hasPrefix("Nothing shipped") })
+    #expect(standing.fallbackFact == "1 Attempt ended on 1 Card")
+}
+
+@Test("A decision on one Card does not hide a failed Card that shipped nothing; the count names only the failed")
+func standingDecisionBesideAFailure() {
+    let standing = standing(fold([ended(406, .roundsExhausted), ended(407, .question)]))
+    #expect(standing.endedWithoutShipping)
+    #expect(standing.verdictFacts.first == "Nothing shipped — 1 Card worked, no Cycle landed")
+}
+
+@Test("An Attempt that succeeded delivered work, even before its Card's Done transition is recorded")
+func foldSuccessDeliversWork() {
+    let outcome = fold([ended(406, .roundsExhausted), ended(407, .success)])
+    #expect(outcome.deliveredWork)
+    #expect(!standing(outcome).endedWithoutShipping)
+}
+
 @Test("The fallback fact says how many Attempts ended on how many Cards, and only when Attempts ended")
 func standingFallback() {
     #expect(standing(fold([ended(406, .success)])).fallbackFact == "1 Attempt ended on 1 Card")
