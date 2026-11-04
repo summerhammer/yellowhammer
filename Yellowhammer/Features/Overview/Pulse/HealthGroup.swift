@@ -1,7 +1,8 @@
 import Pulse
 import SwiftUI
 
-/// The Pulse's Health group: recorded Act failures, undelivered Board writes and `yh doctor` findings. Runtime failures show
+/// The Pulse's Health group: recorded Act failures, the Night's own Journal findings (excluded Routes, repeated usage
+/// limits, …, each opening the Night's account), undelivered Board writes and `yh doctor` findings. Runtime failures show
 /// their reason, count and last occurrence; provisioning failures offer Repair, and other doctor findings open Settings.
 /// Nil states that doctor was not read when there are no recorded failures to show.
 struct HealthGroup: View {
@@ -22,7 +23,10 @@ struct HealthGroup: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("health-unread")
             case let flags? where flags.isEmpty:
-                Label("No health flags", systemImage: "checkmark.seal")
+                Label(
+                    "No health flags — yh doctor and this Night\u{2019}s Journal are clean",
+                    systemImage: "checkmark.seal"
+                )
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("health-absence")
             case let flags?:
@@ -63,16 +67,6 @@ struct HealthGroup: View {
                     .disabled(!canRepairBoard)
                     .accessibilityIdentifier("pulse-repair-board")
             }
-        } else if flag.kind == .actFailure {
-            // An Act failure opens where it is fixed: Settings for a configuration cause, the
-            // Work Card for a broken invariant, the Night Card otherwise (disclose-a-failure).
-            if let fixLink = flag.fixLink {
-                Button { openDestination(fixLink) } label: { HealthFlagRow(flag: flag) }
-                    .buttonStyle(.plain)
-                    .help(help(for: fixLink))
-            } else {
-                HealthFlagRow(flag: flag)
-            }
         } else if flag.kind == .undeliveredBoardWrites {
             VStack(alignment: .leading, spacing: 6) {
                 HealthFlagRow(flag: flag)
@@ -81,6 +75,14 @@ struct HealthGroup: View {
                     .disabled(!canDeliverNow)
                     .accessibilityIdentifier("pulse-deliver-now")
             }
+        } else if let fixLink = flag.fixLink {
+            // A flag that knows where it is fixed opens there: Settings for a configuration cause, the Work Card
+            // for a broken invariant, the Night Card or the Night's account otherwise (disclose-a-failure).
+            Button { openDestination(fixLink) } label: { HealthFlagRow(flag: flag) }
+                .buttonStyle(.plain)
+                .help(help(for: fixLink))
+        } else if flag.kind == .actFailure {
+            HealthFlagRow(flag: flag)
         } else {
             Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
                 .buttonStyle(.plain)
@@ -105,6 +107,8 @@ struct HealthGroup: View {
             "Open the Night Card in Linear"
         case .inspector:
             "Show the Work Card"
+        case .nightAccount:
+            "Show it in the Night\u{2019}s account"
         default:
             "Open the Project's Settings"
         }
@@ -160,7 +164,7 @@ private struct HealthFlagRow: View {
     }
 
     private var occurrenceLabel: String {
-        "\(flag.occurrenceCount) failure\(flag.occurrenceCount == 1 ? "" : "s")"
+        flag.occurrenceText
     }
 
     private var outboxSummary: String {

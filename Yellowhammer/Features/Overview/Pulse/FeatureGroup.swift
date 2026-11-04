@@ -34,6 +34,11 @@ struct FeatureGroup: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("feature-stacked-on")
                 }
+                if let stallNote = feature.stallNote {
+                    Label(stallNote, systemImage: "pause.circle.fill")
+                        .foregroundStyle(.warning)
+                        .accessibilityIdentifier("feature-stalled")
+                }
                 if feature.state == "returned" {
                     ReturnedFeatureGuidance()
                         .accessibilityIdentifier("feature-returned-guidance")

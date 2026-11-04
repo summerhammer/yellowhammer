@@ -5,11 +5,16 @@ import Journal
 extension PulseSnapshot {
     /// The Night's `verdictLine`: Journal facts joined by " · ", never the engine's verdict_line.
     /// First the Feature fact — a Feature returned with unmet clauses, else a Feature verified with every
-    /// clause met — then open authoring decisions and the count of failed Act runs. Nil when no fact applies.
+    /// clause met — then open authoring decisions, then what the Night's Attempts did (``NightStanding/verdictFacts``:
+    /// a rehearsal, nothing shipped, rounds-exhausted and hard-failed Attempts, a red Check, usage limits), then the
+    /// count of failed Act runs. When none applies and Attempts ended, the fallback says how many ended on how many
+    /// Cards, so a Night with Attempt events is never unknown. Nil when no fact applies.
     static func verdictLine(
-        nightEvents: [JournalEventRecord], failedRunCount: Int, recoveredRunCount: Int, journal: JournalStore,
-        authoringDecisions: [AuthoringDecision] = []
+        nightEvents: [JournalEventRecord], failures: JournalFailures, journal: JournalStore,
+        authoringDecisions: [AuthoringDecision] = [], standing: NightStanding? = nil
     ) throws -> String? {
+        let failedRunCount = failures.failedRunCount
+        let recoveredRunCount = failures.recoveredRunCount
         var facts: [String] = []
         if let feature = try featureFact(nightEvents: nightEvents, journal: journal) {
             facts.append(feature)
@@ -18,11 +23,13 @@ extension PulseSnapshot {
             let outcome = decision.kind == .halt ? "halted" : "refused"
             facts.append("Authoring Feature “\(decision.title)” \(outcome) — awaiting an Operator turn in Linear")
         }
+        facts += standing?.verdictFacts ?? []
         if failedRunCount > 0 {
             let failed = "\(failedRunCount) Act run\(failedRunCount == 1 ? "" : "s") failed"
             let recovered = recoveredRunCount > 0 ? ", \(recoveredRunCount) recovered" : ""
             facts.append("\(failed)\(recovered) — see Health")
         }
+        if facts.isEmpty, let fallback = standing?.fallbackFact { facts.append(fallback) }
         return facts.isEmpty ? nil : facts.joined(separator: " · ")
     }
 

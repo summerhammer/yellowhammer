@@ -3,8 +3,9 @@ import Pulse
 import SwiftUI
 
 /// The one thing to know about the Project right now, loudest first: an unreadable Journal, Waiting on You,
-/// then Blocked Cards, then a failed Act, Health flags and a starved Night, then working, then a running or
-/// done Night, then idle. It is derived from the Project's own Pulse alone, never from a sibling's.
+/// then Blocked Cards, then a failed Act, a Night that ended without shipping, a done Night with a problem, Health
+/// flags and a starved Night, then working, then a running or done Night (a rehearsal says so), then idle. It is
+/// derived from the Project's own Pulse alone, never from a sibling's.
 ///
 /// It decides nothing: it only says which group's card explains the status, and the Pulse's head jumps there.
 struct PulseCondition {
@@ -48,9 +49,19 @@ struct PulseCondition {
             self.init(
                 "Act failed", failure, "xmark.octagon.fill", .error, (.warning, .info), .night, isWorking: isWorking
             )
+        } else if let night = pulse.night, night.endedWithoutShipping {
+            self.init(
+                "Night ended without shipping", night.verdictLine ?? "Cards were worked and nothing shipped",
+                "xmark.seal.fill", .warning, (.error, .attention), .night, isWorking: isWorking
+            )
+        } else if let night = pulse.night, night.state == .done, let problem = night.problemHeadline {
+            self.init(
+                "Night done with problems", problem, "exclamationmark.triangle.fill",
+                .warning, (.attention, .info), .night, isWorking: isWorking
+            )
         } else if !flags.isEmpty {
             self.init(
-                "Health flagged", flags.count == 1 ? "1 flag from yh doctor" : "\(flags.count) flags from yh doctor",
+                "Health flagged", flags.count == 1 ? "1 Health flag" : "\(flags.count) Health flags",
                 "stethoscope", .warning, (.attention, .accent), .health, isWorking: isWorking
             )
         } else if let night = pulse.night, night.state == .starved {
@@ -73,8 +84,10 @@ struct PulseCondition {
             )
         } else if let night = pulse.night, night.state == .done {
             let started = night.startedAt.formatted(date: .omitted, time: .shortened)
+            let rehearsal = night.mode == .rehearsal
             self.init(
-                "Night done", night.verdictLine ?? "Started \(started)", "checkmark.seal.fill",
+                rehearsal ? "Rehearsal Night done" : "Night done", night.verdictLine ?? "Started \(started)",
+                rehearsal ? "theatermasks.fill" : "checkmark.seal.fill",
                 .info, (.success, .accent), .night, isWorking: false
             )
         } else {

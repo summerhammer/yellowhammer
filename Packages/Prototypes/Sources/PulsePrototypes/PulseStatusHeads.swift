@@ -30,8 +30,8 @@ extension EnvironmentValues {
 // MARK: - Condition
 
 /// The one thing to know about the Project right now, loudest first: Waiting on You, then Blocked Cards,
-/// then a failed Act, Health flags and a starved Night, then working, then a running or done Night, then
-/// idle. It is derived from the Project's own Pulse alone.
+/// then a failed Act, a Night that ended without shipping, a done Night with a problem, Health flags and a
+/// starved Night, then working, then a running or done Night (a rehearsal says so), then idle. It is derived from the Project's own Pulse alone.
 struct PulseCondition {
     let title: String
     let line: String
@@ -64,9 +64,11 @@ struct PulseCondition {
             self.init(
                 "Act failed", failure, "xmark.octagon.fill", palette.blocked, [palette.health, palette.night], .night
             )
+        } else if let night = pulse.night, let problem = Self.nightProblem(night, palette: palette) {
+            self = problem
         } else if !flags.isEmpty {
             self.init(
-                "Health flagged", flags.count == 1 ? "1 flag from yh doctor" : "\(flags.count) flags from yh doctor",
+                "Health flagged", flags.count == 1 ? "1 Health flag" : "\(flags.count) Health flags",
                 "stethoscope", palette.health, [palette.needsYou, palette.accent], .health
             )
         } else if let night = pulse.night, night.state == .starved {
@@ -88,13 +90,36 @@ struct PulseCondition {
                 palette.night, [palette.working, palette.accent], .now
             )
         } else if let night = pulse.night, night.state == .done {
-            self.init(
-                "Night done", night.verdictLine ?? "Started \(PulseFormat.time(night.startedAt))",
-                "checkmark.seal.fill", palette.night, [palette.landed, palette.accent], .night
-            )
+            self = Self.nightDone(night, palette: palette)
         } else {
             self.init("Idle", PulseFormat.nowLine(pulse.now), "moon.fill", .gray, [palette.night, .gray], .now)
         }
+    }
+
+    /// A Night that ended without shipping, or one done with a recorded problem; nil for any other Night.
+    private static func nightProblem(_ night: NightPulse, palette: PulsePalette) -> PulseCondition? {
+        if night.endedWithoutShipping {
+            return PulseCondition(
+                "Night ended without shipping", night.verdictLine ?? "Cards were worked and nothing shipped",
+                "xmark.seal.fill", palette.health, [palette.blocked, palette.needsYou], .night
+            )
+        }
+        guard night.state == .done, let problem = night.problemHeadline else { return nil }
+        return PulseCondition(
+            "Night done with problems", problem, "exclamationmark.triangle.fill",
+            palette.health, [palette.needsYou, palette.night], .night
+        )
+    }
+
+    /// A done Night with no problem; a rehearsal Night says so.
+    private static func nightDone(_ night: NightPulse, palette: PulsePalette) -> PulseCondition {
+        let rehearsal = night.mode == .rehearsal
+        return PulseCondition(
+            rehearsal ? "Rehearsal Night done" : "Night done",
+            night.verdictLine ?? "Started \(PulseFormat.time(night.startedAt))",
+            rehearsal ? "theatermasks.fill" : "checkmark.seal.fill",
+            palette.night, [palette.landed, palette.accent], .night
+        )
     }
 
     private init(

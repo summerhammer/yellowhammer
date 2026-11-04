@@ -166,8 +166,9 @@ private struct NightDispositionCounts: View {
 // MARK: For display
 
 private extension NightPulse {
-    /// `verdict_line`, or a stated unknown while it is nil (only Engine's `NightSummary` computes it).
-    var displayVerdict: String { verdictLine ?? "verdict unknown" }
+    /// The Pulse's verdict line, or a stated absence while it is nil: a Night with Attempt events always has one,
+    /// so nil means the Journal recorded nothing to judge.
+    var displayVerdict: String { verdictLine ?? "No verdict yet — nothing recorded to judge" }
 }
 
 private extension FailureNotice {

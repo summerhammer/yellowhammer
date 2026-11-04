@@ -108,3 +108,15 @@ extension RepoLaneSnapshot {
 
     public var cardsHelp: String { "\(cardsDone) of \(cardsTotal) Cards in this Repo Lane are done." }
 }
+
+extension HealthFlag {
+    /// `3 failures` for an Act failure and the kinds that count failed Attempts or Checks, `3 times` for every other
+    /// kind; `1 failure`, `1 time` in the singular.
+    public var occurrenceText: String {
+        let noun: (singular: String, plural: String) = switch kind {
+        case .actFailure, .routeExcluded, .recurringFailureCause: ("failure", "failures")
+        default: ("time", "times")
+        }
+        return "\(occurrenceCount) \(occurrenceCount == 1 ? noun.singular : noun.plural)"
+    }
+}

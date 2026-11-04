@@ -10,8 +10,11 @@ public struct NightPulse: Equatable, Sendable {
     public var id: Int64
     public var state: NightPulseState
     public var startedAt: Date
-    /// A Journal fact, never the engine's `verdict_line`: this Night's returned (or fully verified) Feature, then the
-    /// failed Act run count, joined by " · "; nil when neither applies. The full Night Summary lives in Engine.
+    /// A Journal fact, never the engine's `verdict_line`: this Night's returned (or fully verified) Feature, open
+    /// authoring decisions, what the Night's Attempts did (nothing shipped, rounds-exhausted or hard-failed Attempts,
+    /// a Check that stayed red, a CLI's usage limit; a rehearsal Night says so), then the failed Act run count,
+    /// joined by " · ". A Night with Attempt events and no other fact says how many Attempts ended on how many Cards.
+    /// Nil only when nothing applies. The full Night Summary lives in Engine.
     public var verdictLine: String?
     /// Cards counted by disposition, in display order; zero counts are omitted.
     public var cardsByDisposition: [DispositionCount]
@@ -26,6 +29,15 @@ public struct NightPulse: Equatable, Sendable {
     public var failureNotices: [FailureNotice]
     /// The Night's author firings that authored nothing because the Unmerged Feature Stack was full; nil when none.
     public var stackFullSkip: StackFullSkip?
+    /// Whether the Night ran for real or as a rehearsal.
+    public var mode: NightMode
+    /// The Night is closed, was real, worked Cards, and delivered nothing: no Cycle landed, no pull request opened
+    /// and no Card reached Done. A rehearsal Night is never this.
+    public var endedWithoutShipping: Bool
+    /// The Sidebar mark's text when no Act failed: "Night ended without shipping" (with the first Card problem), else
+    /// the first Card that rounds-exhausted or hard-failed, else the first Health flag the Night's events raise. A
+    /// usage limit alone sets none. Nil when the Night has no problem.
+    public var problemHeadline: String?
 
     public init(
         id: Int64,
@@ -37,7 +49,10 @@ public struct NightPulse: Equatable, Sendable {
         nightCard: LinearIssueLink? = nil,
         firstFailureHeadline: String? = nil,
         failureNotices: [FailureNotice] = [],
-        stackFullSkip: StackFullSkip? = nil
+        stackFullSkip: StackFullSkip? = nil,
+        mode: NightMode = .real,
+        endedWithoutShipping: Bool = false,
+        problemHeadline: String? = nil
     ) {
         self.id = id
         self.state = state
@@ -49,6 +64,9 @@ public struct NightPulse: Equatable, Sendable {
         self.firstFailureHeadline = firstFailureHeadline
         self.failureNotices = failureNotices
         self.stackFullSkip = stackFullSkip
+        self.mode = mode
+        self.endedWithoutShipping = endedWithoutShipping
+        self.problemHeadline = problemHeadline
     }
 }
 
@@ -168,7 +186,9 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         switch kind {
         case .staleOperatorIdentity, .appInstallationRevoked, .boardProvisioningFailure: .linearWorkspaces
         case .codeHostingConnectionRefused: .codeHosting
-        case .probeFailure, .actFailure, .undeliveredBoardWrites: .settings
+        case .probeFailure, .actFailure, .undeliveredBoardWrites, .routeExcluded, .usageLimited,
+             .recurringFailureCause, .commitTrailersUnread, .leftoverProcesses, .managedBlockOverBudget,
+             .expiredCardLeasesSwept: .settings
         }
     }
 }
@@ -181,4 +201,12 @@ public enum HealthFlagKind: String, CaseIterable, Sendable {
     case boardProvisioningFailure = "board provisioning failure"
     case actFailure = "Act failure"
     case undeliveredBoardWrites = "undelivered Board writes"
+    /// The Night's events: a Card's Attempts excluded a Route.
+    case routeExcluded = "Route excluded"
+    case usageLimited = "agent CLI usage limit"
+    case recurringFailureCause = "recurring failure cause"
+    case commitTrailersUnread = "commit trailers unread"
+    case leftoverProcesses = "leftover processes"
+    case managedBlockOverBudget = "managed block over budget"
+    case expiredCardLeasesSwept = "expired Card Leases swept"
 }
