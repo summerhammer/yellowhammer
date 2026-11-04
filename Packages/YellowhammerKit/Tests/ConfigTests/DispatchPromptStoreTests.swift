@@ -1,4 +1,4 @@
-import Config
+@testable import Config
 import Darwin
 import Domain
 import Foundation
@@ -375,5 +375,47 @@ struct DispatchPromptStoreTests {
         #expect(throws: DispatchPromptStoreError.self) {
             try store.removeAll(projectID: "../sneaky")
         }
+    }
+
+    @Test("ensureRestrictedDirectoryTree succeeds and returns leaf directory")
+    func ensureRestrictedDirectoryTreeSuccess() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = DispatchPromptStore(rootDirectory: root)
+        let machineResult = store.ensureRestrictedDirectoryTree(for: .machine)
+        guard case .success(let machineLeaf) = machineResult else {
+            Issue.record("expected success for machine scope, got \(machineResult)")
+            return
+        }
+        #expect(machineLeaf == root.appending(components: "machine", directoryHint: .isDirectory))
+
+        guard let projectID = ProjectID(rawValue: "proj-test") else {
+            Issue.record("failed to construct ProjectID")
+            return
+        }
+        let projectResult = store.ensureRestrictedDirectoryTree(for: .project(projectID))
+        guard case .success(let projectLeaf) = projectResult else {
+            Issue.record("expected success for project scope, got \(projectResult)")
+            return
+        }
+        let expectedProjectLeaf = root.appending(components: "projects", "proj-test", directoryHint: .isDirectory)
+        #expect(projectLeaf == expectedProjectLeaf)
+    }
+
+    @Test("ensureRestrictedDirectoryTree returns failure when root is not a directory")
+    func ensureRestrictedDirectoryTreeFailsWhenRootIsNotDirectory() throws {
+        let tempDir = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let regularFile = tempDir.appending(components: "file.txt", directoryHint: .notDirectory)
+        try Data("content".utf8).write(to: regularFile)
+
+        let store = DispatchPromptStore(rootDirectory: regularFile)
+        let result = store.ensureRestrictedDirectoryTree(for: .machine)
+        guard case .failure(let error) = result else {
+            Issue.record("expected failure when root is a file, got \(result)")
+            return
+        }
+        #expect(error.message.contains("not a directory"))
     }
 }

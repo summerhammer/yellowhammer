@@ -172,18 +172,22 @@ extension DispatchPromptStore {
 
     /// Verifies and establishes mode 0700 current-user ownership on the directory hierarchy.
     func ensureRestrictedDirectoryTree(for scope: DispatchPromptScope) -> Result<URL, RestrictionError> {
-        let directoriesResult = resolveScopeDirectories(for: scope)
-        guard case .success(let directories) = directoriesResult else {
-            return directoriesResult.map { $0.last! }
-        }
-
-        for dir in directories {
-            if case .failure(let error) = ensureSingleRestrictedDirectory(at: dir) {
-                return .failure(error)
+        switch resolveScopeDirectories(for: scope) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let directories):
+            guard let leaf = directories.last else {
+                return .failure(RestrictionError(message: "no directory resolved for \(scope)"))
             }
-        }
 
-        return .success(directories.last!)
+            for dir in directories {
+                if case .failure(let error) = ensureSingleRestrictedDirectory(at: dir) {
+                    return .failure(error)
+                }
+            }
+
+            return .success(leaf)
+        }
     }
 
     private func resolveScopeDirectories(
