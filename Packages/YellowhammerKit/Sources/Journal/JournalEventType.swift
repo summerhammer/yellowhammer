@@ -97,6 +97,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case routePreflightPromptCaptureRequested = "RoutePreflightPromptCaptureRequested"
     case cardCommitTrailerMissing = "CardCommitTrailerMissing"
     case cardCommitTrailersUnread = "CardCommitTrailersUnread"
+    case cardReportedCommitUnresolved = "CardReportedCommitUnresolved"
     case leftoverProcessRecorded = "LeftoverProcessRecorded"
     case featureSelected = "FeatureSelected"
     case featureAuthoringHalted = "FeatureAuthoringHalted"

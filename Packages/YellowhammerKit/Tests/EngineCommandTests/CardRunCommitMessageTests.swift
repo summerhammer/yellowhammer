@@ -271,17 +271,63 @@ struct CardRunCommitMessageTests {
         #expect(try world.card("BACK-1").state == .done)
     }
 
-    @Test("A reported commit git cannot read is recorded as unread, and the Card's outcome is unchanged")
-    func unreadableCommitIsRecordedAsUnread() async throws {
-        let repo = GateGitFixture(name: "cardrun-trailer-unread-\(UUID().uuidString)")
+    @Test("A reported commit the Worktree does not have is replaced by HEAD and recorded (#727)")
+    func unresolvableReportedCommitIsReplacedByHead() async throws {
+        let repo = GateGitFixture(name: "cardrun-trailer-unresolved-\(UUID().uuidString)")
         await repo.initRepo()
         let base = try await repo.commit(filename: "a.txt", message: "initial")
+        let bare = try await repo.commit(filename: "c.txt", message: "feat: bare")
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open(), worktreePath: { _ in repo.path })
         try await recordKnownGood(base, world: world)
-        let unknown = String(repeating: "0", count: 40)
-        let dispatch = StaticWorkerCommitDispatch(commit: unknown)
+        // As on the 2026-10-31 Night: the first 8 characters are the real commit's, the rest is not.
+        let reported = String(bare.prefix(8)) + String(repeating: bare.last == "0" ? "1" : "0", count: 32)
+        #expect(reported != bare)
 
+        let dispatch = StaticWorkerCommitDispatch(commit: reported)
+        try await run(makeRun(dispatch: dispatch), in: world, readiness: readiness([]))
+
+        let unresolved = try world.journal.events(ofType: .cardReportedCommitUnresolved).compactMap { record in
+            if case .cardReportedCommitUnresolved(_, _, _, let reported, let resolved) = record.event {
+                (reported, resolved)
+            } else { nil }
+        }
+        #expect(unresolved.count == 1)
+        #expect(unresolved.first?.0 == reported)
+        #expect(unresolved.first?.1 == bare)
+        #expect(try judgedCommits(world.journal) == [bare])
+        #expect(try missingTrailerCommits(world.journal) == [bare])
+        #expect(try world.journal.events(ofType: .cardCommitTrailersUnread).isEmpty)
+        #expect(try world.card("BACK-1").state == .done)
+        #expect(try world.attempts("BACK-1").flatMap(\.rounds).isEmpty)
+    }
+
+    @Test("A short reported sha is widened to the full commit and not recorded as unresolved")
+    func shortReportedCommitIsWidened() async throws {
+        let repo = GateGitFixture(name: "cardrun-trailer-short-\(UUID().uuidString)")
+        await repo.initRepo()
+        let base = try await repo.commit(filename: "a.txt", message: "initial")
+        let bare = try await repo.commit(filename: "c.txt", message: "feat: bare")
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open(), worktreePath: { _ in repo.path })
+        try await recordKnownGood(base, world: world)
+
+        let dispatch = StaticWorkerCommitDispatch(commit: String(bare.prefix(8)))
+        try await run(makeRun(dispatch: dispatch), in: world, readiness: readiness([]))
+
+        #expect(try world.journal.events(ofType: .cardReportedCommitUnresolved).isEmpty)
+        #expect(try judgedCommits(world.journal) == [bare])
+        #expect(try missingTrailerCommits(world.journal) == [bare])
+        #expect(try world.card("BACK-1").state == .done)
+    }
+
+    @Test("A report in a Worktree with no commit is kept as written and recorded as unread")
+    func reportInWorktreeWithoutCommitIsRecordedAsUnread() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let unknown = String(repeating: "0", count: 40)
+
+        let dispatch = StaticWorkerCommitDispatch(commit: unknown)
         try await run(makeRun(dispatch: dispatch), in: world, readiness: readiness([]))
 
         let unread = try world.journal.events(ofType: .cardCommitTrailersUnread).compactMap { record -> String? in
@@ -290,9 +336,16 @@ struct CardRunCommitMessageTests {
             return commit
         }
         #expect(unread == [unknown])
+        #expect(try world.journal.events(ofType: .cardReportedCommitUnresolved).isEmpty)
         #expect(try missingTrailerCommits(world.journal).isEmpty)
         #expect(try world.card("BACK-1").state == .done)
         #expect(try world.attempts("BACK-1").flatMap(\.rounds).isEmpty)
+    }
+
+    private func judgedCommits(_ journal: JournalStore) throws -> [String?] {
+        try journal.events(ofType: .checkRan).compactMap { record in
+            if case .checkRan(let payload) = record.event { payload.judgedCommit } else { nil }
+        }
     }
 
     private func recordKnownGood(_ commit: String, world: CardRunWorld) async throws {

@@ -388,6 +388,13 @@ public enum JournalEvent: Equatable, Sendable {
     /// does not exist), so their trailers went unchecked. Recorded instead of failing the Card: it never
     /// changes the Card's outcome, never creates a Round, and is not shown in the Roll-up (OQ102).
     case cardCommitTrailersUnread(cardID: Int64, issueID: String, attemptID: Int64, commit: String, reason: String)
+    /// The commit the worker reported in its result file does not resolve to a commit in the Worktree (issue
+    /// #727: a model-authored hash that shares a prefix with the real one), so the engine used the
+    /// Worktree's HEAD, `resolved`, in its place for the trailer read, the Check's `judged_commit` and the
+    /// reviewer. Recorded only: it never changes the Card's outcome and never creates a Round.
+    case cardReportedCommitUnresolved(
+        cardID: Int64, issueID: String, attemptID: Int64, reported: String, resolved: String
+    )
     /// One process a Card run's leftover accounting named (Normal-Exit Sweep Ruling, issue #175):
     /// swept by the agent CLI process lifecycle's own identity sweep, killed by the attributed
     /// Worktree fence, or found holding the Worktree but left running because it could not be

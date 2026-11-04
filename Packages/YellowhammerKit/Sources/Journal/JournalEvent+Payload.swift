@@ -421,6 +421,11 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "commit": commit, "reason": reason
             ]
+        case .cardReportedCommitUnresolved(let cardID, let issueID, let attemptID, let reported, let resolved):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                "reported": reported, "resolved": resolved
+            ]
         case .leftoverProcessRecorded(
             let cardID, let issueID, let attemptID, let pass, let pid, let commandName, let disposition, let cwd
         ):
