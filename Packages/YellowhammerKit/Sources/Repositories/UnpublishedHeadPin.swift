@@ -49,6 +49,7 @@ public enum UnpublishedBranchPinResult: Equatable, Sendable {
 /// The pin is `refs/yellowhammer/unpublished/<branch>`, outside `refs/heads/`, which Orca ADE does not delete when
 /// it removes a Worktree (loop-state/reconcile-worktrees-at-act-start, `#ghost-worktree-purge`). A Worktree shares
 /// the main clone's ref store, so the pin written from the Worktree is in the main clone. It is never pushed.
+/// An existing pin advances only to a descendant, preserving the previously pinned commits.
 /// Local git, not behind a Port.
 public struct UnpublishedHeadPin: Sendable {
     public let git: GitRunner
@@ -114,15 +115,14 @@ public struct UnpublishedHeadPin: Sendable {
             head = moved
         }
         let ref = Self.ref(for: branch)
-        let existing = await git.run(["-C", worktreePath, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"])
-        if existing.isSuccess, existing.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == head {
+        switch await writePin(ref: ref, commit: head, gitDirectory: worktreePath) {
+        case .written:
+            return .pinned(ref: ref, relation: relation)
+        case .alreadyPinned:
             return .alreadyPinned(ref: ref)
+        case .failed(let reason):
+            return .failed(reason: reason)
         }
-        let written = await git.run(["-C", worktreePath, "update-ref", ref, head])
-        guard written.isSuccess else {
-            return .failed(reason: written.failureReason(fallback: "git update-ref exited \(written.exitCode)"))
-        }
-        return .pinned(ref: ref, relation: relation)
     }
 
     /// Pins `branch` in the main repository at `repositoryPath` at ``ref(for:)`` when it is not `recordedCommit`.
@@ -156,16 +156,47 @@ public struct UnpublishedHeadPin: Sendable {
         }
 
         let ref = Self.ref(for: branch)
-        let existing = await git.run([
-            "-C", repositoryPath, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"
-        ])
-        if existing.isSuccess, existing.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == branchCommit {
+        switch await writePin(ref: ref, commit: branchCommit, gitDirectory: repositoryPath) {
+        case .written:
+            return .pinned(ref: ref, relation: relation)
+        case .alreadyPinned:
             return .alreadyPinned(ref: ref)
+        case .failed(let reason):
+            return .failed(reason: reason)
         }
-        let written = await git.run(["-C", repositoryPath, "update-ref", ref, branchCommit])
+    }
+
+    private enum PinWriteResult {
+        case written
+        case alreadyPinned
+        case failed(reason: String)
+    }
+
+    /// A pin may advance only when the new commit preserves everything reachable from the old one.
+    /// The old value also guards against a ref moving between the read and the write.
+    private func writePin(ref: String, commit: String, gitDirectory: String) async -> PinWriteResult {
+        let existing = await git.run([
+            "-C", gitDirectory, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"
+        ])
+        let old = existing.isSuccess ? existing.stdout.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        if old == commit { return .alreadyPinned }
+        if !old.isEmpty {
+            let ancestry = await git.run(["-C", gitDirectory, "merge-base", "--is-ancestor", old, commit])
+            switch ancestry.exitCode {
+            case 0:
+                break
+            case 1:
+                return .failed(reason: "already pinned at \(old), which is not an ancestor of \(commit)")
+            default:
+                return .failed(
+                    reason: ancestry.failureReason(fallback: "git merge-base exited \(ancestry.exitCode)")
+                )
+            }
+        }
+        let written = await git.run(["-C", gitDirectory, "update-ref", ref, commit, old])
         guard written.isSuccess else {
             return .failed(reason: written.failureReason(fallback: "git update-ref exited \(written.exitCode)"))
         }
-        return .pinned(ref: ref, relation: relation)
+        return .written
     }
 }
