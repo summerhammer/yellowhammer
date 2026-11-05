@@ -119,18 +119,9 @@ enum WaitingOnYouReplies {
     private static func applyOverreach(
         reply: CardReplyRecord, card: CardRecord, context: ActContext, unansweredNightsMax: Int
     ) async throws {
-        let events = try context.journal.events(ofType: .protectedPathRefused).filter {
-            if case .protectedPathRefused(let cardID, _, _, _, _) = $0.event { return cardID == card.id }
-            return false
-        }
-        let latest = events.last
-        let overlaps = events.filter {
-            $0.runID == latest?.runID && $0.nightID == latest?.nightID && $0.occurredAt == latest?.occurredAt
-        }.compactMap {
-            if case .protectedPathRefused(_, _, let repository, let declared, let protectedPath) = $0.event {
-                return "- `\(declared)` overlaps `\(protectedPath)` in `\(repository)`."
-            }
-            return nil
+        let refusals = try ReadinessCheck.lastRecordedOverlaps(cardID: card.id, journal: context.journal)
+        let overlaps = refusals.map {
+            "- `\($0.declaredPath)` overlaps `\($0.protectedPath)` in `\($0.repository)`."
         }
         let body = WaitingOnYouAcknowledgement.overreach(
             overlaps: overlaps, nightsRemaining: max(0, unansweredNightsMax - card.unansweredNights)

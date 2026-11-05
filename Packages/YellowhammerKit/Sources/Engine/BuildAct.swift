@@ -197,6 +197,12 @@ public struct BuildAct: Sendable {
         feature: FeatureRecord, cycleID: Int64, reconciliation: WorktreeReconciliation,
         deltaRead: DeltaReadReport?, context: ActContext
     ) async throws {
+        let buildContext = try BuildActContext.dispatching(
+            feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: deltaRead, act: context
+        )
+        if let readiness {
+            try await readiness.recheckOverreach(context: buildContext)
+        }
         let cards = try context.journal.cards(cycleID: cycleID)
         let lanes = RepoLane.derive(
             from: cards, adoptedFrom: try context.journal.adoptionOrigins(featureIssueID: feature.issueID)
@@ -204,10 +210,6 @@ public struct BuildAct: Sendable {
         try context.journal.append(
             .repoLanesDerived(cycleID: cycleID, lanes: lanes.map(\.repository)),
             act: context.act, runID: context.runID, nightID: context.night.id
-        )
-
-        let buildContext = try BuildActContext.dispatching(
-            feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: deltaRead, act: context
         )
 
         // The pre-pass: a collision throws out of here before any lane starts.

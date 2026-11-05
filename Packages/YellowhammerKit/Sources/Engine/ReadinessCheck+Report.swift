@@ -95,7 +95,7 @@ extension ReadinessCheck {
         }
     }
 
-    private func refusalCommentBody(overlaps: [ProtectedPathRefusal]) -> String {
+    func refusalCommentBody(overlaps: [ProtectedPathRefusal]) -> String {
         let paths = overlaps.map {
             "- `\($0.declaredPath)` overlaps `\($0.protectedPath)` in repository `\($0.repository)`."
         }.joined(separator: "\n")

@@ -83,15 +83,17 @@ func makeReadinessScenario() async throws -> ReadinessScenario {
 /// (for reconciliation scenarios). Returns after the invocation completes.
 func runReadinessAct(
     _ scenario: ReadinessScenario, readiness: ReadinessCheck, updatedObjects: [BoardObject] = [],
+    comments: [BoardComment] = [], nightStart: NightStart = readinessNightStart,
+    trigger: ActTrigger = .scheduled,
     repositories: ProjectRepositories = readinessRepositories
 ) async throws {
-    let reading = FakeReadingBoard([page(objects: updatedObjects)])
+    let reading = FakeReadingBoard([page(objects: updatedObjects, comments: comments)])
     let board = ActBoard(
         reading: reading, writing: scenario.boards.writing, provisioning: scenario.boards.provisioning
     )
     let invocation = EngineInvocation(
-        act: .build, mode: .rehearsal, nightStart: readinessNightStart, journal: scenario.journal,
-        trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
+        act: .build, mode: .rehearsal, nightStart: nightStart, journal: scenario.journal,
+        trigger: trigger, runID: RunID(), board: board, repositories: repositories,
         work: BuildAct(cardRunner: scenario.recorder, readiness: readiness).work
     )
     try await invocation.run()
