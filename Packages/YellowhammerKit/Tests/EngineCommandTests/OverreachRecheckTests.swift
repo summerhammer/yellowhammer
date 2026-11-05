@@ -115,6 +115,34 @@ func stillOverlappingSetChangedPostsCommentAndDoesNotResetClock() async throws {
     #expect(scenario.recorder.seen.isEmpty)
 }
 
+@Test("Still overlapping with an overlap set seen before posts a new comment naming the current overlaps")
+func stillOverlappingSetSeenBeforePostsComment() async throws {
+    let scenario = try await makeReadinessScenario()
+    defer { cleanup(scenario) }
+    try makeReadyCardOne(scenario)
+    try scenario.journal.recordDeclaredScope(cardID: scenario.cardOne, paths: ["Secrets/a.env"])
+
+    // Act 1: refused under overreach with overlaps A.
+    try await runReadinessAct(scenario, readiness: makeReadinessCheck(), repositories: protectedRepositories)
+
+    // Acts 2-4: the overlaps go B, A, B; each change is recorded and gets its own reason comment.
+    for path in ["Secrets/b.env", "Secrets/a.env", "Secrets/b.env"] {
+        try scenario.journal.recordDeclaredScope(cardID: scenario.cardOne, paths: [path])
+        try await runReadinessAct(
+            scenario, readiness: makeReadinessCheck(), trigger: .forced, repositories: protectedRepositories
+        )
+    }
+
+    #expect(try scenario.journal.events(ofType: .protectedPathRefused).count == 4)
+    let comments = await scenario.boards.writing.comments.filter { $0.issue.rawValue == scenario.issueOne }
+    #expect(comments.count == 4)
+    #expect(comments.last?.body.contains("Secrets/b.env") == true)
+    #expect(comments.last?.body.contains("Secrets/a.env") == false)
+    let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
+    #expect(card.state == .waitingOnYou)
+    #expect(card.waitingReason == .overreach)
+}
+
 @Test("Still overlapping with unchanged overlap set writes nothing")
 func stillOverlappingSetUnchangedWritesNothing() async throws {
     let scenario = try await makeReadinessScenario()

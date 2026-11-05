@@ -66,13 +66,11 @@ extension ReadinessCheck {
 
         let lastRecorded = try Self.lastRecordedOverlaps(cardID: card.id, journal: journal)
         if Set(matches) != Set(lastRecorded) {
-            try recordOverlaps(matches, card: card, context: context)
-            if let outbox = context.act.outbox {
-                let sortedLines = matches.map {
-                    "- `\($0.declaredPath)` overlaps `\($0.protectedPath)` in repository `\($0.repository)`."
-                }.sorted()
-                let sha = ManagedBlockFence.sha256(sortedLines.joined(separator: "\n"))
-                let key = "protected-path:\(card.issueID):\(card.stateVersion):\(sha)"
+            let recordID = try recordOverlaps(matches, card: card, context: context)
+            if let outbox = context.act.outbox, let recordID {
+                // Keyed on this record of the overlaps, not on the overlap set: a Card that still overlaps is
+                // never transitioned, so a set seen before would repeat an earlier key and post nothing.
+                let key = "protected-path:\(card.issueID):overlaps:\(recordID)"
                 let body = refusalCommentBody(overlaps: matches)
                 let write = BoardWrite.createComment(issue: BoardObjectID(rawValue: card.issueID), body: body)
                 _ = try await outbox.post(OutboxWrite(key: key, write: write, cardID: card.id))
