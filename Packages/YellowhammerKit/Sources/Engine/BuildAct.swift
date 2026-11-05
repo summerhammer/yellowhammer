@@ -197,7 +197,7 @@ public struct BuildAct: Sendable {
         feature: FeatureRecord, cycleID: Int64, reconciliation: WorktreeReconciliation,
         deltaRead: DeltaReadReport?, context: ActContext
     ) async throws {
-        let buildContext = try BuildActContext.dispatching(
+        let buildContext = try await BuildActContext.dispatching(
             feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: deltaRead, act: context
         )
         if let readiness {

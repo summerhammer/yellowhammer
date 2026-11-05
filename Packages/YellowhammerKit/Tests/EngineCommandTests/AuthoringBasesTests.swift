@@ -188,7 +188,7 @@ struct AuthoringBasesTests {
         )
         try journal.recordFeatureBases(featureID: f2, bases: stacked.records)
 
-        let recorded = try AuthoringBases.fromRecord(journal: journal, featureID: f2, context: context)
+        let recorded = try await AuthoringBases.fromRecord(journal: journal, featureID: f2, context: context)
 
         #expect(recorded.mainlines == stacked.mainlines)
         #expect(recorded.records == stacked.records)

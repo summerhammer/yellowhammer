@@ -21,9 +21,11 @@ public struct BuildActContext: Sendable {
     public let reconciliation: WorktreeReconciliation
     public let deltaRead: DeltaReadReport?
     /// What dispatch-time readers resolve a Card's Transcription Blocks and Definition-of-Done citations against
-    /// (roadmap P23.3): `effective_base(R)` as the Feature's `feature_base` record has it
-    /// (``AuthoringBases/fromRecord(journal:featureID:context:)``), because the Brief and the Readiness Check were
-    /// authored on that base. Only ``ReadinessCheck`` reads it; `act.mainlines` stays the real mainline for
+    /// (roadmap P23.3): `effective_base(R)` as the Feature's `feature_base` record has it for the repositories it
+    /// touches, and as it stands at dispatch for every other working repository
+    /// (``AuthoringBases/fromRecord(journal:featureID:context:git:)``; issue #731), because the Brief and the
+    /// Readiness Check were authored on that base and a Transcription Block of an untouched repository was recorded
+    /// at its pin, not at the real mainline. Only ``ReadinessCheck`` reads it; `act.mainlines` stays the real mainline for
     /// everything else in the build Act (Worktree reconciliation, banked-reply stamps, fetch-failure reporting).
     public let recordedBaseMainlines: ResolvedMainlines
 
