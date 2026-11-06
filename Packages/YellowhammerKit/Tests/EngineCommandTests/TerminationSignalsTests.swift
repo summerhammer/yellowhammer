@@ -262,7 +262,9 @@ extension TerminationSignalsTests {
 
     /// The stub CLI's files, plus assertion that it (and its escaped child) started.
     private static func awaitStubReady(_ stub: EscapingStub) async throws {
-        let sawReady = await Self.waitForFile(stub.readyFile)
+        // The build Act runs its whole pre-dispatch pass before the stub starts; under a whole-package
+        // run that alone has taken over 10 s. The wait returns as soon as the file appears.
+        let sawReady = await Self.waitForFile(stub.readyFile, timeout: .seconds(60))
         #expect(sawReady, "the stub CLI never signalled readiness")
         let sawLeaderPID = await Self.waitForFile(stub.leaderPIDFile)
         #expect(sawLeaderPID, "the stub CLI never recorded its own pid")

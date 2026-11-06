@@ -79,23 +79,29 @@ extension ReadinessCheck {
     }
 
     /// Records overlap even when Divergence takes precedence; no state or clock changes here.
+    ///
+    /// Returns the Journal row id of the first event recorded, which names this one record of the overlaps.
+    @discardableResult
     func recordOverlaps(
         _ matches: [ProtectedPathRefusal], card: CardRecord, context: BuildActContext
-    ) throws {
+    ) throws -> Int64? {
         let journal = context.act.journal
         let now = Date()
+        var firstEventID: Int64?
         for match in matches {
-            try journal.append(
+            let eventID = try journal.append(
                 .protectedPathRefused(
                     cardID: card.id, issueID: card.issueID, repository: match.repository,
                     declaredPath: match.declaredPath, protectedPath: match.protectedPath
                 ),
                 act: context.act.act, runID: context.act.runID, nightID: context.act.night.id, now: now
             )
+            if firstEventID == nil { firstEventID = eventID }
         }
+        return firstEventID
     }
 
-    private func refusalCommentBody(overlaps: [ProtectedPathRefusal]) -> String {
+    func refusalCommentBody(overlaps: [ProtectedPathRefusal]) -> String {
         let paths = overlaps.map {
             "- `\($0.declaredPath)` overlaps `\($0.protectedPath)` in repository `\($0.repository)`."
         }.joined(separator: "\n")

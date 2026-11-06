@@ -10,14 +10,14 @@ import Testing
 // configured protected path (bounds/refuse-protected-paths-before-dispatch). Fixture helpers are shared
 // with ReadinessCheckTests.swift.
 
-private let protectedBackendRepo = Repo(
+let protectedBackendRepo = Repo(
     name: "backend", path: "/nonexistent/backend", role: .backend, protectedPaths: ["Secrets/"]
 )
-private let protectedRepositories = ProjectRepositories(workingRepos: [protectedBackendRepo])
+let protectedRepositories = ProjectRepositories(workingRepos: [protectedBackendRepo])
 
 /// Card one has a resolvable brief and clause (as `staleBlockDiverges` does), so readiness would
 /// otherwise pass — isolating the refusal as the only reason it does not dispatch.
-private func makeReadyCardOne(_ scenario: ReadinessScenario) throws {
+func makeReadyCardOne(_ scenario: ReadinessScenario) throws {
     try scenario.journal.recordArchitecturalBrief(cardID: scenario.cardOne, prose: "A brief.")
     try scenario.journal.insertClause(JournalStore.NewClause(
         cid: "c1", issueID: scenario.issueOne, level: "card", text: "A clause",
@@ -25,7 +25,7 @@ private func makeReadyCardOne(_ scenario: ReadinessScenario) throws {
     ))
 }
 
-private func makeReadinessCheck() -> ReadinessCheck {
+func makeReadinessCheck() -> ReadinessCheck {
     ReadinessCheck(
         provenance: FakeProvenanceTester(), citations: FakeCitationResolver(resolvable: ["resolvable/story"])
     )

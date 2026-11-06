@@ -144,7 +144,7 @@ public struct DivergenceFinding: Equatable, Sendable {
 ///
 /// This is a scoping check, not a sandbox: the refusal happens before dispatch, and nothing prevents a
 /// dispatched agent from touching a protected path during its run.
-public struct ProtectedPathRefusal: Equatable, Sendable {
+public struct ProtectedPathRefusal: Equatable, Hashable, Sendable {
     public var repository: String
     public var declaredPath: String
     public var protectedPath: String
@@ -277,7 +277,7 @@ public struct ReadinessCheck: Sendable {
     }
 
     /// Tests every declared path against this repository's configured Protected Paths.
-    private func protectedPathMatches(card: CardRecord, context: BuildActContext) throws -> [ProtectedPathRefusal] {
+    func protectedPathMatches(card: CardRecord, context: BuildActContext) throws -> [ProtectedPathRefusal] {
         let declaredScope = try context.act.journal.declaredScope(cardID: card.id)
         let protectedPaths = context.act.repositories?.workingRepo(named: card.repository)?.protectedPaths ?? []
         return declaredScope.flatMap { path in
