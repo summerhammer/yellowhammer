@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.35.0](https://github.com/summerhammer/yellowhammer/compare/v0.34.0...v0.35.0) (2026-11-06)
+
+
+### Features
+
+* **bounds:** Every build Act re-checks every Work Card Waiting on You under overreach, dispatching one that now clears and updating the reason on one that still overlaps (OQ89) ([#787](https://github.com/summerhammer/yellowhammer/issues/787)) ([8c7b48b](https://github.com/summerhammer/yellowhammer/commit/8c7b48bff29d8ad586023b3da9250e354a8ea671))
+
+
+### Bug Fixes
+
+* **app:** a decision-only Night never reads as one that shipped nothing ([ad45452](https://github.com/summerhammer/yellowhammer/commit/ad45452544f37a7cf52d0fd4c437941bed472195)), closes [#728](https://github.com/summerhammer/yellowhammer/issues/728)
+* **app:** read a Night that shipped nothing as a failure on the Pulse ([a7ed21a](https://github.com/summerhammer/yellowhammer/commit/a7ed21ac67e4a0dee08f596b7e84838180669ee1)), closes [#728](https://github.com/summerhammer/yellowhammer/issues/728)
+* **ci:** skip tracked files missing from the working tree on mtime restore ([102c58f](https://github.com/summerhammer/yellowhammer/commit/102c58f71ee9f3f6c1cc8f806895d93b9faf4029)), closes [#772](https://github.com/summerhammer/yellowhammer/issues/772)
+* **engine:** keep Worktrees held when pin Journal reads fail ([4daad26](https://github.com/summerhammer/yellowhammer/commit/4daad26fa4fbb187d92e74d77c9abfc24a26da0b)), closes [#769](https://github.com/summerhammer/yellowhammer/issues/769)
+* **engine:** name the indeterminate predecessor's cause per repository ([8c31c4c](https://github.com/summerhammer/yellowhammer/commit/8c31c4c9590a6410f9cbc833c8b348004efc5d43))
+* **engine:** read an untouched repository at its current effective base at dispatch ([7f350a5](https://github.com/summerhammer/yellowhammer/commit/7f350a5be075378bc758c935f3572e9752de9ac7)), closes [#731](https://github.com/summerhammer/yellowhammer/issues/731)
+* **engine:** resolve the worker-reported commit in the Worktree before using it ([9a5d09f](https://github.com/summerhammer/yellowhammer/commit/9a5d09f22a6236dcae1cd977ff2958eedfa85137)), closes [#727](https://github.com/summerhammer/yellowhammer/issues/727)
+* **repositories:** preserve earlier unpublished commit pins ([ae23535](https://github.com/summerhammer/yellowhammer/commit/ae23535841fe0bf13e7eb6efcb860c4f4367535b)), closes [#770](https://github.com/summerhammer/yellowhammer/issues/770)
+
 ## [0.34.0](https://github.com/summerhammer/yellowhammer/compare/v0.33.1...v0.34.0) (2026-11-03)
 
 
