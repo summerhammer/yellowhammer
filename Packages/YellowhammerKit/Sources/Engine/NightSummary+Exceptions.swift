@@ -153,7 +153,9 @@ extension NightSummary {
                 lines.append("Night `\(nightStart)` did not open: reported only, not spent against a Bound.")
             case .notificationDeliveryFailed(let notification, let reason):
                 lines.append(
-                    "Notification `\(notification)` delivery failed: \(reason). Fire-and-forget: never retried."
+                    "Notification `\(notification)` delivery failed: \(reason). "
+                        + "Not retried within the Act; a Linear-unreachable halted notice that did not "
+                        + "post is posted again by the next halted Act of the same outage."
                 )
             case .worktreeNameCollision(let repository, let requested, let reported):
                 lines.append(
