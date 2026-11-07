@@ -72,22 +72,22 @@ struct LoginShellPATHTests {
     func readTimeout() async throws {
         let fixture = try CLIDiscoveryFixture()
         defer { fixture.remove() }
-        let shell = try fixture.file("slow-sh", contents: "#!/bin/sh\nsleep 60\n")
+        let shell = try fixture.file("slow-sh", contents: "#!/bin/sh\nsleep 300\n")
         let started = ContinuousClock.now
         let result = await LoginShellPATH.read(
             shell: shell, timeout: .milliseconds(500), environment: ["PATH": "/bin:/usr/bin"]
         )
         #expect(result == .failed(.timedOut(.milliseconds(500))))
-        // Killed, not waited out. How soon `read` returns after its deadline is up to the concurrency pool: a busy
-        // CI runner took 17 s to resume it, so the bound is the shell's own run time, not a tight one.
-        #expect(ContinuousClock.now - started < .seconds(45))
+        // Killed, not waited out. How soon `read` returns after its deadline is up to the concurrency pool: busy
+        // CI runners took 17 s and then 47 s to resume it, so the bound only stays below the shell's own 300 s.
+        #expect(ContinuousClock.now - started < .seconds(240))
     }
 
     @Test("read kills the shell and returns when its task is cancelled")
     func readCancelled() async throws {
         let fixture = try CLIDiscoveryFixture()
         defer { fixture.remove() }
-        let shell = try fixture.file("slow-sh", contents: "#!/bin/sh\nsleep 60\n")
+        let shell = try fixture.file("slow-sh", contents: "#!/bin/sh\nsleep 300\n")
         let started = ContinuousClock.now
         let reading = Task {
             await LoginShellPATH.read(shell: shell, timeout: .seconds(60), environment: ["PATH": "/bin:/usr/bin"])
@@ -96,6 +96,6 @@ struct LoginShellPATHTests {
         reading.cancel()
         #expect(await reading.value == .failed(.cancelled))
         // Killed, not waited out, as in the timeout test.
-        #expect(ContinuousClock.now - started < .seconds(45))
+        #expect(ContinuousClock.now - started < .seconds(240))
     }
 }
