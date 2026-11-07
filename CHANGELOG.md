@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.0](https://github.com/summerhammer/yellowhammer/compare/v0.35.0...v0.36.0) (2026-11-07)
+
+
+### Features
+
+* **morning-report:** Re-post a Linear-unreachable halted notice that failed to post; reword the Night Summary line ([fd9d368](https://github.com/summerhammer/yellowhammer/commit/fd9d368caaf99f0e5bcc3af632be0d36b51c732c))
+
 ## [0.35.0](https://github.com/summerhammer/yellowhammer/compare/v0.34.0...v0.35.0) (2026-11-06)
 
 
