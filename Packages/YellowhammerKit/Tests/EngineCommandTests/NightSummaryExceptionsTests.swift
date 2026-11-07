@@ -345,13 +345,9 @@ struct NightSummaryExceptionsTests {
                 .rateBudgetExhausted(degradation: "reads only"), act: context.act, runID: context.runID,
                 nightID: context.night.id
             )
+            let acme = AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
             try journal.append(
-                .rateBudgetExhausted(
-                    degradation: "writes deferred",
-                    installation: AppInstallationLabel(
-                        name: "acme", workspace: BoardObjectID(rawValue: "workspace-1")
-                    )
-                ),
+                .rateBudgetExhausted(degradation: "writes deferred", installation: acme),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
             try journal.append(
@@ -378,7 +374,12 @@ struct NightSummaryExceptionsTests {
         })
         #expect(lines.contains { $0.contains("`backend`") && $0.contains("network") })
         #expect(lines.contains { $0.contains("2026-09-10") })
-        #expect(lines.contains { $0.contains("night_summary") && $0.contains("unreachable") })
+        #expect(lines.contains {
+            $0 == "Notification `night_summary` delivery failed: unreachable. Not retried within the Act; "
+                + "a Linear-unreachable halted notice that did not post is posted again by the next "
+                + "halted Act of the same outage."
+        })
+        #expect(!lines.contains { $0.contains("never retried") })
     }
 
     @Test("A failed tag fetch reads as an Exception that says the release gate stays closed")

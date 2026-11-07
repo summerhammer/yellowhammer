@@ -149,7 +149,8 @@ public enum JournalEvent: Equatable, Sendable {
     /// would be `length` long against the Board Connection's description `budget`, even in the most
     /// compacted rendering. Both are in the board's unit. The description was left untouched.
     case managedBlockOverBudget(issueID: String, length: Int, budget: Int)
-    /// Fire-and-forget: the failure is recorded, never acted on.
+    /// A local notification delivery failed. Not retried within the Act; a Linear-unreachable halted
+    /// notice that failed to post is posted again by the next halted Act of the same outage.
     case notificationDeliveryFailed(notification: String, reason: String)
     /// Orca ADE reported a branch for a requested Worktree that Yellowhammer does not accept; the build
     /// Act halted. `requested` is the branch Yellowhammer expected (the recorded Feature Branch when one is

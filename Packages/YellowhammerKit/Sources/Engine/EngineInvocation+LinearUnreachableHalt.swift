@@ -2,10 +2,10 @@ import Domain
 import Foundation
 import Journal
 
-/// A halt whose cause is Linear being unreachable pages the Operator only at the 2nd consecutive such halt
-/// of the Night, once per outage, and always on the Night-closing Act (Transient Board Failure Ruling
-/// 2026-10-09 items 9-15, K = 2). Every Act is a separate process, so the count is derived from the Journal
-/// at halt time: nothing is held in memory.
+/// A halt whose cause is Linear being unreachable pages the Operator starting at the 2nd consecutive
+/// such halt of the Night, once per outage (re-posting if a post fails), and always on the Night-closing
+/// Act (Transient Board Failure Ruling 2026-10-09 items 9-15, K = 2; morning-report/notify-the-operator-of-exceptions).
+/// Every Act is a separate process, so the count is derived from the Journal at halt time: nothing is held in memory.
 extension EngineInvocation {
     /// How many consecutive board-unreachable halts it takes to page the Operator (item 11).
     static let linearUnreachablePagingThreshold = 2
@@ -15,6 +15,9 @@ extension EngineInvocation {
         /// The consecutive board-unreachable halts of this Night including this Act's; nil when the
         /// Journal could not be read, in which case the Operator is paged rather than left unaware.
         var consecutive: Int?
+        /// Whether no earlier halted notice of this outage has posted successfully; true when no
+        /// notice has posted yet or when the Journal could not be read.
+        var noticeUnposted = true
     }
 
     /// What one Act did about Linear, as its Journal events record it.
@@ -29,7 +32,39 @@ extension EngineInvocation {
     func recordLinearUnreachableHalt(_ error: any Error, night: NightRecord) -> LinearUnreachableHalt? {
         guard error.isLinearUnreachable else { return nil }
         _ = try? journal.append(.linearUnreachableHalted, act: act, runID: runID, nightID: night.id)
-        return LinearUnreachableHalt(consecutive: consecutiveLinearUnreachableHalts(night: night))
+        return evaluateLinearUnreachableHalt(night: night)
+    }
+
+    /// Evaluates the consecutive board-unreachable halts and whether earlier eligible Acts of the current
+    /// outage failed to deliver their halted notice.
+    func evaluateLinearUnreachableHalt(night: NightRecord) -> LinearUnreachableHalt {
+        guard let outageRuns = currentOutageRunIDs(night: night) else {
+            return LinearUnreachableHalt(consecutive: nil, noticeUnposted: true)
+        }
+        let earlierThresholdRuns = outageRuns
+            .dropFirst(Self.linearUnreachablePagingThreshold - 1)
+            .filter { $0 != runID }
+        let noticeUnposted = allDeliveryFailed(for: Array(earlierThresholdRuns), night: night)
+        return LinearUnreachableHalt(consecutive: outageRuns.count, noticeUnposted: noticeUnposted)
+    }
+
+    /// Whether every earlier Act in `runs` recorded a `.notificationDeliveryFailed(notification: "halted", ...)`
+    /// event in this Night. True when `runs` is empty, or when the Journal cannot be read.
+    private func allDeliveryFailed(for runs: [RunID], night: NightRecord) -> Bool {
+        guard !runs.isEmpty else { return true }
+        guard let failureRecords = try? journal.events(ofType: .notificationDeliveryFailed) else {
+            return true
+        }
+        let failedRunIDs = Set(
+            failureRecords.filter { record in
+                guard record.nightID == night.id, record.runID != nil else { return false }
+                if case .notificationDeliveryFailed(let notification, _) = record.event {
+                    return notification == "halted"
+                }
+                return false
+            }.compactMap(\.runID)
+        )
+        return runs.allSatisfy { failedRunIDs.contains($0) }
     }
 
     /// Walks this Night's Acts in order (items 9-10): an Act that ends in a board-unreachable halt
@@ -38,20 +73,25 @@ extension EngineInvocation {
     /// authorization halt (item 14). Several failed requests in one Act count once, because an Act is one run.
     /// Reads only this Night's events.
     func consecutiveLinearUnreachableHalts(night: NightRecord) -> Int? {
+        currentOutageRunIDs(night: night)?.count
+    }
+
+    /// The run IDs of the trailing run of consecutive board-unreachable halts in this Night.
+    func currentOutageRunIDs(night: NightRecord) -> [RunID]? {
         guard let outcomes = try? actOutcomes(night: night) else { return nil }
-        var consecutive = 0
-        for outcome in outcomes where !outcome.authorizationHalt {
+        var outageRuns: [RunID] = []
+        for (runID, outcome) in outcomes where !outcome.authorizationHalt {
             if outcome.unreachableHalt {
-                consecutive += 1
+                outageRuns.append(runID)
             } else if outcome.reached {
-                consecutive = 0
+                outageRuns.removeAll()
             }
         }
-        return consecutive
+        return outageRuns
     }
 
     /// What each Act of this Night did about Linear, in the order the Acts first recorded it.
-    private func actOutcomes(night: NightRecord) throws -> [ActLinearOutcome] {
+    private func actOutcomes(night: NightRecord) throws -> [(runID: RunID, outcome: ActLinearOutcome)] {
         var records: [JournalEventRecord] = []
         for type in [JournalEventType.linearReached, .linearUnreachableHalted, .linearAuthorizationHalted] {
             records += try journal.events(ofType: type).filter { $0.nightID == night.id && $0.runID != nil }
@@ -70,7 +110,7 @@ extension EngineInvocation {
             default: break
             }
         }
-        return order.compactMap { outcomes[$0] }
+        return order.compactMap { run in outcomes[run].map { (run, $0) } }
     }
 
     /// The halted notice for a board-unreachable halt (items 11-13, 15).
@@ -78,10 +118,10 @@ extension EngineInvocation {
     /// The Night-closing Act always posts, whatever the count (item 12): when it halted before closing the
     /// Night the notice says the Night is not closed and its Night Card is not updated yet; when it had
     /// already closed the Night, `.closed` / `.closedCompletionPending` has said so and the ordinary halted
-    /// notice follows. Any other Act posts only at exactly the threshold: not the 1st, and not again at the
-    /// 3rd onward. A halt that does not post still writes its halted comment on the Night Card through the
-    /// Outbox (item 13: the halt stays recorded), and does not fall back to OQ71's `.haltedUnrecorded`
-    /// (item 15).
+    /// notice follows. Any other Act posts from the threshold onward until one notice has posted successfully:
+    /// not the 1st, and not again after a successful post. A halt that does not post still writes its halted
+    /// comment on the Night Card through the Outbox (item 13: the halt stays recorded), and does not fall
+    /// back to OQ71's `.haltedUnrecorded` (item 15).
     func notifyLinearUnreachableHalted(
         _ halt: LinearUnreachableHalt, reason: String, night: NightRecord,
         nightCard: NightCardMaintenance?, outbox: Outbox?
@@ -93,7 +133,9 @@ extension EngineInvocation {
             await notify(
                 .haltedNightOpen(reason: Self.collapsed(reason)), notification: "halted", night: night
             )
-        } else if closingAct || halt.consecutive.map({ $0 == Self.linearUnreachablePagingThreshold }) ?? true {
+        } else if closingAct || halt.consecutive.map({
+            $0 >= Self.linearUnreachablePagingThreshold && halt.noticeUnposted
+        }) ?? true {
             await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
         } else {
             await recordHaltedCommentOnly(reason: reason, night: night, nightCard: nightCard, outbox: outbox)

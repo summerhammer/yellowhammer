@@ -15,12 +15,28 @@ private struct SampleWorkFailure: Error, CustomStringConvertible, Equatable {
     let description: String
 }
 
-/// Records every notification a fake `ExceptionNotifier` was asked to post.
+/// Records every notification a fake `ExceptionNotifier` was asked to post, and can be scripted to fail.
 private final class NotificationRecorder: Sendable {
     private let storage = Mutex<[ExceptionNotification]>([])
+    private let failureQueue = Mutex<[any Error]>([])
 
     func record(_ notification: ExceptionNotification) {
         storage.withLock { $0.append(notification) }
+    }
+
+    func failNextPost(_ error: any Error = HeadlessPostError.postFailed("notifications denied")) {
+        failureQueue.withLock { $0.append(error) }
+    }
+
+    func post(_ notification: ExceptionNotification) throws {
+        let error = failureQueue.withLock { queue -> (any Error)? in
+            guard !queue.isEmpty else { return nil }
+            return queue.removeFirst()
+        }
+        if let error {
+            throw error
+        }
+        record(notification)
     }
 
     var notifications: [ExceptionNotification] { storage.withLock { $0 } }
@@ -47,6 +63,10 @@ private final class OutageScene {
         ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
     }
 
+    func failNextPost(_ error: any Error = HeadlessPostError.postFailed("notifications denied")) {
+        recorder.failNextPost(error)
+    }
+
     /// Runs one Act (one `yh` process) to completion, swallowing the error a halted Act rethrows.
     func act(
         _ act: Act = .build, board: ActBoard?? = nil, closesNight: Bool = false, flush: Bool = false,
@@ -57,7 +77,7 @@ private final class OutageScene {
             act: act, mode: .real, nightStart: nightStart, journal: journal,
             trigger: flush ? .scheduled : .forced, runID: RunID(), closesNight: closesNight,
             board: board ?? self.board(),
-            notifier: ExceptionNotifier { recorder.record($0) },
+            notifier: ExceptionNotifier { try recorder.post($0) },
             outboxTransientRetry: .never,
             work: work
         )
@@ -317,5 +337,91 @@ struct LinearUnreachableHaltTests {
         await scene.act(.land, closesNight: true, flush: true)
 
         #expect(scene.recorder.notifications.count == postsBefore)
+    }
+
+    @Test("When the 2nd halt's post fails, the 3rd halt posts, and the 4th is silent")
+    func failedPostIsRetriedByNextHaltedAct() async throws {
+        let scene = try await OutageScene()
+
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.isEmpty)
+
+        scene.failNextPost()
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.isEmpty)
+        #expect(try scene.journal.events(ofType: .notificationDeliveryFailed).count == 1)
+
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.count == 1)
+        guard case .halted(let reason) = scene.recorder.notifications.first?.event else {
+            Issue.record("expected .halted, got \(String(describing: scene.recorder.notifications.first?.event))")
+            return
+        }
+        #expect(reason.contains("503"))
+
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.count == 1, "4th halt is silent after successful post")
+    }
+
+    @Test("When consecutive posts fail at 2nd and 3rd halts, the 4th halt posts")
+    func multipleFailedPostsAreRetriedUntilOneSucceeds() async throws {
+        let scene = try await OutageScene()
+
+        await scene.haltOnOutage()
+
+        scene.failNextPost()
+        await scene.haltOnOutage()
+
+        scene.failNextPost()
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.isEmpty)
+        #expect(try scene.journal.events(ofType: .notificationDeliveryFailed).count == 2)
+
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.count == 1)
+        guard case .halted(let reason) = scene.recorder.notifications.first?.event else {
+            Issue.record("expected .halted, got \(String(describing: scene.recorder.notifications.first?.event))")
+            return
+        }
+        #expect(reason.contains("503"))
+    }
+
+    @Test("A failed post on outage A does not cause outage B to post at its 1st halt")
+    func reachingActResetsOutageEvenIfPostFailed() async throws {
+        let scene = try await OutageScene()
+
+        await scene.haltOnOutage()
+
+        scene.failNextPost()
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.isEmpty)
+        #expect(try scene.journal.events(ofType: .notificationDeliveryFailed).count == 1)
+
+        await scene.act()
+
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.isEmpty, "the 1st halt of the new outage posts nothing")
+
+        await scene.haltOnOutage()
+        #expect(scene.recorder.notifications.count == 1, "the 2nd halt of the new outage posts")
+    }
+
+    @Test("An authorization first halt whose post fails does not cause later authorization halts to post")
+    func authorizationFirstHaltPostFailureDoesNotRepostOnLaterHalts() async throws {
+        let scene = try await OutageScene()
+
+        let unauthorized = FakeReadingBoard([])
+        await unauthorized.script(identity: .failure(.notAuthenticated("sign-in expired")))
+        let authBoard = ActBoard(
+            reading: unauthorized, writing: scene.boards.writing, provisioning: scene.boards.provisioning
+        )
+
+        scene.failNextPost()
+        await scene.act(board: authBoard)
+        #expect(scene.recorder.notifications.isEmpty)
+        #expect(try scene.journal.events(ofType: .notificationDeliveryFailed).count == 1)
+
+        await scene.act(board: authBoard)
+        #expect(scene.recorder.notifications.isEmpty, "later authorization halts post nothing")
     }
 }
