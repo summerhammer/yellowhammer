@@ -196,6 +196,12 @@ public struct BoardStateProjection: Sendable {
         if let assignee {
             change.assignee = .set(assignee)
         }
+        // A Card Blocked after its Feature closed (its Cycle is archived) is detached in the same write, so it
+        // is an un-adopted Work Card (moved out of Done, OQ199). Settle and merge closure post their Blocks
+        // before they archive the Cycle, and detach those Cards themselves.
+        if state == .blocked, try journal.isCycleArchived(cycleID: record.cycleID) {
+            change.parent = .clear
+        }
 
         let key = Self.stateKey(issueID: record.issueID, version: record.stateVersion)
         let write = OutboxWrite(

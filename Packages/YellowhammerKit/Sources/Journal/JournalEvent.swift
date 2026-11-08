@@ -195,6 +195,13 @@ public enum JournalEvent: Equatable, Sendable {
     case cardShelved(cardID: Int64, issueID: String, previousState: CardState)
     /// The board read a Journal-shelved Card as reopened; the Journal restores its previous state.
     case cardReopened(cardID: Int64, issueID: String, restoredState: CardState)
+    /// The board read the Card in a completed-type state the Journal did not write (Operator Done, spec:
+    /// board-projection / operator-done): the Journal records it as Done with this marker, and keeps the
+    /// state, waiting reason and Block Reason it held before, so the history is preserved.
+    case cardOperatorDone(
+        cardID: Int64, issueID: String, previousState: CardState,
+        waitingReason: WaitingReason?, blockReason: BlockReason?
+    )
     /// The board moved a Card to a state the Journal did not write; the Journal stays authoritative
     /// and records the discrepancy.
     case cardRestated(cardID: Int64, issueID: String, journalState: CardState, boardState: String)

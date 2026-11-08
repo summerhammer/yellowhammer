@@ -88,6 +88,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case cardAlreadyShelved(cardID: Int64)
     /// The Card is not in shelved state and cannot be reopened.
     case cardNotShelved(cardID: Int64)
+    /// The Card is already Done and cannot be marked Operator Done.
+    case cardAlreadyDone(cardID: Int64)
     /// The `board_sync` row does not decode; the Journal was written by something other than the engine.
     case boardSyncUnreadable
     /// The `clause` row does not decode; the Journal was written by something other than the engine.
@@ -220,6 +222,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's card row \(id) cannot be read"
         case .cardAlreadyShelved(let cardID):
             "Card \(cardID) is already shelved and cannot be shelved again"
+        case .cardAlreadyDone(let cardID):
+            "Card \(cardID) is already Done and cannot be marked Operator Done"
         case .cardNotShelved(let cardID):
             "Card \(cardID) is not shelved and cannot be reopened"
         case .boardSyncUnreadable:

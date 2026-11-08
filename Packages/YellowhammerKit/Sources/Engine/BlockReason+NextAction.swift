@@ -28,6 +28,8 @@ extension BlockReason {
             "a later Feature may adopt this Card with its history; cancel the Card to drop the work"
         case .featureCompleted:
             "a later Feature may adopt this Card with its history; cancel the Card to drop the unfinished work"
+        case .movedOutOfDone:
+            "move the Card to Todo to run the work again with a fresh budget, or back to Done if it is finished"
         case .failureRecurrence:
             "fix the cause that recurred across Nights, then move the Card back to Todo"
         case .authoringDefect:

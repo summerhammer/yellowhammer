@@ -88,9 +88,134 @@ extension DeltaRead {
                 expectedState: entry.expectedStateID, observedState: boardState.id.rawValue
             ))
         }
-        // The Journal's state for the Card is recomputed from what the human did, not reposted over it.
+        // The human's state is not reposted over: the Card's next reconcile imports it through the Work Card
+        // board inputs (Operator Done, an Operator re-ready, Shelved), or reports it restated.
         try journal.recordCardBoardState(cardID: card.id, version: card.stateVersion, runID: runID, now: clock())
         return false
+    }
+
+    /// A Card the board does not show Shelved and the Journal does not hold Shelved: Done by the Operator, an
+    /// Operator re-ready, or a re-stated board copy. Returns true when the board must be restated.
+    func reconcileNonShelved(
+        card: inout CardRecord,
+        boardState: BoardWorkflowState,
+        pending: [OutboxEntry],
+        observation: BoardRevision,
+        into report: inout DeltaReadReport
+    ) throws -> Bool {
+        let replayed = observation.replayed
+        guard boardState.name != card.state.rawValue else { return false }
+        // A Done Card read in another completed-type state (a team state named "Merged") is not a divergence.
+        if card.state == .done, boardState.category == .completed { return false }
+        // A write of ours still on its way to the board is not the Operator's doing; a board that holds
+        // neither the state it was decided against nor its target means a human moved the issue, and the
+        // write is superseded so the human's state is read as input rather than hidden behind it.
+        if try supersedingStalePendingWrites(of: &card, pending: pending, boardState: boardState) { return false }
+        // A completed-type state no write of ours is on its way to is the Operator's Done, from any state.
+        // Every Act's read applies it: the settle in the same Act must see the Card Done.
+        if try operatorDoneApplies(card: card, boardState: boardState, pending: pending) {
+            card = try applyOperatorDone(card: card, pending: pending, into: &report)
+            return false
+        }
+        if movedOutOfDoneApplies(card: card, boardState: boardState, pending: pending) {
+            card = try applyMovedOutOfDone(card: card, into: &report)
+            return false
+        }
+        // The board copy a non-build read moved out of Done, replayed by the build Act, is that same move: it is
+        // not also the re-ready, which needs a later revision (the Operator moving the Blocked Card to Todo).
+        if try movedOutOfDoneBy(observation, card: card) { return false }
+        if try reReadyIfBlocked(card: &card, boardState: boardState, into: &report) {
+            return false
+        }
+        // The board moved the Card to a state the Journal did not write and no Work Card board input
+        // covers. The Journal is authoritative: the divergence is recorded, and the board copy is not adopted.
+        report.restated.append(RestatedCard(card: card, boardState: boardState))
+        if !replayed {
+            try append(.cardRestated(
+                cardID: card.id, issueID: card.issueID, journalState: card.state, boardState: boardState.name
+            ))
+        }
+        return true
+    }
+
+    /// Whether a Done Card was moved out of Done (board-projection/moved-out-of-done, OQ199): the board holds a
+    /// state that is neither completed nor cancelled, the board has confirmed the Journal's Done, and no state
+    /// write of ours is still pending for the issue (a Done write still deferred means the board has not caught
+    /// up, which is not the Operator's move).
+    func movedOutOfDoneApplies(
+        card: CardRecord, boardState: BoardWorkflowState, pending: [OutboxEntry]
+    ) -> Bool {
+        // A state type this build does not know (nil) is not read as out of Done: a Card is never Blocked over it.
+        guard card.state == .done, let category = boardState.category, category != .completed, category != .shelved,
+              (card.boardStateVersion ?? -1) >= card.stateVersion else { return false }
+        return !pending.contains { Self.carriesStateChange($0) }
+    }
+
+    /// Whether `observation` is a replayed board copy no later than the Card's move out of Done: the revision
+    /// the move was read from, not a re-ready the Operator made after it. The board's revision time is compared
+    /// with the Journal's record of the move, allowing the clock difference the read's own overlap allows
+    /// (``syncOverlap``); the Operator can only re-ready after seeing the Card Blocked, which Yellowhammer posts
+    /// after the move, so a genuine re-ready is later by that whole round trip.
+    func movedOutOfDoneBy(_ observation: BoardRevision, card: CardRecord) throws -> Bool {
+        guard observation.replayed, card.state == .blocked,
+              card.blockReason == BlockReason.movedOutOfDone.rawValue,
+              let movedAt = try journal.movedOutOfDoneAt(cardID: card.id) else { return false }
+        return observation.updatedAt <= movedAt.addingTimeInterval(Self.syncOverlap)
+    }
+
+    /// Records the Card Blocked `moved out of Done`, Journal-only: the repost projects Blocked to the board.
+    func applyMovedOutOfDone(card: CardRecord, into report: inout DeltaReadReport) throws -> CardRecord {
+        let blocked = try journal.transitionCard(
+            cardID: card.id, to: .blocked, blockReason: .movedOutOfDone,
+            runID: runID, act: act, nightID: nightID, now: clock()
+        )
+        report.movedOutOfDone.append(blocked)
+        return blocked
+    }
+
+    private static func carriesStateChange(_ entry: OutboxEntry) -> Bool {
+        guard case .updateIssue(_, let change, _)? = try? JSONDecoder().decode(
+            BoardWrite.self, from: Data(entry.payload.utf8)
+        ) else { return false }
+        return change.workflowState != nil
+    }
+
+    /// Whether the board's completed-type state is the Operator's: the Journal holds the Card neither as Done
+    /// nor already Done by the Operator, and no write of ours still pending for the issue targets the state the
+    /// board holds (that state is Yellowhammer's, not the Operator's).
+    func operatorDoneApplies(
+        card: CardRecord, boardState: BoardWorkflowState, pending: [OutboxEntry]
+    ) throws -> Bool {
+        guard boardState.category == .completed, card.state != .done else { return false }
+        for entry in pending {
+            guard case .updateIssue(_, let change, _)? = try? JSONDecoder().decode(
+                BoardWrite.self, from: Data(entry.payload.utf8)
+            ) else { continue }
+            if change.workflowState?.rawValue == boardState.id.rawValue { return false }
+        }
+        return true
+    }
+
+    /// Records the Operator's Done (spec: board-projection / operator-done) and aborts the Card's pending
+    /// writes that carry a workflow-state change: the board already holds the Card's final state, and a write
+    /// of ours must not move it. Pending comment and description writes are left to deliver.
+    func applyOperatorDone(
+        card: CardRecord, pending: [OutboxEntry], into report: inout DeltaReadReport
+    ) throws -> CardRecord {
+        // `pending` was read before this Card's reconcile began, so some may have been superseded since: the
+        // Journal aborts only those still pending, in the same transaction as the Done.
+        let stateWrites = pending.filter { entry in
+            guard case .updateIssue(_, let change, _)? = try? JSONDecoder().decode(
+                BoardWrite.self, from: Data(entry.payload.utf8)
+            ) else { return false }
+            return change.workflowState != nil
+        }
+        let done = try journal.markCardOperatorDone(
+            cardID: card.id, runID: runID, act: act, nightID: nightID,
+            abortingOutboxEntryIDs: stateWrites.map(\.id), now: clock()
+        )
+        report.operatorDone.append(done)
+        return done
     }
 
     /// The hash of the prose each issue's last Managed Block write preserved, from the audit events.
@@ -103,4 +228,11 @@ extension DeltaRead {
         }
         return hashes
     }
+}
+
+/// The board copy a Card is reconciled from: whether the build Act replays it from an earlier read, and the
+/// board's revision time.
+struct BoardRevision {
+    var replayed: Bool
+    var updatedAt: Date
 }

@@ -127,6 +127,8 @@ extension JournalEvent {
             try Self.decodeCardShelved(reader)
         case .cardReopened:
             try Self.decodeCardReopened(reader)
+        case .cardOperatorDone:
+            try Self.decodeCardOperatorDone(reader)
         case .cardRestated:
             try Self.decodeCardRestated(reader)
         case .humanCardComment:
@@ -438,6 +440,16 @@ extension JournalEvent {
             cardID: try reader.int64("card_id"),
             issueID: try reader.require("issue_id"),
             restoredState: try reader.cardState("restored_state")
+        )
+    }
+
+    private static func decodeCardOperatorDone(_ reader: PayloadReader) throws -> JournalEvent {
+        .cardOperatorDone(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            previousState: try reader.cardState("previous_state"),
+            waitingReason: reader.payload?["waiting_reason"].flatMap { WaitingReason(rawValue: $0) },
+            blockReason: reader.payload?["block_reason"].flatMap { BlockReason(rawValue: $0) }
         )
     }
 
