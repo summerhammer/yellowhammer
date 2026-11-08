@@ -100,9 +100,10 @@ extension DeltaRead {
         card: inout CardRecord,
         boardState: BoardWorkflowState,
         pending: [OutboxEntry],
-        replayed: Bool,
+        observation: BoardRevision,
         into report: inout DeltaReadReport
     ) throws -> Bool {
+        let replayed = observation.replayed
         guard boardState.name != card.state.rawValue else { return false }
         // A Done Card read in another completed-type state (a team state named "Merged") is not a divergence.
         if card.state == .done, boardState.category == .completed { return false }
@@ -120,6 +121,9 @@ extension DeltaRead {
             card = try applyMovedOutOfDone(card: card, into: &report)
             return false
         }
+        // The board copy a non-build read moved out of Done, replayed by the build Act, is that same move: it is
+        // not also the re-ready, which needs a later revision (the Operator moving the Blocked Card to Todo).
+        if try movedOutOfDoneBy(observation, card: card) { return false }
         if try reReadyIfBlocked(card: &card, boardState: boardState, into: &report) {
             return false
         }
@@ -141,9 +145,22 @@ extension DeltaRead {
     func movedOutOfDoneApplies(
         card: CardRecord, boardState: BoardWorkflowState, pending: [OutboxEntry]
     ) -> Bool {
-        guard card.state == .done, boardState.category != .completed, boardState.category != .shelved,
+        // A state type this build does not know (nil) is not read as out of Done: a Card is never Blocked over it.
+        guard card.state == .done, let category = boardState.category, category != .completed, category != .shelved,
               (card.boardStateVersion ?? -1) >= card.stateVersion else { return false }
         return !pending.contains { Self.carriesStateChange($0) }
+    }
+
+    /// Whether `observation` is a replayed board copy no later than the Card's move out of Done: the revision
+    /// the move was read from, not a re-ready the Operator made after it. The board's revision time is compared
+    /// with the Journal's record of the move, allowing the clock difference the read's own overlap allows
+    /// (``syncOverlap``); the Operator can only re-ready after seeing the Card Blocked, which Yellowhammer posts
+    /// after the move, so a genuine re-ready is later by that whole round trip.
+    func movedOutOfDoneBy(_ observation: BoardRevision, card: CardRecord) throws -> Bool {
+        guard observation.replayed, card.state == .blocked,
+              card.blockReason == BlockReason.movedOutOfDone.rawValue,
+              let movedAt = try journal.movedOutOfDoneAt(cardID: card.id) else { return false }
+        return observation.updatedAt <= movedAt.addingTimeInterval(Self.syncOverlap)
     }
 
     /// Records the Card Blocked `moved out of Done`, Journal-only: the repost projects Blocked to the board.
@@ -211,4 +228,11 @@ extension DeltaRead {
         }
         return hashes
     }
+}
+
+/// The board copy a Card is reconciled from: whether the build Act replays it from an earlier read, and the
+/// board's revision time.
+struct BoardRevision {
+    var replayed: Bool
+    var updatedAt: Date
 }

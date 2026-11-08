@@ -188,6 +188,54 @@ struct DeltaReadActsTests {
         #expect(try world.journal.buildPendingObservations().isEmpty, "consumed once, by the Act that owns it")
     }
 
+    // OQ199 item 6: "A fresh budget needs the ordinary re-ready" — a gesture of its own. The author Act's read
+    // turns a Done Card read in Todo into Blocked `moved out of Done`; the build Act replays that same Todo
+    // observation, which must not also count as the re-ready.
+    @Test("A move out of Done the author Act read is not re-readied by the build Act replaying the same read")
+    func movedOutOfDoneReplayIsNoReReady() async throws {
+        let world = try await makeSettleWorld(landed: false)
+        let moved = try await moveDoneCardOutInAuthorAct(world)
+
+        let report = try await buildRead(world)
+
+        #expect(report?.reReadied.isEmpty == true, "the Operator's one move is the move out of Done, not a re-ready")
+        let afterBuild = try world.journal.card(id: moved.id)
+        #expect(afterBuild.state == .blocked)
+        #expect(afterBuild.blockReason == BlockReason.movedOutOfDone.rawValue)
+        #expect(afterBuild.budgetEpoch == moved.budgetEpoch)
+    }
+
+    @Test("A re-ready made after the move out of Done, read by a later author Act, is applied by the build Act")
+    func reReadyAfterMovedOutOfDoneIsApplied() async throws {
+        let world = try await makeSettleWorld(landed: false)
+        let moved = try await moveDoneCardOutInAuthorAct(world)
+        let movedAt = try #require(try world.journal.movedOutOfDoneAt(cardID: moved.id))
+
+        // The Operator sees the Card Blocked and moves it to Todo: a later revision, read by an author Act's read.
+        let later = movedAt.addingTimeInterval(3600).timeIntervalSince(deltaEpoch)
+        let authorRun = RunID()
+        guard case .claimed = try world.journal.claimActLease(act: .author, runID: authorRun, mode: .real) else {
+            Issue.record("the author Act could not claim the lease")
+            return
+        }
+        var author = DeltaRead(
+            journal: world.journal,
+            board: FakeReadingBoard([page(objects: [object(moved.issueID, state: unstartedTodo, updatedAt: later)])]),
+            runID: authorRun, act: .author
+        )
+        author.acceptsReReady = false
+        _ = try await author.perform()
+        _ = try world.journal.releaseActLease(runID: authorRun)
+        #expect(try world.journal.card(id: moved.id).state == .blocked, "the author Act applies no re-ready")
+
+        let report = try await buildRead(world)
+
+        #expect(report?.reReadied.map(\.id) == [moved.id])
+        let afterBuild = try world.journal.card(id: moved.id)
+        #expect(afterBuild.state == .todo)
+        #expect(afterBuild.budgetEpoch == moved.budgetEpoch + 1, "re-ready from `moved out of Done` resets (D2)")
+    }
+
     @Test("A land Act's read leaves the Operator's edit to a Work Card for the build Act's Readiness Check")
     func landReadLeavesAnEditPending() async throws {
         let fixture = try OutboxJournalFixture()
@@ -268,4 +316,55 @@ private func deferredWriteWorld(
         runID: runID, board: board, workspace: ReconcilerFakeWorkspace(), work: LandAct().work
     )
     return DeferredWriteWorld(boards: boards, staleCardID: staleCardID, invocation: invocation, reading: reading)
+}
+
+/// Linear's Todo as the board reports it, with its `unstarted` type: a move out of Done is read only from a
+/// state whose type is known.
+private let unstartedTodo = BoardWorkflowState(
+    id: BoardObjectID(rawValue: "s-todo"), name: "Todo", category: .unstarted
+)
+
+/// Confirms the world's Done Card on the board, then lets an author Act read it in Todo: it is Blocked
+/// `moved out of Done`. Returns the Card as the author Act left it.
+private func moveDoneCardOutInAuthorAct(_ world: SettleWorld) async throws -> CardRecord {
+    let confirmRun = RunID()
+    guard case .claimed = try world.journal.claimActLease(act: .build, runID: confirmRun, mode: .real) else {
+        throw CancellationError()
+    }
+    _ = try world.journal.transitionCard(
+        cardID: world.doneCardID, to: .inProgress, runID: confirmRun, act: .build, nightID: nil
+    )
+    let done = try world.journal.transitionCard(
+        cardID: world.doneCardID, to: .done, runID: confirmRun, act: .build, nightID: nil
+    )
+    try world.journal.recordCardBoardState(cardID: done.id, version: done.stateVersion, runID: confirmRun)
+    _ = try world.journal.releaseActLease(runID: confirmRun)
+
+    // The Operator moves the Done Card to Todo a minute ago (the Journal stamps the move out on the wall clock,
+    // so the board's revision is on it too); the author Act is the first to read it.
+    let movedOnBoard = Date().addingTimeInterval(-60).timeIntervalSince(deltaEpoch)
+    let movedOut = object(done.issueID, state: unstartedTodo, updatedAt: movedOnBoard)
+    let reading = FakeReadingBoard([page(objects: [movedOut])])
+    try await reading.readThrough(world.boards)
+    try await authorInvocation(world, reading: reading, authoring: ReadCountingAuthoring(reading: reading)).run()
+
+    let moved = try world.journal.card(id: done.id)
+    #expect(moved.state == .blocked)
+    #expect(moved.blockReason == BlockReason.movedOutOfDone.rawValue)
+    return moved
+}
+
+/// The next build Act's Delta Read, whose own delta carries nothing new: only what earlier reads left pending.
+private func buildRead(_ world: SettleWorld) async throws -> DeltaReadReport? {
+    let runID = RunID()
+    guard case .claimed = try world.journal.claimActLease(act: .build, runID: runID, mode: .real) else {
+        Issue.record("the build Act could not claim the lease")
+        return nil
+    }
+    let build = DeltaRead(journal: world.journal, board: FakeReadingBoard([page()]), runID: runID, act: .build)
+    guard case .read(let report) = try await build.perform() else {
+        Issue.record("expected a read")
+        return nil
+    }
+    return report
 }

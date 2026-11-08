@@ -220,7 +220,7 @@ public struct DeltaRead: Sendable {
 
         let stateDiffers = try reconcileState(
             card: &card, boardState: boardState, pending: inputs.pendingWrites[card.issueID] ?? [],
-            replayed: inputs.replayed,
+            observation: BoardRevision(replayed: inputs.replayed, updatedAt: object.updatedAt),
             into: &report
         )
 
@@ -240,7 +240,7 @@ public struct DeltaRead: Sendable {
         card: inout CardRecord,
         boardState: BoardWorkflowState,
         pending: [OutboxEntry],
-        replayed: Bool,
+        observation: BoardRevision,
         into report: inout DeltaReadReport
     ) throws -> Bool {
         let boardSaysShelved = boardState.isShelved
@@ -267,7 +267,7 @@ public struct DeltaRead: Sendable {
             return false
         case (_, false):
             return try reconcileNonShelved(
-                card: &card, boardState: boardState, pending: pending, replayed: replayed, into: &report
+                card: &card, boardState: boardState, pending: pending, observation: observation, into: &report
             )
         }
     }

@@ -92,6 +92,11 @@ extension JournalStore {
         }
     }
 
+    /// When the Card was last moved out of Done by the Operator (Blocked `moved out of Done`); nil when it never was.
+    public func movedOutOfDoneAt(cardID: Int64) throws -> Date? {
+        try read { db in try lastMovedOutOfDone(cardID: cardID, in: db) }
+    }
+
     /// When the Card was last moved out of Done by the Operator (Blocked `moved out of Done`), from the
     /// `cardStateTransitioned` events; nil when it never was.
     func lastMovedOutOfDone(cardID: Int64, in db: Database) throws -> Date? {
