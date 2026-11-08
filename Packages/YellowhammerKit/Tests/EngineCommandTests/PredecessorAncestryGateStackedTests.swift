@@ -262,3 +262,81 @@ struct PredecessorAncestryGateStackedTests {
         #expect(try journal.landingEvidence(featureID: features.upper) == ["backend": .ancestry])
     }
 }
+
+private actor StackMergeRead: Publication {
+    let upper: ObservedPullRequest
+    init(upper: ObservedPullRequest) { self.upper = upper }
+    func openPullRequest(_ draft: PullRequestDraft) async throws(PublicationError) -> PullRequestReceipt {
+        throw .other("not used")
+    }
+    func readPullRequests(_ query: PullRequestQuery) async throws(PullRequestReadFailure) -> [ObservedPullRequest] {
+        [upper]
+    }
+}
+
+extension PredecessorAncestryGateStackedTests {
+    @Test("A stacked squash with post-land edits keeps the pinned tip and explains each failed test (#741)")
+    func postLandEditsKeepTheGateClosedWithDiagnostics() async throws {
+        let repo = GateGitFixture(name: "stack-post-land-edits")
+        let lowerTip = try await populateLowerFeature(repo)
+        let upperTip = try await commitUpperFeature(repo, files: [("h.txt", "pushed\n")])
+        _ = await repo.run(["remote", "add", "origin", "https://github.com/o/backend.git"])
+        let lowerSquash = await squashMerge(lowerBranch, in: repo)
+        _ = await repo.run(["checkout", upperBranch])
+        let editedTip = try await repo.commit(filename: "h.txt", content: "operator edit\n", message: "post-land edit")
+        _ = await repo.run(["checkout", lowerBranch])
+        _ = await repo.run(["merge", "--squash", upperBranch])
+        _ = await repo.run(["commit", "-m", "squash upper into lower"])
+        let forgeMerge = await revParse("HEAD", in: repo)
+        _ = await repo.run(["checkout", "main"])
+        let mainlineTip = await squashMerge(lowerBranch, in: repo)
+        #expect(await repo.run(["show", "main:h.txt"]).stdout == "operator edit\n")
+        #expect(await repo.run(["merge-base", "--is-ancestor", forgeMerge, "main"]).exitCode == 1)
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let features = try insertStack(journal, lowerTip: lowerTip, upperTip: upperTip)
+        let (baseContext, runID) = try makeGateContext(journal, repositories: repositories(repo))
+        let context = ActContext(
+            act: baseContext.act, mode: baseContext.mode, trigger: baseContext.trigger, runID: runID,
+            journal: journal, night: baseContext.night,
+            mainlines: ResolvedMainlines(workingRepos: ["backend": ResolvedMainline(
+                repository: "backend", defaultBranch: "main", ref: "refs/heads/main", commit: mainlineTip
+            )]), repositories: repositories(repo)
+        )
+        let url = "https://github.com/o/backend/pull/9"
+        try journal.recordPullRequest(
+            featureID: features.upper, repository: "backend", url: url, nightID: context.night.id, runID: runID
+        )
+        let publication = StackMergeRead(upper: ObservedPullRequest(
+            number: 9, url: url, state: .merged, mergeCommit: forgeMerge, headCommit: editedTip,
+            headBranch: upperBranch, baseBranch: lowerBranch
+        ))
+        _ = try await PredecessorAncestryGate(publication: publication).check(context, unmergedFeaturesMax: 1)
+        #expect(try journal.landingCommits(featureID: features.lower) == ["backend": lowerSquash])
+        #expect(try journal.landings(featureID: features.upper).isEmpty)
+        #expect(try journal.pushedTips(featureID: features.upper)["backend"] == upperTip)
+        let diagnostics = try journal.events(ofType: .predecessorMergeTested).compactMap { record in
+            if case .predecessorMergeTested("F2", "backend", let details) = record.event { return details }
+            return nil
+        }
+        #expect(diagnostics.count == 3)
+        #expect(diagnostics.allSatisfy { $0["tested_tip"] == upperTip })
+        #expect(diagnostics.allSatisfy { $0["mainline_ref"] == "refs/heads/main" })
+        #expect(diagnostics.allSatisfy { $0["mainline_commit"] == mainlineTip })
+        #expect(diagnostics.first { $0["test"] == "ancestry" }?["result"] == "not_ancestor")
+        try assertFailedStackTests(diagnostics, expected: [
+            "merge_commit": forgeMerge, "recorded_base": lowerTip, "lower_landing_commit": lowerSquash
+        ])
+    }
+}
+
+private func assertFailedStackTests(_ diagnostics: [[String: String]], expected: [String: String]) throws {
+    let request = try #require(diagnostics.first { $0["test"] == "pull_request" })
+    #expect(request["merge_commit"] == expected["merge_commit"])
+    #expect(request["result"] == "merge_commit_not_in_mainline_or_unreadable")
+    let content = try #require(diagnostics.first { $0["test"] == "content" })
+    #expect(content["result"] == "landing_not_observed")
+    #expect(content["recorded_base"] == expected["recorded_base"])
+    #expect(content["lower_landing_commit"] == expected["lower_landing_commit"])
+    #expect(content["mainline_ref"]?.isEmpty == false)
+}

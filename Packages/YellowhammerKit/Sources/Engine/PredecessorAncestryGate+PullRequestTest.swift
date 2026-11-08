@@ -19,10 +19,17 @@ extension PredecessorAncestryGate {
     func testPullRequests(
         of notAncestors: [RepoAncestryResult], scope: TestScope, into result: inout AncestryTestResult
     ) async throws -> [RepoAncestryResult] {
-        guard !scope.pullRequestReads.isEmpty, !notAncestors.isEmpty else { return notAncestors }
+        guard !notAncestors.isEmpty else { return notAncestors }
         var remaining: [RepoAncestryResult] = []
         for notAncestor in notAncestors {
-            if let merge = await pullRequestMerge(of: notAncestor, scope: scope) {
+            let merge = await pullRequestMerge(of: notAncestor, scope: scope)
+            try recordMergeTest(
+                repository: notAncestor.repository, test: "pull_request",
+                result: pullRequestTestReason(scope.pullRequestReads[notAncestor.repository], merged: merge != nil),
+                commits: (notAncestor.branchCommit, notAncestor.mainlineCommit), scope: scope,
+                extra: ["merge_commit": Self.mergeCommitUnderTest(scope.pullRequestReads[notAncestor.repository]) ?? ""]
+            )
+            if let merge {
                 try await recordObservedMerge(merge, scope: scope)
                 result.merged.append(notAncestor.repository)
             } else {

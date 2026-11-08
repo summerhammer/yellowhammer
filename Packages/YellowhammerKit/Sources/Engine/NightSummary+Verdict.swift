@@ -90,11 +90,17 @@ extension NightSummary {
         if events.contains(where: { advancingEventTypes.contains($0.type) }) {
             return "advanced without landing"
         }
-        if night.verdict == .idle {
-            return "did not advance — idle"
+        if let held = try journal.inFlightLandedFeature() {
+            let observed = try journal.landings(featureID: held.feature.id)
+            if held.pushedRepositories.contains(where: { observed[$0] == nil }) {
+                return "did not advance — waiting on the Operator"
+            }
         }
         if events.contains(where: { quietAuthoringEventTypes.contains($0.type) }) {
             return "did not advance — quiet"
+        }
+        if night.verdict == .idle {
+            return "did not advance — idle"
         }
         return "did not advance"
     }

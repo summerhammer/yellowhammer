@@ -117,6 +117,9 @@ public enum JournalEvent: Equatable, Sendable {
         featureIssueID: String, mergedRepositories: [String], unmergedRepositories: [String],
         indeterminateRepositories: [String: PredecessorIndeterminateCause] = [:]
     )
+    /// Local merge-test diagnostics, separate from the gate verdict. Details name the test, result,
+    /// immutable tip, mainline and any anchor or merge commit used; never a gate input.
+    case predecessorMergeTested(featureIssueID: String, repository: String, details: [String: String])
     /// The predecessor-ancestry gate's merge test found an unmerged repository whose Feature Branch
     /// will not merge cleanly into mainline: a Mainline Conflict. Reported only — no Card state
     /// changes, no Block Reason.

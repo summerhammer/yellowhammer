@@ -67,6 +67,11 @@ extension PredecessorAncestryGate {
         var result = AncestryTestResult()
         var ancestryUnrecorded: [RepoAncestryResult] = []
         for repoResult in ancestryReport.results {
+            try recordMergeTest(
+                repository: repoResult.repository, test: "ancestry",
+                result: ancestryTestReason(repoResult),
+                commits: (repoResult.branchCommit, repoResult.mainlineCommit), scope: scope
+            )
             if repoResult.isAncestor, let mainlineCommit = repoResult.mainlineCommit,
                let landingCommit = repoResult.landingCommit {
                 try await recordObservedMerge(
@@ -128,12 +133,10 @@ extension PredecessorAncestryGate {
         for repo in scope.repos {
             guard let notAncestor = notAncestors.first(where: { $0.repository == repo.name }) else { continue }
             let tip = TestedTip(branch: scope.tips[repo.name]?.branch, recordedCommit: notAncestor.branchCommit)
-            mergeResults.append(
-                await contentResult(
-                    of: tip, in: repo, plan: try await contentTestPlan(for: repo.name, scope: scope),
-                    mainline: context.mainlines[repo.name]
-                )
-            )
+            let plan = try await contentTestPlan(for: repo.name, scope: scope)
+            let merge = await contentResult(of: tip, in: repo, plan: plan, mainline: context.mainlines[repo.name])
+            try recordContentTest(merge, plan: plan, scope: scope)
+            mergeResults.append(merge)
         }
 
         for mergeResult in mergeResults {

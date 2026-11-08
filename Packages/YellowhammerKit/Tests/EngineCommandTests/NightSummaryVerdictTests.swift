@@ -129,13 +129,17 @@ struct NightSummaryVerdictTests {
         #expect(line == "no decisions waiting · did not advance — idle · closed")
     }
 
-    @Test("A quiet authoring reason reads back as 'did not advance — quiet'")
+    @Test("A quiet authoring reason takes precedence over an earlier idle verdict (#741)")
     func quietAuthoringReason() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
         let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
-        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        let night = try await openNightForVerdictTest(journal: journal, board: board) { context in
+            _ = try journal.recordAuthoringNoWorkAvailable(
+                nightID: context.night.id, act: context.act, runID: context.runID
+            )
+        }
         try journal.append(
             .authoringSkippedFeatureInFlight(featureIssueID: "FEAT-1"), act: .author, runID: RunID(), nightID: night.id
         )

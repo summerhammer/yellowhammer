@@ -64,6 +64,11 @@ extension JournalEvent {
             .predecessorWalkSkippedReleasedFeature(featureIssueID: try reader.require("feature_issue_id"))
         case .predecessorAncestryObserved:
             try Self.decodePredecessorAncestryObserved(reader)
+        case .predecessorMergeTested:
+            .predecessorMergeTested(
+                featureIssueID: try reader.require("feature_issue_id"), repository: try reader.require("repository"),
+                details: (reader.payload ?? [:]).filter { !["feature_issue_id", "repository"].contains($0.key) }
+            )
         case .mainlineConflictDetected:
             try Self.decodeMainlineConflictDetected(reader)
         case .pullRequestReadFailed:
