@@ -30,10 +30,12 @@ struct FeatureVerificationReportBudgetTests {
             .verify(world.featureContext)
         let outbox = try #require(world.featureContext.act.outbox)
         _ = try await outbox.deliverPending()
+        _ = try await FeatureRollUpMaintenance(journal: world.journal, outbox: outbox)
+            .maintain(feature: world.featureContext.feature, cycleID: world.cycleID)
 
         let description = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
         #expect(description.hasPrefix("Operator prose.\n"))
-        #expect(description.contains("roll-up"))
+        #expect(description.contains("### Cards"))
         #expect(description.utf16.count <= 1_800)
         #expect(description.contains("Compacted to fit the description budget"))
         for cid in ["c1", "c2", "c3"] { #expect(description.contains("Verification: BACK-1 \(cid) · ")) }

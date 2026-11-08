@@ -23,6 +23,8 @@ extension BoardWrite {
             return .rewriteFeatureDefinitionOfDone(issue: issue, prose: scrub.apply(prose))
         case .rewriteManagedBlockCompacting(let issue, let renderings):
             return .rewriteManagedBlockCompacting(issue: issue, renderings: renderings.map(scrub.apply))
+        case .rewriteFeatureRollUp(let issue, let renderings):
+            return .rewriteFeatureRollUp(issue: issue, renderings: renderings.map(scrub.apply))
         case .updateManagedBlockLine, .updateManagedBlockLinesCompacting:
             return scrubbedLineUpdate(by: scrub)
         case .updateIssue(let issue, let change, let undo):

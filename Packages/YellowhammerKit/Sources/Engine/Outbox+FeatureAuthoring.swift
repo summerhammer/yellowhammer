@@ -45,6 +45,10 @@ extension Outbox {
             return try await performManagedBlock(issue: issue, renderings: [rendered], entry: entry)
         case .rewriteManagedBlockCompacting(let issue, let renderings):
             return try await performManagedBlock(issue: issue, renderings: renderings, entry: entry)
+        case .rewriteFeatureRollUp(let issue, let renderings):
+            return try await performManagedBlock(
+                issue: issue, renderings: renderings, preservingMergeTests: true, entry: entry
+            )
         case .updateManagedBlockLinesCompacting(let issue, let prefix, let renderings):
             return try await performManagedBlock(
                 issue: issue, renderings: renderings, replacingPrefix: prefix, entry: entry

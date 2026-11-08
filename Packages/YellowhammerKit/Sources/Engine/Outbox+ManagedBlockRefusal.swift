@@ -12,6 +12,8 @@ extension Outbox {
         /// A whole Managed Block, or a Feature's authored prose; `renderingAloneFits` says whether the most
         /// compacted block would fit with none of the issue's other text.
         case blockRewrite(renderingAloneFits: Bool)
+        /// The Roll-up, Verification and preserved Mainline merge-test reports are measured together.
+        case featureRollUp(renderingAloneFits: Bool)
         /// A targeted report, whose lines all start `prefix`; `reportAloneFits` says whether the most
         /// compacted report would fit with none of the issue's other text.
         case lineUpdate(prefix: String, reportAloneFits: Bool)
@@ -77,6 +79,18 @@ extension Outbox {
             Yellowhammer could not update this issue's Managed Block: the whole description would be \(length) \
             \(unit) long, over the description budget of \(budget.value) \(unit), even with the Managed Block \
             compacted. The description was left untouched. \(reason)
+            """
+        case .featureRollUp(let renderingAloneFits):
+            let reason = renderingAloneFits
+                ? "The Roll-up and reports fit on their own; "
+                    + "the prose outside the Managed Block leaves too little room."
+                : "The Roll-up and reports together are longer than the budget even on their own."
+            return """
+            Yellowhammer could not update this Feature's Roll-up and reports: the whole description would be \
+            \(length) \(unit) long, over the description budget of \(budget.value) \(unit), after trying every \
+            available Verification compaction. The description was left untouched. \(reason) Any full Verification \
+            report stays in the Journal. Raise the Board Connection's description budget in \
+            Settings › Board connections.
             """
         case .lineUpdate(let prefix, let reportAloneFits):
             let reason = reportAloneFits
