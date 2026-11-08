@@ -47,8 +47,12 @@ public struct WorktreeName: RawRepresentable, Hashable, Sendable {
         let framed = identity.map { "\($0.utf8.count):\($0)" }.joined()
         let digest = SHA256.hash(data: Data(framed.utf8)).prefix(12)
             .map { String(format: "%02x", $0) }.joined()
-        // sanitize emits ASCII only, so characters and bytes have the same length here.
-        return "\(stem.prefix(maximumBytes - digest.count - 1))-\(digest)"
+        // sanitize emits ASCII only, so characters and bytes have the same length here. A cut that
+        // ends on a hyphen would join the digest with `--`, which Orca ADE collapses to one hyphen
+        // in the branch it reports, so the reported name would never match the requested one.
+        var truncated = stem.prefix(maximumBytes - digest.count - 1)
+        while truncated.hasSuffix("-") { truncated = truncated.dropLast() }
+        return "\(truncated)-\(digest)"
     }
 
     private static func sanitize(_ input: String) -> String {

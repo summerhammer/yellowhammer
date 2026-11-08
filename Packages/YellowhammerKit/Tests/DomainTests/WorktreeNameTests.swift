@@ -65,6 +65,22 @@ struct WorktreeNameTests {
         #expect(legacy != WorktreeName(rawValue: raw).bounded(featureIssueID: "feature-2"))
     }
 
+    @Test("A truncation that ends on a hyphen never joins the digest with a double hyphen")
+    func truncationOnHyphenHasNoDoubleHyphen() {
+        // Slide the hyphen across the cut point so one of the titles ends the cut stem on it.
+        for padding in 160...185 {
+            let feature = String(repeating: "x", count: padding) + "-tail-words-" + String(repeating: "y", count: 40)
+            for name in [
+                WorktreeName(project: "p", feature: feature),
+                WorktreeName(project: "p", feature: feature, featureIssueID: "feature-1"),
+                WorktreeName(rawValue: "yh-p-" + feature).bounded(featureIssueID: "feature-1")
+            ] {
+                #expect(!name.rawValue.contains("--"), "\(name.rawValue)")
+                #expect(name.rawValue.utf8.count <= 200)
+            }
+        }
+    }
+
     @Test("The byte budget bounds the full name at its exact boundary")
     func exactBudgetBoundary() {
         let atBudget = WorktreeName(project: "p", feature: String(repeating: "x", count: 195))
