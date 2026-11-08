@@ -55,7 +55,9 @@ extension JournalStore {
             else {
                 return nil
             }
-            let archivedAt = try Self.date(archivedAtText) { JournalError.cardUnreadable(id: cardID) }
+            let closedAt = try Self.date(archivedAtText) { JournalError.cardUnreadable(id: cardID) }
+            // A Card moved out of Done after its Feature closed starts its count at that Night (D13).
+            let archivedAt = try max(closedAt, lastMovedOutOfDone(cardID: cardID, in: db) ?? closedAt)
 
             let nightRows = try Row.fetchAll(
                 db,
@@ -81,6 +83,33 @@ extension JournalStore {
                 }
             }
         }
+    }
+
+    /// Whether the Cycle is archived: its Feature has closed.
+    public func isCycleArchived(cycleID: Int64) throws -> Bool {
+        try read { db in
+            try String.fetchOne(db, sql: "SELECT archived_at FROM cycle WHERE id = ?", arguments: [cycleID]) != nil
+        }
+    }
+
+    /// When the Card was last moved out of Done by the Operator (Blocked `moved out of Done`), from the
+    /// `cardStateTransitioned` events; nil when it never was.
+    func lastMovedOutOfDone(cardID: Int64, in db: Database) throws -> Date? {
+        let text = try String.fetchOne(
+            db,
+            sql: """
+            SELECT occurred_at FROM event
+            WHERE type = ? AND json_extract(payload, '$.card_id') = ?
+              AND json_extract(payload, '$.from_state') = ? AND json_extract(payload, '$.to_state') = ?
+              AND json_extract(payload, '$.block_reason') = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            arguments: [
+                JournalEventType.cardStateTransitioned.rawValue, String(cardID), CardState.done.rawValue,
+                CardState.blocked.rawValue, BlockReason.movedOutOfDone.rawValue
+            ]
+        )
+        return try text.map { try Self.date($0) { JournalError.cardUnreadable(id: cardID) } }
     }
 
     /// The issue id of the Feature whose Cycle `cycleID` is, or nil when either row is unreadable.

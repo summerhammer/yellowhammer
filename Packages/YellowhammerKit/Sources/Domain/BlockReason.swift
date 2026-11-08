@@ -39,12 +39,17 @@ public enum BlockReason: String, CaseIterable, Sendable {
     /// (Missing Upstream Ruling 2026-10-15, OQ175). Blocks the Card immediately, excluding no route.
     case authoringDefect = "authoring defect"
 
+    /// A Done Work Card (Operator Done or not) the Operator moved to a state that is neither completed nor
+    /// cancelled (board-projection/moved-out-of-done, OQ199). Counters and history are kept; re-ready from
+    /// it starts a fresh budget.
+    case movedOutOfDone = "moved out of Done"
+
     /// Re-ready restarts automatic effort, while blocks unrelated to spent effort preserve it.
     /// Failure-cause recurrence is held separately and never resets with this budget.
     public var resetsBudgetOnReReady: Bool {
         switch self {
         case .reviewerRejection, .checkFailure, .routeFailure, .hostCrash,
-             .engineFault, .operatorAbort, .failureRecurrence, .authoringDefect: true
+             .engineFault, .operatorAbort, .failureRecurrence, .authoringDefect, .movedOutOfDone: true
         case .replyOverdue, .decisionOverdue, .featureAbandoned, .featureCompleted: false
         }
     }

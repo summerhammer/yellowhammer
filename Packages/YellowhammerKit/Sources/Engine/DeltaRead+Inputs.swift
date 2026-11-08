@@ -116,6 +116,10 @@ extension DeltaRead {
             card = try applyOperatorDone(card: card, pending: pending, into: &report)
             return false
         }
+        if movedOutOfDoneApplies(card: card, boardState: boardState, pending: pending) {
+            card = try applyMovedOutOfDone(card: card, into: &report)
+            return false
+        }
         if try reReadyIfBlocked(card: &card, boardState: boardState, into: &report) {
             return false
         }
@@ -128,6 +132,35 @@ extension DeltaRead {
             ))
         }
         return true
+    }
+
+    /// Whether a Done Card was moved out of Done (board-projection/moved-out-of-done, OQ199): the board holds a
+    /// state that is neither completed nor cancelled, the board has confirmed the Journal's Done, and no state
+    /// write of ours is still pending for the issue (a Done write still deferred means the board has not caught
+    /// up, which is not the Operator's move).
+    func movedOutOfDoneApplies(
+        card: CardRecord, boardState: BoardWorkflowState, pending: [OutboxEntry]
+    ) -> Bool {
+        guard card.state == .done, boardState.category != .completed, boardState.category != .shelved,
+              (card.boardStateVersion ?? -1) >= card.stateVersion else { return false }
+        return !pending.contains { Self.carriesStateChange($0) }
+    }
+
+    /// Records the Card Blocked `moved out of Done`, Journal-only: the repost projects Blocked to the board.
+    func applyMovedOutOfDone(card: CardRecord, into report: inout DeltaReadReport) throws -> CardRecord {
+        let blocked = try journal.transitionCard(
+            cardID: card.id, to: .blocked, blockReason: .movedOutOfDone,
+            runID: runID, act: act, nightID: nightID, now: clock()
+        )
+        report.movedOutOfDone.append(blocked)
+        return blocked
+    }
+
+    private static func carriesStateChange(_ entry: OutboxEntry) -> Bool {
+        guard case .updateIssue(_, let change, _)? = try? JSONDecoder().decode(
+            BoardWrite.self, from: Data(entry.payload.utf8)
+        ) else { return false }
+        return change.workflowState != nil
     }
 
     /// Whether the board's completed-type state is the Operator's: the Journal holds the Card neither as Done
