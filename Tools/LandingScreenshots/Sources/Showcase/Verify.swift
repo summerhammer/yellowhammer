@@ -12,7 +12,7 @@ extension Showcase {
     /// a ``ShowcaseError`` naming the first fact that does not hold.
     public static func verify(directory: URL, now: Date) throws {
         let morning = try read(.morning, in: directory, asOf: now)
-        try verifyMorning(morning.snapshot, account: morning.account)
+        try verifyMorning(morning.snapshot, account: morning.account, journal: morning.journal)
         let working = try read(.working, in: directory, asOf: now)
         try verifyWorking(working.snapshot)
         for kind in ShowcaseKind.allCases {
@@ -20,18 +20,25 @@ extension Showcase {
         }
     }
 
-    private static func read(
-        _ kind: ShowcaseKind, in directory: URL, asOf now: Date
-    ) throws -> (snapshot: PulseSnapshot, account: NightAccount) {
+    private struct ShowcaseRead {
+        let journal: JournalStore
+        let snapshot: PulseSnapshot
+        let account: NightAccount
+    }
+
+    private static func read(_ kind: ShowcaseKind, in directory: URL, asOf now: Date) throws -> ShowcaseRead {
         let target = directory.appending(component: kind.rawValue, directoryHint: .isDirectory)
         let fileURL = JournalStore.defaultFileURL(configurationDirectory: target, id: try projectID())
         let journal = try JournalStore.openReadOnly(at: fileURL, projectID: projectID())
         let snapshot = try PulseSnapshot.read(from: journal, status: .idle, asOf: now)
         let nightID = try required(snapshot.night?.id, "\(kind.rawValue) Night")
-        return (snapshot, try required(try NightAccount.read(from: journal, nightID: nightID), "Night account"))
+        let account = try required(try NightAccount.read(from: journal, nightID: nightID), "Night account")
+        return ShowcaseRead(journal: journal, snapshot: snapshot, account: account)
     }
 
-    private static func verifyMorning(_ snapshot: PulseSnapshot, account: NightAccount) throws {
+    private static func verifyMorning(
+        _ snapshot: PulseSnapshot, account: NightAccount, journal: JournalStore
+    ) throws {
         let night = try required(snapshot.night, "morning Night")
         try check(night.state == .done, "morning: Night is \(night.state), not done")
         try check(
@@ -55,6 +62,17 @@ extension Showcase {
         try check(
             numbers == [apiRepo: 418, webRepo: 233, iosRepo: 97], "morning: pull requests are \(numbers)"
         )
+        let record = try required(try journal.feature(issueID: feature.id), "morning Feature record")
+        let tips = try journal.pushedTips(featureID: record.id)
+        try check(
+            tips == [apiRepo: "5eed418", webRepo: "5eed233", iosRepo: "5eed97"],
+            "morning: pushed tips are \(tips)"
+        )
+        let cycleID = try required(try journal.cycleID(featureID: record.id), "morning Cycle")
+        for (repo, pullRequest) in [(apiRepo, 418), (webRepo, 233), (iosRepo, 97)] {
+            let tip = try journal.pushedTip(cycleID: cycleID, repository: repo)
+            try check(tip == "5eed\(pullRequest)", "morning: \(repo) pushed tip is \(tip ?? "nil")")
+        }
 
         let problems = account.runs.flatMap(\.entries).filter(\.isProblem)
         try check(account.problemCount == 1, "morning: \(account.problemCount) problems, not 1")
@@ -79,7 +97,16 @@ extension Showcase {
         try check(snapshot.night?.state == .running, "working: the Night is not running")
         try check(snapshot.night?.nightCard?.identifier == "ORB-200", "working: Night Card is not ORB-200")
         try check(snapshot.needsYou.cards.isEmpty, "working: a Card needs you")
-        try check(snapshot.health == nil, "working: Health is not clean")
+        let flags = snapshot.health ?? []
+        try check(flags.count == 1, "working: \(flags.count) Health flags, not 1")
+        try check(
+            flags.first?.kind == .routeExcluded,
+            "working: Health flag is \(flags.first?.kind.rawValue ?? "nil"), not Route excluded"
+        )
+        try check(
+            flags.first?.detail == "codex/gpt-5.4/high \u{2014} hard failure on ORB-214",
+            "working: Health flag reads \(flags.first?.detail ?? "nil")"
+        )
 
         let attempts = snapshot.now.attempts
         try check(attempts.count == 3, "working: \(attempts.count) open Attempts, not 3")

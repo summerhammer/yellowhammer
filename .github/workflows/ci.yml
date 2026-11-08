@@ -139,6 +139,7 @@ jobs:
         with:
           path: |
             Packages/YellowhammerKit/.build
+            Tools/LandingScreenshots/.build
             ~/Library/Caches/org.swift.swiftpm
           key: swiftpm-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_VERSION }}-${{ hashFiles('Packages/YellowhammerKit/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
@@ -155,6 +156,10 @@ jobs:
         run: |
           mkdir -p build/test-results
           swift build --package-path Packages/YellowhammerKit --build-tests --disable-index-store 2>&1 | tee build/test-results/compile.log
+
+      - name: Build landing screenshot showcase
+        timeout-minutes: 3
+        run: swift build --package-path Tools/LandingScreenshots --disable-index-store
 
       - name: Summarize SwiftPM cache
         if: always()
@@ -181,6 +186,7 @@ jobs:
         with:
           path: |
             Packages/YellowhammerKit/.build
+            Tools/LandingScreenshots/.build
             ~/Library/Caches/org.swift.swiftpm
           key: ${{ steps.swiftpm-cache.outputs.cache-primary-key }}
 

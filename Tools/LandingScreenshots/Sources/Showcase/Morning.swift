@@ -81,7 +81,7 @@ private func seedLandRun(_ journal: JournalStore, clock: ShowcaseClock, night: S
     let lanes = [(Showcase.apiRepo, 418), (Showcase.iosRepo, 97), (Showcase.webRepo, 233)]
     for (index, lane) in lanes.enumerated() {
         let start = clock.night(29, 31 + index * 3)
-        try landLane(run, repo: lane.0, pullRequest: lane.1, featureID: night.featureID, at: start)
+        try landLane(run, repo: lane.0, pullRequest: lane.1, night: night, at: start)
     }
     try run.beat(clock.night(29, 40))
     try journal.markCycleLanded(cycleID: night.cycleID, runID: run.runID, now: clock.night(29, 40))
@@ -90,22 +90,22 @@ private func seedLandRun(_ journal: JournalStore, clock: ShowcaseClock, night: S
     try run.finish(at: clock.night(29, 42))
 }
 
-private func landLane(_ run: ShowcaseRun, repo: String, pullRequest: Int, featureID: Int64, at start: Date) throws {
+private func landLane(_ run: ShowcaseRun, repo: String, pullRequest: Int, night: ShowcaseNight, at start: Date) throws {
     let url = "https://github.com/orbit-hq/\(repo)/pull/\(pullRequest)"
     try run.journal.recordFeatureBranch(
-        featureID: featureID, repository: repo, branch: FeatureBranch(rawValue: Showcase.featureBranch)
+        featureID: night.featureID, repository: repo, branch: FeatureBranch(rawValue: Showcase.featureBranch)
     )
     try run.record(.landStep(step: .mergeTest, repository: repo, outcome: .completed, detail: nil), at: start)
     try run.record(
         .landStep(step: .push, repository: repo, outcome: .completed, detail: Showcase.featureBranch),
         at: start + 20
     )
-    try run.journal.recordLandedCommit(
-        featureID: featureID, repository: repo, commit: "5eed\(pullRequest)", runID: run.runID, now: start + 20
+    try run.journal.recordPushedTip(
+        cycleID: night.cycleID, repository: repo, commit: "5eed\(pullRequest)", runID: run.runID, now: start + 20
     )
     try run.beat(start + 40)
     try run.journal.recordPullRequest(
-        featureID: featureID, repository: repo, url: url, nightID: run.nightID, runID: run.runID, now: start + 40
+        featureID: night.featureID, repository: repo, url: url, nightID: run.nightID, runID: run.runID, now: start + 40
     )
     try run.record(
         .landStep(step: .openPullRequest, repository: repo, outcome: .completed, detail: url), at: start + 40
