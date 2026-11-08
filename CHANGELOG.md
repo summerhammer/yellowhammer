@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.36.0](https://github.com/summerhammer/yellowhammer/compare/v0.35.0...v0.36.0) (2026-11-08)
+
+
+### Features
+
+* **morning-report:** Re-post a Linear-unreachable halted notice that failed to post; reword the Night Summary line ([fd9d368](https://github.com/summerhammer/yellowhammer/commit/fd9d368caaf99f0e5bcc3af632be0d36b51c732c))
+
+
+### Bug Fixes
+
+* **engine:** accept the Operator's Done on a Work Card and block one moved out of Done ([#793](https://github.com/summerhammer/yellowhammer/issues/793)) ([cf3ad27](https://github.com/summerhammer/yellowhammer/commit/cf3ad27786d08ab311be6b69225fe82b2fccde24))
+* **engine:** carry a failed landing step in the closed Exception Notification ([3acdb3c](https://github.com/summerhammer/yellowhammer/commit/3acdb3cf01adc516c66b15c94275f8b00b1941e6)), closes [#767](https://github.com/summerhammer/yellowhammer/issues/767)
+* **engine:** explain stacked merge blockers and Operator waits ([bb2cafd](https://github.com/summerhammer/yellowhammer/commit/bb2cafd4e380026dde71cc9c7856d98c3665e815)), closes [#741](https://github.com/summerhammer/yellowhammer/issues/741)
+* **engine:** name the right remedy in the Worktree name collision notice ([b07114e](https://github.com/summerhammer/yellowhammer/commit/b07114eee74d30601bcc2762ec783cf3e3b9bb35))
+* **engine:** never join a truncated Worktree name to its digest with a double hyphen ([9f5ce6f](https://github.com/summerhammer/yellowhammer/commit/9f5ce6f7eef8f8c4fe290f962c816d725b7eb09a))
+* **engine:** retain Feature reports through Roll-up maintenance ([931d64b](https://github.com/summerhammer/yellowhammer/commit/931d64b4952438d719b45d89995dd391dc23c298)), closes [#742](https://github.com/summerhammer/yellowhammer/issues/742)
+* **tools:** LandingScreenshots seeds a removed recordLandedCommit and does not build ([5c48e95](https://github.com/summerhammer/yellowhammer/commit/5c48e952f05c4bdc42089c7f01088573a9a140ac)), closes [#768](https://github.com/summerhammer/yellowhammer/issues/768)
+
 ## [0.35.0](https://github.com/summerhammer/yellowhammer/compare/v0.34.0...v0.35.0) (2026-11-06)
 
 
