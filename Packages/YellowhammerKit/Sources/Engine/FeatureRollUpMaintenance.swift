@@ -26,7 +26,13 @@ public struct FeatureRollUpMaintenance: Sendable {
     /// Cycle at all is past the Refusal/Authoring Halt standing the zero-Card path reads.
     public func maintain(feature: FeatureRecord, cycleID: Int64) async throws -> Outcome {
         let rollUp = try Self.rollUp(feature: feature, cycleID: cycleID, journal: journal)
-        return try await post(issueID: feature.issueID, rollUp: rollUp)
+        let verification = try journal.featureVerification(cycleID: cycleID).map { record in
+            VerificationReport(
+                record: record,
+                touchedRepositoryCount: try journal.touchedRepositories(featureID: feature.id).count
+            )
+        }
+        return try await post(issueID: feature.issueID, rollUp: rollUp, verification: verification)
     }
 
     /// The Roll-up the Managed Block renders for a Feature that has a Cycle, as the Journal stands now. Shared
@@ -167,19 +173,6 @@ public struct FeatureRollUpMaintenance: Sendable {
     }
 
     // MARK: - Rendering and posting
-
-    private func post(issueID: String, rollUp: FeatureRollUp) async throws -> Outcome {
-        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
-        let hash = ManagedBlockFence.sha256(rendered)
-        if let lastHash = try journal.managedBlockLastPostedHash(issueID: issueID), lastHash == hash {
-            return .skipped(hash: hash)
-        }
-        let write = OutboxWrite(
-            key: "rollup:\(issueID):\(hash)",
-            write: .rewriteManagedBlock(issue: BoardObjectID(rawValue: issueID), rendered: rendered)
-        )
-        return .posted(hash: hash, delivery: try await outbox.post(write))
-    }
 
     /// The Cycle's Cards as ``RollUpMember``s: markers from ``FeatureMemberMarkers``, adoption from the
     /// latest `cardAdopted` event landing each Card in `feature`. A removed Card (trashed, or archived
@@ -327,6 +320,22 @@ public struct FeatureRollUpMaintenance: Sendable {
 }
 
 extension FeatureRollUpMaintenance {
+    private func post(
+        issueID: String, rollUp: FeatureRollUp, verification: VerificationReport? = nil
+    ) async throws -> Outcome {
+        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
+        let renderings = verification?.managedBlockRenderings().map { rendered + "\n" + $0 } ?? [rendered]
+        let hash = ManagedBlockFence.sha256(renderings[0])
+        if let lastHash = try journal.managedBlockLastPostedHash(issueID: issueID), lastHash == hash {
+            return .skipped(hash: hash)
+        }
+        let write = OutboxWrite(
+            key: "rollup:\(issueID):\(hash)",
+            write: .rewriteFeatureRollUp(issue: BoardObjectID(rawValue: issueID), renderings: renderings)
+        )
+        return .posted(hash: hash, delivery: try await outbox.post(write))
+    }
+
     /// Every Feature a `predecessorAncestryObserved` event this Night names (roadmap P23.5): the merge pass runs
     /// over every Feature in the Unmerged Feature Stack, not only the most recent archived one, so a Feature
     /// below the top of the stack — including one whose last repository merged tonight — has its merged fraction

@@ -319,7 +319,7 @@ public struct Outbox: Sendable {
         case .attachLink(let issue, let url, let title):
             return .created(try await board.attachLink(to: issue, url: url, title: title, clientID: entry.clientID))
         case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteFeatureDefinitionOfDone,
-             .rewriteManagedBlockCompacting, .updateManagedBlockLinesCompacting:
+             .rewriteManagedBlockCompacting, .rewriteFeatureRollUp, .updateManagedBlockLinesCompacting:
             return try await performDescription(write, entry: entry)
         case .updateManagedBlockLine(let issue, let prefix, let line):
             return try await performManagedBlock(

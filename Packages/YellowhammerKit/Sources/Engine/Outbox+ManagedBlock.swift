@@ -41,7 +41,8 @@ extension Outbox {
     /// refused (``Performed/overBudget(length:budget:cause:)``), naming the report by its prefix when there
     /// is one (spec: board-projection/maintain-the-managed-block, budget on rewrite; issue #670).
     func performManagedBlock(
-        issue: BoardObjectID, renderings: [String], replacingPrefix prefix: String? = nil, entry: OutboxEntry
+        issue: BoardObjectID, renderings: [String], replacingPrefix prefix: String? = nil,
+        preservingMergeTests: Bool = false, entry: OutboxEntry
     ) async throws -> Performed {
         let snapshot = try await board.issueDescription(issue)
         var blocks = renderings
@@ -50,11 +51,12 @@ extension Outbox {
         if prefix == nil, let held = try importFreshInput(from: snapshot, issue: issue, renderings: renderings) {
             return held
         }
-        if let prefix {
-            switch Self.patchingLines(renderings, prefix: prefix, in: snapshot.description) {
-            case .failure(let failure): return .unfenced(failure)
-            case .success(let patched): blocks = patched
-            }
+        switch Self.composedBlocks(
+            renderings, replacingPrefix: prefix, preservingMergeTests: preservingMergeTests,
+            in: snapshot.description
+        ) {
+        case .failure(let failure): return .unfenced(failure)
+        case .success(let composed): blocks = composed
         }
         var mostCompacted: (length: Int, index: Int)?
         for (index, rendered) in blocks.enumerated() {
@@ -77,10 +79,36 @@ extension Outbox {
         guard let descriptionBudget, let mostCompacted else { throw OutboxError.payloadUnreadable(entryID: entry.id) }
         // A report is measured alone as its own lines; a whole block as it is.
         let alone = descriptionBudget.fits(
-            ManagedBlockFence.initialDescription(rendered: renderings[mostCompacted.index])
+            ManagedBlockFence.initialDescription(
+                rendered: preservingMergeTests ? blocks[mostCompacted.index] : renderings[mostCompacted.index]
+            )
         )
-        let cause: OverBudgetCause = prefix.map { .lineUpdate(prefix: $0, reportAloneFits: alone) }
-            ?? .blockRewrite(renderingAloneFits: alone)
+        let cause = Self.overBudgetCause(
+            prefix: prefix, preservingMergeTests: preservingMergeTests, aloneFits: alone
+        )
         return .overBudget(length: mostCompacted.length, budget: descriptionBudget, cause: cause)
+    }
+
+    private static func composedBlocks(
+        _ renderings: [String], replacingPrefix prefix: String?, preservingMergeTests: Bool,
+        in description: String?
+    ) -> Result<[String], ManagedBlockFence.Failure> {
+        if let prefix { return patchingLines(renderings, prefix: prefix, in: description) }
+        guard preservingMergeTests else { return .success(renderings) }
+        return ManagedBlockFence.parts(of: description).map { parts in
+            // Another lane may have delivered since acceptance. Keep reports from the same fresh read
+            // used for budget accounting and replacement; unrelated old Roll-up text is regenerated.
+            let reports = parts.block.split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { $0.hasPrefix("Mainline merge test for `") }.map(String.init)
+            return reports.isEmpty ? renderings : renderings.map { ([$0] + reports).joined(separator: "\n") }
+        }
+    }
+
+    private static func overBudgetCause(
+        prefix: String?, preservingMergeTests: Bool, aloneFits: Bool
+    ) -> OverBudgetCause {
+        if preservingMergeTests { return .featureRollUp(renderingAloneFits: aloneFits) }
+        return prefix.map { .lineUpdate(prefix: $0, reportAloneFits: aloneFits) }
+            ?? .blockRewrite(renderingAloneFits: aloneFits)
     }
 }
