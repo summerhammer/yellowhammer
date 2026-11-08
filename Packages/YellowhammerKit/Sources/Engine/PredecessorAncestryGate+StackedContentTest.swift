@@ -39,7 +39,7 @@ extension PredecessorAncestryGate {
         /// Observed Merge there yet, or the running git is older than 2.40 and cannot take the recorded base as
         /// the merge base. Never the unanchored search instead, which reads mainline from before the lower Feature
         /// landed as a stacked Feature that undid part of it. Only the Mainline Conflict re-test runs.
-        case notRun
+        case notRun(reason: String)
     }
 
     /// The plan for `repository`. A Feature is stacked there when its recorded base names a Feature below it
@@ -54,9 +54,10 @@ extension PredecessorAncestryGate {
             }),
             let lowerFeatureID = base.stackedOnFeatureID
         else { return .fromForkPoint }
-        guard let landingCommit = try journal.landingCommits(featureID: lowerFeatureID)[repository],
-              await scope.gitVersion.version()?.mergeTreeTakesMergeBase == true
-        else { return .notRun }
+        guard let landingCommit = try journal.landingCommits(featureID: lowerFeatureID)[repository]
+        else { return .notRun(reason: "lower_feature_merge_not_observed") }
+        guard await scope.gitVersion.version()?.mergeTreeTakesMergeBase == true
+        else { return .notRun(reason: "git_merge_base_option_unavailable") }
         return .stacked(StackedContentAnchor(recordedBase: base.baseCommit, lowerLandingCommit: landingCommit))
     }
 

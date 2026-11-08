@@ -56,6 +56,15 @@ extension NightSummary {
             lowerBranches: lowerFeatureBranches(try journal.unmergedFeatureStack()), journal: journal
         )
         if !readNotes.isEmpty { line += " " + readNotes.joined(separator: " ") }
+        let pullRequests = try journal.pullRequests(featureID: inFlight.feature.id)
+        let mergedWithoutProof = inFlight.pushedRepositories.filter {
+            landings[$0] == nil && pullRequests[$0]?.observedState == .merged
+        }
+        if !mergedWithoutProof.isEmpty {
+            line += " Waiting on the Operator: the Pushed Tip has no "
+                + "Observed Merge in mainline (\(mergedWithoutProof.sorted().joined(separator: ", "))). "
+                + MergeRouteOut.contentFreeMerge
+        }
         lines.append(line)
         return lines
     }

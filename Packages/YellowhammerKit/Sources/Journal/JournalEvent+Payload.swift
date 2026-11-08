@@ -68,6 +68,8 @@ extension JournalEvent {
             ["reason": reason.rawValue, "repository": repository]
         case .multiplePullRequestsObserved(let repository, let branch, let numbers):
             ["branch": branch, "numbers": numbers.map(String.init).joined(separator: ","), "repository": repository]
+        case .predecessorMergeTested(let featureIssueID, let repository, let details):
+            details.merging(["feature_issue_id": featureIssueID, "repository": repository]) { _, reserved in reserved }
         case .mainlineConflictDetected(let featureIssueID, let repository, let paths):
             [
                 "feature_issue_id": featureIssueID,

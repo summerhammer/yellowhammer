@@ -47,6 +47,8 @@ extension JournalEvent {
             .predecessorWalkSkippedReleasedFeature
         case .predecessorAncestryObserved:
             .predecessorAncestryObserved
+        case .predecessorMergeTested:
+            .predecessorMergeTested
         case .mainlineConflictDetected:
             .mainlineConflictDetected
         case .pullRequestReadFailed:

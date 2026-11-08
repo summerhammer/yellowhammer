@@ -340,3 +340,45 @@ extension NightSummaryInFlightFeatureTests {
         #expect(rollUp.conflictingRepositories.isEmpty)
     }
 }
+
+extension NightSummaryInFlightFeatureTests {
+    @Test("A landed Feature with a merged PR but no mainline proof names the Operator route out (#741)")
+    func mergedWithoutMainlineProofIsWaiting() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        try await EngineInvocation(
+            act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { context in
+                _ = try journal.recordAuthoringNoWorkAvailable(
+                    nightID: context.night.id, act: context.act, runID: context.runID
+                )
+            }
+        ).run()
+        let night = try #require(try journal.currentNight())
+        let ids = try insertInFlightFeature(journal, featureIssueID: "FEAT-1", repositories: ["backend"])
+        try journal.recordPullRequest(
+            featureID: ids.featureID, repository: "backend", url: "https://github.com/o/r/pull/9",
+            nightID: night.id, runID: RunID()
+        )
+        try journal.write { db in
+            try db.execute(
+                sql: """
+                UPDATE pull_request SET observed_state = 'merged', head_commit = 'post-land-tip' WHERE feature_id = ?
+                """,
+                arguments: [ids.featureID]
+            )
+        }
+        try journal.append(.predecessorAncestryObserved(
+            featureIssueID: "FEAT-1", mergedRepositories: [], unmergedRepositories: ["backend"]
+        ), act: .author, runID: RunID(), nightID: night.id)
+        let line = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+        #expect(line.contains("Waiting on the Operator"))
+        #expect(line.contains("no Observed Merge in mainline (backend)"))
+        #expect(line.contains("git merge -s ours"))
+        let verdict = try NightSummary.verdictLine(night: night, journal: journal)
+        #expect(verdict.contains("did not advance — waiting on the Operator"))
+        #expect(!verdict.contains("idle"))
+    }
+}
