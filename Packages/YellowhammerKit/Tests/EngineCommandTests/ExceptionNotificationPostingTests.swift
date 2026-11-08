@@ -544,4 +544,50 @@ struct ClosedNotificationFailureLineTests {
             )
         )
     }
+
+    @Test("A Night whose only failure is an unrecovered failed landing step posts that step's line")
+    func unrecoveredLandingFailureIsTheLine() async throws {
+        let notification = try await closedNotification([
+            .landStep(step: .push, repository: "backend", outcome: .failed, detail: "GH006: Protected branch.")
+        ])
+        #expect(
+            notification.event == .closed(failureLine: "Landing `backend` failed: the push")
+        )
+    }
+
+    @Test("An unrecovered failed landing step with no repository names the step")
+    func unrecoveredLandingFailureWithoutRepository() async throws {
+        let notification = try await closedNotification([
+            .landStep(step: .push, repository: nil, outcome: .failed, detail: nil)
+        ])
+        #expect(
+            notification.event == .closed(failureLine: "Landing failed: the push")
+        )
+    }
+
+    @Test("A recovered landing failure does not displace an unrecovered Act failure")
+    func recoveredLandingDoesNotDisplaceActFailure() async throws {
+        let notification = try await closedNotification([
+            .featureBreakdownRejected(name: "Sync", reason: overBudgetReason),
+            .landStep(step: .push, repository: "backend", outcome: .failed, detail: "GH006: Protected branch."),
+            .landStep(step: .push, repository: "backend", outcome: .completed, detail: "abc1234")
+        ])
+        #expect(
+            notification.event
+                == .closed(failureLine: "Authoring \u{201C}Sync\u{201D} failed: over the description budget")
+        )
+    }
+
+    @Test("An unrecovered Act failure and an unrecovered landing failure count together")
+    func unrecoveredActAndLandingFailuresCountTogether() async throws {
+        let notification = try await closedNotification([
+            .featureBreakdownRejected(name: "Sync", reason: overBudgetReason),
+            .landStep(step: .push, repository: "backend", outcome: .failed, detail: "GH006: Protected branch.")
+        ])
+        #expect(
+            notification.event == .closed(
+                failureLine: "Authoring \u{201C}Sync\u{201D} failed: over the description budget (and 1 more)"
+            )
+        )
+    }
 }
