@@ -33,6 +33,9 @@ public struct DeltaReadReport: Equatable, Sendable {
     public var shelved: [CardRecord]
     /// Journal-shelved Cards the board read as reopened; restored to the state they held.
     public var reopened: [CardRecord]
+    /// Work Cards the board read in a completed-type state the Journal did not write (Operator Done); now
+    /// recorded as Done by the Operator.
+    public var operatorDone: [CardRecord]
     /// Cards whose board state the Journal did not write. Reported, never adopted.
     public var restated: [RestatedCard]
     /// Journal-Blocked Cards read as Linear Todo with a known Block Reason and no pending write:
@@ -71,6 +74,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         ownComments: Int = 0,
         shelved: [CardRecord] = [],
         reopened: [CardRecord] = [],
+        operatorDone: [CardRecord] = [],
         restated: [RestatedCard] = [],
         reReadied: [CardRecord] = [],
         removed: [RemovedCard] = [],
@@ -89,6 +93,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         self.ownComments = ownComments
         self.shelved = shelved
         self.reopened = reopened
+        self.operatorDone = operatorDone
         self.restated = restated
         self.reReadied = reReadied
         self.removed = removed

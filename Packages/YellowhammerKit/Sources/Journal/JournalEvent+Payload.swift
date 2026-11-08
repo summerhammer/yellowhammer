@@ -151,6 +151,19 @@ extension JournalEvent {
                 "issue_id": issueID,
                 "restored_state": restoredState.rawValue
             ]
+        case .cardOperatorDone(let cardID, let issueID, let previousState, let waitingReason, let blockReason):
+            {
+                var dict: [String: String] = [
+                    "card_id": String(cardID), "issue_id": issueID, "previous_state": previousState.rawValue
+                ]
+                if let waitingReason {
+                    dict["waiting_reason"] = waitingReason.rawValue
+                }
+                if let blockReason {
+                    dict["block_reason"] = blockReason.rawValue
+                }
+                return dict
+            }()
         case .cardRestated(let cardID, let issueID, let journalState, let boardState):
             [
                 "board_state": boardState,

@@ -11,8 +11,9 @@ import Journal
 /// Linear project by the Board Port it was handed, and to the
 /// Project's Journal by construction, so a sibling Project's Card can be neither read nor matched.
 /// Yellowhammer's own comments are filtered out by identity. The Journal stays authoritative for loop
-/// state: a Card the board re-stated is reported, not adopted; the one exception is Shelved, which
-/// Yellowhammer reads and never writes, and which takes effect here, at the Act boundary. When the
+/// state: a Card the board re-stated is reported, not adopted; the exceptions are Shelved, which
+/// Yellowhammer reads and never writes, and a Work Card the Operator moved to Done (a completed-type
+/// state), and both take effect here, at the Act boundary. When the
 /// board refuses for its rate budget the read degrades — nothing read is acted on, no sync point
 /// moves — and the degradation is recorded as installation-wide, because the budget is the App
 /// Installation's and shared by every Project on that same Board Connection.
@@ -260,25 +261,14 @@ public struct DeltaRead: Sendable {
                 cardID: card.id, runID: runID, act: act, nightID: nightID, now: clock()
             )
             report.reopened.append(card)
+            if try operatorDoneApplies(card: card, boardState: boardState, pending: pending) {
+                card = try applyOperatorDone(card: card, pending: pending, into: &report)
+            }
             return false
         case (_, false):
-            guard boardState.name != card.state.rawValue else { return false }
-            // A write of ours still on its way to the board is not the Operator's doing; a board that holds
-            // neither the state it was decided against nor its target means a human moved the issue, and the
-            // write is superseded so the human's state is read as input rather than hidden behind it.
-            if try supersedingStalePendingWrites(of: &card, pending: pending, boardState: boardState) { return false }
-            if try reReadyIfBlocked(card: &card, boardState: boardState, into: &report) {
-                return false
-            }
-            // The board moved the Card to a state the Journal did not write. The Journal is
-            // authoritative; the board copy is reposted from it, not the other way round.
-            report.restated.append(RestatedCard(card: card, boardState: boardState))
-            if !replayed {
-                try append(.cardRestated(
-                    cardID: card.id, issueID: card.issueID, journalState: card.state, boardState: boardState.name
-                ))
-            }
-            return true
+            return try reconcileNonShelved(
+                card: &card, boardState: boardState, pending: pending, replayed: replayed, into: &report
+            )
         }
     }
 

@@ -97,6 +97,8 @@ extension JournalEvent {
             .cardShelved
         case .cardReopened:
             .cardReopened
+        case .cardOperatorDone:
+            .cardOperatorDone
         case .cardRestated:
             .cardRestated
         case .humanCardComment:
