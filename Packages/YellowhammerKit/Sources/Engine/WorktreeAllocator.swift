@@ -32,7 +32,7 @@ public enum WorktreeAllocationError: Error, Equatable, Sendable {
     /// `branch` is what Orca ADE reported, `expected` is the recorded recovery commit and `found` is the
     /// new Worktree's HEAD, nil when it did not resolve. The Worktree it made was removed; the pin and the
     /// Journal's recovery record are untouched, so the commits are still held. Deliberately not
-    /// ``nameCollision(repository:requested:reported:recorded:)``: that one's remedy is a prefix change.
+    /// ``nameCollision(repository:requested:reported:recorded:)``: that one's remedy is a name or prefix fix.
     case recoveryMismatch(repository: String, branch: String, expected: String, found: String?)
     /// A Worktree cut from the base recorded at selection (roadmap P23.3) did not come back at the recorded
     /// commit: `ref` is what `--base-branch` was given (or, with `found` nil and no Worktree made, the pin that

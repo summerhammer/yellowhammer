@@ -135,8 +135,27 @@ extension BuildActTests {
             reported: "rozd/yh-yellowhammer-night-card"
         ).description
         #expect(notice.count <= 200)
-        #expect(notice.contains("git branch -m"))
+        #expect(notice.contains("prefix back as it was when this branch was recorded"))
         #expect(!notice.contains("branch -D"))
         #expect(!notice.contains("worktree rm"))
+    }
+
+    @Test("A collision that is not a prefix difference never blames Orca ADE's prefix setting")
+    func collisionNoticeWithoutPrefixDifference() {
+        // The 2026-11-08 shape: a prefix plus a name Orca ADE rewrote (`--` collapsed to `-`).
+        let rewritten = BuildActError.worktreeNameCollision(
+            repository: "yellowhammer", requested: "yh-yellowhammer-night--a1b2",
+            reported: "rozd/yh-yellowhammer-night-a1b2"
+        ).description
+        let clash = BuildActError.worktreeNameCollision(
+            repository: "mobile", requested: "yh-mobile-card", reported: "somebody/else"
+        ).description
+        for notice in [rewritten, clash] {
+            #expect(notice.count <= 200)
+            #expect(!notice.contains("prefix"))
+            #expect(notice.contains("git branch -m"))
+            #expect(notice.contains("Yellowhammer defect"))
+            #expect(!notice.contains("branch -D"))
+        }
     }
 }

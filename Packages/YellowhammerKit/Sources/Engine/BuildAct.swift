@@ -360,7 +360,7 @@ public enum BuildActError: Error, Equatable, Sendable, CustomStringConvertible {
         switch self {
         case .worktreeNameCollision(let repository, let requested, let reported):
             return "\(repository): Orca ADE made '\(reported)', not '\(requested)'. "
-                + "Restore Orca ADE's branch-name prefix setting, or `git branch -m` the branch that holds the name."
+                + Self.collisionRemedy(requested: requested, reported: reported)
         case .featureBranchUnrecorded(let featureID):
             return "Feature \(featureID) holds a Worktree but the Journal has no Feature Branch recorded for it"
         case .worktreeNameUnrecorded(let featureID):
@@ -371,5 +371,15 @@ public enum BuildActError: Error, Equatable, Sendable, CustomStringConvertible {
             let named = failures.keys.sorted().map { "\($0): \(failures[$0]!)" }.joined(separator: "; ")
             return "the build Act's lanes failed: \(named)"
         }
+    }
+
+    /// The remedy that matches how the names differ. A first allocation already accepts any
+    /// `<prefix>/` Orca ADE adds, so a prefix differs only from a Feature Branch recorded under the
+    /// other setting; any other difference is a branch holding the name or Orca ADE rewriting it.
+    private static func collisionRemedy(requested: String, reported: String) -> String {
+        if reported.hasSuffix("/" + requested) || requested.hasSuffix("/" + reported) {
+            return "Set Orca ADE's branch-name prefix back as it was when this branch was recorded."
+        }
+        return "`git branch -m` a branch holding the name; if none, Orca ADE rewrote it (Yellowhammer defect)."
     }
 }
