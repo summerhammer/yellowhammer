@@ -48,17 +48,20 @@ extension NightSummary {
     }
 
     /// The short copy of the closed Exception Notification: the headline of the Night's first unrecovered
-    /// Failure Notice, with ` (and N more)` when N more are unrecovered. Nil when there is none — failures
-    /// that are no Act failure (``alsoThisNightLine``) make no line on their own. The notification adds no
-    /// event; it carries what the Night Card's `**Failures:**` section states
-    /// (morning-report/notify-the-operator-of-exceptions).
+    /// Failure Notice, with ` (and N more)` when N more are unrecovered. Eligible notices are unrecovered
+    /// Act failures and unrecovered landing step failures; failures that are neither (``alsoThisNightLine``)
+    /// make no line on their own. Nil when there is none. The notification adds no event; it carries what
+    /// the Night Card's `**Failures:**` section states
+    /// (morning-report/notify-the-operator-of-exceptions, morning-report/disclose-a-failure#where).
     public static func notificationFailureLine(
         night: NightRecord, journal: JournalStore, renderingRunID: RunID? = nil
     ) throws -> String? {
         let events = try nightEvents(night: night, journal: journal)
-        let notices = unrecoveredNotices(events: events, renderingRunID: renderingRunID)
-        guard let headline = notices.first?.first?.headline else { return nil }
-        return notices.count > 1 ? "\(headline) (and \(notices.count - 1) more)" : headline
+        let actNotices = unrecoveredNotices(events: events, renderingRunID: renderingRunID)
+        let landingHeadlines = unrecoveredLandingHeadlines(events: events)
+        let headlines = actNotices.compactMap { $0.first?.headline } + landingHeadlines
+        guard let headline = headlines.first else { return nil }
+        return headlines.count > 1 ? "\(headline) (and \(headlines.count - 1) more)" : headline
     }
 
     /// The Night's Failure Notices (each a fold of failures) that no later run recovered, in Journal order.

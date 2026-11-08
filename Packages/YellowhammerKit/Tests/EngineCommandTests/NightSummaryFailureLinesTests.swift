@@ -342,3 +342,145 @@ struct NightSummaryLandingFailureLinesTests {
         #expect(block.contains("**Failures:**\n- **Landing failed: the push**"))
     }
 }
+
+@Suite("Night Summary: closed Exception Notification failure line")
+struct NotificationFailureLineTests {
+    private func line(
+        _ night: NightRecord, _ journal: JournalStore, renderingRunID: RunID? = nil
+    ) throws -> String? {
+        try NightSummary.notificationFailureLine(night: night, journal: journal, renderingRunID: renderingRunID)
+    }
+
+    private func landRun(
+        _ journal: JournalStore, _ night: NightRecord, at startedAt: String, _ steps: [JournalEvent]
+    ) throws {
+        try appendRun(
+            to: journal, night: night, act: .land, startedAt: startedAt,
+            steps.enumerated().map { (TimeInterval($0.offset + 1), $0.element) } + [(10, .actEnded)]
+        )
+    }
+
+    private func push(_ outcome: LandStepOutcome, _ detail: String? = nil) -> JournalEvent {
+        .landStep(step: .push, repository: "backend", outcome: outcome, detail: detail)
+    }
+
+    private func openNight(_ fixture: borrowing NightCardJournalFixture) async throws -> (JournalStore, NightRecord) {
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        return (journal, try await openFailureNight(journal: journal, board: board))
+    }
+
+    @Test("An unrecovered Act failure posts its headline")
+    func unrecoveredActFailure() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try appendRun(
+            to: journal, night: night, act: .author, startedAt: "2026-10-08T14:28:00Z",
+            [
+                (5, .authoringDispatched(pass: .selection, route: "primary", ordinal: 1, fixture: nil)),
+                (10, .featureBreakdownRejected(name: "Sync", reason: overBudget)),
+                (11, .actEnded)
+            ]
+        )
+
+        #expect(
+            try line(night, journal) == "Authoring \u{201C}Sync\u{201D} failed: over the description budget"
+        )
+    }
+
+    @Test("A Night whose only failure is an unrecovered failed landing step posts that step's line")
+    func unrecoveredLandingFailure() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.failed, "GH006: Protected branch.")])
+
+        #expect(try line(night, journal) == "Landing `backend` failed: the push")
+    }
+
+    @Test("An unrecovered failed landing step without repository names the step")
+    func unrecoveredLandingFailureWithoutRepository() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [
+            .landStep(step: .push, repository: nil, outcome: .failed, detail: nil)
+        ])
+
+        #expect(try line(night, journal) == "Landing failed: the push")
+    }
+
+    @Test("A recovered landing failure does not displace an unrecovered Act failure")
+    func recoveredLandingDoesNotDisplaceActFailure() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try appendRun(
+            to: journal, night: night, act: .author, startedAt: "2026-10-08T14:28:00Z",
+            [
+                (5, .authoringDispatched(pass: .selection, route: "primary", ordinal: 1, fixture: nil)),
+                (10, .featureBreakdownRejected(name: "Sync", reason: overBudget)),
+                (11, .actEnded)
+            ]
+        )
+        try landRun(journal, night, at: "2026-10-08T15:00:00Z", [push(.failed, "GH006: Protected branch.")])
+        try landRun(journal, night, at: "2026-10-08T16:00:00Z", [push(.completed, "abc1234")])
+
+        #expect(
+            try line(night, journal) == "Authoring \u{201C}Sync\u{201D} failed: over the description budget"
+        )
+    }
+
+    @Test("A quiet Night or one whose only landing failure recovered carries no failure line")
+    func recoveredLandingOnlyCarriesNoLine() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        #expect(try line(night, journal) == nil)
+
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.failed, "GH006: Protected branch.")])
+        try landRun(journal, night, at: "2026-10-08T02:00:00Z", [push(.completed, "abc1234")])
+
+        #expect(try line(night, journal) == nil)
+    }
+
+    @Test("An unrecovered Act failure and an unrecovered landing failure count together")
+    func unrecoveredActAndLandingFailuresCountTogether() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try appendRun(
+            to: journal, night: night, act: .author, startedAt: "2026-10-08T14:28:00Z",
+            [
+                (5, .authoringDispatched(pass: .selection, route: "primary", ordinal: 1, fixture: nil)),
+                (10, .featureBreakdownRejected(name: "Sync", reason: overBudget)),
+                (11, .actEnded)
+            ]
+        )
+        try landRun(journal, night, at: "2026-10-08T15:00:00Z", [push(.failed, "GH006: Protected branch.")])
+
+        #expect(
+            try line(night, journal)
+                == "Authoring \u{201C}Sync\u{201D} failed: over the description budget (and 1 more)"
+        )
+    }
+
+    @Test("Multiple unrecovered landing failures count together")
+    func multipleUnrecoveredLandingFailuresCountTogether() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.failed, "GH006: Protected branch.")])
+        try landRun(
+            journal, night, at: "2026-10-08T02:00:00Z",
+            [.landStep(step: .mergeTest, repository: "backend", outcome: .failed, detail: "merge conflict")]
+        )
+
+        #expect(try line(night, journal) == "Landing `backend` failed: the push (and 1 more)")
+    }
+
+    @Test("Repeated failures of the same landing step fold into one notice")
+    func repeatedLandingFailuresFoldIntoOneNotice() async throws {
+        let fixture = try NightCardJournalFixture()
+        let (journal, night) = try await openNight(fixture)
+        try landRun(journal, night, at: "2026-10-08T01:00:00Z", [push(.failed, "GH006: Protected branch.")])
+        try landRun(journal, night, at: "2026-10-08T02:00:00Z", [push(.failed, "GH006: Protected branch.")])
+
+        #expect(try line(night, journal) == "Landing `backend` failed: the push")
+    }
+}

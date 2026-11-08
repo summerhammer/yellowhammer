@@ -29,14 +29,15 @@ extension NightSummary {
         let mayDo: String
     }
 
-    /// The Failure Notices of this Night's failed landing steps, flush firings excluded. Repeats of one identity
-    /// (step, repository, detail) fold into one line until a recovery: a later completed landing of the same step
-    /// and repository, or the Cycle landing. A failure after that recovery starts a new line
-    /// (morning-report/write-the-night-summary#one-notice-per-run). Unrecovered lines first, then the recovered
-    /// ones, each with ` — recovered at hh:mm` (a recovered failure keeps its own line).
-    static func landingFailureLines(
-        events: [JournalEventRecord], calendar: Calendar, projectID: ProjectID
-    ) -> [String] {
+    /// The failures of one notice: consecutive repeats of one identity, and the recovery that closed them.
+    private struct LandingFailureGroup {
+        let key: LandingFailureKey
+        var failures: [LandingFailure]
+        var recoveredAt: Date?
+    }
+
+    /// Folds the Night's failed landing steps into notices, flush firings excluded.
+    private static func landingFailureGroups(events: [JournalEventRecord]) -> [LandingFailureGroup] {
         var groups: [LandingFailureGroup] = []
         var open: [LandingFailureKey: Int] = [:]
         for record in withoutFlushFirings(events) {
@@ -62,9 +63,34 @@ extension NightSummary {
                 break
             }
         }
+        return groups
+    }
+
+    /// The headline of one landing step notice.
+    static func landingHeadline(for step: LandStep, repository: String) -> String {
+        let guidance = landingGuidance(for: step)
+        return repository.isEmpty
+            ? "Landing failed: \(guidance.phrase)" : "Landing `\(repository)` failed: \(guidance.phrase)"
+    }
+
+    /// The headlines of this Night's unrecovered failed landing steps.
+    static func unrecoveredLandingHeadlines(events: [JournalEventRecord]) -> [String] {
+        landingFailureGroups(events: events)
+            .filter { $0.recoveredAt == nil }
+            .map { landingHeadline(for: $0.key.step, repository: $0.key.repository) }
+    }
+
+    /// The Failure Notices of this Night's failed landing steps, flush firings excluded. Repeats of one identity
+    /// (step, repository, detail) fold into one line until a recovery: a later completed landing of the same step
+    /// and repository, or the Cycle landing. A failure after that recovery starts a new line
+    /// (morning-report/write-the-night-summary#one-notice-per-run). Unrecovered lines first, then the recovered
+    /// ones, each with ` — recovered at hh:mm` (a recovered failure keeps its own line).
+    static func landingFailureLines(
+        events: [JournalEventRecord], calendar: Calendar, projectID: ProjectID
+    ) -> [String] {
         var unrecovered: [String] = []
         var recovered: [String] = []
-        for group in groups {
+        for group in landingFailureGroups(events: events) {
             let line = landingFailureLine(group.key, group.failures, calendar: calendar, projectID: projectID)
             if let at = group.recoveredAt {
                 recovered.append("\(line) — recovered at \(clock(at, calendar))")
@@ -75,20 +101,12 @@ extension NightSummary {
         return unrecovered + recovered
     }
 
-    /// The failures of one notice: consecutive repeats of one identity, and the recovery that closed them.
-    private struct LandingFailureGroup {
-        let key: LandingFailureKey
-        var failures: [LandingFailure]
-        var recoveredAt: Date?
-    }
-
     private static func landingFailureLine(
         _ key: LandingFailureKey, _ group: [LandingFailure], calendar: Calendar, projectID: ProjectID
     ) -> String {
         guard let first = group.first, let last = group.last else { return "" }
         let guidance = landingGuidance(for: key.step)
-        let headline = key.repository.isEmpty
-            ? "Landing failed: \(guidance.phrase)" : "Landing `\(key.repository)` failed: \(guidance.phrase)"
+        let headline = landingHeadline(for: key.step, repository: key.repository)
         let runs = Set(group.map(\.runKey)).count
         let from = clock(first.record.occurredAt, calendar)
         let until = clock(last.record.occurredAt, calendar)
