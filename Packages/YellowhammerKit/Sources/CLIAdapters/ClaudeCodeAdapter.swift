@@ -20,8 +20,11 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     public let adapterVersion = "5"
     /// `claude --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
+    let configDirectory: URL?
 
-    public init() {}
+    public init(configDirectory: URL? = nil) {
+        self.configDirectory = configDirectory
+    }
 
     public func outputSchema(for pass: RunPass) -> String {
         CLIOutputSchema.strict(for: pass)
@@ -50,6 +53,8 @@ public struct ClaudeCodeAdapter: CLIAdapter {
             // is empty or unparsable (e.g. the process was killed before it could print anything).
             try? freshSessionID.write(to: sessionIDFile, atomically: true, encoding: .utf8)
             arguments += ["--session-id", freshSessionID]
+            let markerFile = dispatch.runDirectory.appendingPathComponent(Self.lastMessageIDFileName)
+            try? FileManager.default.removeItem(at: markerFile)
         }
 
         if let sessionName = dispatch.sessionName {
@@ -95,24 +100,29 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         let fallback = dispatch.resume ?? launchedSessionID
 
         let stdoutFile = dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
-        guard let data = try? Data(contentsOf: stdoutFile) else { return fallback }
-        let results = Self.resultEvents(in: data)
-        guard let last = results.last else { return fallback }
-
-        let session = (last["session_id"] as? String).map(CLISession.init(rawValue:)) ?? fallback
-
-        // The last good structured result wins: a text-only result after it is a follow-up turn, not a
-        // second answer. Only this invocation's capture is read; a previous Round's is set aside at launch.
-        let good = results.last(where: { result in
-            !(result["is_error"] as? Bool ?? false) && result["structured_output"] is [String: Any]
-        })
-        if let structuredOutput = good?["structured_output"] as? [String: Any] {
-            let resultFile = dispatch.runDirectory.appendingPathComponent("result.json")
-            // The forced schema declares optional fields nullable; the Domain schema wants them absent.
-            let members = structuredOutput.filter { !($0.value is NSNull) }
-            if let data = try? JSONSerialization.data(withJSONObject: members, options: [.sortedKeys]) {
-                try? data.write(to: resultFile)
+        var session = fallback
+        if let data = try? Data(contentsOf: stdoutFile) {
+            let results = Self.resultEvents(in: data)
+            if let last = results.last {
+                session = (last["session_id"] as? String).map(CLISession.init(rawValue:)) ?? fallback
             }
+
+            // The last good structured result wins: a text-only result after it is a follow-up turn, not a
+            // second answer. Only this invocation's capture is read; a previous Round's is set aside at launch.
+            let good = results.last(where: { result in
+                !(result["is_error"] as? Bool ?? false) && result["structured_output"] is [String: Any]
+            })
+            if let structuredOutput = good?["structured_output"] as? [String: Any] {
+                let resultFile = dispatch.runDirectory.appendingPathComponent("result.json")
+                // The forced schema declares optional fields nullable; the Domain schema wants them absent.
+                let members = structuredOutput.filter { !($0.value is NSNull) }
+                if let data = try? JSONSerialization.data(withJSONObject: members, options: [.sortedKeys]) {
+                    try? data.write(to: resultFile)
+                }
+            }
+        }
+        if let session {
+            recordLastMessageID(for: session.rawValue, dispatch: dispatch)
         }
         return session
     }

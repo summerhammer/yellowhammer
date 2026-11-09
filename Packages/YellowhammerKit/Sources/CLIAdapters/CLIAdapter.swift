@@ -138,10 +138,14 @@ public protocol CLIAdapter: Sendable {
     /// Translates a recognized vendor usage-limit refusal from captured stdout. Called only for a
     /// non-zero self-exit. Unknown payloads return nil, preserving ordinary exit classification.
     func usageLimit(for dispatch: CLIDispatch) -> RunOutcome?
+    /// Returns true when a resumed session's transcript contains turns Yellowhammer did not write
+    /// (e.g. from an interactive session in Orca's history).
+    func foreignTurns(before dispatch: CLIDispatch) -> Bool
 }
 
 extension CLIAdapter {
     public func usageLimit(for dispatch: CLIDispatch) -> RunOutcome? { nil }
+    public func foreignTurns(before dispatch: CLIDispatch) -> Bool { false }
 
     /// Shared refusal: every adapter validates the Route names it and accepts its effort before
     /// building a launch.

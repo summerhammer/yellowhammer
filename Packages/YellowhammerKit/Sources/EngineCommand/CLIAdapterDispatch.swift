@@ -140,6 +140,15 @@ struct CLIAdapterDispatch: AgentDispatch {
         }
     }
 
+    func foreignTurns(before request: AgentDispatchRequest) async -> Bool {
+        guard request.resumeSession != nil else { return false }
+        let cli = request.route.cli
+        guard let adapter = CLIAdapterRegistry.adapter(named: cli) else { return false }
+        let resolved = resolveProjectInstructions(for: request)
+        let dispatch = makeDispatch(for: request, resolved: resolved)
+        return adapter.foreignTurns(before: dispatch)
+    }
+
     private func recordRefusalIfNeeded(
         request: AgentDispatchRequest, resolved: ResolvedInstructions, reason: String, outputSchema: String?
     ) {
@@ -183,7 +192,7 @@ struct CLIAdapterDispatch: AgentDispatch {
     /// persists the structured response as `result.json` in the run directory, for validation, without
     /// the model being told where.
     func makeDispatch(
-        for request: AgentDispatchRequest, executable: String, resolved: ResolvedInstructions = .none
+        for request: AgentDispatchRequest, executable: String = "", resolved: ResolvedInstructions = .none
     ) -> CLIDispatch {
         let directory = runDirectory(for: request)
         return CLIDispatch(
