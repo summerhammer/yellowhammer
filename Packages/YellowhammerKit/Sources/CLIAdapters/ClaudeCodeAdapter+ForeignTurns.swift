@@ -4,15 +4,23 @@ import Foundation
 extension ClaudeCodeAdapter {
     static let lastMessageIDFileName = ".last-message-id"
 
-    func configDirectory(for dispatch: CLIDispatch) -> URL {
+    /// The transcript root the spawned `claude` uses: the injected directory, else the dispatch environment's
+    /// `CLAUDE_CONFIG_DIR`, else its `$HOME/.claude`. It is read from the dispatch, never from this process's
+    /// home: the child is spawned with exactly `dispatch.environment`, so that is where it writes, and a
+    /// dispatch with neither variable (every test fixture's empty environment) has no root, so nothing reads
+    /// the real `~/.claude`. No root means no transcript: no marker is recorded and the check answers false.
+    func configDirectory(for dispatch: CLIDispatch) -> URL? {
         if let configDirectory {
             return configDirectory
         }
         if let env = dispatch.environment["CLAUDE_CONFIG_DIR"], !env.isEmpty {
             return URL(filePath: env, directoryHint: .isDirectory)
         }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appending(component: ".claude", directoryHint: .isDirectory)
+        if let home = dispatch.environment["HOME"], !home.isEmpty {
+            return URL(filePath: home, directoryHint: .isDirectory)
+                .appending(component: ".claude", directoryHint: .isDirectory)
+        }
+        return nil
     }
 
     public static func encodeWorktreePath(_ path: String) -> String {
@@ -22,7 +30,7 @@ extension ClaudeCodeAdapter {
     }
 
     func transcriptURL(for sessionID: String, dispatch: CLIDispatch) -> URL? {
-        let configDir = configDirectory(for: dispatch)
+        guard let configDir = configDirectory(for: dispatch) else { return nil }
         let projectsDir = configDir.appending(component: "projects", directoryHint: .isDirectory)
         let encodedCwd = Self.encodeWorktreePath(dispatch.worktreePath)
         let expectedFile = projectsDir

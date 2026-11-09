@@ -283,6 +283,61 @@ struct ClaudeCodeAdapterForeignTurnsTests {
         #expect(!FileManager.default.fileExists(atPath: markerFile.path(percentEncoded: false)))
     }
 
+    @Test("The transcript root comes from the dispatch environment, never this process's home")
+    func transcriptRootComesFromDispatchEnvironment() throws {
+        let fixture = try Fixture.make()
+        defer { fixture.cleanUp() }
+        let adapter = ClaudeCodeAdapter()
+        var dispatch = fixture.dispatch()
+
+        dispatch.environment = [:]
+        #expect(adapter.configDirectory(for: dispatch) == nil)
+
+        let home = fixture.tempDir.path(percentEncoded: false)
+        dispatch.environment = ["HOME": home]
+        #expect(adapter.configDirectory(for: dispatch)
+            == fixture.tempDir.appending(component: ".claude", directoryHint: .isDirectory))
+
+        dispatch.environment = ["HOME": home, "CLAUDE_CONFIG_DIR": fixture.configDir.path(percentEncoded: false)]
+        #expect(adapter.configDirectory(for: dispatch) == fixture.configDir)
+    }
+
+    @Test("A dispatch with no HOME or CLAUDE_CONFIG_DIR records no marker and answers false")
+    func noTranscriptRootRecordsNothing() throws {
+        let fixture = try Fixture.make()
+        defer { fixture.cleanUp() }
+        let sessionID = "sess-no-root"
+        try fixture.writeTranscript(sessionID: sessionID, lines: [
+            #"{"type":"user","uuid":"u1","entrypoint":"cli"}"#
+        ])
+        let adapter = ClaudeCodeAdapter()
+        var dispatch = fixture.dispatch(resume: CLISession(rawValue: sessionID))
+        dispatch.environment = [:]
+
+        #expect(adapter.collect(end: .exited(status: 0), dispatch: dispatch)?.rawValue == sessionID)
+        let markerFile = fixture.runDir.appending(component: ".last-message-id")
+        #expect(!FileManager.default.fileExists(atPath: markerFile.path(percentEncoded: false)))
+        #expect(!adapter.foreignTurns(before: dispatch))
+    }
+
+    @Test("A dispatch HOME locates the transcript under its .claude directory")
+    func dispatchHomeLocatesTranscript() throws {
+        let fixture = try Fixture.make()
+        defer { fixture.cleanUp() }
+        let home = fixture.tempDir.appending(component: "home", directoryHint: .isDirectory)
+        let projectDir = home.appending(component: ".claude/projects", directoryHint: .isDirectory)
+            .appending(component: ClaudeCodeAdapter.encodeWorktreePath(fixture.worktreeDir.path(percentEncoded: false)))
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        let sessionID = "sess-home"
+        try Data(#"{"type":"user","uuid":"u1","entrypoint":"cli"}"#.utf8)
+            .write(to: projectDir.appending(component: "\(sessionID).jsonl"))
+        let adapter = ClaudeCodeAdapter()
+        var dispatch = fixture.dispatch(resume: CLISession(rawValue: sessionID))
+        dispatch.environment = ["HOME": home.path(percentEncoded: false)]
+
+        #expect(adapter.foreignTurns(before: dispatch))
+    }
+
     @Test("Codex and Antigravity adapters answer false to foreignTurns")
     func otherAdaptersAnswerFalse() throws {
         let fixture = try Fixture.make()
