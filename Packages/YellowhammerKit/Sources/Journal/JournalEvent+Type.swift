@@ -192,6 +192,8 @@ extension JournalEvent {
             .agentCLIProcessSpawned
         case .rehearsalFixtureAnswered:
             .rehearsalFixtureAnswered
+        case .agentSessionHadForeignTurns:
+            .agentSessionHadForeignTurns
         case .promptCaptureRequested:
             .promptCaptureRequested
         case .routePreflightPromptCaptureRequested:

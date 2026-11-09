@@ -191,3 +191,33 @@ func leftoverProcessRecordedRoundTrips() throws {
         if case .leftoverProcessRecorded(_, _, _, _, _, _, let disposition, _) = event { disposition } else { nil }
     }) == Set(LeftoverProcessDisposition.allCases))
 }
+
+@Test("agentSessionHadForeignTurns event round-trips through encoding and decoding")
+func agentSessionHadForeignTurnsRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-journal-foreignturns-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let event = JournalEvent.agentSessionHadForeignTurns(
+        cardID: 42, issueID: "ENG-101", attemptID: 2, round: 1, cli: "claude"
+    )
+
+    try journal.append(event, act: .build, runID: RunID(), now: Date(timeIntervalSince1970: 1_800_000_000))
+
+    let records = try journal.events(ofType: .agentSessionHadForeignTurns)
+    #expect(records.map(\.event) == [event])
+
+    // Verify payload keys do not name who wrote the turns (c2)
+    let payload = try #require(records.first?.event.payload)
+    #expect(payload["card_id"] == "42")
+    #expect(payload["issue_id"] == "ENG-101")
+    #expect(payload["attempt_id"] == "2")
+    #expect(payload["round"] == "1")
+    #expect(payload["cli"] == "claude")
+    #expect(payload["operator"] == nil)
+    #expect(payload["orca"] == nil)
+    #expect(payload["author"] == nil)
+    #expect(payload["who"] == nil)
+}

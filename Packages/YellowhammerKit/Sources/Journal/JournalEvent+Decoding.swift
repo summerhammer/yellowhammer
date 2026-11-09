@@ -238,6 +238,8 @@ extension JournalEvent {
             try Self.decodeAgentCLIProcessSpawned(reader)
         case .rehearsalFixtureAnswered:
             try Self.decodeRehearsalFixtureAnswered(reader)
+        case .agentSessionHadForeignTurns:
+            try Self.decodeAgentSessionHadForeignTurns(reader)
         case .promptCaptureRequested:
             try Self.decodePromptCaptureRequested(reader)
         case .routePreflightPromptCaptureRequested:

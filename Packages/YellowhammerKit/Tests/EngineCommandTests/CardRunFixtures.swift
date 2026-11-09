@@ -216,6 +216,48 @@ final class SequencedDispatch: AgentDispatch, Sendable {
     }
 }
 
+/// A Dispatch seam that reports a session on worker passes and answers ``foreignTurns(before:)`` from a
+/// scripted value or closure, recording all dispatch and foreign-turn requests so tests can assert timing and payloads.
+final class ForeignTurnsDispatch: AgentDispatch, Sendable {
+    let log: CallLog?
+    private let sequences: [RunPass: [RehearsalResultFixture]]
+    private let calls = Mutex<[RunPass: Int]>([:])
+    let requests = RequestLog()
+    let foreignTurnsRequests = RequestLog()
+    let scriptedForeignTurns: (@Sendable (AgentDispatchRequest) -> Bool)?
+
+    init(
+        log: CallLog? = nil,
+        sequences: [RunPass: [RehearsalResultFixture]],
+        scriptedForeignTurns: (@Sendable (AgentDispatchRequest) -> Bool)? = nil
+    ) {
+        self.log = log
+        self.sequences = sequences
+        self.scriptedForeignTurns = scriptedForeignTurns
+    }
+
+    func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
+        log?.add("dispatch \(request.pass.rawValue)")
+        requests.add(request)
+        guard let sequence = sequences[request.pass], !sequence.isEmpty else {
+            return try await RehearsalDispatch().dispatch(request)
+        }
+        let index = calls.withLock { calls in
+            let current = calls[request.pass, default: 0]
+            calls[request.pass] = current + 1
+            return current
+        }
+        let fixture = sequence[min(index, sequence.count - 1)]
+        return AgentDispatchReport(outcome: fixture.outcome(), session: "\(request.pass.rawValue)-session-\(index)")
+    }
+
+    func foreignTurns(before request: AgentDispatchRequest) async -> Bool {
+        log?.add("foreignTurns \(request.pass.rawValue)")
+        foreignTurnsRequests.add(request)
+        return scriptedForeignTurns?(request) ?? false
+    }
+}
+
 /// A Dispatch seam whose Route cannot be run at all on this machine.
 struct RefusingDispatch: AgentDispatch {
     let log: CallLog

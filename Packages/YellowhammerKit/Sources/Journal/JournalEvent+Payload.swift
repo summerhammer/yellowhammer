@@ -409,6 +409,11 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "pass": pass.rawValue, "fixture": fixture
             ]
+        case .agentSessionHadForeignTurns(let cardID, let issueID, let attemptID, let round, let cli):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                "round": String(round), "cli": cli
+            ]
         case .promptCaptureRequested(
             let recordID, let pass, let cardID, let issueID, let attemptID, let round, let ordinal
         ):

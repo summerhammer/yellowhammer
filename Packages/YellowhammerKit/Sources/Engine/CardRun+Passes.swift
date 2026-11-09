@@ -196,6 +196,11 @@ extension CardRun {
             provenance: provenance,
             sessionName: sessionName
         )
+        if pass == .worker, resumeSession != nil {
+            if await dispatch.foreignTurns(before: request) {
+                try frame.recordSessionHadForeignTurns(attemptID: attempt.id, round: currentRound, cli: route.cli)
+            }
+        }
         try frame.revalidateLease()
         try requestPromptCapture(
             recordID: recordID, pass: pass, frame: frame, attemptID: attempt.id, round: currentRound

@@ -23,6 +23,7 @@ extension NightCardMaintenance {
         let anomalies = try NightSummary.anomalyLines(night: night, journal: journal)
         let crashesAndReclaims = try NightSummary.crashesAndReclaimsLines(night: night, journal: journal)
         let leftoverProcesses = try NightSummary.leftoverProcessLines(night: night, journal: journal)
+        let touchedSessions = try NightSummary.touchedSessionLines(night: night, journal: journal)
         let exceptions = try NightSummary.exceptionLines(
             night: night, journal: journal, renderingRunID: renderingRunID
         )
@@ -46,7 +47,7 @@ extension NightCardMaintenance {
                 authoringFindings: findings,
                 cardLines: cardLines, dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
                 answerLines: answerLines, anomalies: anomalies, crashesAndReclaims: crashesAndReclaims,
-                leftoverProcesses: leftoverProcesses,
+                leftoverProcesses: leftoverProcesses, touchedSessions: touchedSessions,
                 exceptions: exceptions, bounds: boundsLines, standingItems: standingItems,
                 unadoptedCards: unadoptedCards, inFlightFeature: inFlightFeature,
                 instrumentedRates: instrumentedRates,

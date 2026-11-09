@@ -82,6 +82,18 @@ struct CardRunFrame: Sendable {
         }
     }
 
+    /// Records that a resumed worker pass's session held turns Yellowhammer did not write
+    /// (story graph-execution/see-and-open-agent-sessions-in-orca, AC touched-session).
+    func recordSessionHadForeignTurns(attemptID: Int64, round: Int, cli: String) throws {
+        try revalidateLease()
+        try journal.append(
+            .agentSessionHadForeignTurns(
+                cardID: card.id, issueID: card.issueID, attemptID: attemptID, round: round, cli: cli
+            ),
+            act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+        )
+    }
+
     /// Transitions the Card through the board projection, or on the Journal alone when the invocation has
     /// no Board (a later Act reposts it).
     func transition(_ transition: CardTransition) async throws {
