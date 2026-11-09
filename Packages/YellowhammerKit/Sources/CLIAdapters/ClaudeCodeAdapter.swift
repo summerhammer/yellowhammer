@@ -16,8 +16,8 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     public let cli = "claude"
     /// "3": the argv gained `--settings <run directory>/claude-settings.json` (issue #546). "4": stdout is
     /// `stream-json`, background tasks are disabled and follow-up tools are denied so a pass ends at its
-    /// StructuredOutput (issue #643).
-    public let adapterVersion = "4"
+    /// StructuredOutput (issue #643). "5": the argv gained `--name` (AC named-session).
+    public let adapterVersion = "5"
     /// `claude --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
 
@@ -50,6 +50,10 @@ public struct ClaudeCodeAdapter: CLIAdapter {
             // is empty or unparsable (e.g. the process was killed before it could print anything).
             try? freshSessionID.write(to: sessionIDFile, atomically: true, encoding: .utf8)
             arguments += ["--session-id", freshSessionID]
+        }
+
+        if let sessionName = dispatch.sessionName {
+            arguments += ["--name", sessionName]
         }
 
         arguments += ["--settings", try Self.writeSettings(for: dispatch)]

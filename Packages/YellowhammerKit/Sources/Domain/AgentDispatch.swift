@@ -28,6 +28,8 @@ public struct AgentDispatchRequest: Equatable, Sendable {
     public let additionalWritableDirectories: [String]
     /// Provenance linking this request to its prompt capture record and Journal identity.
     public var provenance: DispatchProvenance?
+    /// A human-readable title for the session in Orca's history (AC named-session).
+    public let sessionName: String?
 
     public init(
         runID: RunID,
@@ -40,7 +42,8 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         resumeSession: String? = nil,
         additionalReadableDirectories: [String] = [],
         additionalWritableDirectories: [String] = [],
-        provenance: DispatchProvenance? = nil
+        provenance: DispatchProvenance? = nil,
+        sessionName: String? = nil
     ) {
         self.runID = runID
         self.issueID = issueID
@@ -53,6 +56,7 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         self.additionalReadableDirectories = additionalReadableDirectories
         self.additionalWritableDirectories = additionalWritableDirectories
         self.provenance = provenance
+        self.sessionName = sessionName
     }
 }
 

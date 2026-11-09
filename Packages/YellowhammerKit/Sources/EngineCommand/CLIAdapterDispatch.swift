@@ -200,7 +200,8 @@ struct CLIAdapterDispatch: AgentDispatch {
             executable: executable,
             environment: environment,
             provenance: request.provenance,
-            projectInstructions: resolved.use
+            projectInstructions: resolved.use,
+            sessionName: request.sessionName
         )
     }
 }

@@ -48,6 +48,8 @@ public struct CLIDispatch: Sendable {
     /// The Project instructions revision composed into `instruction`, or their absence; recorded with the
     /// dispatch's prompt record.
     public var projectInstructions: ProjectInstructionsUse
+    /// A human-readable title for the session in Orca's history (AC named-session).
+    public var sessionName: String?
 
     public init(
         route: Route,
@@ -63,7 +65,8 @@ public struct CLIDispatch: Sendable {
         executable: String,
         environment: [String: String] = [:],
         provenance: DispatchProvenance? = nil,
-        projectInstructions: ProjectInstructionsUse = .absent
+        projectInstructions: ProjectInstructionsUse = .absent,
+        sessionName: String? = nil
     ) {
         self.route = route
         self.pass = pass
@@ -79,6 +82,7 @@ public struct CLIDispatch: Sendable {
         self.environment = environment
         self.provenance = provenance
         self.projectInstructions = projectInstructions
+        self.sessionName = sessionName
     }
 }
 

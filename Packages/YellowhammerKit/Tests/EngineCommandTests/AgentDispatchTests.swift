@@ -14,7 +14,8 @@ private let dispatchOpus = Route(cli: "claude", model: "opus", effort: "high")!
 private func request(
     route: Route = dispatchOpus, pass: RunPass = .worker, resumeSession: String? = nil,
     additionalReadableDirectories: [String] = ["/repos/extra-readable"],
-    provenance: DispatchProvenance? = nil
+    provenance: DispatchProvenance? = nil,
+    sessionName: String? = nil
 ) -> AgentDispatchRequest {
     let repo = Repo(name: "backend", path: "/repos/backend", role: .backend)
     let instruction = Instruction(
@@ -30,7 +31,8 @@ private func request(
         instruction: .card(instruction), worktreePath: "/wt/backend", resumeSession: resumeSession,
         additionalReadableDirectories: additionalReadableDirectories,
         additionalWritableDirectories: ["/repos/backend/.git"],
-        provenance: provenance
+        provenance: provenance,
+        sessionName: sessionName
     )
 }
 
@@ -127,6 +129,16 @@ struct CLIAdapterDispatchTests {
         // The pass is not told where the adapter persists the response it validates (issue #546).
         #expect(!mapped.instruction.contains("/config/runs/proj/run-1/BACK-1/7-worker"))
         #expect(!mapped.instruction.contains("result.json"))
+    }
+
+    @Test("The dispatch carries sessionName onto the CLI dispatch")
+    func dispatchCarriesSessionName() {
+        let dispatch = makeDispatch()
+        let mapped = dispatch.makeDispatch(
+            for: request(sessionName: "YH · proj · BACK-1 · backend · worker · Round 1 · Attempt 1"),
+            executable: "/usr/local/bin/claude"
+        )
+        #expect(mapped.sessionName == "YH · proj · BACK-1 · backend · worker · Round 1 · Attempt 1")
     }
 
     @Test("The text handed to the CLI keeps the worker's commit-message request after the result file is stamped")

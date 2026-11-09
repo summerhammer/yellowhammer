@@ -178,6 +178,7 @@ extension CardRun {
         try frame.revalidateLease()
         let effectivePayloads = Self.effectivePayloads(payloads, frame: frame)
         let currentRound = try currentRound(of: attempt.id, frame: frame)
+        let sessionName = try passSessionName(pass, frame: frame, attempt: attempt, round: currentRound)
         let recordID = UUID().uuidString.lowercased()
         let provenance = Self.provenance(
             recordID: recordID, pass: pass, frame: frame, attemptID: attempt.id, round: currentRound
@@ -192,7 +193,8 @@ extension CardRun {
             ),
             worktreePath: frame.worktree.path, resumeSession: resumeSession,
             additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path),
-            provenance: provenance
+            provenance: provenance,
+            sessionName: sessionName
         )
         try frame.revalidateLease()
         try requestPromptCapture(
@@ -211,7 +213,32 @@ extension CardRun {
         try await sweepLeftovers(
             report: report, attemptID: attempt.id, pass: pass, worktreePath: frame.worktree.path, frame: frame
         )
-        try frame.recordDispatchOrigin(report.origin, attemptID: attempt.id, pass: pass, cli: route.cli)
+        try handlePassOutcome(report: report, pass: pass, route: route, attemptID: attempt.id, frame: frame)
+        guard case .completed(let result) = report.outcome else {
+            preconditionFailure("a run that did not fail completed")
+        }
+        return (result, report.session)
+    }
+
+    private func passSessionName(
+        _ pass: RunPass, frame: CardRunFrame, attempt: AttemptRecord, round: Int
+    ) throws -> String {
+        let history = try frame.journal.attemptHistory(cardID: frame.card.id)
+        let attemptOrdinal = (history.attempts.firstIndex(where: { $0.id == attempt.id }) ?? 0) + 1
+        return AgentSessionName.card(
+            project: frame.journal.projectID.rawValue,
+            card: frame.card.displayIdentifier,
+            repo: frame.card.repository,
+            pass: pass,
+            round: round,
+            attempt: attemptOrdinal
+        )
+    }
+
+    private func handlePassOutcome(
+        report: AgentDispatchReport, pass: RunPass, route: Route, attemptID: Int64, frame: CardRunFrame
+    ) throws {
+        try frame.recordDispatchOrigin(report.origin, attemptID: attemptID, pass: pass, cli: route.cli)
         try frame.record(Self.step(of: pass), detail: Self.describe(report.outcome))
         if case .usageLimited(let hint) = report.outcome {
             try recordUsageLimit(route: route, resetHint: hint, frame: frame)
@@ -220,10 +247,6 @@ extension CardRun {
         if let ending = AttemptEnding(failedRun: report.outcome) {
             throw PassStop(ending: ending)
         }
-        guard case .completed(let result) = report.outcome else {
-            preconditionFailure("a run that did not fail completed")
-        }
-        return (result, report.session)
     }
 
     /// The instruction for one pass, from the Card, its Brief and Definition of Done, its repository and

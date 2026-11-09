@@ -35,8 +35,13 @@ extension FeatureVerification {
             let provenance = dispatch.recordsPrompts
                 ? try requestPromptCapture(context: context, ordinal: ordinal)
                 : nil
+            let sessionName = AgentSessionName.verifier(
+                project: act.journal.projectID.rawValue,
+                feature: context.feature.displayIdentifier
+            )
             let dispatchRequest = Self.verifierRequest(
-                base, route: route, ordinal: ordinal, runID: act.runID, provenance: provenance
+                base, route: route, ordinal: ordinal, runID: act.runID, provenance: provenance,
+                sessionName: sessionName
             )
             let report: AgentDispatchReport
             do {
@@ -163,7 +168,7 @@ extension FeatureVerification {
 
     private static func verifierRequest(
         _ base: InstructionBase, route: Route, ordinal: Int64, runID: RunID,
-        provenance: DispatchProvenance? = nil
+        provenance: DispatchProvenance? = nil, sessionName: String? = nil
     ) -> AgentDispatchRequest {
         let instruction = VerificationInstruction(
             route: route, featureTitle: base.featureTitle, clauses: base.clauses,
@@ -173,7 +178,8 @@ extension FeatureVerification {
             runID: runID, issueID: runDirectoryName, attemptID: ordinal, route: route,
             pass: .verifier, instruction: .verification(instruction), worktreePath: base.source.path,
             additionalReadableDirectories: base.repositories.map(\.directory),
-            provenance: provenance
+            provenance: provenance,
+            sessionName: sessionName
         )
     }
 

@@ -22,7 +22,8 @@ enum CLIDispatchFixture {
             protectedDirectories: [String] = [],
             executable: String = "/usr/bin/true",
             environment: [String: String] = [:],
-            provenance: DispatchProvenance? = nil
+            provenance: DispatchProvenance? = nil,
+            sessionName: String? = nil
         ) -> CLIDispatch {
             let route = Route(cli: cli, model: model, effort: effort)!
             return CLIDispatch(
@@ -38,7 +39,8 @@ enum CLIDispatchFixture {
                 protectedDirectories: protectedDirectories,
                 executable: executable,
                 environment: environment,
-                provenance: provenance
+                provenance: provenance,
+                sessionName: sessionName
             )
         }
 
