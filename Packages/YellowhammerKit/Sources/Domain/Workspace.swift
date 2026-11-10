@@ -29,6 +29,53 @@ public protocol Workspace: Sendable {
 
     /// Removes a Worktree Orca ADE holds. Removal also deletes its local branch.
     func removeWorktree(id: WorktreeID, force: Bool) async throws(WorkspaceError)
+
+    /// Creates a visible terminal tab in the Worktree identified by `worktreeID`, titled `title`,
+    /// running `command`.
+    func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal
+
+    /// Queries the state of a terminal tab.
+    func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState
+
+    /// Closes the terminal tab identified by `handle`.
+    func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError)
+}
+
+/// An opaque identifier Orca ADE assigns a terminal tab. Yellowhammer never parses it.
+public struct TerminalHandle: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+}
+
+extension TerminalHandle: CustomStringConvertible {
+    public var description: String { rawValue }
+}
+
+/// A created terminal tab as Orca ADE reports it.
+public struct WorkspaceTerminal: Hashable, Sendable {
+    public let handle: TerminalHandle
+    public let processID: pid_t?
+
+    public init(handle: TerminalHandle, processID: pid_t? = nil) {
+        self.handle = handle
+        self.processID = processID
+    }
+}
+
+/// The state of a terminal tab as Orca ADE reports it.
+public struct WorkspaceTerminalState: Hashable, Sendable {
+    public let orphaned: Bool
+    public let processID: pid_t?
+
+    public init(orphaned: Bool, processID: pid_t? = nil) {
+        self.orphaned = orphaned
+        self.processID = processID
+    }
 }
 
 /// An opaque identifier Orca ADE assigns a Worktree. Yellowhammer never parses it.
@@ -66,6 +113,8 @@ public enum WorkspaceError: Error, Equatable, Sendable {
     case repositoryNotRegistered(path: String)
     /// Orca ADE has no Worktree with this id.
     case worktreeNotFound(WorktreeID)
+    /// Orca ADE has no terminal with this handle.
+    case terminalNotFound(TerminalHandle)
     /// Orca ADE refused the request for another reason, carrying its vendor error code.
     case refused(code: String, message: String)
     /// The `orca` executable could not be launched, or its runtime could not be reached.
@@ -81,6 +130,8 @@ extension WorkspaceError: CustomStringConvertible {
             "Orca ADE has no repository registered at \(path)"
         case .worktreeNotFound(let id):
             "Orca ADE has no Worktree with id \(id)"
+        case .terminalNotFound(let handle):
+            "Orca ADE has no terminal with handle \(handle)"
         case .refused(let code, let message):
             "Orca ADE refused the request (\(code)): \(message)"
         case .unavailable(let reason):

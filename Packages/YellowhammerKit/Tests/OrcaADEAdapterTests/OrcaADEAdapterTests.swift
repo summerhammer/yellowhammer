@@ -155,7 +155,7 @@ struct OrcaADEAdapterTests {
         do {
             _ = try await adapter.createWorktree(repositoryPath: "/abs/repo", name: "yh-proj-feat", baseBranch: nil)
             Issue.record("expected a throw")
-        } catch let error as WorkspaceError {
+        } catch {
             guard case .unavailable = error else {
                 Issue.record("expected .unavailable, got \(error)")
                 return
@@ -174,7 +174,7 @@ struct OrcaADEAdapterTests {
         do {
             _ = try await adapter.createWorktree(repositoryPath: "/abs/repo", name: "yh-proj-feat", baseBranch: nil)
             Issue.record("expected a throw")
-        } catch let error as WorkspaceError {
+        } catch {
             guard case .malformedResponse = error else {
                 Issue.record("expected .malformedResponse, got \(error)")
                 return
@@ -200,6 +200,157 @@ struct OrcaADEAdapterTests {
         #expect(runner.calls == [["worktree", "list", "--repo", "path:/abs/repo", "--json"]])
         #expect(worktrees.count == 1)
         #expect(worktrees[0].branch == "yh-proj-feat")
+    }
+
+    @Test("createTerminal sends exact arguments and decodes handle and processId")
+    func createTerminalSendsExactArgumentsAndParses() async throws {
+        let envelope = """
+            {"id":"req-t1","ok":true,"result":{"handle":"term_123","processId":4567},"_meta":{}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [OrcaCommandOutput(exitCode: 0, stdout: envelope, stderr: "")])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        let terminal = try await adapter.createTerminal(
+            worktreeID: WorktreeID(rawValue: "repo-1::/abs/repo/feat"),
+            title: "worker-tab",
+            command: "echo running"
+        )
+
+        #expect(runner.calls == [
+            [
+                "terminal", "create",
+                "--worktree", "id:repo-1::/abs/repo/feat",
+                "--title", "worker-tab",
+                "--command", "echo running",
+                "--json"
+            ]
+        ])
+        #expect(terminal.handle == TerminalHandle(rawValue: "term_123"))
+        #expect(terminal.processID == 4567)
+    }
+
+    @Test("createTerminal tolerates missing processId")
+    func createTerminalToleratesMissingProcessId() async throws {
+        let envelope = """
+            {"id":"req-t2","ok":true,"result":{"handle":"term_123"}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [OrcaCommandOutput(exitCode: 0, stdout: envelope, stderr: "")])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        let terminal = try await adapter.createTerminal(
+            worktreeID: WorktreeID(rawValue: "repo-1::/abs/repo/feat"),
+            title: "worker-tab",
+            command: "echo running"
+        )
+
+        #expect(terminal.handle == TerminalHandle(rawValue: "term_123"))
+        #expect(terminal.processID == nil)
+    }
+
+    @Test("createTerminal missing handle maps to malformedResponse")
+    func createTerminalMissingHandleIsMalformed() async throws {
+        let envelope = """
+            {"id":"req-t3","ok":true,"result":{"processId":4567}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [OrcaCommandOutput(exitCode: 0, stdout: envelope, stderr: "")])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        do {
+            _ = try await adapter.createTerminal(
+                worktreeID: WorktreeID(rawValue: "repo-1::/abs/repo/feat"),
+                title: "worker-tab",
+                command: "echo running"
+            )
+            Issue.record("expected a throw")
+        } catch {
+            guard case .malformedResponse = error else {
+                Issue.record("expected .malformedResponse, got \(error)")
+                return
+            }
+        }
+    }
+
+    @Test("terminal show sends exact arguments and decodes orphaned and processId")
+    func terminalShowSendsExactArgumentsAndParses() async throws {
+        let envelope = """
+            {"id":"req-t4","ok":true,"result":{"orphaned":false,"processId":4567}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [OrcaCommandOutput(exitCode: 0, stdout: envelope, stderr: "")])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        let state = try await adapter.terminal(TerminalHandle(rawValue: "term_123"))
+
+        #expect(runner.calls == [["terminal", "show", "--terminal", "term_123", "--json"]])
+        #expect(state.orphaned == false)
+        #expect(state.processID == 4567)
+    }
+
+    @Test("terminal show decodes orphaned true and missing processId")
+    func terminalShowDecodesOrphanedTrueAndMissingProcessId() async throws {
+        let envelope = """
+            {"id":"req-t5","ok":true,"result":{"orphaned":true}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [OrcaCommandOutput(exitCode: 0, stdout: envelope, stderr: "")])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        let state = try await adapter.terminal(TerminalHandle(rawValue: "term_123"))
+
+        #expect(state.orphaned == true)
+        #expect(state.processID == nil)
+    }
+
+    @Test("closeTerminal sends exact arguments with --tab")
+    func closeTerminalSendsExactArguments() async throws {
+        let envelope = """
+            {"id":"req-t6","ok":true,"result":{"closed":true}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [OrcaCommandOutput(exitCode: 0, stdout: envelope, stderr: "")])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        try await adapter.closeTerminal(TerminalHandle(rawValue: "term_123"))
+
+        #expect(runner.calls == [["terminal", "close", "--terminal", "term_123", "--tab", "--json"]])
+    }
+
+    @Test("selector_not_found on terminal show and close maps to terminalNotFound")
+    func terminalSelectorNotFoundMapsToTerminalNotFound() async throws {
+        let envelope = """
+            {"id":"req-t7","ok":false,"error":{"code":"selector_not_found","message":"no such terminal"}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [
+            OrcaCommandOutput(exitCode: 1, stdout: envelope, stderr: ""),
+            OrcaCommandOutput(exitCode: 1, stdout: envelope, stderr: "")
+        ])
+        let adapter = OrcaADEAdapter(runner: runner)
+        let handle = TerminalHandle(rawValue: "term_missing")
+
+        await #expect(throws: WorkspaceError.terminalNotFound(handle)) {
+            _ = try await adapter.terminal(handle)
+        }
+        await #expect(throws: WorkspaceError.terminalNotFound(handle)) {
+            try await adapter.closeTerminal(handle)
+        }
+    }
+
+    @Test("runtime_unavailable envelope maps to unavailable for worktree and terminal operations")
+    func runtimeUnavailableEnvelopeMapsToUnavailable() async throws {
+        let envelope = """
+            {"id":"req-t8","ok":false,"error":{"code":"runtime_unavailable","message":"Orca is not running"}}
+            """
+        let runner = StubOrcaCommandRunner(outputs: [
+            OrcaCommandOutput(exitCode: 1, stdout: envelope, stderr: ""),
+            OrcaCommandOutput(exitCode: 1, stdout: envelope, stderr: "")
+        ])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        await #expect(throws: WorkspaceError.unavailable("Orca is not running")) {
+            _ = try await adapter.createWorktree(repositoryPath: "/abs/repo", name: "feat", baseBranch: nil)
+        }
+        await #expect(throws: WorkspaceError.unavailable("Orca is not running")) {
+            _ = try await adapter.createTerminal(
+                worktreeID: WorktreeID(rawValue: "wt-1"), title: "t", command: "c"
+            )
+        }
     }
 }
 

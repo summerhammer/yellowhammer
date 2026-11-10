@@ -18,6 +18,15 @@ private actor NamedDirectoryWorkspace: Workspace {
     func registerRepository(path: String) async throws(WorkspaceError) {}
     func worktrees(repositoryPath: String) async throws(WorkspaceError) -> [WorkspaceWorktree] { [] }
     func removeWorktree(id: WorktreeID, force: Bool) async throws(WorkspaceError) {}
+    func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal {
+        WorkspaceTerminal(handle: TerminalHandle(rawValue: "term-\(worktreeID.rawValue)"), processID: nil)
+    }
+    func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState {
+        WorkspaceTerminalState(orphaned: false, processID: nil)
+    }
+    func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError) {}
 
     func createWorktree(
         repositoryPath: String, name: String, baseBranch: String?

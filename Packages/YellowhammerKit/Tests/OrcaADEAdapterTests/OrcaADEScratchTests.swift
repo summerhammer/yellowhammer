@@ -57,6 +57,60 @@ struct OrcaADEScratchTests {
         await Self.cleanUp(adapter: adapter, runner: runner, registrations: registrations, worktreeIDs: worktreeIDs)
     }
 
+    @Test("Live terminal lifecycle in scratch worktree: create, show, and close")
+    func liveTerminalLifecycle() async throws {
+        let runner = ProcessOrcaCommandRunner()
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        let directory = FileManager.default.temporaryDirectory.appending(
+            component: "yh-orca-terminal-scratch-\(UUID().uuidString)", directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Self.initGitRepo(at: directory)
+
+        let registerOutput = try await runner.run(["repo", "add", "--path", directory.path, "--json"])
+        let repoID = try Self.repositoryID(from: registerOutput)
+
+        var worktreeID: WorktreeID?
+        var terminalHandle: TerminalHandle?
+
+        do {
+            let name = "yh-scratch-\(UUID().uuidString.prefix(8))"
+            let worktree = try await adapter.createWorktree(
+                repositoryPath: directory.path, name: name, baseBranch: nil
+            )
+            worktreeID = worktree.id
+
+            let terminal = try await adapter.createTerminal(
+                worktreeID: worktree.id, title: "scratch-tab", command: "sleep 30"
+            )
+            terminalHandle = terminal.handle
+            #expect(!terminal.handle.rawValue.isEmpty)
+
+            let state = try await adapter.terminal(terminal.handle)
+            #expect(!state.orphaned)
+
+            try await adapter.closeTerminal(terminal.handle)
+            terminalHandle = nil
+        } catch {
+            if let terminalHandle {
+                _ = try? await adapter.closeTerminal(terminalHandle)
+            }
+            if let worktreeID {
+                _ = try? await adapter.removeWorktree(id: worktreeID, force: true)
+            }
+            _ = try? await runner.run(["project", "setup-delete", "--setup", repoID, "--json"])
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
+
+        if let worktreeID {
+            _ = try? await adapter.removeWorktree(id: worktreeID, force: true)
+        }
+        _ = try? await runner.run(["project", "setup-delete", "--setup", repoID, "--json"])
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     private static func cleanUp(
         adapter: OrcaADEAdapter,
         runner: ProcessOrcaCommandRunner,

@@ -37,4 +37,13 @@ final class RegistrationWorkspace: Workspace, Sendable {
     }
     func worktrees(repositoryPath: String) async throws(WorkspaceError) -> [WorkspaceWorktree] { [] }
     func removeWorktree(id: WorktreeID, force: Bool) async throws(WorkspaceError) {}
+    func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal {
+        throw .unavailable("registry-only test seam")
+    }
+    func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState {
+        throw .unavailable("registry-only test seam")
+    }
+    func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError) {}
 }

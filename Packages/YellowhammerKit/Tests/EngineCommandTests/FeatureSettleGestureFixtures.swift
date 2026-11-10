@@ -42,6 +42,18 @@ final class FakeSettleWorkspace: Workspace, Sendable {
     func removeWorktree(id: WorktreeID, force: Bool) async throws(WorkspaceError) {
         state.withLock { $0.append(RemoveCall(id: id, force: force)) }
     }
+
+    func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal {
+        WorkspaceTerminal(handle: TerminalHandle(rawValue: "term-\(worktreeID.rawValue)"), processID: nil)
+    }
+
+    func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState {
+        WorkspaceTerminalState(orphaned: false, processID: nil)
+    }
+
+    func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError) {}
 }
 
 /// A Feature → Cycle → four Cards world (Done, Waiting on You, Blocked, Shelved), with a real board

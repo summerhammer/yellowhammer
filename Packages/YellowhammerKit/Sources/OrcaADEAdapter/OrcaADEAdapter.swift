@@ -3,9 +3,10 @@ import Foundation
 
 /// The Orca ADE implementation of the Workspace Port (ADR-001).
 ///
-/// It shells out to the `orca` CLI, builds exactly the argument lists Orca ADE 1.4.203 expects,
-/// decodes its JSON envelope, and translates every failure onto ``WorkspaceError``. It translates and
-/// never decides: a name collision is returned to the caller as Orca ADE reported it, not judged here.
+/// It shells out to the `orca` CLI, builds exactly the argument lists Orca ADE 1.4.203 expects for
+/// worktrees and Orca ADE 1.4.253 expects for terminal operations, decodes its JSON envelope, and
+/// translates every failure onto ``WorkspaceError``. It translates and never decides: a name collision
+/// is returned to the caller as Orca ADE reported it, not judged here.
 public struct OrcaADEAdapter: Workspace {
     let runner: any OrcaCommandRunner
 
@@ -61,6 +62,49 @@ public struct OrcaADEAdapter: Workspace {
         let _: OrcaRemoveResultPayload = try await perform(arguments, worktreeIDForNotFound: id)
     }
 
+    public func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal {
+        let arguments = [
+            "terminal", "create",
+            "--worktree", "id:\(worktreeID.rawValue)",
+            "--title", title,
+            "--command", command,
+            "--json"
+        ]
+        let payload: OrcaTerminalCreateResultPayload = try await perform(
+            arguments,
+            worktreeIDForNotFound: worktreeID
+        )
+        guard let handle = payload.resolvedHandle else {
+            throw .malformedResponse("orca terminal create's result carried no handle")
+        }
+        return WorkspaceTerminal(
+            handle: TerminalHandle(rawValue: handle),
+            processID: payload.resolvedProcessID
+        )
+    }
+
+    public func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState {
+        let arguments = ["terminal", "show", "--terminal", handle.rawValue, "--json"]
+        let payload: OrcaTerminalShowResultPayload = try await perform(
+            arguments,
+            terminalHandleForNotFound: handle
+        )
+        return WorkspaceTerminalState(
+            orphaned: payload.resolvedOrphaned,
+            processID: payload.resolvedProcessID
+        )
+    }
+
+    public func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError) {
+        let arguments = ["terminal", "close", "--terminal", handle.rawValue, "--tab", "--json"]
+        let _: OrcaTerminalCloseResultPayload = try await perform(
+            arguments,
+            terminalHandleForNotFound: handle
+        )
+    }
+
     private static func workspaceWorktree(_ payload: OrcaWorktreePayload) -> WorkspaceWorktree {
         WorkspaceWorktree(
             id: WorktreeID(rawValue: payload.id),
@@ -77,11 +121,13 @@ public struct OrcaADEAdapter: Workspace {
 
     /// Runs one `orca` command, decodes its envelope for `Result`, and maps failure onto
     /// ``WorkspaceError``. `repositoryPath` names the repository for a `repo_not_found` refusal;
-    /// `worktreeIDForNotFound` names the Worktree for a `selector_not_found` refusal.
+    /// `worktreeIDForNotFound` names the Worktree for a `selector_not_found` refusal;
+    /// `terminalHandleForNotFound` names the terminal handle for a `selector_not_found` refusal.
     private func perform<Result: Decodable>(
         _ arguments: [String],
         repositoryPath: String? = nil,
-        worktreeIDForNotFound: WorktreeID? = nil
+        worktreeIDForNotFound: WorktreeID? = nil,
+        terminalHandleForNotFound: TerminalHandle? = nil
     ) async throws(WorkspaceError) -> Result {
         let output: OrcaCommandOutput
         do {
@@ -101,11 +147,19 @@ public struct OrcaADEAdapter: Workspace {
 
         guard envelope.ok else {
             let failure = envelope.error ?? OrcaErrorPayload(code: "unknown", message: "orca reported failure")
+            if failure.code == "runtime_unavailable" {
+                throw .unavailable(failure.message)
+            }
             if failure.code == "repo_not_found" {
                 throw .repositoryNotRegistered(path: repositoryPath ?? "")
             }
-            if failure.code == "selector_not_found", let worktreeIDForNotFound {
-                throw .worktreeNotFound(worktreeIDForNotFound)
+            if failure.code == "selector_not_found" {
+                if let worktreeIDForNotFound {
+                    throw .worktreeNotFound(worktreeIDForNotFound)
+                }
+                if let terminalHandleForNotFound {
+                    throw .terminalNotFound(terminalHandleForNotFound)
+                }
             }
             throw .refused(code: failure.code, message: failure.message)
         }

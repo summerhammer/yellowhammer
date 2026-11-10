@@ -103,6 +103,18 @@ final class OrcaLikeWorkspace: Workspace, Sendable {
         _ = await git.run(["-C", created.repositoryPath, "worktree", "prune"])
         _ = await git.run(["-C", created.repositoryPath, "branch", "-D", created.branch])
     }
+
+    func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal {
+        WorkspaceTerminal(handle: TerminalHandle(rawValue: "term-\(worktreeID.rawValue)"), processID: nil)
+    }
+
+    func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState {
+        WorkspaceTerminalState(orphaned: false, processID: nil)
+    }
+
+    func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError) {}
 }
 
 // MARK: - Scene
