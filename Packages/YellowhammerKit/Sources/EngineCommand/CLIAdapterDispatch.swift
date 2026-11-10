@@ -180,7 +180,8 @@ struct CLIAdapterDispatch: AgentDispatch {
             do {
                 report = try await runner.run(
                     dispatch, adapter: adapter,
-                    launcherStarter: { try await tabSession.startLauncher(launcherURL: $0) }
+                    launcherStarter: { try await tabSession.startLauncher(launcherURL: $0) },
+                    tabObserver: { await tabSession.observeTabGone() }
                 )
             } catch {
                 await tabSession.close()

@@ -9,6 +9,7 @@ extension AgentCLIProcess {
         runDirectory: URL? = nil,
         wrapperExecutable: String? = nil,
         onSpawn: (@Sendable () -> Void)? = nil,
+        tabObserver: (@Sendable () async -> Bool)? = nil,
         startLauncher: @Sendable (_ launcherURL: URL) async throws -> Void
     ) async throws -> AgentCLIExecution {
         var isDirectory: ObjCBool = false
@@ -62,13 +63,18 @@ extension AgentCLIProcess {
 
         guard let started = await waitForStarted(at: startedURL, timeout: startTimeout) else {
             await promptWatch?.stop()
+            let tabGone = if let tabObserver {
+                await tabObserver()
+            } else {
+                nil as Bool?
+            }
             let end = RunEnd.crashedUnknown(.wrapperRecordMissing("wrapper never reported a started CLI"))
             let snapshot = RunningSnapshot(
                 dispatchedAt: dispatchedAt, processes: [], processGroups: [], sessions: []
             )
             return AgentCLIExecution(
                 pid: 0, processGroup: 0, end: end, leftovers: [], snapshot: snapshot,
-                engineSignalled: false, receivedSignals: []
+                engineSignalled: false, receivedSignals: [], tabGone: tabGone
             )
         }
 
@@ -82,6 +88,11 @@ extension AgentCLIProcess {
             promptWatch: promptWatch
         )
         await promptWatch?.stop()
+        let tabGone = if let tabObserver {
+            await tabObserver()
+        } else {
+            nil as Bool?
+        }
         return AgentCLIExecution(
             pid: started.pid,
             processGroup: started.processGroup,
@@ -89,7 +100,8 @@ extension AgentCLIProcess {
             leftovers: result.leftovers,
             snapshot: result.snapshot,
             engineSignalled: result.engineSignalled,
-            receivedSignals: result.receivedSignals
+            receivedSignals: result.receivedSignals,
+            tabGone: tabGone
         )
     }
 
@@ -97,12 +109,14 @@ extension AgentCLIProcess {
         _ launch: AgentCLILaunch,
         runDirectory: URL? = nil,
         wrapperExecutable: String? = nil,
+        tabObserver: (@Sendable () async -> Bool)? = nil,
         startLauncher: @Sendable (_ launcherURL: URL) async throws -> Void
     ) async throws -> AgentCLIRunReport {
         let execution = try await executeWrapped(
             launch,
             runDirectory: runDirectory,
             wrapperExecutable: wrapperExecutable,
+            tabObserver: tabObserver,
             startLauncher: startLauncher
         )
         let outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: launch.pass)
@@ -114,7 +128,8 @@ extension AgentCLIProcess {
             leftovers: execution.leftovers,
             snapshot: execution.snapshot,
             engineSignalled: execution.engineSignalled,
-            receivedSignals: execution.receivedSignals
+            receivedSignals: execution.receivedSignals,
+            tabGone: execution.tabGone
         )
     }
 

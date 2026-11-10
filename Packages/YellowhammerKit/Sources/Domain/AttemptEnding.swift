@@ -143,6 +143,8 @@ extension AttemptEnding {
             "\(AttemptEnding.engineStoppedClassificationPrefix)\(cause)"
         case .crashedUnknown(.wrapperRecordMissing(let reason)):
             "wrapper record missing: \(reason)"
+        case .crashedUnknown(.externalInterruption(let detail)):
+            "external interruption: \(detail)"
         case .question:
             "asked a question"
         case .cancelled:
@@ -170,6 +172,8 @@ extension AttemptEnding {
             "consumed; route excluded (rounds-exhausted)"
         case .crashedUnknown(.engineStopped):
             "consumed; route not excluded (Crashed-Unknown, stopped by the engine)"
+        case .crashedUnknown(.externalInterruption):
+            "consumed; route not excluded (Crashed-Unknown, external interruption)"
         case .crashedUnknown:
             "consumed; route not excluded (Crashed-Unknown)"
         case .question:

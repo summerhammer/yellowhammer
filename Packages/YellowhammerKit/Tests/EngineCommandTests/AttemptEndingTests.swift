@@ -16,11 +16,37 @@ func failedRunExitStatusMapsToHardFailure() {
     CrashedUnknownCause.resultFile(.empty),
     CrashedUnknownCause.terminated(.aborted(forcedKill: true)),
     CrashedUnknownCause.signaled(15),
-    CrashedUnknownCause.wrapperRecordMissing("status missing")
+    CrashedUnknownCause.wrapperRecordMissing("status missing"),
+    CrashedUnknownCause.externalInterruption("the pass's Orca tab was closed")
 ])
 func failedRunCrashedUnknownMapsThrough(_ cause: CrashedUnknownCause) {
     let ending = AttemptEnding(failedRun: .crashedUnknown(cause))
     #expect(ending == .crashedUnknown(cause))
+}
+
+@Test("External interruption ending properties")
+func externalInterruptionEndingProperties() throws {
+    let detail = "the pass's Orca tab was closed (wrapper received SIGTERM, CLI exit 143)"
+    let ending = try #require(AttemptEnding(failedRun: .crashedUnknown(.externalInterruption(detail))))
+    #expect(ending == .crashedUnknown(.externalInterruption(detail)))
+    #expect(!ending.excludesRoute)
+    #expect(ending.consumesAttempt)
+    #expect(ending.outcome == .crashedUnknown)
+    #expect(ending.exclusionReason == nil)
+    #expect(ending.classification == "external interruption: \(detail)")
+    #expect(ending.consumedHow == "consumed; route not excluded (Crashed-Unknown, external interruption)")
+    #expect(ending.description == "Crashed-Unknown (external interruption: \(detail))")
+}
+
+@Test("External interruption FailureCause omits dynamic prose")
+func externalInterruptionFailureCause() throws {
+    let detail1 = "the pass's Orca tab was closed (wrapper received SIGTERM, CLI exit 143)"
+    let detail2 = "the pass's Orca tab was closed (login gone)"
+    let cause1 = try #require(FailureCause(ending: .crashedUnknown(.externalInterruption(detail1))))
+    let cause2 = try #require(FailureCause(ending: .crashedUnknown(.externalInterruption(detail2))))
+    #expect(cause1.canonical == "Crashed-Unknown|external interruption")
+    #expect(cause1.summary == "Crashed-Unknown (external interruption)")
+    #expect(cause1.hash == cause2.hash)
 }
 
 @Test("A timed-out run maps to hardFailure(.timedOut), which consumes the Attempt and excludes the Route (#507)")

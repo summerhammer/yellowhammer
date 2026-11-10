@@ -162,7 +162,11 @@ func abortedIsCrashedUnknownTerminated() {
 
 @Test("A crashedUnknown RunEnd maps directly to Crashed-Unknown")
 func crashedUnknownRunEndMapsDirectly() {
-    let end = RunEnd.crashedUnknown(.wrapperRecordMissing("status missing"))
-    let outcome = RunOutcome.classify(end: end, resultFile: validWorkerJSON, pass: .worker)
-    #expect(outcome == .crashedUnknown(.wrapperRecordMissing("status missing")))
+    let end1 = RunEnd.crashedUnknown(.wrapperRecordMissing("status missing"))
+    let outcome1 = RunOutcome.classify(end: end1, resultFile: validWorkerJSON, pass: .worker)
+    #expect(outcome1 == .crashedUnknown(.wrapperRecordMissing("status missing")))
+
+    let end2 = RunEnd.crashedUnknown(.externalInterruption("the pass's Orca tab was closed"))
+    let outcome2 = RunOutcome.classify(end: end2, resultFile: validWorkerJSON, pass: .worker)
+    #expect(outcome2 == .crashedUnknown(.externalInterruption("the pass's Orca tab was closed")))
 }

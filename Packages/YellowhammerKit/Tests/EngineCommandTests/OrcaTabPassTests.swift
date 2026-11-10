@@ -26,6 +26,11 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
         var createCalls: [CreateCall] = []
         var closedHandles: [TerminalHandle] = []
         var terminals: [TerminalHandle: TerminalInfo] = [:]
+        var terminalStates: [TerminalHandle: WorkspaceTerminalState] = [:]
+        var terminalErrors: [TerminalHandle: WorkspaceError] = [:]
+        var observedBeforeClose: [TerminalHandle: Bool] = [:]
+        var defaultTerminalState: WorkspaceTerminalState?
+        var scriptedProcessID: pid_t?
         var nextID = 1
         var scriptedCreateError: WorkspaceError?
     }
@@ -39,9 +44,26 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
     var createCalls: [CreateCall] { state.withLock { $0.createCalls } }
     var closedHandles: [TerminalHandle] { state.withLock { $0.closedHandles } }
     var terminals: [TerminalHandle: TerminalInfo] { state.withLock { $0.terminals } }
+    var observedBeforeClose: [TerminalHandle: Bool] { state.withLock { $0.observedBeforeClose } }
 
     func scriptCreateError(_ error: WorkspaceError?) {
         state.withLock { $0.scriptedCreateError = error }
+    }
+
+    func scriptProcessID(_ pid: pid_t?) {
+        state.withLock { $0.scriptedProcessID = pid }
+    }
+
+    func scriptTerminalState(_ handle: TerminalHandle, _ state: WorkspaceTerminalState) {
+        self.state.withLock { $0.terminalStates[handle] = state }
+    }
+
+    func scriptDefaultTerminalState(_ state: WorkspaceTerminalState?) {
+        self.state.withLock { $0.defaultTerminalState = state }
+    }
+
+    func scriptTerminalError(_ handle: TerminalHandle, _ error: WorkspaceError) {
+        self.state.withLock { $0.terminalErrors[handle] = error }
     }
 
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
@@ -63,19 +85,34 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
         }
 
         let pid = try spawnCommandInFreshSession(command: command)
-        let handle = state.withLock { lockedState -> TerminalHandle in
+        let (handle, reportedPID) = state.withLock { lockedState -> (TerminalHandle, pid_t) in
             let id = lockedState.nextID
             lockedState.nextID += 1
             let newHandle = TerminalHandle(rawValue: "tab-\(id)")
             lockedState.createCalls.append(CreateCall(worktreeID: worktreeID, title: title, command: command))
-            lockedState.terminals[newHandle] = TerminalInfo(handle: newHandle, processID: pid)
-            return newHandle
+            let procID = lockedState.scriptedProcessID ?? pid
+            lockedState.terminals[newHandle] = TerminalInfo(handle: newHandle, processID: procID)
+            return (newHandle, procID)
         }
-        return WorkspaceTerminal(handle: handle, processID: pid)
+        return WorkspaceTerminal(handle: handle, processID: reportedPID)
     }
 
     func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState {
-        throw .unavailable("test fake")
+        let (error, state) = self.state.withLock { lockedState -> (WorkspaceError?, WorkspaceTerminalState?) in
+            let wasClosed = lockedState.closedHandles.contains(handle)
+            lockedState.observedBeforeClose[handle] = !wasClosed
+            let error = lockedState.terminalErrors[handle]
+            let st = lockedState.terminalStates[handle] ?? lockedState.defaultTerminalState
+            return (error, st)
+        }
+        if let error {
+            throw error
+        }
+        if let state {
+            return state
+        }
+        let termPid = self.terminals[handle]?.processID
+        return WorkspaceTerminalState(orphaned: false, processID: termPid)
     }
 
     func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError) {
@@ -119,6 +156,10 @@ private final class OrcaTabPassFixture {
     let runsDir: URL
     let scriptPath: URL
     let sleepScriptPath: URL
+    let exit143ScriptPath: URL
+    let trapTermScriptPath: URL
+    let trapTermMarkerURL: URL
+    let exit1ScriptPath: URL
 
     init() throws {
         let base = FileManager.default.temporaryDirectory
@@ -128,10 +169,17 @@ private final class OrcaTabPassFixture {
         self.runsDir = base.appendingPathComponent("runs")
         self.scriptPath = base.appendingPathComponent("fake-claude.sh")
         self.sleepScriptPath = base.appendingPathComponent("fake-claude-sleep.sh")
+        self.exit143ScriptPath = base.appendingPathComponent("fake-claude-exit143.sh")
+        self.trapTermScriptPath = base.appendingPathComponent("fake-claude-trap-term.sh")
+        self.trapTermMarkerURL = base.appendingPathComponent("trap-term-started")
+        self.exit1ScriptPath = base.appendingPathComponent("fake-claude-exit1.sh")
 
         try FileManager.default.createDirectory(at: worktreeDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: runsDir, withIntermediateDirectories: true)
+        try writeScripts()
+    }
 
+    private func writeScripts() throws {
         let scriptContent = """
         #!/bin/sh
         printf '{"type":"result","structured_output":{"schema":"yellowhammer.result.worker",\
@@ -149,6 +197,31 @@ private final class OrcaTabPassFixture {
         """
         try sleepContent.write(to: sleepScriptPath, atomically: true, encoding: .utf8)
         chmod(sleepScriptPath.path, 0o755)
+
+        let exit143Content = """
+        #!/bin/sh
+        exit 143
+        """
+        try exit143Content.write(to: exit143ScriptPath, atomically: true, encoding: .utf8)
+        chmod(exit143ScriptPath.path, 0o755)
+
+        let trapTermContent = """
+        #!/bin/sh
+        touch "\(trapTermMarkerURL.path)"
+        trap 'exit 143' TERM
+        while true; do
+            sleep 0.05
+        done
+        """
+        try trapTermContent.write(to: trapTermScriptPath, atomically: true, encoding: .utf8)
+        chmod(trapTermScriptPath.path, 0o755)
+
+        let exit1Content = """
+        #!/bin/sh
+        exit 1
+        """
+        try exit1Content.write(to: exit1ScriptPath, atomically: true, encoding: .utf8)
+        chmod(exit1ScriptPath.path, 0o755)
     }
 
     func cleanUp() {
@@ -428,5 +501,185 @@ struct OrcaTabPassTests {
         let handle = try #require(workspace.closedHandles.first)
         let term = try #require(workspace.terminals[handle])
         #expect(kill(term.processID, 0) != 0)
+    }
+
+    @Test("Operator closes tab mid-run ends external interruption, consumes Attempt (c1, c2, c4)")
+    func operatorClosesTabMidRunEndsExternalInterruption() async throws {
+        let fixture = try OrcaTabPassFixture()
+        defer { fixture.cleanUp() }
+
+        let workspace = FakeTabWorkspace()
+        let dispatch = try fixture.makeDispatch(
+            workspace: workspace, scriptURL: fixture.trapTermScriptPath, timeout: .seconds(30)
+        )
+
+        let req = fixture.makeRequest(
+            pass: .worker, worktreeID: "wt-close", sessionName: "close-tab-session"
+        )
+
+        let task = Task {
+            try await dispatch.dispatch(req)
+        }
+
+        while !FileManager.default.fileExists(atPath: fixture.trapTermMarkerURL.path) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        let termHandle = TerminalHandle(rawValue: "tab-1")
+        let term = try #require(workspace.terminals[termHandle])
+
+        workspace.scriptTerminalState(termHandle, WorkspaceTerminalState(orphaned: true, processID: nil))
+
+        kill(-term.processID, SIGTERM)
+
+        let report = try await task.value
+
+        guard case .crashedUnknown(.externalInterruption(let detail)) = report.outcome else {
+            Issue.record("Expected .crashedUnknown(.externalInterruption(_)), got \(report.outcome)")
+            return
+        }
+        #expect(detail.contains("the pass's Orca tab was closed"))
+        #expect(detail.contains("wrapper received SIGTERM"))
+        #expect(detail.contains("CLI exit 143"))
+
+        let ending = try #require(AttemptEnding(failedRun: report.outcome))
+        #expect(ending.consumesAttempt)
+        #expect(!ending.excludesRoute)
+        #expect(ending.classification == "external interruption: \(detail)")
+        #expect(ending.consumedHow == "consumed; route not excluded (Crashed-Unknown, external interruption)")
+        #expect(!ending.classification.hasPrefix(AttemptEnding.engineStoppedClassificationPrefix))
+    }
+
+    @Test("Login is gone while Orca is unreachable ends Crashed-Unknown external interruption (c1, c3)")
+    func loginGoneWhileOrcaUnreachableIsExternalInterruption() async throws {
+        let fixture = try OrcaTabPassFixture()
+        defer { fixture.cleanUp() }
+
+        let workspace = FakeTabWorkspace()
+        var deadPID: pid_t = 0
+        var attr: posix_spawnattr_t?
+        posix_spawnattr_init(&attr)
+        defer { posix_spawnattr_destroy(&attr) }
+        let argv = [strdup("/bin/echo"), strdup("hi"), nil]
+        defer { for ptr in argv where ptr != nil { free(ptr) } }
+        _ = posix_spawn(&deadPID, "/bin/echo", nil, &attr, argv, nil)
+        waitpid(deadPID, nil, 0)
+        #expect(kill(deadPID, 0) != 0)
+
+        workspace.scriptProcessID(deadPID)
+        workspace.scriptDefaultTerminalState(nil)
+        let termHandle = TerminalHandle(rawValue: "tab-1")
+        workspace.scriptTerminalError(termHandle, .unavailable("Orca daemon unreachable"))
+
+        let dispatch = try fixture.makeDispatch(
+            workspace: workspace, scriptURL: fixture.exit143ScriptPath, timeout: .seconds(10)
+        )
+        let req = fixture.makeRequest(
+            pass: .worker, worktreeID: "wt-login-gone", sessionName: "login-gone-session"
+        )
+        let report = try await dispatch.dispatch(req)
+
+        guard case .crashedUnknown(.externalInterruption(let detail)) = report.outcome else {
+            Issue.record("Expected .crashedUnknown(.externalInterruption(_)), got \(report.outcome)")
+            return
+        }
+        #expect(detail.contains("the pass's Orca tab was closed"))
+        #expect(detail.contains("CLI exit 143"))
+    }
+
+    @Test("Outside kill of CLI inside still-attached tab keeps existing classification (c3)")
+    func outsideKillInAttachedTabKeepsExistingClassification() async throws {
+        let fixture = try OrcaTabPassFixture()
+        defer { fixture.cleanUp() }
+
+        let workspace = FakeTabWorkspace()
+        let dispatch = try fixture.makeDispatch(
+            workspace: workspace, scriptURL: fixture.exit143ScriptPath, timeout: .seconds(10)
+        )
+        let req = fixture.makeRequest(
+            pass: .worker, worktreeID: "wt-attached", sessionName: "attached-tab-session"
+        )
+        let report = try await dispatch.dispatch(req)
+
+        #expect(report.outcome == .failed(exitStatus: 143))
+    }
+
+    @Test("Timeout with tab gone afterwards stays timed out (c3)")
+    func timeoutWithTabGoneStaysTimedOut() async throws {
+        let fixture = try OrcaTabPassFixture()
+        defer { fixture.cleanUp() }
+
+        let workspace = FakeTabWorkspace()
+        workspace.scriptDefaultTerminalState(WorkspaceTerminalState(orphaned: true, processID: nil))
+
+        let dispatch = try fixture.makeDispatch(
+            workspace: workspace, scriptURL: fixture.sleepScriptPath, timeout: .milliseconds(400)
+        )
+        let req = fixture.makeRequest(
+            pass: .worker, worktreeID: "wt-timeout", sessionName: "timeout-session"
+        )
+        let report = try await dispatch.dispatch(req)
+
+        #expect(report.outcome == .timedOut(after: .milliseconds(400)))
+    }
+
+    @Test("Completed pass whose tab is gone afterwards stays completed (c3)")
+    func completedPassWhoseTabIsGoneStaysCompleted() async throws {
+        let fixture = try OrcaTabPassFixture()
+        defer { fixture.cleanUp() }
+
+        let workspace = FakeTabWorkspace()
+        workspace.scriptDefaultTerminalState(WorkspaceTerminalState(orphaned: true, processID: nil))
+
+        let dispatch = try fixture.makeDispatch(
+            workspace: workspace, scriptURL: fixture.scriptPath, timeout: .seconds(10)
+        )
+        let req = fixture.makeRequest(
+            pass: .worker, worktreeID: "wt-completed", sessionName: "completed-session"
+        )
+        let report = try await dispatch.dispatch(req)
+
+        #expect(report.outcome.isCompleted)
+        #expect(report.session == "sess-tab-1")
+    }
+
+    @Test("Direct spawn pass is never classified as external interruption (c3)")
+    func directSpawnPassNeverClassifiedAsExternalInterruption() async throws {
+        let fixture = try OrcaTabPassFixture()
+        defer { fixture.cleanUp() }
+
+        let workspace = FakeTabWorkspace()
+        workspace.scriptDefaultTerminalState(WorkspaceTerminalState(orphaned: true, processID: nil))
+
+        let dispatch = try fixture.makeDispatch(
+            workspace: workspace, scriptURL: fixture.exit143ScriptPath, timeout: .seconds(10)
+        )
+        let req = fixture.makeRequest(
+            pass: .worker, worktreeID: nil, sessionName: "direct-session"
+        )
+        let report = try await dispatch.dispatch(req)
+
+        #expect(workspace.createCalls.isEmpty)
+        #expect(report.outcome == .failed(exitStatus: 143))
+    }
+
+    @Test("Tab observation happens before the host close (c1)")
+    func tabObservationHappensBeforeHostClose() async throws {
+        let fixture = try OrcaTabPassFixture()
+        defer { fixture.cleanUp() }
+
+        let workspace = FakeTabWorkspace()
+        let dispatch = try fixture.makeDispatch(
+            workspace: workspace, scriptURL: fixture.scriptPath, timeout: .seconds(10)
+        )
+        let req = fixture.makeRequest(
+            pass: .worker, worktreeID: "wt-obs", sessionName: "obs-session"
+        )
+        let report = try await dispatch.dispatch(req)
+
+        #expect(report.outcome.isCompleted)
+        let termHandle = TerminalHandle(rawValue: "tab-1")
+        #expect(workspace.observedBeforeClose[termHandle] == true)
+        #expect(workspace.closedHandles.contains(termHandle))
     }
 }

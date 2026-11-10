@@ -281,6 +281,33 @@ func wrapperRecordMissingFinalBlocksHostCrash() throws {
     #expect(history.blockReason(inEpoch: 0) == .hostCrash)
 }
 
+@Test("A Crashed-Unknown final Attempt with externalInterruption blocks host crash")
+func externalInterruptionFinalBlocksHostCrash() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cardID = try insertFixtureCard(journal)
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
+    let ending = AttemptEnding.crashedUnknown(
+        .externalInterruption("the pass's Orca tab was closed (wrapper received SIGTERM, CLI exit 143)")
+    )
+    let ended = try journal.endAttempt(
+        attemptID: attempt.id,
+        ending: ending,
+        runID: runID, act: .build, now: epoch.addingTimeInterval(1)
+    )
+
+    #expect(ended.result == "Crashed-Unknown")
+    let expectedClassification = "external interruption: "
+        + "the pass's Orca tab was closed (wrapper received SIGTERM, CLI exit 143)"
+    #expect(ended.classification == expectedClassification)
+    #expect(ended.consumedHow == "consumed; route not excluded (Crashed-Unknown, external interruption)")
+
+    let history = try journal.attemptHistory(cardID: cardID)
+    #expect(history.blockReason(inEpoch: 0) == .hostCrash)
+}
+
 @Test("An open Attempt is skipped: the derivation reads the prior ended Attempt instead")
 func openAttemptIsSkipped() throws {
     let fixture = try JournalFixture()

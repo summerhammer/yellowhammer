@@ -1,3 +1,4 @@
+import Darwin
 import Domain
 import Foundation
 
@@ -16,6 +17,8 @@ public struct CLIRunReport: Equatable, Sendable {
     public let engineSignalled: Bool
     /// Signals the wrapper received while the CLI ran, in order.
     public let receivedSignals: [Int32]
+    /// Whether the pass's Orca tab was observed gone after the CLI ended (nil for direct spawn).
+    public let tabGone: Bool?
 
     public init(
         pid: pid_t,
@@ -25,7 +28,8 @@ public struct CLIRunReport: Equatable, Sendable {
         leftovers: [LeftoverProcess],
         snapshot: RunningSnapshot,
         engineSignalled: Bool = false,
-        receivedSignals: [Int32] = []
+        receivedSignals: [Int32] = [],
+        tabGone: Bool? = nil
     ) {
         self.pid = pid
         self.end = end
@@ -35,6 +39,7 @@ public struct CLIRunReport: Equatable, Sendable {
         self.snapshot = snapshot
         self.engineSignalled = engineSignalled
         self.receivedSignals = receivedSignals
+        self.tabGone = tabGone
     }
 }
 
@@ -43,28 +48,33 @@ public struct CLIRunReport: Equatable, Sendable {
 /// it does no polling or waiting of its own.
 public struct CLIRunner: Sendable {
     public typealias LauncherStarter = @Sendable (_ launcherURL: URL) async throws -> Void
+    public typealias TabObserver = @Sendable () async -> Bool
 
     public let process: AgentCLIProcess
     public let recorder: (any DispatchPromptRecording)?
     public let now: @Sendable () -> Date
     public let launcherStarter: LauncherStarter?
+    public let tabObserver: TabObserver?
 
     public init(
         process: AgentCLIProcess = AgentCLIProcess(),
         recorder: (any DispatchPromptRecording)? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
-        launcherStarter: LauncherStarter? = nil
+        launcherStarter: LauncherStarter? = nil,
+        tabObserver: TabObserver? = nil
     ) {
         self.process = process
         self.recorder = recorder
         self.now = now
         self.launcherStarter = launcherStarter
+        self.tabObserver = tabObserver
     }
 
     public func run(
         _ dispatch: CLIDispatch,
         adapter: some CLIAdapter,
-        launcherStarter: LauncherStarter? = nil
+        launcherStarter: LauncherStarter? = nil,
+        tabObserver: TabObserver? = nil
     ) async throws -> CLIRunReport {
         let promptRecord = capturePromptRecord(for: dispatch, adapter: adapter)
 
@@ -91,6 +101,7 @@ public struct CLIRunner: Sendable {
             nil
         }
         let starter = launcherStarter ?? self.launcherStarter
+        let observer = tabObserver ?? self.tabObserver
         let execution: AgentCLIExecution
         do {
             if let starter {
@@ -98,6 +109,7 @@ public struct CLIRunner: Sendable {
                     launch,
                     runDirectory: dispatch.runDirectory,
                     onSpawn: onSpawn,
+                    tabObserver: observer,
                     startLauncher: starter
                 )
             } else {
@@ -111,18 +123,67 @@ public struct CLIRunner: Sendable {
         }
 
         let session = adapter.collect(end: execution.end, dispatch: dispatch)
-        let outcome: RunOutcome
+        var outcome: RunOutcome
         if case .exited(let status) = execution.end, status != 0,
            let refusal = adapter.usageLimit(for: dispatch) {
             outcome = refusal
         } else {
             outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: dispatch.pass)
         }
+        if !outcome.isCompleted && !execution.engineSignalled && execution.tabGone == true {
+            let detail = Self.externalInterruptionDetail(
+                end: execution.end, receivedSignals: execution.receivedSignals
+            )
+            outcome = .crashedUnknown(.externalInterruption(detail))
+        }
         return CLIRunReport(
             pid: execution.pid, end: execution.end, outcome: outcome, session: session,
             leftovers: execution.leftovers, snapshot: execution.snapshot,
-            engineSignalled: execution.engineSignalled, receivedSignals: execution.receivedSignals
+            engineSignalled: execution.engineSignalled, receivedSignals: execution.receivedSignals,
+            tabGone: execution.tabGone
         )
+    }
+
+    static func externalInterruptionDetail(
+        end: RunEnd, receivedSignals: [Int32]
+    ) -> String {
+        var parts: [String] = []
+        if !receivedSignals.isEmpty {
+            let sigNames = receivedSignals.map { signalName($0) }.joined(separator: ", ")
+            parts.append("wrapper received \(sigNames)")
+        }
+        switch end {
+        case .exited(let status):
+            parts.append("CLI exit \(status)")
+        case .signaled(let signal):
+            parts.append("CLI signaled \(signalName(signal))")
+        case .crashedUnknown(let cause):
+            parts.append("CLI crashed (\(cause))")
+        case .timedOut(let after, _):
+            parts.append("timed out after \(after.wholeMinutes) min")
+        case .aborted:
+            parts.append("aborted")
+        case .promptBlocked(let detail, _):
+            parts.append("prompt blocked: \(detail)")
+        }
+        if parts.isEmpty {
+            return "the pass's Orca tab was closed"
+        } else {
+            return "the pass's Orca tab was closed (\(parts.joined(separator: ", ")))"
+        }
+    }
+
+    private static func signalName(_ signal: Int32) -> String {
+        switch signal {
+        case SIGTERM: "SIGTERM"
+        case SIGHUP: "SIGHUP"
+        case SIGINT: "SIGINT"
+        case SIGKILL: "SIGKILL"
+        case SIGPIPE: "SIGPIPE"
+        case SIGUSR1: "SIGUSR1"
+        case SIGUSR2: "SIGUSR2"
+        default: "signal \(signal)"
+        }
     }
 
     private func capturePromptRecord(for dispatch: CLIDispatch, adapter: some CLIAdapter) -> DispatchPromptRecord? {

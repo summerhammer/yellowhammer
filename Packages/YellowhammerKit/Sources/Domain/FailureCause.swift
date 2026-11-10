@@ -56,6 +56,8 @@ public struct FailureCause: Equatable, Sendable {
             "reclaimed"
         case .wrapperRecordMissing:
             "wrapper record missing"
+        case .externalInterruption:
+            "external interruption"
         }
     }
 

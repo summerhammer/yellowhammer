@@ -65,6 +65,9 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     case engineStopped(cause: String)
     /// The pass wrapper left no readable status record, or never reported a started CLI.
     case wrapperRecordMissing(String)
+    /// A confirmed external interruption (e.g. an Orca tab closed mid-run) ended the pass without
+    /// an engine signal.
+    case externalInterruption(String)
 }
 
 extension CrashedUnknownCause {
@@ -105,6 +108,14 @@ public enum RunOutcome: Equatable, Sendable {
     /// The CLI did not get to answer, so no result file is read. The engine's own decision, not an unknown
     /// crash: a hard failure that consumes the Attempt and excludes the Route (#507).
     case timedOut(after: Duration)
+}
+
+extension RunOutcome {
+    /// True when the pass exited 0 with a schema-valid result file.
+    public var isCompleted: Bool {
+        if case .completed = self { return true }
+        return false
+    }
 }
 
 extension RunOutcome: CustomStringConvertible {

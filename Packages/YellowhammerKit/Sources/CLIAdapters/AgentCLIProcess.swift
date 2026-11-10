@@ -27,6 +27,8 @@ public struct AgentCLIRunReport: Equatable, Sendable {
     public let engineSignalled: Bool
     /// Signals the wrapper received while the CLI ran, in order.
     public let receivedSignals: [Int32]
+    /// Whether the pass's Orca tab was observed gone after the CLI ended (nil for direct spawn).
+    public let tabGone: Bool?
 
     public init(
         pid: pid_t,
@@ -36,7 +38,8 @@ public struct AgentCLIRunReport: Equatable, Sendable {
         leftovers: [LeftoverProcess],
         snapshot: RunningSnapshot,
         engineSignalled: Bool = false,
-        receivedSignals: [Int32] = []
+        receivedSignals: [Int32] = [],
+        tabGone: Bool? = nil
     ) {
         self.pid = pid
         self.processGroup = processGroup
@@ -46,6 +49,7 @@ public struct AgentCLIRunReport: Equatable, Sendable {
         self.snapshot = snapshot
         self.engineSignalled = engineSignalled
         self.receivedSignals = receivedSignals
+        self.tabGone = tabGone
     }
 }
 
@@ -65,6 +69,8 @@ public struct AgentCLIExecution: Equatable, Sendable {
     public let engineSignalled: Bool
     /// Signals the wrapper received while the CLI ran, in order.
     public let receivedSignals: [Int32]
+    /// Whether the pass's Orca tab was observed gone after the CLI ended (nil for direct spawn).
+    public let tabGone: Bool?
 
     public init(
         pid: pid_t,
@@ -73,7 +79,8 @@ public struct AgentCLIExecution: Equatable, Sendable {
         leftovers: [LeftoverProcess],
         snapshot: RunningSnapshot,
         engineSignalled: Bool = false,
-        receivedSignals: [Int32] = []
+        receivedSignals: [Int32] = [],
+        tabGone: Bool? = nil
     ) {
         self.pid = pid
         self.processGroup = processGroup
@@ -82,6 +89,7 @@ public struct AgentCLIExecution: Equatable, Sendable {
         self.snapshot = snapshot
         self.engineSignalled = engineSignalled
         self.receivedSignals = receivedSignals
+        self.tabGone = tabGone
     }
 }
 

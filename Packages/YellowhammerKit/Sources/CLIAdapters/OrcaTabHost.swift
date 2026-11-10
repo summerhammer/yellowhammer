@@ -45,6 +45,32 @@ public final class OrcaTabHost: Sendable {
             self.terminal = term
         }
 
+        /// Observes whether the terminal tab is gone before the host closes it (ADR-007 item 13).
+        public func observeTabGone() async -> Bool {
+            guard let term = self.terminal else { return false }
+            if let pid = term.processID, kill(pid, 0) != 0 {
+                return true
+            }
+            do {
+                let state = try await workspace.terminal(term.handle)
+                if state.orphaned {
+                    return true
+                }
+                if let pid = state.processID ?? term.processID, kill(pid, 0) != 0 {
+                    return true
+                }
+                return false
+            } catch {
+                if case .terminalNotFound = error {
+                    return true
+                }
+                if let pid = term.processID, kill(pid, 0) != 0 {
+                    return true
+                }
+                return false
+            }
+        }
+
         /// Closes the terminal tab as a best effort, waiting for the tab's login process to exit.
         public func close() async {
             guard let term = self.terminal else { return }
