@@ -31,7 +31,8 @@ public final class SpawnedChild: @unchecked Sendable {
         executable: String,
         arguments: [String],
         currentDirectory: URL,
-        newProcessGroup: Bool = false
+        newProcessGroup: Bool = false,
+        newSession: Bool = false
     ) throws -> SpawnedChild {
         var fileActions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&fileActions)
@@ -49,7 +50,9 @@ public final class SpawnedChild: @unchecked Sendable {
         // test is writing inside its own Worktree included — and that test's fence then rightly kills
         // the child as a holder of its Worktree.
         var flags = Int32(POSIX_SPAWN_CLOEXEC_DEFAULT)
-        if newProcessGroup {
+        if newSession {
+            flags |= Int32(POSIX_SPAWN_SETSID)
+        } else if newProcessGroup {
             flags |= Int32(POSIX_SPAWN_SETPGROUP)
             posix_spawnattr_setpgroup(&attr, 0)
         }
@@ -64,7 +67,7 @@ public final class SpawnedChild: @unchecked Sendable {
         var pid: pid_t = 0
         let rc = posix_spawn(&pid, executable, &fileActions, &attr, &argv, &envp)
         guard rc == 0 else { throw SpawnError.spawnFailed(rc) }
-        return SpawnedChild(pid: pid, isGroupLeader: newProcessGroup)
+        return SpawnedChild(pid: pid, isGroupLeader: newProcessGroup || newSession)
     }
 
     private func decode(_ status: Int32) -> ExitStatus {

@@ -37,6 +37,38 @@ struct ProcessFencerTests {
         #expect(fencer.holders(of: worktree.path).isEmpty)
     }
 
+    @Test("A shell started as the leader of its own session with cwd in the Worktree is killed by fence")
+    func sessionLeaderShellHolderIsFencedAndKilled() async throws {
+        let worktree = try Self.makeTempDir(name: "session-leader-shell")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+
+        let child = try Self.launchSessionLeaderShell(currentDirectory: worktree)
+        defer { child.terminateAndReap() }
+        try await Task.sleep(for: .milliseconds(150))
+
+        #expect(getsid(child.pid) == child.pid)
+
+        let fencer = ProcessFencer()
+        let found = fencer.holders(of: worktree.path)
+        let holder = try #require(found.first { $0.pid == child.pid })
+        guard case .workingDirectory = holder.reason else {
+            Issue.record("expected .workingDirectory, got \(holder.reason)")
+            return
+        }
+
+        let outcome = await fencer.fence(worktreePath: worktree.path)
+        guard case .quiescent(let killed) = outcome else {
+            Issue.record("expected .quiescent, got \(outcome)")
+            return
+        }
+        #expect(killed.contains { $0.pid == child.pid })
+
+        let status = await child.waitForExit()
+        #expect(status == .signalled(SIGKILL))
+
+        #expect(fencer.holders(of: worktree.path).isEmpty)
+    }
+
     @Test("fence from a cancelled task still sleeps between sweeps of the process table")
     func cancelledFenceDoesNotBusyWait() async throws {
         let worktree = try Self.makeTempDir(name: "cancelled-fence")
@@ -200,6 +232,13 @@ struct ProcessFencerTests {
     private static func launchSleep(currentDirectory: URL, seconds: Int = 300) throws -> SpawnedChild {
         try SpawnedChild.spawn(
             executable: "/bin/sleep", arguments: ["\(seconds)"], currentDirectory: currentDirectory
+        )
+    }
+
+    private static func launchSessionLeaderShell(currentDirectory: URL) throws -> SpawnedChild {
+        try SpawnedChild.spawn(
+            executable: "/bin/sh", arguments: ["-c", "sleep 300 & wait"], currentDirectory: currentDirectory,
+            newSession: true
         )
     }
 

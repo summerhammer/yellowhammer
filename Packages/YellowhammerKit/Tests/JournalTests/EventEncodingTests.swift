@@ -29,15 +29,14 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 @Test("All JournalEventType raw values match spec names")
 func eventTypeRawValues() {
     let expected = [
-        "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown", "LinearAuthorizationHalted",
-        "LinearReached", "LinearUnreachableHalted",
+        "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown",
+        "LinearAuthorizationHalted", "LinearReached", "LinearUnreachableHalted",
         "MainlineFetchFailed", "TagFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "AuthoringSkippedFeatureInFlight", "AuthoringSkippedUnmergedStackFull",
         "AuthoringPredecessorIndeterminate", "ObservedReleaseRecorded", "AuthoringReleaseGateHeld",
         "PredecessorWalkSkippedReleasedFeature",
         "PredecessorAncestryObserved", "PredecessorMergeTested", "MainlineConflictDetected", "PullRequestReadFailed",
-        "MultiplePullRequestsObserved",
-        "ManagedBlockDelimiterBroken", "ManagedBlockOverBudget", "BoardWriteSuperseded",
+        "MultiplePullRequestsObserved", "ManagedBlockDelimiterBroken", "ManagedBlockOverBudget", "BoardWriteSuperseded",
         "ManagedBlockInputImported", "ManagedBlockInputInvalid", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
         "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "NightCardCompletionDeferred",
@@ -54,7 +53,8 @@ func eventTypeRawValues() {
         "WaitingOnYouReplyRecorded", "WaitingOnYouReplyBanked", "HumanCardComment",
         "CardRunStep", "CheckRan", "AttemptWorkPreserved", "FailureCauseRecorded", "LaneHoleRecorded",
         "CardReclaimed", "CardReclaimDeferred", "AgentCLIProcessSpawned", "RehearsalFixtureAnswered",
-        "AgentSessionHadForeignTurns", "PromptCaptureRequested", "RoutePreflightPromptCaptureRequested",
+        "AgentSessionHadForeignTurns", "AgentPassNotShownInOrca",
+        "PromptCaptureRequested", "RoutePreflightPromptCaptureRequested",
         "CardCommitTrailerMissing", "CardCommitTrailersUnread", "CardReportedCommitUnresolved",
         "LeftoverProcessRecorded",
         "FeatureSelected", "FeatureAuthoringHalted", "FeatureAuthoringAccepted", "FeatureAuthored",

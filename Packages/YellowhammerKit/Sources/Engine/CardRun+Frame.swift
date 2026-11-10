@@ -82,6 +82,17 @@ struct CardRunFrame: Sendable {
         }
     }
 
+    /// Records that a Work Card pass ran by direct spawn because Orca was unreachable
+    /// (story graph-execution/see-and-open-agent-sessions-in-orca, AC orca-unreachable).
+    func recordPassNotShownInOrca(attemptID: Int64, pass: RunPass, cli: String, reason: String) throws {
+        try journal.append(
+            .agentPassNotShownInOrca(
+                cardID: card.id, issueID: card.issueID, attemptID: attemptID, pass: pass, cli: cli, reason: reason
+            ),
+            act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+        )
+    }
+
     /// Records that a resumed worker pass's session held turns Yellowhammer did not write
     /// (story graph-execution/see-and-open-agent-sessions-in-orca, AC touched-session).
     func recordSessionHadForeignTurns(attemptID: Int64, round: Int, cli: String) throws {

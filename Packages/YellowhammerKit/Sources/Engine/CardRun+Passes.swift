@@ -245,6 +245,9 @@ extension CardRun {
         report: AgentDispatchReport, pass: RunPass, route: Route, attemptID: Int64, frame: CardRunFrame
     ) throws {
         try frame.recordDispatchOrigin(report.origin, attemptID: attemptID, pass: pass, cli: route.cli)
+        if let reason = report.notShownInOrca {
+            try frame.recordPassNotShownInOrca(attemptID: attemptID, pass: pass, cli: route.cli, reason: reason)
+        }
         try frame.record(Self.step(of: pass), detail: Self.describe(report.outcome))
         if case .usageLimited(let hint) = report.outcome {
             try recordUsageLimit(route: route, resetHint: hint, frame: frame)

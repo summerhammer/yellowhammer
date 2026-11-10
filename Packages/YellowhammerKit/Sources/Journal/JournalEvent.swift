@@ -389,6 +389,11 @@ public enum JournalEvent: Equatable, Sendable {
     /// A resumed worker pass's session held turns Yellowhammer did not write
     /// (graph-execution/see-and-open-agent-sessions-in-orca, AC touched-session).
     case agentSessionHadForeignTurns(cardID: Int64, issueID: String, attemptID: Int64, round: Int, cli: String)
+    /// A Work Card pass ran by direct spawn because Orca was unreachable
+    /// (graph-execution/see-and-open-agent-sessions-in-orca, AC orca-unreachable).
+    case agentPassNotShownInOrca(
+        cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, cli: String, reason: String
+    )
     /// Prompt capture was requested for a dispatch before launch (app/view-the-prompts-used-by-a-pass).
     case promptCaptureRequested(
         recordID: String, pass: RunPass, cardID: Int64?, issueID: String?, attemptID: Int64?, round: Int?,

@@ -258,6 +258,57 @@ final class ForeignTurnsDispatch: AgentDispatch, Sendable {
     }
 }
 
+/// A Dispatch seam that returns a scripted `notShownInOrca` reason and records all requests.
+final class NotShownInOrcaDispatch: AgentDispatch, Sendable {
+    let log: CallLog?
+    private let sequences: [RunPass: [RehearsalResultFixture]]
+    private let calls = Mutex<[RunPass: Int]>([:])
+    let requests = RequestLog()
+    let scriptedNotShownInOrca: (@Sendable (AgentDispatchRequest) -> String?)?
+
+    init(
+        log: CallLog? = nil,
+        sequences: [RunPass: [RehearsalResultFixture]] = [:],
+        scriptedNotShownInOrca: (@Sendable (AgentDispatchRequest) -> String?)? = nil
+    ) {
+        self.log = log
+        self.sequences = sequences
+        self.scriptedNotShownInOrca = scriptedNotShownInOrca
+    }
+
+    func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
+        log?.add("dispatch \(request.pass.rawValue)")
+        requests.add(request)
+        let reason = scriptedNotShownInOrca?(request)
+        guard let sequence = sequences[request.pass], !sequence.isEmpty else {
+            let base = try await RehearsalDispatch().dispatch(request)
+            return AgentDispatchReport(
+                outcome: base.outcome,
+                session: base.session,
+                origin: base.origin,
+                leftovers: base.leftovers,
+                snapshot: base.snapshot,
+                notShownInOrca: reason
+            )
+        }
+        let index = calls.withLock { calls in
+            let current = calls[request.pass, default: 0]
+            calls[request.pass] = current + 1
+            return current
+        }
+        let fixture = sequence[min(index, sequence.count - 1)]
+        return AgentDispatchReport(
+            outcome: fixture.outcome(),
+            session: "\(request.pass.rawValue)-session-\(index)",
+            notShownInOrca: reason
+        )
+    }
+
+    func foreignTurns(before request: AgentDispatchRequest) async -> Bool {
+        false
+    }
+}
+
 /// A Dispatch seam whose Route cannot be run at all on this machine.
 struct RefusingDispatch: AgentDispatch {
     let log: CallLog

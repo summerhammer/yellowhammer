@@ -41,7 +41,7 @@ public enum NightCardBlock {
         dispositionLines: [String] = [],
         pullRequestLines: [String] = [], answerLines: [String] = [], anomalies: [String] = [],
         crashesAndReclaims: [String] = [], leftoverProcesses: [String] = [],
-        touchedSessions: [String] = [], exceptions: [String] = [],
+        touchedSessions: [String] = [], passesNotShownInOrca: [String] = [], exceptions: [String] = [],
         bounds: [String] = [], standingItems: [String] = [], unadoptedCards: [String] = [],
         inFlightFeature: [String] = [], instrumentedRates: [String] = [],
         cardShortLines: [String] = [], compaction: NightCardCompaction = NightCardCompaction()
@@ -67,6 +67,7 @@ public enum NightCardBlock {
         appendSection("Crashes and reclaims", crashesAndReclaims, to: &lines)
         appendSection("Leftover processes", leftoverProcesses, to: &lines)
         appendSection("Sessions with turns Yellowhammer did not write", touchedSessions, to: &lines)
+        appendSection("Passes not shown in Orca", passesNotShownInOrca, to: &lines)
         appendSection("Exceptions", exceptions, to: &lines)
         appendBounds(bounds, to: &lines)
         appendStandingItems(standingItems, to: &lines)

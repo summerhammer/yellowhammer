@@ -194,6 +194,8 @@ extension JournalEvent {
             .rehearsalFixtureAnswered
         case .agentSessionHadForeignTurns:
             .agentSessionHadForeignTurns
+        case .agentPassNotShownInOrca:
+            .agentPassNotShownInOrca
         case .promptCaptureRequested:
             .promptCaptureRequested
         case .routePreflightPromptCaptureRequested:

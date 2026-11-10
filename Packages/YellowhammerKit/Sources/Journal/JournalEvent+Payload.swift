@@ -414,6 +414,11 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "round": String(round), "cli": cli
             ]
+        case .agentPassNotShownInOrca(let cardID, let issueID, let attemptID, let pass, let cli, let reason):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                "pass": pass.rawValue, "cli": cli, "reason": reason
+            ]
         case .promptCaptureRequested(
             let recordID, let pass, let cardID, let issueID, let attemptID, let round, let ordinal
         ):

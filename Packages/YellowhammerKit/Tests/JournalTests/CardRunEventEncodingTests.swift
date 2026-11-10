@@ -221,3 +221,30 @@ func agentSessionHadForeignTurnsRoundTrips() throws {
     #expect(payload["author"] == nil)
     #expect(payload["who"] == nil)
 }
+
+@Test("agentPassNotShownInOrca event round-trips through encoding and decoding")
+func agentPassNotShownInOrcaRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-journal-notshowninorca-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let event = JournalEvent.agentPassNotShownInOrca(
+        cardID: 42, issueID: "ENG-101", attemptID: 2, pass: .worker, cli: "claude",
+        reason: "Orca was unreachable, ran unseen"
+    )
+
+    try journal.append(event, act: .build, runID: RunID(), now: Date(timeIntervalSince1970: 1_800_000_000))
+
+    let records = try journal.events(ofType: .agentPassNotShownInOrca)
+    #expect(records.map(\.event) == [event])
+
+    let payload = try #require(records.first?.event.payload)
+    #expect(payload["card_id"] == "42")
+    #expect(payload["issue_id"] == "ENG-101")
+    #expect(payload["attempt_id"] == "2")
+    #expect(payload["pass"] == "worker")
+    #expect(payload["cli"] == "claude")
+    #expect(payload["reason"] == "Orca was unreachable, ran unseen")
+}
