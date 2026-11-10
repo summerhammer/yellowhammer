@@ -226,7 +226,8 @@ let package = Package(
                 "Ledger",
                 "Repositories",
                 "Pulse",
-                "ProcessTestSupport"
+                "ProcessTestSupport",
+                "PassWrapperChild"
             ]
         )
     ]

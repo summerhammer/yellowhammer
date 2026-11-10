@@ -32,6 +32,8 @@ struct CLIAdapterDispatch: AgentDispatch {
     /// The Project's saved instructions, read afresh on every dispatch of a production pass. Nil means
     /// there are none. Never given to a diagnostic probe.
     let projectInstructions: ProjectInstructionsStore?
+    let workspace: (any Workspace)?
+    let wrapperExecutable: String?
 
     init(
         runsDirectory: URL,
@@ -44,7 +46,9 @@ struct CLIAdapterDispatch: AgentDispatch {
         protectedDirectories: [String] = [],
         recorder: (any DispatchPromptRecording)? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
-        projectInstructions: ProjectInstructionsStore? = nil
+        projectInstructions: ProjectInstructionsStore? = nil,
+        workspace: (any Workspace)? = nil,
+        wrapperExecutable: String? = nil
     ) {
         self.projectInstructions = projectInstructions
         self.runsDirectory = runsDirectory
@@ -55,7 +59,14 @@ struct CLIAdapterDispatch: AgentDispatch {
         self.fileExists = fileExists
         self.recorder = recorder
         self.now = now
-        self.runner = runner ?? CLIRunner(recorder: recorder, now: now)
+        self.workspace = workspace
+        let resolvedWrapper = wrapperExecutable ?? CommandLine.arguments.first ?? "yh"
+        self.wrapperExecutable = resolvedWrapper
+        self.runner = runner ?? CLIRunner(
+            process: AgentCLIProcess(wrapperExecutable: resolvedWrapper),
+            recorder: recorder,
+            now: now
+        )
         self.protectedDirectories = protectedDirectories
     }
 
@@ -129,14 +140,72 @@ struct CLIAdapterDispatch: AgentDispatch {
             throw AgentDispatchRefusal(reason: reason)
         }
         let dispatch = makeDispatch(for: request, executable: executable, resolved: resolved)
+        let isWorkCardPass = request.pass == .architect || request.pass == .worker || request.pass == .reviewer
+        if isWorkCardPass, let workspace, let worktreeID = request.worktreeID {
+            return try await dispatchWithTabHost(
+                dispatch, request: request, adapter: adapter, workspace: workspace, worktreeID: worktreeID
+            )
+        }
+        return try await dispatchDirect(dispatch, adapter: adapter)
+    }
+
+    private func dispatchDirect(
+        _ dispatch: CLIDispatch, adapter: some CLIAdapter, notShownInOrca: String? = nil
+    ) async throws -> AgentDispatchReport {
         do {
             let report = try await runner.run(dispatch, adapter: adapter)
+            return AgentDispatchReport(
+                outcome: report.outcome, session: report.session?.rawValue, origin: .agentCLIProcess,
+                leftovers: report.leftovers, snapshot: report.snapshot, notShownInOrca: notShownInOrca
+            )
+        } catch let error as CLIAdapterError {
+            throw AgentDispatchRefusal(reason: error.description)
+        }
+    }
+
+    private func dispatchWithTabHost(
+        _ dispatch: CLIDispatch,
+        request: AgentDispatchRequest,
+        adapter: some CLIAdapter,
+        workspace: any Workspace,
+        worktreeID: String
+    ) async throws -> AgentDispatchReport {
+        let sessionName = request.sessionName ?? request.route.cli
+        let tabHost = OrcaTabHost(workspace: workspace)
+        let tabSession = tabHost.session(worktreeID: worktreeID, sessionName: sessionName)
+        let launcherURL = dispatch.runDirectory.appendingPathComponent(PassLauncher.fileName)
+
+        do {
+            let report: CLIRunReport
+            do {
+                report = try await runner.run(
+                    dispatch, adapter: adapter,
+                    launcherStarter: { try await tabSession.startLauncher(launcherURL: $0) }
+                )
+            } catch {
+                await tabSession.close()
+                throw error
+            }
+            await tabSession.close()
             return AgentDispatchReport(
                 outcome: report.outcome, session: report.session?.rawValue, origin: .agentCLIProcess,
                 leftovers: report.leftovers, snapshot: report.snapshot
             )
         } catch let error as CLIAdapterError {
             throw AgentDispatchRefusal(reason: error.description)
+        } catch let error as WorkspaceError {
+            try? FileManager.default.removeItem(at: launcherURL)
+            let specURL = dispatch.runDirectory.appendingPathComponent(PassWrapper.specFileName)
+            try? FileManager.default.removeItem(at: specURL)
+            switch error {
+            case .unavailable(let reason):
+                return try await dispatchDirect(dispatch, adapter: adapter, notShownInOrca: reason)
+            default:
+                return AgentDispatchReport(
+                    outcome: .crashedUnknown(.engineStopped(cause: error.description)),
+                    session: nil, origin: .agentCLIProcess, leftovers: [], snapshot: nil
+                )
+            }
         }
     }
 

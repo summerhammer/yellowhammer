@@ -73,7 +73,7 @@ public struct CLIRunner: Sendable {
             launch = try adapter.launch(for: dispatch)
         } catch {
             if let promptRecord, let recorder {
-                _ = recorder.markLaunch(.notLaunched(cause: error.description), of: promptRecord)
+                _ = recorder.markLaunch(.notLaunched(cause: String(describing: error)), of: promptRecord)
             }
             throw error
         }
@@ -105,7 +105,7 @@ public struct CLIRunner: Sendable {
             }
         } catch {
             if let promptRecord, let recorder {
-                _ = recorder.markLaunch(.notLaunched(cause: error.description), of: promptRecord)
+                _ = recorder.markLaunch(.notLaunched(cause: String(describing: error)), of: promptRecord)
             }
             throw error
         }

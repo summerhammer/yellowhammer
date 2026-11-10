@@ -10,11 +10,11 @@ extension AgentCLIProcess {
         wrapperExecutable: String? = nil,
         onSpawn: (@Sendable () -> Void)? = nil,
         startLauncher: @Sendable (_ launcherURL: URL) async throws -> Void
-    ) async throws(AgentCLILaunchError) -> AgentCLIExecution {
+    ) async throws -> AgentCLIExecution {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: launch.worktreePath, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else {
-            throw .worktreeMissing(launch.worktreePath)
+            throw AgentCLILaunchError.worktreeMissing(launch.worktreePath)
         }
 
         let resolvedRunDir = runDirectory ?? launch.resultFile.deletingLastPathComponent()
@@ -23,10 +23,14 @@ extension AgentCLIProcess {
         let resolvedWrapper = wrapperExecutable ?? self.wrapperExecutable
         let specURL = resolvedRunDir.appendingPathComponent(PassWrapper.specFileName)
         let spec = PassWrapperSpec(launch: launch, runDirectory: resolvedRunDir)
+        let startedURL = URL(fileURLWithPath: spec.startedPath)
+        try? FileManager.default.removeItem(at: startedURL)
+        let statusURL = URL(fileURLWithPath: spec.statusPath)
+        try? FileManager.default.removeItem(at: statusURL)
         do {
             try spec.write(to: specURL)
         } catch {
-            throw .spawnFailed(errno: EIO, executable: resolvedWrapper)
+            throw AgentCLILaunchError.spawnFailed(errno: EIO, executable: resolvedWrapper)
         }
 
         let launcherURL = resolvedRunDir.appendingPathComponent(PassLauncher.fileName)
@@ -38,7 +42,7 @@ extension AgentCLIProcess {
                 addedEnvironment: launch.addedEnvironment
             )
         } catch {
-            throw .spawnFailed(errno: EIO, executable: resolvedWrapper)
+            throw AgentCLILaunchError.spawnFailed(errno: EIO, executable: resolvedWrapper)
         }
 
         let promptWatch = await promptSource.start()
@@ -53,17 +57,9 @@ extension AgentCLIProcess {
             try await startLauncher(launcherURL)
         } catch {
             await promptWatch?.stop()
-            let end = RunEnd.crashedUnknown(.wrapperRecordMissing("launcher failed to start: \(error)"))
-            let snapshot = RunningSnapshot(
-                dispatchedAt: dispatchedAt, processes: [], processGroups: [], sessions: []
-            )
-            return AgentCLIExecution(
-                pid: 0, processGroup: 0, end: end, leftovers: [], snapshot: snapshot,
-                engineSignalled: false, receivedSignals: []
-            )
+            throw error
         }
 
-        let startedURL = URL(fileURLWithPath: spec.startedPath)
         guard let started = await waitForStarted(at: startedURL, timeout: startTimeout) else {
             await promptWatch?.stop()
             let end = RunEnd.crashedUnknown(.wrapperRecordMissing("wrapper never reported a started CLI"))
@@ -78,7 +74,6 @@ extension AgentCLIProcess {
 
         onSpawn?()
 
-        let statusURL = URL(fileURLWithPath: spec.statusPath)
         let result = await waitWrapped(
             started: started,
             statusURL: statusURL,
@@ -103,7 +98,7 @@ extension AgentCLIProcess {
         runDirectory: URL? = nil,
         wrapperExecutable: String? = nil,
         startLauncher: @Sendable (_ launcherURL: URL) async throws -> Void
-    ) async throws(AgentCLILaunchError) -> AgentCLIRunReport {
+    ) async throws -> AgentCLIRunReport {
         let execution = try await executeWrapped(
             launch,
             runDirectory: runDirectory,

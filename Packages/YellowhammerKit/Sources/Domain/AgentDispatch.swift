@@ -30,6 +30,8 @@ public struct AgentDispatchRequest: Equatable, Sendable {
     public var provenance: DispatchProvenance?
     /// A human-readable title for the session in Orca's history (AC named-session).
     public let sessionName: String?
+    /// The Orca Worktree id for a Work Card pass, if available.
+    public let worktreeID: String?
 
     public init(
         runID: RunID,
@@ -43,7 +45,8 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         additionalReadableDirectories: [String] = [],
         additionalWritableDirectories: [String] = [],
         provenance: DispatchProvenance? = nil,
-        sessionName: String? = nil
+        sessionName: String? = nil,
+        worktreeID: String? = nil
     ) {
         self.runID = runID
         self.issueID = issueID
@@ -57,6 +60,7 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         self.additionalWritableDirectories = additionalWritableDirectories
         self.provenance = provenance
         self.sessionName = sessionName
+        self.worktreeID = worktreeID
     }
 }
 
@@ -84,16 +88,20 @@ public struct AgentDispatchReport: Equatable, Sendable {
     /// the attributed Worktree fence to consume. `nil` when no agent CLI run's snapshot is
     /// available — a fake, or a rehearsal fixture answering in place of a real run.
     public let snapshot: RunningSnapshot?
+    /// The reason a Work Card pass fell back to direct spawn rather than running in an Orca tab.
+    public let notShownInOrca: String?
 
     public init(
         outcome: RunOutcome, session: String? = nil, origin: AgentDispatchOrigin = .agentCLIProcess,
-        leftovers: [LeftoverProcess] = [], snapshot: RunningSnapshot? = nil
+        leftovers: [LeftoverProcess] = [], snapshot: RunningSnapshot? = nil,
+        notShownInOrca: String? = nil
     ) {
         self.outcome = outcome
         self.session = session
         self.origin = origin
         self.leftovers = leftovers
         self.snapshot = snapshot
+        self.notShownInOrca = notShownInOrca
     }
 }
 

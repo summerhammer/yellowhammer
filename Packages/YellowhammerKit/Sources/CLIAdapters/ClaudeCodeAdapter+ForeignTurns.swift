@@ -9,6 +9,11 @@ extension ClaudeCodeAdapter {
     /// home: the child is spawned with exactly `dispatch.environment`, so that is where it writes, and a
     /// dispatch with neither variable (every test fixture's empty environment) has no root, so nothing reads
     /// the real `~/.claude`. No root means no transcript: no marker is recorded and the check answers false.
+    ///
+    /// For a tab pass, the CLI runs in an Orca terminal tab inheriting the tab's default environment
+    /// (the user's HOME and CLAUDE_CONFIG_DIR if set). In dispatch, CLIDispatch.environment inherits
+    /// ProcessInfo.processInfo.environment (also holding HOME and CLAUDE_CONFIG_DIR if set).
+    /// Therefore, both the spawned tab CLI and foreignTurns resolve to the same transcript root.
     func configDirectory(for dispatch: CLIDispatch) -> URL? {
         if let configDirectory {
             return configDirectory

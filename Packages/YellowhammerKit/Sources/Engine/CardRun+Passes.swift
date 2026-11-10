@@ -194,7 +194,8 @@ extension CardRun {
             worktreePath: frame.worktree.path, resumeSession: resumeSession,
             additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path),
             provenance: provenance,
-            sessionName: sessionName
+            sessionName: sessionName,
+            worktreeID: frame.worktree.worktreeID
         )
         if pass == .worker, resumeSession != nil {
             if await dispatch.foreignTurns(before: request) {

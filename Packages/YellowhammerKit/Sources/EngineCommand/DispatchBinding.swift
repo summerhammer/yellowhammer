@@ -14,7 +14,8 @@ enum DispatchBinding {
         configuration: Configuration,
         project: ProjectConfiguration,
         configurationDirectory: URL,
-        resultFixtures: RehearsalScript = RehearsalScript.empty
+        resultFixtures: RehearsalScript = RehearsalScript.empty,
+        workspace: (any Workspace)? = nil
     ) -> any AgentDispatch {
         switch mode {
         case .rehearsal:
@@ -26,6 +27,7 @@ enum DispatchBinding {
                 )
             )
             let recorder = ReportingDispatchPromptRecorder(store: promptStore)
+            let wrapperExecutable = CommandLineToolLink.runningExecutablePath()
             return CLIAdapterDispatch(
                 runsDirectory: CLIAdapterDispatch.runsDirectory(
                     configurationDirectory: configurationDirectory, projectID: project.id
@@ -39,7 +41,9 @@ enum DispatchBinding {
                 projectInstructions: ProjectInstructionsStore(
                     rootDirectory: DispatchPromptStore.rootDirectory(configurationDirectory: configurationDirectory),
                     projectID: project.id
-                )
+                ),
+                workspace: workspace ?? WorkspaceBinding.workspace(),
+                wrapperExecutable: wrapperExecutable
             )
         }
     }

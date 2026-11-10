@@ -15,7 +15,8 @@ extension ActCommand {
     /// This Act's own work. Split out of `makeInvocation` to keep that function within its length limit.
     func work(
         mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL,
-        shared: ActSharedSeams
+        shared: ActSharedSeams,
+        bindWorkspace: (() -> any Workspace)? = nil
     ) throws -> EngineInvocation.ActWork {
         let (narrativeScrub, refresher) = (shared.narrativeScrub, shared.refresher)
         switch Self.act {
@@ -46,7 +47,8 @@ extension ActCommand {
         case .build:
             let cardRunner = try CardRunBinding.cardRunner(
                 mode: mode, configuration: configuration, project: project,
-                configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
+                configurationDirectory: configurationDirectory, resultFixtures: resultFixtures,
+                workspace: bindWorkspace?() ?? WorkspaceBinding.workspace()
             )
             return BuildAct(
                 cardRunner: cardRunner,

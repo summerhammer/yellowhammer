@@ -105,10 +105,10 @@ extension ActCommand {
         // One refresher for the invocation: its Act-start fetch and every mainline read authenticate with the
         // Project's Code Hosting Connection (OQ152).
         let refresher = MainlineBinding.mainlineRefresher(configuration: configuration, project: project)
+        let sharedSeams = ActSharedSeams(narrativeScrub: narrativeScrub, refresher: refresher)
         let work = try self.work(
             mode: mode, configuration: configuration, project: project,
-            configurationDirectory: configurationDirectory,
-            shared: ActSharedSeams(narrativeScrub: narrativeScrub, refresher: refresher)
+            configurationDirectory: configurationDirectory, shared: sharedSeams, bindWorkspace: bindWorkspace
         )
         var invocation = EngineInvocation(
             act: Self.act,
