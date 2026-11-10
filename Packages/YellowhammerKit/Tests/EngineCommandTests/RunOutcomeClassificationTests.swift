@@ -159,3 +159,10 @@ func abortedIsCrashedUnknownTerminated() {
     let outcome = RunOutcome.classify(end: end, resultFile: validWorkerJSON, pass: .worker)
     #expect(outcome == .crashedUnknown(.terminated(end)))
 }
+
+@Test("A crashedUnknown RunEnd maps directly to Crashed-Unknown")
+func crashedUnknownRunEndMapsDirectly() {
+    let end = RunEnd.crashedUnknown(.wrapperRecordMissing("status missing"))
+    let outcome = RunOutcome.classify(end: end, resultFile: validWorkerJSON, pass: .worker)
+    #expect(outcome == .crashedUnknown(.wrapperRecordMissing("status missing")))
+}

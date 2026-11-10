@@ -16,7 +16,11 @@ extension AgentCLIProcess {
     /// tool spawns mid-grace and SIGTERMing those too. Escalates to SIGKILL against the group and
     /// every tracked survivor, reaps the leader if it has not been already, and polls briefly for
     /// everything to vanish. The leader is reaped exactly once on every path — no zombies.
-    func terminate(pid: pid_t, reason: TerminationReason) async -> RunEnd {
+    func terminate(
+        pid: pid_t,
+        leaderIdentity: PassWrapperStarted? = nil,
+        reason: TerminationReason
+    ) async -> RunEnd {
         var tracked = Set(ProcessTree.descendants(of: pid))
         ProcessGroup.signal(group: pid, SIGTERM)
         Self.signal(tracked, SIGTERM)
@@ -25,32 +29,46 @@ extension AgentCLIProcess {
         let deadline = clock.now.advanced(by: gracePeriod)
         var reaped = false
 
+        func isLeaderGone() -> Bool {
+            if let leaderIdentity {
+                guard let current = ProcessTree.identity(of: pid) else { return true }
+                return current.startSeconds != leaderIdentity.startSeconds
+                    || current.startMicroseconds != leaderIdentity.startMicroseconds
+            } else {
+                return reaped
+            }
+        }
+
         while clock.now < deadline {
-            reaped = reaped || ProcessGroup.reapNonBlocking(pid: pid) != nil
-            Self.sweepForNewDescendants(leaderPID: pid, leaderReaped: reaped, tracked: &tracked)
-            if Self.allGone(leaderPID: pid, leaderReaped: reaped, tracked: tracked) {
+            if leaderIdentity == nil {
+                reaped = reaped || ProcessGroup.reapNonBlocking(pid: pid) != nil
+            }
+            Self.sweepForNewDescendants(leaderPID: pid, leaderReaped: isLeaderGone(), tracked: &tracked)
+            if Self.allGone(leaderPID: pid, leaderReaped: isLeaderGone(), tracked: tracked) {
                 return end(for: reason, forcedKill: false)
             }
             await Self.sleepThroughCancellation(for: pollInterval)
         }
 
-        reaped = reaped || ProcessGroup.reapNonBlocking(pid: pid) != nil
-        if Self.allGone(leaderPID: pid, leaderReaped: reaped, tracked: tracked) {
+        if leaderIdentity == nil {
+            reaped = reaped || ProcessGroup.reapNonBlocking(pid: pid) != nil
+        }
+        if Self.allGone(leaderPID: pid, leaderReaped: isLeaderGone(), tracked: tracked) {
             return end(for: reason, forcedKill: false)
         }
 
         // One last walk: the loop sleeps after its final sweep, so a descendant spawned during that
         // last poll interval (or, with a zero grace period, since the snapshot) is not tracked yet.
-        Self.sweepForNewDescendants(leaderPID: pid, leaderReaped: reaped, tracked: &tracked)
+        Self.sweepForNewDescendants(leaderPID: pid, leaderReaped: isLeaderGone(), tracked: &tracked)
         ProcessGroup.signal(group: pid, SIGKILL)
         Self.signal(tracked.filter { !ProcessTree.isGone($0) }, SIGKILL)
-        if !reaped {
+        if leaderIdentity == nil && !reaped {
             ProcessGroup.reapBlocking(pid: pid)
             reaped = true
         }
 
         let killDeadline = clock.now.advanced(by: .seconds(1))
-        while clock.now < killDeadline, !Self.allGone(leaderPID: pid, leaderReaped: reaped, tracked: tracked) {
+        while clock.now < killDeadline, !Self.allGone(leaderPID: pid, leaderReaped: isLeaderGone(), tracked: tracked) {
             await Self.sleepThroughCancellation(for: pollInterval)
         }
 

@@ -141,6 +141,8 @@ extension AttemptEnding {
             "reclaimed: \(reason)"
         case .crashedUnknown(.engineStopped(let cause)):
             "\(AttemptEnding.engineStoppedClassificationPrefix)\(cause)"
+        case .crashedUnknown(.wrapperRecordMissing(let reason)):
+            "wrapper record missing: \(reason)"
         case .question:
             "asked a question"
         case .cancelled:

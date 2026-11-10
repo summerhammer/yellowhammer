@@ -54,6 +54,8 @@ public struct FailureCause: Equatable, Sendable {
             // Classification is unchanged by OQ92: an engine stop counts as the same structural cause as
             // any other reclaimed Crashed-Unknown, so recurrence still counts across the two.
             "reclaimed"
+        case .wrapperRecordMissing:
+            "wrapper record missing"
         }
     }
 

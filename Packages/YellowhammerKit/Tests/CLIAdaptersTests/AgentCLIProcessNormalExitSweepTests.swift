@@ -73,7 +73,8 @@ struct AgentCLIProcessNormalExitSweepTests {
 
         #expect(report.end == .exited(status: 0))
         #expect(report.leftovers.isEmpty)
-        #expect(elapsed < .seconds(2))
+        // Upper bound proving no grace period or sweep hang: under whole-package load, spawning alone can lag.
+        #expect(elapsed < .seconds(6))
     }
 }
 

@@ -125,10 +125,9 @@ struct AgentCLIProcessTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.leaderHonorsTermButLeavesOrphan)
         defer { fixture.cleanUp() }
 
-        // The timeout runs from the spawn, and the stub ignores SIGTERM only once `/bin/sh` has reached
-        // its `trap`. With the whole target spawning at once that has taken over 300 ms, and the SIGTERM
-        // then simply killed the stub; 2 s leaves the shell room to get there.
-        let timeout = Duration.seconds(2)
+        // 6 s, not 2 s: the stub must reach its `trap` before the SIGTERM, see above. 2 s was
+        // not enough under whole-package load, where spawning the stub alone lagged past it.
+        let timeout = Duration.seconds(6)
         let runner = AgentCLIProcess(gracePeriod: .milliseconds(400), pollInterval: .milliseconds(20))
         let report = try await runner.run(fixture.launch(timeout: timeout))
 

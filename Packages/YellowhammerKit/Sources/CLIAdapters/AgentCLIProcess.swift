@@ -23,6 +23,30 @@ public struct AgentCLIRunReport: Equatable, Sendable {
     /// Present on every ending — normal exit, timeout, or abort — since the cumulative descendant
     /// walk that feeds it runs regardless of how the run ends.
     public let snapshot: RunningSnapshot
+    /// Whether the engine itself sent a termination signal (timeout, abort or prompt).
+    public let engineSignalled: Bool
+    /// Signals the wrapper received while the CLI ran, in order.
+    public let receivedSignals: [Int32]
+
+    public init(
+        pid: pid_t,
+        processGroup: pid_t,
+        end: RunEnd,
+        outcome: RunOutcome,
+        leftovers: [LeftoverProcess],
+        snapshot: RunningSnapshot,
+        engineSignalled: Bool = false,
+        receivedSignals: [Int32] = []
+    ) {
+        self.pid = pid
+        self.processGroup = processGroup
+        self.end = end
+        self.outcome = outcome
+        self.leftovers = leftovers
+        self.snapshot = snapshot
+        self.engineSignalled = engineSignalled
+        self.receivedSignals = receivedSignals
+    }
 }
 
 /// The process identity and ending of one run, before the dual-key completion verdict is applied.
@@ -37,6 +61,28 @@ public struct AgentCLIExecution: Equatable, Sendable {
     public let leftovers: [LeftoverProcess]
     /// See ``AgentCLIRunReport/snapshot``.
     public let snapshot: RunningSnapshot
+    /// Whether the engine itself sent a termination signal (timeout, abort or prompt).
+    public let engineSignalled: Bool
+    /// Signals the wrapper received while the CLI ran, in order.
+    public let receivedSignals: [Int32]
+
+    public init(
+        pid: pid_t,
+        processGroup: pid_t,
+        end: RunEnd,
+        leftovers: [LeftoverProcess],
+        snapshot: RunningSnapshot,
+        engineSignalled: Bool = false,
+        receivedSignals: [Int32] = []
+    ) {
+        self.pid = pid
+        self.processGroup = processGroup
+        self.end = end
+        self.leftovers = leftovers
+        self.snapshot = snapshot
+        self.engineSignalled = engineSignalled
+        self.receivedSignals = receivedSignals
+    }
 }
 
 /// Why ``AgentCLIProcess/run(_:)`` could not even start a run.
@@ -74,20 +120,34 @@ public struct AgentCLIProcess: Sendable {
     /// tests. Must poll faster than a tool process's own lifetime for the normal-exit sweep to see
     /// it before it (and its intermediate parent) exit.
     public let snapshotInterval: Duration
+    /// Bounded time to wait for `wrapper-started.json` before ending Crashed-Unknown.
+    public let startTimeout: Duration
+    /// Bounded time to wait for `wrapper-status.json` after the CLI has exited.
+    public let statusTimeout: Duration
     /// Watches for a macOS permission prompt raised by the run's own process tree (#555): nobody answers
     /// one during a Night, so the run is ended at once instead of waiting out its pass timeout. Ending the
     /// run does not dismiss the dialog: on macOS 27 it stays until answered by hand, and the answer should
     /// be Deny (see ``UnifiedLogPromptSource``).
     public let promptSource: any PromptSource
+    /// The executable path for the wrapper (`yh pass-wrapper`).
+    public let wrapperExecutable: String
 
     public init(
-        gracePeriod: Duration = .seconds(3), pollInterval: Duration = .milliseconds(20),
-        snapshotInterval: Duration = .milliseconds(100), promptSource: any PromptSource = UnifiedLogPromptSource()
+        gracePeriod: Duration = .seconds(3),
+        pollInterval: Duration = .milliseconds(20),
+        snapshotInterval: Duration = .milliseconds(100),
+        startTimeout: Duration = .seconds(10),
+        statusTimeout: Duration = .seconds(2),
+        promptSource: any PromptSource = UnifiedLogPromptSource(),
+        wrapperExecutable: String = CommandLine.arguments.first ?? "yh"
     ) {
         self.gracePeriod = gracePeriod
         self.pollInterval = pollInterval
         self.snapshotInterval = snapshotInterval
+        self.startTimeout = startTimeout
+        self.statusTimeout = statusTimeout
         self.promptSource = promptSource
+        self.wrapperExecutable = wrapperExecutable
     }
 
     public func run(_ launch: AgentCLILaunch) async throws(AgentCLILaunchError) -> AgentCLIRunReport {
@@ -95,7 +155,8 @@ public struct AgentCLIProcess: Sendable {
         let outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: launch.pass)
         return AgentCLIRunReport(
             pid: execution.pid, processGroup: execution.processGroup, end: execution.end, outcome: outcome,
-            leftovers: execution.leftovers, snapshot: execution.snapshot
+            leftovers: execution.leftovers, snapshot: execution.snapshot,
+            engineSignalled: execution.engineSignalled, receivedSignals: execution.receivedSignals
         )
     }
 
@@ -147,7 +208,8 @@ public struct AgentCLIProcess: Sendable {
         )
         await promptWatch?.stop()
         return AgentCLIExecution(
-            pid: pid, processGroup: pid, end: result.end, leftovers: result.leftovers, snapshot: result.snapshot
+            pid: pid, processGroup: pid, end: result.end, leftovers: result.leftovers, snapshot: result.snapshot,
+            engineSignalled: result.engineSignalled, receivedSignals: result.receivedSignals
         )
     }
 
@@ -155,10 +217,12 @@ public struct AgentCLIProcess: Sendable {
 
     /// How ``wait(pid:timeout:dispatchedAt:promptWatch:)`` ended: the run's ending, what a normal exit swept, and
     /// the running snapshot.
-    private struct WaitResult {
+    struct WaitResult {
         let end: RunEnd
         let leftovers: [LeftoverProcess]
         let snapshot: RunningSnapshot
+        let engineSignalled: Bool
+        let receivedSignals: [Int32]
     }
 
     /// Polls `waitpid(WNOHANG)` in the calling task (never a detached one) so `Task.isCancelled`
@@ -191,20 +255,32 @@ public struct AgentCLIProcess: Sendable {
             }
             if let end = ProcessGroup.reapNonBlocking(pid: pid) {
                 let leftovers = await sweepAfterExit(tracked: tracked)
-                return WaitResult(end: end, leftovers: leftovers, snapshot: snapshot())
+                return WaitResult(
+                    end: end, leftovers: leftovers, snapshot: snapshot(),
+                    engineSignalled: false, receivedSignals: []
+                )
             }
             if let promptWatch,
                let prompt = await Self.attributedPrompt(in: promptWatch, leaderPID: pid, tracked: &tracked) {
                 let end = await terminate(pid: pid, reason: .permissionPrompt(prompt.detail))
-                return WaitResult(end: end, leftovers: [], snapshot: snapshot())
+                return WaitResult(
+                    end: end, leftovers: [], snapshot: snapshot(),
+                    engineSignalled: true, receivedSignals: []
+                )
             }
             if Task.isCancelled {
                 let end = await terminate(pid: pid, reason: .aborted)
-                return WaitResult(end: end, leftovers: [], snapshot: snapshot())
+                return WaitResult(
+                    end: end, leftovers: [], snapshot: snapshot(),
+                    engineSignalled: true, receivedSignals: []
+                )
             }
             if clock.now - start >= timeout {
                 let end = await terminate(pid: pid, reason: .timedOut(after: timeout))
-                return WaitResult(end: end, leftovers: [], snapshot: snapshot())
+                return WaitResult(
+                    end: end, leftovers: [], snapshot: snapshot(),
+                    engineSignalled: true, receivedSignals: []
+                )
             }
             try? await Task.sleep(for: pollInterval)
         }
@@ -215,7 +291,7 @@ public struct AgentCLIProcess: Sendable {
     /// day, another Project's pass — never ends this run. `tracked` lags the tree by up to one
     /// `snapshotInterval`, and a tool can raise a prompt as soon as it starts, so a prompt that matches
     /// nothing tracked gets one fresh walk before it is dismissed; the blocked client is still alive.
-    private static func attributedPrompt(
+    static func attributedPrompt(
         in watch: any PromptWatching, leaderPID: pid_t, tracked: inout Set<ProcessTree.TrackedProcess>
     ) async -> PromptEvent? {
         let prompts = await watch.drain()
@@ -237,7 +313,10 @@ public struct AgentCLIProcess: Sendable {
     /// process is still identifiable; an entry that has already exited keeps only what was
     /// recorded when it was last seen alive.
     static func makeSnapshot(
-        leaderPID: pid_t, dispatchedAt: ProcessStartTime, tracked: Set<ProcessTree.TrackedProcess>
+        leaderPID: pid_t,
+        leaderSession: pid_t? = nil,
+        dispatchedAt: ProcessStartTime,
+        tracked: Set<ProcessTree.TrackedProcess>
     ) -> RunningSnapshot {
         var processes: [SnapshotProcess] = []
         var groups = Set<pid_t>()
@@ -268,6 +347,9 @@ public struct AgentCLIProcess: Sendable {
             fold(process)
         }
         groups.insert(leaderPID)
+        if let leaderSession {
+            sessions.insert(leaderSession)
+        }
 
         let engineGroup = getpgrp()
         let engineSession = getsid(0)

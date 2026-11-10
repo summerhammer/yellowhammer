@@ -12,27 +12,60 @@ public struct CLIRunReport: Equatable, Sendable {
     public let leftovers: [LeftoverProcess]
     /// See ``AgentCLIRunReport/snapshot``.
     public let snapshot: RunningSnapshot
+    /// Whether the engine itself sent a termination signal (timeout, abort or prompt).
+    public let engineSignalled: Bool
+    /// Signals the wrapper received while the CLI ran, in order.
+    public let receivedSignals: [Int32]
+
+    public init(
+        pid: pid_t,
+        end: RunEnd,
+        outcome: RunOutcome,
+        session: CLISession?,
+        leftovers: [LeftoverProcess],
+        snapshot: RunningSnapshot,
+        engineSignalled: Bool = false,
+        receivedSignals: [Int32] = []
+    ) {
+        self.pid = pid
+        self.end = end
+        self.outcome = outcome
+        self.session = session
+        self.leftovers = leftovers
+        self.snapshot = snapshot
+        self.engineSignalled = engineSignalled
+        self.receivedSignals = receivedSignals
+    }
 }
 
 /// Drives one CLI Adapter through a full pass: build the launch, run it, let the adapter collect
 /// its session before the dual-key check runs. Cancellation-aware exactly as ``AgentCLIProcess`` —
 /// it does no polling or waiting of its own.
 public struct CLIRunner: Sendable {
+    public typealias LauncherStarter = @Sendable (_ launcherURL: URL) async throws -> Void
+
     public let process: AgentCLIProcess
     public let recorder: (any DispatchPromptRecording)?
     public let now: @Sendable () -> Date
+    public let launcherStarter: LauncherStarter?
 
     public init(
         process: AgentCLIProcess = AgentCLIProcess(),
         recorder: (any DispatchPromptRecording)? = nil,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        launcherStarter: LauncherStarter? = nil
     ) {
         self.process = process
         self.recorder = recorder
         self.now = now
+        self.launcherStarter = launcherStarter
     }
 
-    public func run(_ dispatch: CLIDispatch, adapter: some CLIAdapter) async throws -> CLIRunReport {
+    public func run(
+        _ dispatch: CLIDispatch,
+        adapter: some CLIAdapter,
+        launcherStarter: LauncherStarter? = nil
+    ) async throws -> CLIRunReport {
         let promptRecord = capturePromptRecord(for: dispatch, adapter: adapter)
 
         let launch: AgentCLILaunch
@@ -57,9 +90,19 @@ public struct CLIRunner: Sendable {
         } else {
             nil
         }
+        let starter = launcherStarter ?? self.launcherStarter
         let execution: AgentCLIExecution
         do {
-            execution = try await process.execute(launch, onSpawn: onSpawn)
+            if let starter {
+                execution = try await process.executeWrapped(
+                    launch,
+                    runDirectory: dispatch.runDirectory,
+                    onSpawn: onSpawn,
+                    startLauncher: starter
+                )
+            } else {
+                execution = try await process.execute(launch, onSpawn: onSpawn)
+            }
         } catch {
             if let promptRecord, let recorder {
                 _ = recorder.markLaunch(.notLaunched(cause: error.description), of: promptRecord)
@@ -77,7 +120,8 @@ public struct CLIRunner: Sendable {
         }
         return CLIRunReport(
             pid: execution.pid, end: execution.end, outcome: outcome, session: session,
-            leftovers: execution.leftovers, snapshot: execution.snapshot
+            leftovers: execution.leftovers, snapshot: execution.snapshot,
+            engineSignalled: execution.engineSignalled, receivedSignals: execution.receivedSignals
         )
     }
 

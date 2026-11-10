@@ -16,6 +16,9 @@ public enum RunEnd: Equatable, Sendable {
     /// process tree: nobody answers a prompt during a Night, so the pass could only wait out its
     /// timeout (#555). Same escalation; `detail` names the prompt and the process that raised it.
     case promptBlocked(detail: String, forcedKill: Bool)
+    /// The run ended Crashed-Unknown before or without an exit status attributable to the CLI
+    /// (e.g. a missing wrapper status record or unstarted CLI).
+    indirect case crashedUnknown(CrashedUnknownCause)
 }
 
 extension RunEnd: CustomStringConvertible {
@@ -31,6 +34,8 @@ extension RunEnd: CustomStringConvertible {
             "aborted(forcedKill: \(forcedKill))"
         case .promptBlocked(let detail, let forcedKill):
             "promptBlocked(\(detail), forcedKill: \(forcedKill))"
+        case .crashedUnknown(let cause):
+            "crashedUnknown(\(cause))"
         }
     }
 }
@@ -58,6 +63,8 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     /// because a macOS permission prompt blocked it (``RunEnd/promptBlocked(detail:forcedKill:)``, #555;
     /// see ``permissionPrompt(_:)``). Same Crashed-Unknown classification; `String` is the cause.
     case engineStopped(cause: String)
+    /// The pass wrapper left no readable status record, or never reported a started CLI.
+    case wrapperRecordMissing(String)
 }
 
 extension CrashedUnknownCause {
@@ -174,6 +181,8 @@ extension RunOutcome {
             .crashedUnknown(.terminated(end))
         case .promptBlocked(let detail, _):
             .crashedUnknown(.permissionPrompt(detail))
+        case .crashedUnknown(let cause):
+            .crashedUnknown(cause)
         }
     }
 }

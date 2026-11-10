@@ -15,7 +15,8 @@ func failedRunExitStatusMapsToHardFailure() {
 @Test("Each Crashed-Unknown cause maps straight through", arguments: [
     CrashedUnknownCause.resultFile(.empty),
     CrashedUnknownCause.terminated(.aborted(forcedKill: true)),
-    CrashedUnknownCause.signaled(15)
+    CrashedUnknownCause.signaled(15),
+    CrashedUnknownCause.wrapperRecordMissing("status missing")
 ])
 func failedRunCrashedUnknownMapsThrough(_ cause: CrashedUnknownCause) {
     let ending = AttemptEnding(failedRun: .crashedUnknown(cause))
