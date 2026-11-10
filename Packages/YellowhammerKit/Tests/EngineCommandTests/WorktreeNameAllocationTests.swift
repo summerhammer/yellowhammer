@@ -15,7 +15,7 @@ private actor NamedDirectoryWorkspace: Workspace {
     init(root: URL) { self.root = root }
 
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) {}
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
     func worktrees(repositoryPath: String) async throws(WorkspaceError) -> [WorkspaceWorktree] { [] }
     func removeWorktree(id: WorktreeID, force: Bool) async throws(WorkspaceError) {}
     func createTerminal(

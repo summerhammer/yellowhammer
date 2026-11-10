@@ -23,7 +23,7 @@ import Testing
 /// `git branch -D`.
 final class OrcaLikeWorkspace: Workspace, Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) {}
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
     struct CreateCall: Equatable {
         let name: String
         let baseBranch: String?

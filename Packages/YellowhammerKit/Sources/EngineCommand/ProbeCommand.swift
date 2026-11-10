@@ -116,7 +116,9 @@ public struct ProbeCommand: AsyncParsableCommand {
             environment: ProcessInfo.processInfo.environment,
             protectedDirectories: CLIAdapterDispatch.protectedDirectories(
                 configurationDirectory: configurationDirectory
-            )
+            ),
+            workspace: WorkspaceBinding.workspace(),
+            wrapperExecutable: CommandLineToolLink.runningExecutablePath()
         )
         let report = await probe.run(
             adapter: adapter,
@@ -153,7 +155,7 @@ public struct ProbeCommand: AsyncParsableCommand {
             print(Self.retryHint(route: route, source: source))
         }
 
-        try Self.printEligibility(try store.routeTargetEligibility(cli: cli))
+        Self.printEligibility(try store.routeTargetEligibility(cli: cli))
 
         return (recorded.verdict, drift)
     }

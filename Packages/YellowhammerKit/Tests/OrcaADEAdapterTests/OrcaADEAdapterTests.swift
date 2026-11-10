@@ -360,12 +360,27 @@ struct OrcaRepositoryRegistrationTests {
     func listAndAdd() async throws {
         let runner = StubOrcaCommandRunner(outputs: [
             OrcaCommandOutput(exitCode: 0, stdout: #"{"ok":true,"result":{"repos":[{"path":"/repo"}]}}"#, stderr: ""),
-            OrcaCommandOutput(exitCode: 0, stdout: #"{"ok":true,"result":{"repo":{"path":"/spec"}}}"#, stderr: "")
+            OrcaCommandOutput(
+                exitCode: 0,
+                stdout: #"{"ok":true,"result":{"repo":{"path":"/spec","id":"repo-1"}}}"#,
+                stderr: ""
+            )
         ])
         let adapter = OrcaADEAdapter(runner: runner)
         #expect(try await adapter.registeredRepositoryPaths() == ["/repo"])
-        try await adapter.registerRepository(path: "/spec")
+        let regID = try await adapter.registerRepository(path: "/spec")
+        #expect(regID == RegistrationID(rawValue: "repo-1"))
         #expect(runner.calls == [["repo", "list", "--json"], ["repo", "add", "--path", "/spec", "--json"]])
+    }
+
+    @Test("unregisterRepository calls project setup-delete with force")
+    func unregister() async throws {
+        let runner = StubOrcaCommandRunner(outputs: [
+            OrcaCommandOutput(exitCode: 0, stdout: #"{"ok":true,"result":{}}"#, stderr: "")
+        ])
+        let adapter = OrcaADEAdapter(runner: runner)
+        try await adapter.unregisterRepository(id: RegistrationID(rawValue: "repo-1"))
+        #expect(runner.calls == [["project", "setup-delete", "--setup", "repo-1", "--force", "--json"]])
     }
 
     @Test("missing registration evidence fails closed", arguments: [true, false])

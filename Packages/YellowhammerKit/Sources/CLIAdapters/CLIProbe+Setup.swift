@@ -55,6 +55,10 @@ extension CLIProbe {
             return failEverything("setup failed: could not write the reach script: \(error)")
         }
 
+        guard await runGitCommit(in: worktree) else {
+            return failEverything("setup failed: initial git commit did not succeed in \(worktree.path)")
+        }
+
         return nil
     }
 
@@ -121,6 +125,31 @@ extension CLIProbe {
                 error: .discarded
             )
             return result.terminationStatus == .exited(0)
+        } catch {
+            return false
+        }
+    }
+
+    static func runGitCommit(in worktree: URL) async -> Bool {
+        do {
+            let configs: [[String]] = [
+                ["git", "config", "user.name", "Yellowhammer Probe"],
+                ["git", "config", "user.email", "probe@yellowhammer.local"],
+                ["git", "config", "commit.gpgsign", "false"],
+                ["git", "add", "."],
+                ["git", "commit", "-q", "-m", "initial"]
+            ]
+            for args in configs {
+                let result = try await Subprocess.run(
+                    .path(FilePath("/usr/bin/env")),
+                    arguments: Arguments(args),
+                    workingDirectory: FilePath(worktree.path),
+                    output: .discarded,
+                    error: .discarded
+                )
+                guard result.terminationStatus.isSuccess else { return false }
+            }
+            return true
         } catch {
             return false
         }

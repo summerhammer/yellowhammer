@@ -157,7 +157,7 @@ enum StubProbeCLI {
         """
     )
 
-    private static func shell(_ body: String) -> String {
+    static func shell(_ body: String) -> String {
         "#!/bin/sh\n\(body)\n"
     }
 

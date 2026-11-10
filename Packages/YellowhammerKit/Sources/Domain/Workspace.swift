@@ -14,7 +14,11 @@ public protocol Workspace: Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String]
 
     /// Registers a Repo with Orca ADE. The caller checks existing registration before requesting this.
-    func registerRepository(path: String) async throws(WorkspaceError)
+    @discardableResult
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID
+
+    /// Unregisters a Repo from Orca ADE by its registration identifier.
+    func unregisterRepository(id: RegistrationID) async throws(WorkspaceError)
 
     /// Asks Orca ADE for a Worktree of `repositoryPath`, named `name`, based on `baseBranch` when one
     /// is given. Orca ADE creates a branch identical to `name` when it can; on a name collision it
@@ -41,6 +45,23 @@ public protocol Workspace: Sendable {
 
     /// Closes the terminal tab identified by `handle`.
     func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError)
+}
+
+extension Workspace {
+    public func unregisterRepository(id: RegistrationID) async throws(WorkspaceError) {}
+}
+
+/// An opaque identifier Orca ADE assigns a registered repository. Yellowhammer never parses it.
+public struct RegistrationID: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+}
+
+extension RegistrationID: CustomStringConvertible {
+    public var description: String { rawValue }
 }
 
 /// An opaque identifier Orca ADE assigns a terminal tab. Yellowhammer never parses it.

@@ -39,6 +39,7 @@ struct OrcaRemoveResultPayload: Decodable {
 
 struct OrcaRepositoryPayload: Decodable {
     let path: String
+    let id: String?
 }
 
 struct OrcaRepositoriesPayload: Decodable {
@@ -49,6 +50,8 @@ struct OrcaRepositoriesPayload: Decodable {
 struct OrcaRepositoryResultPayload: Decodable {
     let repo: OrcaRepositoryPayload
 }
+
+struct OrcaSetupDeleteResultPayload: Decodable {}
 
 /// Payload returned when creating a terminal.
 ///

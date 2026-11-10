@@ -29,6 +29,8 @@ public struct CLIProbe: Sendable {
     /// directory. Every probe dispatch carries them, so a read-only probe pass is contained the way a
     /// real one is, and the reach script checks the first one.
     public let protectedDirectories: [String]
+    public let workspace: (any Workspace)?
+    public let wrapperExecutable: String?
 
     public init(
         dispatchTimeout: Duration = .seconds(300),
@@ -38,7 +40,9 @@ public struct CLIProbe: Sendable {
         keychain: ProbeKeychain = .login,
         recorder: (any DispatchPromptRecording)? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        protectedDirectories: [String]
+        protectedDirectories: [String],
+        workspace: (any Workspace)? = nil,
+        wrapperExecutable: String? = nil
     ) {
         self.dispatchTimeout = dispatchTimeout
         self.holdObservationTimeout = holdObservationTimeout
@@ -48,6 +52,8 @@ public struct CLIProbe: Sendable {
         self.recorder = recorder
         self.environment = environment
         self.protectedDirectories = protectedDirectories
+        self.workspace = workspace
+        self.wrapperExecutable = wrapperExecutable
     }
 
     /// - Parameter runID: minted by the caller and stamped on every dispatch's prompt record, so the
@@ -122,21 +128,6 @@ public struct CLIProbe: Sendable {
             runID: runID
         )
     }
-
-    // Runs both containment variants and combines them into one finding: passed iff both are.
-    private func runContainment(
-        adapter: some CLIAdapter, context: ProbeDispatchContext
-    ) async -> (ProbeFinding, String?) {
-        let (sigtermFinding, sigtermDetail) = await runContainmentVariant(
-            "sigterm", adapter: adapter, context: context, gracePeriod: gracePeriod
-        )
-        let (sigkillFinding, sigkillDetail) = await runContainmentVariant(
-            "sigkill", adapter: adapter, context: context, gracePeriod: .zero
-        )
-        let finding: ProbeFinding = (sigtermFinding == .passed && sigkillFinding == .passed) ? .passed : .failed
-        let detail = [sigtermDetail, sigkillDetail].compactMap { $0 }.joined(separator: "; ")
-        return (finding, detail.isEmpty ? nil : detail)
-    }
 }
 
 /// What every dispatch of one probe run shares: the Route and executable under test, the Worktree
@@ -182,6 +173,7 @@ struct ProbeDispatchContext: Sendable {
     /// One probe dispatch, built the way the engine builds a real one, protected directories included.
     func dispatch( // swiftlint:disable:this function_parameter_count
         pass: RunPass, family: PromptFamily, instruction: String, runDirectory: URL,
+        worktreePath: String? = nil,
         timeout: Duration, resume: CLISession?
     ) -> CLIDispatch {
         let recordID = recordID ?? UUID().uuidString.lowercased()
@@ -196,7 +188,7 @@ struct ProbeDispatchContext: Sendable {
             route: route,
             pass: pass,
             instruction: instruction,
-            worktreePath: worktree.path,
+            worktreePath: worktreePath ?? worktree.path,
             runDirectory: runDirectory,
             timeout: timeout,
             resume: resume,

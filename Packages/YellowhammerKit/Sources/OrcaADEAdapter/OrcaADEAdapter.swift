@@ -19,13 +19,24 @@ public struct OrcaADEAdapter: Workspace {
         return payload.repos.map(\.path)
     }
 
-    public func registerRepository(path: String) async throws(WorkspaceError) {
+    @discardableResult
+    public func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
         let payload: OrcaRepositoryResultPayload = try await perform(
             ["repo", "add", "--path", path, "--json"], repositoryPath: path
         )
         guard !payload.repo.path.isEmpty else {
             throw .malformedResponse("orca repo add returned an empty Repo path")
         }
+        let id = payload.repo.id ?? payload.repo.path
+        guard !id.isEmpty else {
+            throw .malformedResponse("orca repo add returned an empty Repo id")
+        }
+        return RegistrationID(rawValue: id)
+    }
+
+    public func unregisterRepository(id: RegistrationID) async throws(WorkspaceError) {
+        let arguments = ["project", "setup-delete", "--setup", id.rawValue, "--force", "--json"]
+        let _: OrcaSetupDeleteResultPayload = try await perform(arguments)
     }
 
     public func createWorktree(

@@ -25,10 +25,12 @@ final class RegistrationWorkspace: Workspace, Sendable {
         if let readFailure { throw readFailure }
         return state.withLock { Array($0.paths) }
     }
-    func registerRepository(path: String) async throws(WorkspaceError) {
+    @discardableResult
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
         state.withLock { $0.additions.append(path) }
         if let error = failures[path] { throw error }
-        state.withLock { $0.paths.insert(path) }
+        state.withLock { _ = $0.paths.insert(path) }
+        return RegistrationID(rawValue: path)
     }
     func createWorktree(
         repositoryPath: String, name: String, baseBranch: String?
