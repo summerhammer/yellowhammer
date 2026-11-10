@@ -17,10 +17,19 @@ func subcommandsAreTheActsInOrder() {
     let names = RootCommand.configuration.subcommands.map { $0.configuration.commandName }
     #expect(names == Act.allCases.map(\.rawValue) + [
         "probe", "setup", "doctor", "validate", "status", "project", "recalibrate", "rehearse", "stop", "abort",
-        "config", "prompts", "journal-schema"
+        "config", "prompts", "journal-schema", "pass-wrapper"
     ])
     #expect(!JournalSchemaCommand.configuration.shouldDisplay)
     #expect(!RootCommand.helpMessage().contains("journal-schema"))
+    #expect(!PassWrapperCommand.configuration.shouldDisplay)
+    #expect(!RootCommand.helpMessage().contains("pass-wrapper"))
+}
+
+@Test("RootCommand parses `pass-wrapper <specPath>`")
+func rootCommandParsesPassWrapper() throws {
+    let parsed = try RootCommand.parseAsRoot(["pass-wrapper", "/tmp/wrapper-spec.json"])
+    let command = try #require(parsed as? PassWrapperCommand)
+    #expect(command.specPath == "/tmp/wrapper-spec.json")
 }
 
 @Test("Each subcommand parses and runs its own Act for a configured Project", arguments: Act.allCases)

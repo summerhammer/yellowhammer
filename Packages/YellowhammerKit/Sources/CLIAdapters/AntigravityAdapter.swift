@@ -79,7 +79,8 @@ public struct AntigravityAdapter: CLIAdapter {
             pass: dispatch.pass,
             timeout: dispatch.timeout,
             outputLog: dispatch.runDirectory.appendingPathComponent("stderr.log"),
-            standardOutput: stdoutFile
+            standardOutput: stdoutFile,
+            addedEnvironment: [:]
         )
     }
 

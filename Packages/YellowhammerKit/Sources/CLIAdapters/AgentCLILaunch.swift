@@ -27,6 +27,9 @@ public struct AgentCLILaunch: Sendable {
     /// removes them once the process has ended, whatever the outcome: the adapter translates, it does
     /// not clean up.
     public var scratchFiles: [URL]
+    /// The specific variables this adapter adds to the dispatch environment (ADR-007 item 5),
+    /// separate from the engine's whole merged environment.
+    public var addedEnvironment: [String: String]
 
     public init(
         executable: String,
@@ -38,7 +41,8 @@ public struct AgentCLILaunch: Sendable {
         timeout: Duration,
         outputLog: URL? = nil,
         standardOutput: URL? = nil,
-        scratchFiles: [URL] = []
+        scratchFiles: [URL] = [],
+        addedEnvironment: [String: String] = [:]
     ) {
         self.executable = executable
         self.arguments = arguments
@@ -50,5 +54,6 @@ public struct AgentCLILaunch: Sendable {
         self.outputLog = outputLog
         self.standardOutput = standardOutput
         self.scratchFiles = scratchFiles
+        self.addedEnvironment = addedEnvironment
     }
 }

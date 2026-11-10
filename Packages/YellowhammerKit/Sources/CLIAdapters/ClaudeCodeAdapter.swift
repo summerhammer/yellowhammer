@@ -37,6 +37,31 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         setAsideCapture(stdoutFile)
         let sessionIDFile = dispatch.runDirectory.appendingPathComponent(Self.sessionIDFileName)
 
+        let arguments = try buildArguments(for: dispatch, sessionIDFile: sessionIDFile)
+
+        // Merged, not replaced: `posix_spawn` receives this environment verbatim.
+        let addedEnvironment = ["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"]
+        var environment = dispatch.environment
+        environment.merge(addedEnvironment) { _, new in new }
+
+        return AgentCLILaunch(
+            executable: dispatch.executable,
+            arguments: arguments,
+            environment: environment,
+            worktreePath: dispatch.worktreePath,
+            resultFile: resultFile,
+            pass: dispatch.pass,
+            timeout: dispatch.timeout,
+            outputLog: dispatch.runDirectory.appendingPathComponent("stderr.log"),
+            standardOutput: stdoutFile,
+            addedEnvironment: addedEnvironment
+        )
+    }
+
+    private func buildArguments(
+        for dispatch: CLIDispatch,
+        sessionIDFile: URL
+    ) throws(CLIAdapterError) -> [String] {
         var arguments = [
             "-p", dispatch.instruction,
             "--output-format", "stream-json", "--verbose",
@@ -75,22 +100,7 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         for directory in dispatch.additionalWritableDirectories {
             arguments += ["--add-dir", directory]
         }
-
-        // Merged, not replaced: `posix_spawn` receives this environment verbatim.
-        var environment = dispatch.environment
-        environment["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] = "1"
-
-        return AgentCLILaunch(
-            executable: dispatch.executable,
-            arguments: arguments,
-            environment: environment,
-            worktreePath: dispatch.worktreePath,
-            resultFile: resultFile,
-            pass: dispatch.pass,
-            timeout: dispatch.timeout,
-            outputLog: dispatch.runDirectory.appendingPathComponent("stderr.log"),
-            standardOutput: stdoutFile
-        )
+        return arguments
     }
 
     public func collect(end: RunEnd, dispatch: CLIDispatch) -> CLISession? {

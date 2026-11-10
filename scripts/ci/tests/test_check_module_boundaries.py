@@ -313,8 +313,38 @@ class TestModuleBoundaryRules(unittest.TestCase):
 
         # Should not have violations for adapter tests importing own adapter
         mb2_violations = [v for v in violations if v['rule'] == 'MB2']
-        # This is somewhat lenient - adapter test can import its own adapter
-        # The implementation needs to be checked
+        self.assertEqual(len(mb2_violations), 0)
+
+    def test_mb2_test_executable_can_depend_on_adapter(self):
+        """Test MB2 exception: test executable target in Tests/ can depend on and import adapter."""
+        package_content = """
+        let package = Package(
+            targets: [
+                .target(name: "CLIAdapters"),
+                .executableTarget(name: "PassWrapperChild", dependencies: ["CLIAdapters"], path: "Tests/PassWrapperChild")
+            ]
+        )
+        """
+        swift_files = {
+            'PassWrapperChild': {
+                'main.swift': 'import CLIAdapters'
+            }
+        }
+        repo_root = self.create_test_repo(package_content, swift_files)
+        package_info = check_module.parse_package_swift(
+            os.path.join(repo_root, 'Packages', 'YellowhammerKit', 'Package.swift')
+        )
+
+        dep_violations = check_module.check_dependencies(package_info)
+        self.assertFalse(any(v['rule'] == 'MB2' for v in dep_violations))
+
+        import_violations = check_module.check_imports_in_target(
+            os.path.join(repo_root, 'Packages', 'YellowhammerKit'),
+            'PassWrapperChild',
+            package_info['targets']['PassWrapperChild'],
+            package_info['targets']
+        )
+        self.assertFalse(any(v['rule'] == 'MB2' for v in import_violations))
 
     def test_mb4_journal_ledger_import_violation(self):
         """Test MB4: Journal and Ledger must not import each other."""

@@ -134,6 +134,12 @@ let package = Package(
             dependencies: ["Journal", "Domain"],
             path: "Tests/JournalOpenChild"
         ),
+        // Test-only child process for PassWrapper tests; no product.
+        .executableTarget(
+            name: "PassWrapperChild",
+            dependencies: ["CLIAdapters", "Domain"],
+            path: "Tests/PassWrapperChild"
+        ),
         .testTarget(
             name: "DomainTests",
             dependencies: ["Domain"]
@@ -205,7 +211,8 @@ let package = Package(
             name: "CLIAdaptersTests",
             dependencies: [
                 "CLIAdapters",
-                "Domain"
+                "Domain",
+                "PassWrapperChild"
             ]
         ),
         .testTarget(

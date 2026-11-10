@@ -232,7 +232,7 @@ def check_imports_in_target(package_root, target_name, target_info, all_targets)
                     })
 
                 # MB2: Only EngineCommand can import adapters
-                # Exception: adapter test targets can import their own adapter
+                # Exception: adapter test targets and test-only helper executables can import their own adapter
                 if target_name != 'EngineCommand':
                     # Check if this is an adapter test importing its own adapter
                     if is_test_target(target_name):
@@ -243,6 +243,14 @@ def check_imports_in_target(package_root, target_name, target_info, all_targets)
                                 'file': swift_file,
                                 'line': line_num,
                                 'message': f"{target_name} imports wrong adapter {imported_module}"
+                            })
+                    elif target_info.get('type') == 'executableTarget' and (target_info.get('path', '') or '').startswith('Tests/'):
+                        if imported_module not in target_info.get('dependencies', []):
+                            violations.append({
+                                'rule': 'MB2',
+                                'file': swift_file,
+                                'line': line_num,
+                                'message': f"{target_name} imports undeclared adapter {imported_module}"
                             })
                     else:
                         violations.append({
@@ -293,7 +301,7 @@ def check_dependencies(package_info):
 
             # MB2: Only EngineCommand can depend on adapters
             if target_name != 'EngineCommand' and is_adapter_module(dep):
-                # Exception: adapter test targets can depend on their own adapter
+                # Exception: adapter test targets and test-only helper executables can depend on their own adapter
                 if is_test_target(target_name):
                     base_name = target_name.replace('Tests', '')
                     if dep != base_name:
@@ -304,6 +312,8 @@ def check_dependencies(package_info):
                             'line': target_line,
                             'message': f"{target_name} depends on wrong adapter {dep}"
                         })
+                elif target_info.get('type') == 'executableTarget' and (target_info.get('path', '') or '').startswith('Tests/'):
+                    pass
                 else:
                     violations.append({
                         'rule': 'MB2',
