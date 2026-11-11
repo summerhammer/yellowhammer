@@ -6,12 +6,13 @@ import Foundation
 import Testing
 
 // graph-execution/see-and-open-agent-sessions-in-orca, AC orca-unreachable:
-// the Night Summary's `**Passes not shown in Orca:**` section.
+// the Night Summary's `**Passes not shown in Orca:**` section; morning-report/write-the-night-summary,
+// AC orca-session-lines: it says which Work Card passes ran without being shown in Orca.
 
 @Suite("Night Summary: Passes not shown in Orca")
 struct NightSummaryPassesNotShownInOrcaTests {
-    @Test("Two Cards' events render as one line naming each Card once in first-seen order with display identifier")
-    func twoCardsRenderOneLine() async throws {
+    @Test("Each Card and pass renders one line in first-seen order, a repeated pass once")
+    func eachCardAndPassRendersOneLine() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
@@ -35,6 +36,14 @@ struct NightSummaryPassesNotShownInOrcaTests {
                     ),
                     act: context.act, runID: context.runID, nightID: context.night.id
                 )
+                // Card 1's worker pass runs unseen again in a later Round
+                try journal.append(
+                    .agentPassNotShownInOrca(
+                        cardID: 1, issueID: "ENG-1", attemptID: 1, pass: .worker, cli: "claude",
+                        reason: "Orca unreachable"
+                    ),
+                    act: context.act, runID: context.runID, nightID: context.night.id
+                )
                 // Card 2 records event in worker pass
                 try journal.append(
                     .agentPassNotShownInOrca(
@@ -49,7 +58,11 @@ struct NightSummaryPassesNotShownInOrcaTests {
 
         let lines = try NightSummary.passesNotShownInOrcaLines(night: opened, journal: journal)
 
-        #expect(lines == ["`ENG-1`, `ENG-4`: Orca was unreachable, ran unseen"])
+        #expect(lines == [
+            "`ENG-1` · architect: not shown in Orca (Orca unreachable)",
+            "`ENG-1` · worker: not shown in Orca (Orca unreachable)",
+            "`ENG-4` · worker: not shown in Orca (Orca unreachable)"
+        ])
     }
 
     @Test("A Night with no passes not shown in Orca events renders no lines")
@@ -83,10 +96,10 @@ struct NightSummaryPassesNotShownInOrcaTests {
 
         let withNotShown = NightCardBlock.completed(
             night: night, projectID: journal.projectID,
-            passesNotShownInOrca: ["`ENG-1`, `ENG-4`: Orca was unreachable, ran unseen"]
+            passesNotShownInOrca: ["`ENG-1` · worker: not shown in Orca (Orca unreachable)"]
         )
         #expect(withNotShown.contains("**Passes not shown in Orca:**"))
-        #expect(withNotShown.contains("`ENG-1`, `ENG-4`: Orca was unreachable, ran unseen"))
+        #expect(withNotShown.contains("- `ENG-1` · worker: not shown in Orca (Orca unreachable)"))
 
         let withoutNotShown = NightCardBlock.completed(night: night, projectID: journal.projectID)
         #expect(!withoutNotShown.contains("**Passes not shown in Orca:**"))
