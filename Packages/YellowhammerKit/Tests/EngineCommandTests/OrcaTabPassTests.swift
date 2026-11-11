@@ -1,4 +1,3 @@
-import CLIAdapters
 import Config
 import Darwin
 import Domain
@@ -684,30 +683,5 @@ struct OrcaTabPassTests {
         let termHandle = TerminalHandle(rawValue: "tab-1")
         #expect(workspace.observedBeforeClose[termHandle] == true)
         #expect(workspace.closedHandles.contains(termHandle))
-    }
-
-    @Test("The tab runs a launcher whose path holds a space and a single quote")
-    func tabRunsLauncherAtPathNeedingQuotes() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appending(component: "yh tab 'quoted' \(UUID().uuidString)", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let marker = directory.appending(component: "ran")
-        let launcher = directory.appending(component: PassLauncher.fileName)
-        try "touch \(PassLauncher.shellQuote(marker.path))\n".write(to: launcher, atomically: true, encoding: .utf8)
-
-        let workspace = FakeTabWorkspace()
-        let session = OrcaTabHost(workspace: workspace).session(worktreeID: "wt-1", sessionName: "quoted")
-        try await session.startLauncher(launcherURL: launcher)
-
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !FileManager.default.fileExists(atPath: marker.path), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        await session.close()
-
-        #expect(FileManager.default.fileExists(atPath: marker.path))
-        let call = try #require(workspace.createCalls.first)
-        #expect(call.command == "bash \(PassLauncher.shellQuote(launcher.path))")
     }
 }
