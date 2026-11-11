@@ -40,9 +40,16 @@ public final class OrcaTabHost: Sendable {
             let term = try await workspace.createTerminal(
                 worktreeID: worktreeID,
                 title: sessionName,
-                command: "bash \(launcherURL.path)"
+                command: Self.launchCommand(launcherURL: launcherURL)
             )
             self.terminal = term
+        }
+
+        /// The command typed into the tab's login shell: `bash <launcher>`, never `exec` (ADR-007 item 4).
+        /// The path is shell-quoted, because Orca types the command into the shell as text, and a configuration
+        /// directory with a space or a quote in it would otherwise split the path.
+        public static func launchCommand(launcherURL: URL) -> String {
+            "bash \(PassLauncher.shellQuote(launcherURL.path))"
         }
 
         /// Observes whether the terminal tab is gone before the host closes it (ADR-007 item 13).
