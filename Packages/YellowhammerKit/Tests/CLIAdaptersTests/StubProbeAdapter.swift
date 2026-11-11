@@ -12,6 +12,11 @@ struct StubProbeAdapter: CLIAdapter {
     let cli = "stub"
     let adapterVersion = "test"
     let supportedEfforts = ["low"]
+    var namesSessions = false
+    /// What ``sessionTitles(of:dispatch:)`` answers; nil stands for a transcript that cannot be read.
+    var titles: [String]?
+
+    func sessionTitles(of session: CLISession, dispatch: CLIDispatch) -> [String]? { titles }
 
     func outputSchema(for pass: RunPass) -> String {
         CLIOutputSchema.strict(for: pass)
@@ -23,6 +28,9 @@ struct StubProbeAdapter: CLIAdapter {
         let recorded = dispatch.protectedDirectories.joined(separator: "\n")
         try? Data(recorded.utf8).write(
             to: dispatch.runDirectory.appendingPathComponent(Self.protectedDirectoriesFileName)
+        )
+        try? Data((dispatch.sessionName ?? "").utf8).write(
+            to: dispatch.runDirectory.appendingPathComponent(Self.sessionNameFileName)
         )
         let arguments = [dispatch.instruction, dispatch.pass.rawValue, dispatch.resume?.rawValue ?? ""]
 
@@ -58,6 +66,7 @@ struct StubProbeAdapter: CLIAdapter {
         return session
     }
 
+    static let sessionNameFileName = "session-name.txt"
     static let protectedDirectoriesFileName = "protected-directories.txt"
     private static let stdoutFileName = "stdout.txt"
 }

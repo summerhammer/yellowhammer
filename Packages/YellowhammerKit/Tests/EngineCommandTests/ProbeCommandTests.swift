@@ -65,6 +65,7 @@ func probeRecordingMapsFields() {
         processContainment: .failed,
         sessionResumption: .notRun,
         stateContainment: .failed,
+        sessionNaming: .notRun,
         reason: "sigterm: outlived the process group"
     )
 
@@ -77,6 +78,7 @@ func probeRecordingMapsFields() {
     #expect(result.findingProcessContainment == .failed)
     #expect(result.findingSessionResumption == .notRun)
     #expect(result.findingStateContainment == .failed)
+    #expect(result.findingSessionNaming == .notRun)
     #expect(result.reason == "sigterm: outlived the process group")
     #expect(result.verdict == .failed)
 }
@@ -86,10 +88,39 @@ func probeRecordingStateContainmentDoesNotGate() {
     let result = ProbeRecording.probeResult(
         cli: "agy", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "1", cliVersion: "1",
         unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
-        sessionResumption: .passed, stateContainment: .failed, reason: "state containment: config readable"
+        sessionResumption: .passed, stateContainment: .failed, sessionNaming: .passed,
+        reason: "state containment: config readable"
     )
 
     #expect(result.findingStateContainment == .failed)
+    #expect(result.verdict == .passed)
+    #expect(!ProbeCommand.everyFindingPassed(result))
+}
+
+@Test("A session naming that did not pass is recorded but leaves a passing verdict alone")
+func probeRecordingSessionNamingDoesNotGate() {
+    let result = ProbeRecording.probeResult(
+        cli: "codex", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "1", cliVersion: "1",
+        unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
+        sessionResumption: .passed, stateContainment: .passed, sessionNaming: .notRun,
+        reason: "the codex Adapter has no session-naming flag"
+    )
+
+    #expect(result.findingSessionNaming == .notRun)
+    #expect(result.verdict == .passed)
+    // Nothing in the work directory explains a missing naming flag, so it is not kept for one.
+    #expect(ProbeCommand.everyFindingPassed(result))
+}
+
+@Test("A failed session naming keeps the probe work directory")
+func probeRecordingFailedSessionNamingKeepsWorkDirectory() {
+    let result = ProbeRecording.probeResult(
+        cli: "claude", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "1", cliVersion: "1",
+        unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
+        sessionResumption: .passed, stateContainment: .passed, sessionNaming: .failed,
+        reason: "session naming: expected the last session title `x`, found none"
+    )
+
     #expect(result.verdict == .passed)
     #expect(!ProbeCommand.everyFindingPassed(result))
 }
@@ -101,14 +132,15 @@ func reportPrintsStateContainment() throws {
     let result = ProbeRecording.probeResult(
         cli: "codex", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "3", cliVersion: "1",
         unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
-        sessionResumption: .passed, stateContainment: .passed, reason: nil
+        sessionResumption: .passed, stateContainment: .passed, sessionNaming: .passed, reason: nil
     )
 
     let lines = ProbeCommand.reportLines(result, drift: nil)
 
     let index = try #require(lines.firstIndex(of: "state containment: passed"))
     #expect(lines[index - 1] == "session resumption: passed")
-    #expect(lines[index + 1] == "verdict: passed")
+    #expect(lines[index + 1] == "session naming: passed")
+    #expect(lines[index + 2] == "verdict: passed")
     #expect(ProbeCommand.everyFindingPassed(result))
 }
 
@@ -117,12 +149,13 @@ func reportNamesStateContainmentDrift() throws {
     let previous = ProbeRecording.probeResult(
         cli: "claude", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "1", cliVersion: "1",
         unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
-        sessionResumption: .passed, stateContainment: .passed, reason: nil
+        sessionResumption: .passed, stateContainment: .passed, sessionNaming: .passed, reason: nil
     )
     let current = ProbeRecording.probeResult(
         cli: "claude", probedAt: Date(timeIntervalSince1970: 1_800_000_100), adapterVersion: "1", cliVersion: "2",
         unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
-        sessionResumption: .passed, stateContainment: .failed, reason: "state containment: keychain readable"
+        sessionResumption: .passed, stateContainment: .failed, sessionNaming: .passed,
+        reason: "state containment: keychain readable"
     )
 
     let lines = ProbeCommand.reportLines(current, drift: current.drift(since: previous))

@@ -13,11 +13,12 @@ extension CLIProbe {
         context: ProbeDispatchContext,
         runDirectory: URL,
         instruction: String,
-        resume: CLISession? = nil
+        resume: CLISession? = nil,
+        sessionName: String? = nil
     ) async -> Result<CLIRunReport, Error> {
         let dispatch = context.dispatch(
             pass: pass, family: family, instruction: instruction, runDirectory: runDirectory,
-            timeout: dispatchTimeout, resume: resume
+            timeout: dispatchTimeout, resume: resume, sessionName: sessionName
         )
         let runner = CLIRunner(
             process: AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: pollInterval),
@@ -30,25 +31,29 @@ extension CLIProbe {
         }
     }
 
-    // Dispatch B only runs when Dispatch A completed with a session; otherwise it is `.notRun`.
+    // Dispatch B only runs when Dispatch A completed with a session; otherwise it is `.notRun`. The third
+    // value is the session Dispatch B ended with, nil when it did not run or produced none.
     func runSessionResumptionDispatch(
         adapter: some CLIAdapter,
         context: ProbeDispatchContext,
         dispatchA: Result<CLIRunReport, Error>,
         nonce: String
-    ) async -> (ProbeFinding, String?) {
+    ) async -> (outcome: (ProbeFinding, String?), session: CLISession?) {
         guard case .success(let report) = dispatchA, case .exited(0) = report.end, case .completed = report.outcome,
               let session = report.session
         else {
-            return (.notRun, "not run: the first dispatch did not complete with a session")
+            return ((.notRun, "not run: the first dispatch did not complete with a session"), nil)
         }
 
         let resumeRunDirectory = context.runsDirectory.appendingPathComponent("resume")
         let dispatchB = await runDispatch(
             pass: .architect, family: .sessionResumptionProbe, adapter: adapter, context: context,
-            runDirectory: resumeRunDirectory, instruction: Self.resumeInstruction, resume: session
+            runDirectory: resumeRunDirectory, instruction: Self.resumeInstruction, resume: session,
+            sessionName: Self.sessionName(cli: adapter.cli, dispatch: Self.resumedSessionNameSuffix)
         )
-        return Self.sessionResumptionFinding(for: dispatchB, nonce: nonce)
+        let (finding, detail) = Self.sessionResumptionFinding(for: dispatchB, nonce: nonce)
+        guard case .success(let reportB) = dispatchB else { return ((finding, detail), nil) }
+        return ((finding, detail), reportB.session)
     }
 
     // MARK: - Instructions

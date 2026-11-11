@@ -24,6 +24,7 @@ extension CLIProbe {
                 processContainment: .failed,
                 sessionResumption: .notRun,
                 stateContainment: .notRun,
+                sessionNaming: .notRun,
                 reason: reason,
                 workDirectory: workDirectory,
                 runID: runID

@@ -33,6 +33,11 @@ public enum AgentSessionName: Sendable, Equatable {
         ].joined(separator: separator)
     }
 
+    /// The name of one of a Probe's dispatches: `YH · Probe · <cli> · <dispatch>` (issue #800).
+    public static func probe(cli: String, dispatch: String) -> String {
+        [prefix, "Probe", cli, dispatch].joined(separator: separator)
+    }
+
     public static func authoring(
         project: String,
         pass: RunPass

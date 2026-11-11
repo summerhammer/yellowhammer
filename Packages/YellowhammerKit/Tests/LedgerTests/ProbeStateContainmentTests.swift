@@ -31,14 +31,14 @@ private func makeResult(
 
 // MARK: - v3 migration
 
-@Test("The v3 migration is registered after v2 and applied on a fresh open, before v4")
+@Test("The v3 migration is registered after v2 and applied on a fresh open, before v4 and v5")
 func v3MigrationApplied() throws {
     let fixture = try LedgerFixture()
     let store = try fixture.open()
 
     let expected = [
         "v1-probe-result-history", "v2-probe-session-resumption", "v3-probe-state-containment",
-        "v4-probe-prompt-run-id"
+        "v4-probe-prompt-run-id", "v5-probe-session-naming"
     ]
     #expect(try store.appliedMigrations() == expected)
     #expect(LedgerStore.migrationIdentifiers == expected)

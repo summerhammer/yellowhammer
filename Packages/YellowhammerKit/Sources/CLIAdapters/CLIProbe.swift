@@ -86,18 +86,15 @@ public struct CLIProbe: Sendable {
         let cliVersion = await Self.probeVersion(executable: executable, environment: environment)
 
         // Dispatch A — unattended dispatch + result file on clean exit.
-        let unattendedRunDirectory = context.runsDirectory.appendingPathComponent("unattended")
-        let dispatchA = await runDispatch(
-            pass: .architect, family: .unattendedProbe, adapter: adapter, context: context,
-            runDirectory: unattendedRunDirectory, instruction: Self.unattendedInstruction(nonce: nonce), resume: nil
-        )
+        let dispatchA = await runUnattendedDispatch(adapter: adapter, context: context, nonce: nonce)
         let (unattendedFinding, unattendedDetail) = Self.unattendedFinding(
-            for: dispatchA, runDirectory: unattendedRunDirectory
+            for: dispatchA, runDirectory: Self.unattendedRunDirectory(in: context)
         )
         let (resultFileFinding, resultFileDetail) = Self.resultFileFinding(for: dispatchA)
 
         // Dispatch B — session resumption.
-        let (sessionResumptionFinding, sessionResumptionDetail) = await runSessionResumptionDispatch(
+        // Session naming is read after B, whose resume appended its own title to A's session.
+        let sessionFindings = await runSessionDispatches(
             adapter: adapter, context: context, dispatchA: dispatchA, nonce: nonce
         )
 
@@ -110,7 +107,8 @@ public struct CLIProbe: Sendable {
         )
 
         let details = [
-            unattendedDetail, resultFileDetail, containmentDetail, sessionResumptionDetail, stateContainmentDetail
+            unattendedDetail, resultFileDetail, containmentDetail, sessionFindings.resumptionDetail,
+            stateContainmentDetail, sessionFindings.namingDetail
         ].compactMap { $0 }
         let reason = details.isEmpty ? nil : details.joined(separator: "; ")
 
@@ -121,8 +119,9 @@ public struct CLIProbe: Sendable {
             unattendedDispatch: unattendedFinding,
             resultFileOnCleanExit: resultFileFinding,
             processContainment: processContainmentFinding,
-            sessionResumption: sessionResumptionFinding,
+            sessionResumption: sessionFindings.resumption,
             stateContainment: stateContainmentFinding,
+            sessionNaming: sessionFindings.naming,
             reason: reason,
             workDirectory: workDirectory,
             runID: runID
@@ -174,7 +173,8 @@ struct ProbeDispatchContext: Sendable {
     func dispatch( // swiftlint:disable:this function_parameter_count
         pass: RunPass, family: PromptFamily, instruction: String, runDirectory: URL,
         worktreePath: String? = nil,
-        timeout: Duration, resume: CLISession?
+        timeout: Duration, resume: CLISession?,
+        sessionName: String? = nil
     ) -> CLIDispatch {
         let recordID = recordID ?? UUID().uuidString.lowercased()
         let provenance = DispatchProvenance(
@@ -196,7 +196,8 @@ struct ProbeDispatchContext: Sendable {
             protectedDirectories: protectedDirectories,
             executable: executable,
             environment: environment,
-            provenance: provenance
+            provenance: provenance,
+            sessionName: sessionName
         )
     }
 }

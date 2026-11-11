@@ -25,6 +25,9 @@ enum LedgerMigrations {
         migrator.registerMigration("v4-probe-prompt-run-id") { db in
             try addPromptRunIDColumn(db)
         }
+        migrator.registerMigration("v5-probe-session-naming") { db in
+            try addSessionNamingColumn(db)
+        }
         return migrator
     }
 }

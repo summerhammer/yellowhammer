@@ -261,6 +261,7 @@ private extension ProbeTarget {
         case .processContainment: "Process containment"
         case .sessionResumption: "Session resumption"
         case .stateContainment: "State containment"
+        case .sessionNaming: "Session naming"
         }
     }
 
@@ -272,14 +273,15 @@ private extension ProbeTarget {
         case .processContainment: "Leaves nothing it spawned running after SIGTERM or SIGKILL"
         case .sessionResumption: "Resumes the same session for a new Round"
         case .stateContainment: "Read-only passes cannot read the Keychain, Yellowhammer\u{2019}s state or Linear"
+        case .sessionNaming: "Names each session so Orca can tell passes apart"
         }
     }
 
-    /// Session resumption and state containment are recorded but never decide the verdict.
+    /// Session resumption, state containment and session naming are recorded but never decide the verdict.
     var gatesVerdict: Bool {
         switch self {
         case .unattendedDispatch, .resultFileOnCleanExit, .processContainment: true
-        case .sessionResumption, .stateContainment: false
+        case .sessionResumption, .stateContainment, .sessionNaming: false
         }
     }
 }
