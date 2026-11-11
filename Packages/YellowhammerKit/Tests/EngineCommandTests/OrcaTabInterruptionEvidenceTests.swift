@@ -4,7 +4,9 @@ import Domain
 import Foundation
 import Testing
 
-@Suite("Orca tab interruption evidence", .timeLimit(.minutes(1)))
+// CI runners stall the whole test process for ~50 s early in a full-package run, so every
+// budget here is far above local timings (the suite runs in ~3 s locally).
+@Suite("Orca tab interruption evidence", .timeLimit(.minutes(3)))
 struct OrcaTabInterruptionEvidenceTests {
     private struct DispatchObservation {
         let fixture: OrcaTabPassFixture
@@ -74,7 +76,7 @@ struct OrcaTabInterruptionEvidenceTests {
             name: "wait-until-aborted.sh",
             body: "trap '' TERM\ntouch \"\(ready.path)\"\nwhile :; do sleep 1; done\n"
         )
-        let dispatch = try fixture.makeDispatch(workspace: workspace, scriptURL: script, timeout: .seconds(30))
+        let dispatch = try fixture.makeDispatch(workspace: workspace, scriptURL: script, timeout: .seconds(120))
         let request = fixture.makeRequest(worktreeID: "wt-abort")
         let task = Task {
             try await dispatch.dispatch(request)
@@ -130,7 +132,9 @@ struct OrcaTabInterruptionEvidenceTests {
     }
 
     private func waitForFile(_ url: URL) async throws {
-        let deadline = ContinuousClock.now + .seconds(5)
+        // Cancelling before the script is up would race the wrapper's start record, so the
+        // budget must outlast a CI stall; the suite's time limit still bounds a real hang.
+        let deadline = ContinuousClock.now + .seconds(90)
         while !FileManager.default.fileExists(atPath: url.path) {
             guard ContinuousClock.now < deadline else {
                 Issue.record("Timed out waiting for \(url.lastPathComponent)")
