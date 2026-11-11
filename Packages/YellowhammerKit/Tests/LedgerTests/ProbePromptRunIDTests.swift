@@ -71,7 +71,7 @@ func v3StoreMigratesAndReadsNil() async throws {
     }
 
     let store = try fixture.open()
-    #expect(try store.appliedMigrations().last == "v4-probe-prompt-run-id")
+    #expect(try store.appliedMigrations().contains("v4-probe-prompt-run-id"))
     let latest = try #require(try store.latestProbeResult(cli: "legacy-cli"))
     #expect(latest.promptRunID == nil)
     #expect(latest.findingStateContainment == .passed)

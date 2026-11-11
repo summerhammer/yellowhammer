@@ -26,9 +26,13 @@ public struct ProbeResult: Equatable, Sendable {
     /// and Linear (issue #557). Recorded for visibility but does not gate ``verdict``: a gating
     /// finding would silently drop a CLI that cannot be contained from routing.
     public let findingStateContainment: ProbeFinding
+    /// Whether the Adapter names its sessions, so Orca titles each pass by its session name (issue #800).
+    /// Recorded, never gating.
+    public let findingSessionNaming: ProbeFinding
     /// The Operator-facing reason a failed CLI is not offered as a route target. Required when
     /// ``verdict`` is failed. May also be non-nil on a passed verdict, to explain a non-gating
-    /// finding (``findingSessionResumption``, ``findingStateContainment``) that failed even though the verdict passed — the DB
+    /// finding (``findingSessionResumption``, ``findingStateContainment``, ``findingSessionNaming``) that did not pass even though
+    /// the verdict passed — the DB
     /// check constraint already allows that combination.
     public let reason: String?
     /// The diagnostic run whose prompt records this result's dispatches wrote, nil for results
@@ -36,8 +40,8 @@ public struct ProbeResult: Equatable, Sendable {
     public let promptRunID: String?
 
     /// The verdict: passed if the three gating findings are passed, failed if any of them is not.
-    /// ``findingSessionResumption`` and ``findingStateContainment`` do not gate this — they are
-    /// recorded but never exclude a CLI from routing. Computed from findings so the invariant is unrepresentable in
+    /// ``findingSessionResumption``, ``findingStateContainment`` and ``findingSessionNaming`` do not gate
+    /// this — they are recorded but never exclude a CLI from routing. Computed from findings so the invariant is unrepresentable in
     /// the wrong state.
     public var verdict: ProbeVerdict {
         if findingResultFileOnCleanExit == .passed &&
@@ -59,6 +63,7 @@ public struct ProbeResult: Equatable, Sendable {
         findingProcessContainment: ProbeFinding,
         findingSessionResumption: ProbeFinding,
         findingStateContainment: ProbeFinding,
+        findingSessionNaming: ProbeFinding = .notRun,
         reason: String?,
         promptRunID: String? = nil
     ) {
@@ -71,6 +76,7 @@ public struct ProbeResult: Equatable, Sendable {
         self.findingProcessContainment = findingProcessContainment
         self.findingSessionResumption = findingSessionResumption
         self.findingStateContainment = findingStateContainment
+        self.findingSessionNaming = findingSessionNaming
         self.reason = reason
         self.promptRunID = promptRunID
     }

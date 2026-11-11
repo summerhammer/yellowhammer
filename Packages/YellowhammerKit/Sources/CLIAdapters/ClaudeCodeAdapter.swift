@@ -20,6 +20,7 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     public let adapterVersion = "5"
     /// `claude --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
+    public let namesSessions = true
     let configDirectory: URL?
 
     public init(configDirectory: URL? = nil) {

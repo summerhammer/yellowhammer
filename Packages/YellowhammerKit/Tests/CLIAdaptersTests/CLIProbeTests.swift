@@ -69,7 +69,12 @@ struct CLIProbeTests {
         #expect(report.sessionResumption == .passed)
         #expect(report.processContainment == .passed)
         #expect(report.stateContainment == .passed)
-        #expect(report.reason == nil)
+        // The stub Adapter has no session-naming flag: reported, and the only thing in the reason.
+        #expect(report.sessionNaming == .notRun)
+        #expect(
+            report.reason
+                == "the stub Adapter has no session-naming flag, so Orca titles its sessions by their first prompt"
+        )
         #expect(report.cliVersion == "stub-cli 9.9.9")
         #expect(report.adapterVersion == "test")
     }
@@ -201,6 +206,52 @@ struct CLIProbeTests {
         #expect(report.resultFileOnCleanExit == .failed)
     }
 
+    @Test("The two dispatches carry the Probe's session names, and a naming Adapter whose CLI honours them passes")
+    func dispatchesCarrySessionNames() async throws {
+        let workDirectory = try makeWorkDirectory()
+        defer { try? FileManager.default.removeItem(at: workDirectory) }
+        let executable = try makeExecutable(StubProbeCLI.healthy, in: workDirectory)
+        var adapter = StubProbeAdapter()
+        adapter.namesSessions = true
+        adapter.titles = ["YH · Probe · stub · unattended", "YH · Probe · stub · resumed"]
+
+        let report = await makeProbe().run(
+            adapter: adapter, route: Self.route, executable: executable, workDirectory: workDirectory,
+            runID: "test-run"
+        )
+
+        func recordedName(_ run: String) throws -> String {
+            let file = workDirectory.appending(components: "runs", run, StubProbeAdapter.sessionNameFileName)
+            return try String(contentsOf: file, encoding: .utf8)
+        }
+        #expect(try recordedName("unattended") == "YH · Probe · stub · unattended")
+        #expect(try recordedName("resume") == "YH · Probe · stub · resumed")
+        #expect(report.sessionNaming == .passed)
+        #expect(report.reason == nil)
+    }
+
+    @Test("A naming Adapter whose CLI recorded no titles fails session naming without touching the other findings")
+    func unhonouredNamesFailOnlySessionNaming() async throws {
+        let workDirectory = try makeWorkDirectory()
+        defer { try? FileManager.default.removeItem(at: workDirectory) }
+        let executable = try makeExecutable(StubProbeCLI.healthy, in: workDirectory)
+        var adapter = StubProbeAdapter()
+        adapter.namesSessions = true
+        adapter.titles = []
+
+        let report = await makeProbe().run(
+            adapter: adapter, route: Self.route, executable: executable, workDirectory: workDirectory,
+            runID: "test-run"
+        )
+
+        #expect(report.sessionNaming == .failed)
+        #expect(report.unattendedDispatch == .passed)
+        #expect(report.resultFileOnCleanExit == .passed)
+        #expect(report.sessionResumption == .passed)
+        #expect(report.processContainment == .passed)
+        #expect(report.reason?.contains("found none") == true)
+    }
+
     @Test("Both direct-spawn and Orca tab host containment variants run and pass")
     func bothHostsVariantsRunAndPass() async throws {
         let workDirectory = try makeWorkDirectory()
@@ -218,7 +269,7 @@ struct CLIProbeTests {
         )
 
         #expect(report.processContainment == .passed)
-        #expect(report.reason == nil)
+        #expect(report.reason?.contains("session-naming flag") == true)
 
         // Both hosts' run directories exist
         for variant in ["sigterm", "sigkill"] {

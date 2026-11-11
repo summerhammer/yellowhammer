@@ -185,6 +185,7 @@ public final class LedgerStore: Sendable {
             findingProcessContainment: probeResult.findingProcessContainment,
             findingSessionResumption: probeResult.findingSessionResumption,
             findingStateContainment: probeResult.findingStateContainment,
+            findingSessionNaming: probeResult.findingSessionNaming,
             reason: probeResult.reason,
             promptRunID: probeResult.promptRunID
         )
@@ -196,8 +197,8 @@ public final class LedgerStore: Sendable {
                 (cli, probed_at, adapter_version, cli_version,
                  finding_result_file_on_clean_exit, finding_unattended_dispatch,
                  finding_process_containment, finding_session_resumption, finding_state_containment,
-                 verdict, reason, prompt_run_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 finding_session_naming, verdict, reason, prompt_run_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     storedResult.cli,
@@ -209,6 +210,7 @@ public final class LedgerStore: Sendable {
                     storedResult.findingProcessContainment.rawValue,
                     storedResult.findingSessionResumption.rawValue,
                     storedResult.findingStateContainment.rawValue,
+                    storedResult.findingSessionNaming.rawValue,
                     // Verdict is computed from findings; this materializes it for query efficiency.
                     storedResult.verdict.rawValue,
                     storedResult.reason,
@@ -231,7 +233,7 @@ public final class LedgerStore: Sendable {
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
                        finding_process_containment, finding_session_resumption, finding_state_containment,
-                       verdict, reason, prompt_run_id
+                       finding_session_naming, verdict, reason, prompt_run_id
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -255,7 +257,7 @@ public final class LedgerStore: Sendable {
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
                        finding_process_containment, finding_session_resumption, finding_state_containment,
-                       verdict, reason, prompt_run_id
+                       finding_session_naming, verdict, reason, prompt_run_id
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -280,6 +282,13 @@ public final class LedgerStore: Sendable {
     }
 
     // MARK: - Private Helpers
+
+    /// A finding column added after v1: NULL reads back `.notRun`; any other value must be a finding.
+    private static func nullableFinding(_ row: Row, _ column: String) throws -> ProbeFinding {
+        guard let rawValue = row[column] as? String else { return .notRun }
+        guard let finding = ProbeFinding(rawValue: rawValue) else { throw LedgerError.probeResultUnreadable }
+        return finding
+    }
 
     private func decodeProbeResult(_ row: Row) throws -> ProbeResult {
         guard
@@ -306,13 +315,9 @@ public final class LedgerStore: Sendable {
         }
 
         // NULL on a row recorded before v3, which never measured state containment.
-        let findingStateContainment: ProbeFinding
-        if let rawValue = row["finding_state_containment"] as? String {
-            guard let finding = ProbeFinding(rawValue: rawValue) else { throw LedgerError.probeResultUnreadable }
-            findingStateContainment = finding
-        } else {
-            findingStateContainment = .notRun
-        }
+        let findingStateContainment = try Self.nullableFinding(row, "finding_state_containment")
+        // NULL on a row recorded before v5, which never measured session naming.
+        let findingSessionNaming = try Self.nullableFinding(row, "finding_session_naming")
 
         let reason = row["reason"] as? String
 
@@ -326,6 +331,7 @@ public final class LedgerStore: Sendable {
             findingProcessContainment: findingProcess,
             findingSessionResumption: findingSessionResumption,
             findingStateContainment: findingStateContainment,
+            findingSessionNaming: findingSessionNaming,
             reason: reason,
             promptRunID: row["prompt_run_id"] as? String
         )

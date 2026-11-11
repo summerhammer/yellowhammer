@@ -15,6 +15,9 @@ public struct ProbeReport: Equatable, Sendable {
     /// Whether a read-only pass was kept from the Keychain, Yellowhammer's configuration directory
     /// and Linear (issue #557). Recorded, never gating.
     public let stateContainment: ProbeFinding
+    /// Whether the Adapter names its sessions, so Orca titles each pass by its session name (issue #800).
+    /// Recorded, never gating.
+    public let sessionNaming: ProbeFinding
     /// Non-nil whenever any finding above is not ``ProbeFinding/passed``: one Operator-facing
     /// sentence per non-passed finding, joined with `"; "`.
     public let reason: String?
@@ -34,6 +37,7 @@ public struct ProbeReport: Equatable, Sendable {
         processContainment: ProbeFinding,
         sessionResumption: ProbeFinding,
         stateContainment: ProbeFinding,
+        sessionNaming: ProbeFinding,
         reason: String?,
         workDirectory: URL,
         runID: String
@@ -46,6 +50,7 @@ public struct ProbeReport: Equatable, Sendable {
         self.processContainment = processContainment
         self.sessionResumption = sessionResumption
         self.stateContainment = stateContainment
+        self.sessionNaming = sessionNaming
         self.reason = reason
         self.workDirectory = workDirectory
         self.runID = runID

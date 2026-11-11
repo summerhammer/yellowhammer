@@ -138,6 +138,7 @@ public struct ProbeCommand: AsyncParsableCommand {
             processContainment: report.processContainment,
             sessionResumption: report.sessionResumption,
             stateContainment: report.stateContainment,
+            sessionNaming: report.sessionNaming,
             reason: report.reason,
             promptRunID: report.runID
         )
@@ -173,8 +174,14 @@ public struct ProbeCommand: AsyncParsableCommand {
 
     /// Whether the scratch work directory can go: every finding passed, the non-gating ones included,
     /// so a run worth investigating always keeps its evidence.
+    /// Session naming counts unless it failed: a `not_run` one means the Adapter has no naming flag (every
+    /// Codex and Antigravity probe) or the CLI's own transcript was not found, and the work directory holds
+    /// nothing that explains either.
     static func everyFindingPassed(_ recorded: ProbeResult) -> Bool {
-        ProbeTarget.allCases.allSatisfy { recorded.finding(for: $0) == .passed }
+        ProbeTarget.allCases.allSatisfy { target in
+            let finding = recorded.finding(for: target)
+            return finding == .passed || (target == .sessionNaming && finding == .notRun)
+        }
     }
 
     private static func printReport(_ recorded: ProbeResult, drift: ProbeDrift?) {
@@ -194,6 +201,7 @@ public struct ProbeCommand: AsyncParsableCommand {
             "process containment: \(recorded.findingProcessContainment.rawValue)",
             "session resumption: \(recorded.findingSessionResumption.rawValue)",
             "state containment: \(recorded.findingStateContainment.rawValue)",
+            "session naming: \(recorded.findingSessionNaming.rawValue)",
             "verdict: \(recorded.verdict.rawValue)"
         ]
         if let reason = recorded.reason {
