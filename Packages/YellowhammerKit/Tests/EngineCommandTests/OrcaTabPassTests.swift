@@ -24,6 +24,7 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
 
     private struct State {
         var createCalls: [CreateCall] = []
+        var createAttempts = 0
         var closedHandles: [TerminalHandle] = []
         var terminals: [TerminalHandle: TerminalInfo] = [:]
         var terminalStates: [TerminalHandle: WorkspaceTerminalState] = [:]
@@ -43,6 +44,8 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
     }
 
     var createCalls: [CreateCall] { state.withLock { $0.createCalls } }
+    /// Every `createTerminal` call, including those that threw; `createCalls` records only the ones that made a tab.
+    var createAttempts: Int { state.withLock { $0.createAttempts } }
     var closedHandles: [TerminalHandle] { state.withLock { $0.closedHandles } }
     var terminals: [TerminalHandle: TerminalInfo] { state.withLock { $0.terminals } }
     var observedBeforeClose: [TerminalHandle: Bool] { state.withLock { $0.observedBeforeClose } }
@@ -88,7 +91,10 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
     func createTerminal(
         worktreeID: WorktreeID, title: String, command: String
     ) async throws(WorkspaceError) -> WorkspaceTerminal {
-        let error = state.withLock { $0.scriptedCreateError }
+        let error = state.withLock { lockedState -> WorkspaceError? in
+            lockedState.createAttempts += 1
+            return lockedState.scriptedCreateError
+        }
         if let error {
             throw error
         }
