@@ -92,19 +92,21 @@ public struct OrcaADEAdapter: Workspace {
         }
         return WorkspaceTerminal(
             handle: TerminalHandle(rawValue: handle),
-            processID: payload.resolvedProcessID
+            processID: try Self.sessionLeaderPID(payload.resolvedProcessID, operation: "create")
         )
     }
 
     public func terminal(_ handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState {
         let arguments = ["terminal", "show", "--terminal", handle.rawValue, "--json"]
-        let payload: OrcaTerminalShowResultPayload = try await perform(
-            arguments,
-            terminalHandleForNotFound: handle
-        )
+        let payload: OrcaTerminalShowResultPayload
+        do {
+            payload = try await perform(arguments, terminalHandleForNotFound: handle)
+        } catch .refused(let code, _) where Self.unknownTerminalCodes.contains(code) {
+            throw .terminalNotFound(handle)
+        }
         return WorkspaceTerminalState(
             orphaned: payload.resolvedOrphaned,
-            processID: payload.resolvedProcessID
+            processID: try Self.sessionLeaderPID(payload.resolvedProcessID, operation: "show")
         )
     }
 
@@ -114,6 +116,22 @@ public struct OrcaADEAdapter: Workspace {
             arguments,
             terminalHandleForNotFound: handle
         )
+    }
+
+    /// The codes Orca ADE 1.4.253 returns from `terminal show` for a handle it no longer knows.
+    /// Only `show` reads them as gone: from `create` or `close` they stay vendor refusals.
+    private static let unknownTerminalCodes: Set<String> = ["terminal_handle_stale", "terminal_not_found"]
+
+    /// A reported session-leader pid must be positive: it is later probed with `kill(pid, 0)`, where
+    /// 0 names the caller's own process group and -1 every process the caller may signal.
+    private static func sessionLeaderPID(
+        _ pid: pid_t?, operation: String
+    ) throws(WorkspaceError) -> pid_t? {
+        guard let pid else { return nil }
+        guard pid > 0 else {
+            throw .malformedResponse("orca terminal \(operation) returned an invalid session-leader pid \(pid)")
+        }
+        return pid
     }
 
     private static func workspaceWorktree(_ payload: OrcaWorktreePayload) -> WorkspaceWorktree {
@@ -128,6 +146,31 @@ public struct OrcaADEAdapter: Workspace {
     private static func stripRefsHeadsPrefix(_ branch: String) -> String {
         let prefix = "refs/heads/"
         return branch.hasPrefix(prefix) ? String(branch.dropFirst(prefix.count)) : branch
+    }
+
+    /// Maps a failed envelope's vendor error onto ``WorkspaceError``.
+    private static func translate(
+        _ failure: OrcaErrorPayload,
+        repositoryPath: String?,
+        worktreeIDForNotFound: WorktreeID?,
+        terminalHandleForNotFound: TerminalHandle?
+    ) -> WorkspaceError {
+        switch failure.code {
+        case "runtime_unavailable":
+            return .unavailable(failure.message)
+        case "repo_not_found":
+            return .repositoryNotRegistered(path: repositoryPath ?? "")
+        case "selector_not_found":
+            if let worktreeIDForNotFound {
+                return .worktreeNotFound(worktreeIDForNotFound)
+            }
+            if let terminalHandleForNotFound {
+                return .terminalNotFound(terminalHandleForNotFound)
+            }
+        default:
+            break
+        }
+        return .refused(code: failure.code, message: failure.message)
     }
 
     /// Runs one `orca` command, decodes its envelope for `Result`, and maps failure onto
@@ -157,22 +200,16 @@ public struct OrcaADEAdapter: Workspace {
         }
 
         guard envelope.ok else {
-            let failure = envelope.error ?? OrcaErrorPayload(code: "unknown", message: "orca reported failure")
-            if failure.code == "runtime_unavailable" {
-                throw .unavailable(failure.message)
-            }
-            if failure.code == "repo_not_found" {
-                throw .repositoryNotRegistered(path: repositoryPath ?? "")
-            }
-            if failure.code == "selector_not_found" {
-                if let worktreeIDForNotFound {
-                    throw .worktreeNotFound(worktreeIDForNotFound)
-                }
-                if let terminalHandleForNotFound {
-                    throw .terminalNotFound(terminalHandleForNotFound)
-                }
-            }
-            throw .refused(code: failure.code, message: failure.message)
+            throw Self.translate(
+                envelope.error ?? OrcaErrorPayload(code: "unknown", message: "orca reported failure"),
+                repositoryPath: repositoryPath,
+                worktreeIDForNotFound: worktreeIDForNotFound,
+                terminalHandleForNotFound: terminalHandleForNotFound
+            )
+        }
+
+        guard output.exitCode == 0 else {
+            throw .unavailable("orca exited \(output.exitCode) despite reporting success: \(output.stderr)")
         }
 
         guard let result = envelope.result else {
