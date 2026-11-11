@@ -42,7 +42,9 @@ public struct OrcaADEAdapter: Workspace {
     public func createWorktree(
         repositoryPath: String, name: String, baseBranch: String?
     ) async throws(WorkspaceError) -> WorkspaceWorktree {
-        var arguments = ["worktree", "create", "--repo", "path:\(repositoryPath)", "--name", name, "--no-parent"]
+        var arguments = [
+            "worktree", "create", "--repo", Self.repositorySelector(repositoryPath), "--name", name, "--no-parent"
+        ]
         if let baseBranch {
             arguments += ["--base-branch", baseBranch]
         }
@@ -56,7 +58,7 @@ public struct OrcaADEAdapter: Workspace {
     }
 
     public func worktrees(repositoryPath: String) async throws(WorkspaceError) -> [WorkspaceWorktree] {
-        let arguments = ["worktree", "list", "--repo", "path:\(repositoryPath)", "--json"]
+        let arguments = ["worktree", "list", "--repo", Self.repositorySelector(repositoryPath), "--json"]
         let payload: OrcaListResultPayload = try await perform(arguments, repositoryPath: repositoryPath)
         return (payload.worktrees ?? [])
             .filter { !($0.isMainWorktree ?? false) }
@@ -116,6 +118,16 @@ public struct OrcaADEAdapter: Workspace {
             arguments,
             terminalHandleForNotFound: handle
         )
+    }
+
+    /// The `--repo` selector for a repository path. `orca repo add` stores a path with its symlinks
+    /// resolved (`/var/...` is stored as `/private/var/...`), and a `path:` selector matches only the
+    /// stored path, so it is sent by its real path. Foundation's `resolvingSymlinksInPath` strips a
+    /// leading `/private` again, so `realpath(3)` is used. A path that does not resolve is sent as given.
+    static func repositorySelector(_ repositoryPath: String) -> String {
+        guard let real = realpath(repositoryPath, nil) else { return "path:\(repositoryPath)" }
+        defer { free(real) }
+        return "path:\(String(cString: real))"
     }
 
     /// The codes Orca ADE 1.4.253 returns from `terminal show` for a handle it no longer knows.

@@ -1,4 +1,5 @@
 import Domain
+import Foundation
 import OrcaADEAdapter
 import Testing
 
@@ -200,6 +201,41 @@ struct OrcaADEAdapterTests {
         #expect(runner.calls == [["worktree", "list", "--repo", "path:/abs/repo", "--json"]])
         #expect(worktrees.count == 1)
         #expect(worktrees[0].branch == "yh-proj-feat")
+    }
+
+    @Test("create and list select the repository by its real path, as Orca stores it")
+    func repositorySelectorResolvesSymlinks() async throws {
+        let base = FileManager.default.temporaryDirectory
+            .appending(component: "orca-selector-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let repo = base.appending(component: "repo", directoryHint: .isDirectory)
+        let link = base.appending(component: "link", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: repo)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let real = try #require(realpath(repo.path, nil))
+        let realPath = String(cString: real)
+        free(real)
+        // The temporary directory is under `/var`, a symlink to `/private/var`, on macOS.
+        #expect(realPath.hasPrefix("/private/"))
+
+        let createEnvelope = """
+            {"id":"req-1","ok":true,"result":{"worktree":{"id":"repo-1::\(realPath)/wt","path":"\(realPath)/wt",\
+            "branch":"refs/heads/wt","displayName":"wt","head":"abc","isMainWorktree":false,"baseRef":"main"}}}
+            """
+        let listEnvelope = #"{"id":"req-2","ok":true,"result":{"worktrees":[]}}"#
+        let runner = StubOrcaCommandRunner(outputs: [
+            OrcaCommandOutput(exitCode: 0, stdout: createEnvelope, stderr: ""),
+            OrcaCommandOutput(exitCode: 0, stdout: listEnvelope, stderr: "")
+        ])
+        let adapter = OrcaADEAdapter(runner: runner)
+
+        _ = try await adapter.createWorktree(repositoryPath: link.path, name: "wt", baseBranch: nil)
+        _ = try await adapter.worktrees(repositoryPath: link.path)
+
+        #expect(runner.calls == [
+            ["worktree", "create", "--repo", "path:\(realPath)", "--name", "wt", "--no-parent", "--json"],
+            ["worktree", "list", "--repo", "path:\(realPath)", "--json"]
+        ])
     }
 
     @Test("createTerminal sends exact arguments and decodes handle and processId")

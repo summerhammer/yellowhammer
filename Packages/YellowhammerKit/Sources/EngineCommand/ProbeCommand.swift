@@ -96,9 +96,7 @@ public struct ProbeCommand: AsyncParsableCommand {
         let executable = try Self.resolveExecutable(cli: cli, machine: machine)
         print("probing route: \(route.cli) / \(route.model) / \(route.effort) (\(source.description))")
 
-        let workDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("yh-probe-\(cli)-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
+        let workDirectory = try Self.makeProbeWorkDirectory(cli: cli)
 
         let store = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let previous = try store.latestProbeResult(cli: cli)
@@ -246,6 +244,17 @@ public struct ProbeCommand: AsyncParsableCommand {
         let machineFile = configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
         guard FileManager.default.fileExists(atPath: machineFile.path(percentEncoded: false)) else { return nil }
         return try MachineConfiguration.load(contentsOf: machineFile)
+    }
+
+    /// A new temporary directory for one probe, by its real path. The Probe hands this path to Orca
+    /// ADE, which stores `/var/...` as `/private/var/...`; the probe's own paths must match Orca's.
+    static func makeProbeWorkDirectory(cli: String) throws -> URL {
+        let created = FileManager.default.temporaryDirectory
+            .appendingPathComponent("yh-probe-\(cli)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: created, withIntermediateDirectories: true)
+        guard let real = realpath(created.path, nil) else { return created }
+        defer { free(real) }
+        return URL(fileURLWithPath: String(cString: real), isDirectory: true)
     }
 
     private static func resolveExecutable(cli: String, machine: MachineConfiguration?) throws -> String {
