@@ -388,7 +388,13 @@ public enum JournalEvent: Equatable, Sendable {
     case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
     /// A resumed worker pass's session held turns Yellowhammer did not write
     /// (graph-execution/see-and-open-agent-sessions-in-orca, AC touched-session).
-    case agentSessionHadForeignTurns(cardID: Int64, issueID: String, attemptID: Int64, round: Int, cli: String)
+    case agentSessionHadForeignTurns(
+        cardID: Int64, issueID: String, attemptID: Int64, round: Int, cli: String,
+        sessionID: String, userCount: Int, assistantCount: Int, firstTimestamp: String?
+    )
+    case agentSessionCheckFailed(
+        cardID: Int64, issueID: String, attemptID: Int64, round: Int, cli: String, sessionID: String, reason: String
+    )
     /// A Work Card pass ran by direct spawn because Orca was unreachable
     /// (graph-execution/see-and-open-agent-sessions-in-orca, AC orca-unreachable).
     case agentPassNotShownInOrca(

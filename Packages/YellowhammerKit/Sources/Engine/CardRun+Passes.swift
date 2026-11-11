@@ -197,10 +197,11 @@ extension CardRun {
             sessionName: sessionName,
             worktreeID: frame.worktree.worktreeID
         )
-        if pass == .worker, resumeSession != nil {
-            if await dispatch.foreignTurns(before: request) {
-                try frame.recordSessionHadForeignTurns(attemptID: attempt.id, round: currentRound, cli: route.cli)
-            }
+        if pass == .worker, let resumeSession {
+            let check = await dispatch.foreignTurns(before: request)
+            try frame.recordSessionCheck(
+                check, sessionID: resumeSession, attemptID: attempt.id, round: currentRound, cli: route.cli
+            )
         }
         try frame.revalidateLease()
         try requestPromptCapture(

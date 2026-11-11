@@ -409,10 +409,22 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "pass": pass.rawValue, "fixture": fixture
             ]
-        case .agentSessionHadForeignTurns(let cardID, let issueID, let attemptID, let round, let cli):
+        case .agentSessionHadForeignTurns(let cardID, let issueID, let attemptID, let round, let cli,
+                                         let sessionID, let userCount, let assistantCount, let firstTimestamp):
+            {
+                var payload = [
+                    "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                    "round": String(round), "cli": cli, "session_id": sessionID,
+                    "foreign_user_count": String(userCount), "foreign_assistant_count": String(assistantCount)
+                ]
+                payload["first_foreign_timestamp"] = firstTimestamp
+                return payload
+            }()
+        case .agentSessionCheckFailed(let cardID, let issueID, let attemptID, let round, let cli,
+                                     let sessionID, let reason):
             [
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
-                "round": String(round), "cli": cli
+                "round": String(round), "cli": cli, "session_id": sessionID, "reason": reason
             ]
         case .agentPassNotShownInOrca(let cardID, let issueID, let attemptID, let pass, let cli, let reason):
             [

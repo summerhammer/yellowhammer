@@ -211,10 +211,10 @@ struct CLIAdapterDispatch: AgentDispatch {
         }
     }
 
-    func foreignTurns(before request: AgentDispatchRequest) async -> Bool {
-        guard request.resumeSession != nil else { return false }
+    func foreignTurns(before request: AgentDispatchRequest) async -> SessionForeignTurnsCheck {
+        guard request.resumeSession != nil else { return .unsupported }
         let cli = request.route.cli
-        guard let adapter = CLIAdapterRegistry.adapter(named: cli) else { return false }
+        guard let adapter = CLIAdapterRegistry.adapter(named: cli) else { return .unsupported }
         let resolved = resolveProjectInstructions(for: request)
         let dispatch = makeDispatch(for: request, resolved: resolved)
         return adapter.foreignTurns(before: dispatch)

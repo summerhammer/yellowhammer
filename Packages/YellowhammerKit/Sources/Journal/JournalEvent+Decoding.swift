@@ -240,6 +240,8 @@ extension JournalEvent {
             try Self.decodeRehearsalFixtureAnswered(reader)
         case .agentSessionHadForeignTurns:
             try Self.decodeAgentSessionHadForeignTurns(reader)
+        case .agentSessionCheckFailed:
+            try Self.decodeAgentSessionCheckFailed(reader)
         case .agentPassNotShownInOrca:
             try Self.decodeAgentPassNotShownInOrca(reader)
         case .agentTabInterruptionObserved:
