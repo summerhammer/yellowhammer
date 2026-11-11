@@ -394,6 +394,10 @@ public enum JournalEvent: Equatable, Sendable {
     case agentPassNotShownInOrca(
         cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, cli: String, reason: String
     )
+    case agentTabInterruptionObserved(
+        cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, engineSignalled: Bool,
+        tabState: String, loginState: String, receivedSignals: [Int32]
+    )
     /// Prompt capture was requested for a dispatch before launch (app/view-the-prompts-used-by-a-pass).
     case promptCaptureRequested(
         recordID: String, pass: RunPass, cardID: Int64?, issueID: String?, attemptID: Int64?, round: Int?,

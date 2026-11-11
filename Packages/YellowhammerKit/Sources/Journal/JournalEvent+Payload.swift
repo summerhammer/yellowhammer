@@ -419,6 +419,11 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "pass": pass.rawValue, "cli": cli, "reason": reason
             ]
+        case .agentTabInterruptionObserved(let cardID, let issueID, let attemptID, let pass, let engineSignalled,
+                                          let tabState, let loginState, let receivedSignals):
+            ["card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+             "pass": pass.rawValue, "engine_signalled": String(engineSignalled), "tab_state": tabState,
+             "login_state": loginState, "received_signals": receivedSignals.map(String.init).joined(separator: ",")]
         case .promptCaptureRequested(
             let recordID, let pass, let cardID, let issueID, let attemptID, let round, let ordinal
         ):

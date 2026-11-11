@@ -245,6 +245,7 @@ extension CardRun {
         report: AgentDispatchReport, pass: RunPass, route: Route, attemptID: Int64, frame: CardRunFrame
     ) throws {
         try frame.recordDispatchOrigin(report.origin, attemptID: attemptID, pass: pass, cli: route.cli)
+        try frame.recordTabInterruption(report, attemptID: attemptID, pass: pass)
         if let reason = report.notShownInOrca {
             try frame.recordPassNotShownInOrca(attemptID: attemptID, pass: pass, cli: route.cli, reason: reason)
         }

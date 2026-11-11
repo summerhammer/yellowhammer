@@ -242,6 +242,8 @@ extension JournalEvent {
             try Self.decodeAgentSessionHadForeignTurns(reader)
         case .agentPassNotShownInOrca:
             try Self.decodeAgentPassNotShownInOrca(reader)
+        case .agentTabInterruptionObserved:
+            try Self.decodeAgentTabInterruptionObserved(reader)
         case .promptCaptureRequested:
             try Self.decodePromptCaptureRequested(reader)
         case .routePreflightPromptCaptureRequested:

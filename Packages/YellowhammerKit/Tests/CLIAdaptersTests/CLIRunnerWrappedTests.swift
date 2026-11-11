@@ -96,7 +96,9 @@ struct CLIRunnerWrappedTests {
                 let pid = try spawnLauncherInFreshSession(launcherURL: launcherURL)
                 tracker.add(pid)
             },
-            tabObserver: { true }
+            tabEvidenceObserver: {
+                TabInterruptionEvidence(tabState: .present, loginState: .dead)
+            }
         )
 
         let report = try await runner.run(
@@ -154,8 +156,8 @@ struct CLIRunnerWrappedTests {
         #expect(report.tabGone == false)
     }
 
-    @Test("CLIRunner keeps completed outcome even when tab is gone afterwards")
-    func cliRunnerKeepsCompletedWhenTabGone() async throws {
+    @Test("CLIRunner classifies completed outcome as interrupted when tab is gone")
+    func cliRunnerClassifiesCompletedWhenTabGone() async throws {
         let wrapperURL = try passWrapperChildURL()
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.cleanExit)
         defer { fixture.cleanUp() }
@@ -180,7 +182,9 @@ struct CLIRunnerWrappedTests {
                 let pid = try spawnLauncherInFreshSession(launcherURL: launcherURL)
                 tracker.add(pid)
             },
-            tabObserver: { true }
+            tabEvidenceObserver: {
+                TabInterruptionEvidence(tabState: .present, loginState: .dead)
+            }
         )
 
         let report = try await runner.run(
@@ -189,7 +193,11 @@ struct CLIRunnerWrappedTests {
         )
 
         #expect(report.end == .exited(status: 0))
-        #expect(report.outcome.isWrappedCompleted)
+        #expect(report.tabInterruption == TabInterruptionEvidence(tabState: .present, loginState: .dead))
+        guard case .crashedUnknown(.externalInterruption) = report.outcome else {
+            Issue.record("expected external interruption for a gone Orca tab, got \(report.outcome)")
+            return
+        }
         #expect(report.tabGone == true)
     }
 }

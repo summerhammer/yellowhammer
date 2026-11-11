@@ -181,7 +181,7 @@ struct CLIAdapterDispatch: AgentDispatch {
                 report = try await runner.run(
                     dispatch, adapter: adapter,
                     launcherStarter: { try await tabSession.startLauncher(launcherURL: $0) },
-                    tabObserver: { await tabSession.observeTabGone() }
+                    tabEvidenceObserver: { await tabSession.observeInterruptionEvidence() }
                 )
             } catch {
                 await tabSession.close()
@@ -190,7 +190,8 @@ struct CLIAdapterDispatch: AgentDispatch {
             await tabSession.close()
             return AgentDispatchReport(
                 outcome: report.outcome, session: report.session?.rawValue, origin: .agentCLIProcess,
-                leftovers: report.leftovers, snapshot: report.snapshot
+                leftovers: report.leftovers, snapshot: report.snapshot, tabInterruption: report.tabInterruption,
+                engineSignalled: report.engineSignalled, receivedSignals: report.receivedSignals
             )
         } catch let error as CLIAdapterError {
             throw AgentDispatchRefusal(reason: error.description)

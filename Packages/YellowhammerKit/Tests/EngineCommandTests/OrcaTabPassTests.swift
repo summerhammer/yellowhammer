@@ -20,6 +20,7 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
     struct TerminalInfo: Sendable {
         let handle: TerminalHandle
         let processID: pid_t
+        let launcherProcessID: pid_t
     }
 
     private struct State {
@@ -99,14 +100,18 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
             throw error
         }
 
-        let pid = try spawnCommandInFreshSession(command: command)
+        // Orca's terminal remains attached to an interactive login shell after its launcher exits.
+        // Keep the fake login leader alive until closeTerminal simulates Orca closing the tab.
+        let pid = try spawnCommandInFreshSession(command: "\(command); exec sleep 300")
         let (handle, reportedPID) = state.withLock { lockedState -> (TerminalHandle, pid_t) in
             let id = lockedState.nextID
             lockedState.nextID += 1
             let newHandle = TerminalHandle(rawValue: "tab-\(id)")
             lockedState.createCalls.append(CreateCall(worktreeID: worktreeID, title: title, command: command))
             let procID = lockedState.scriptedProcessID ?? pid
-            lockedState.terminals[newHandle] = TerminalInfo(handle: newHandle, processID: procID)
+            lockedState.terminals[newHandle] = TerminalInfo(
+                handle: newHandle, processID: procID, launcherProcessID: pid
+            )
             return (newHandle, procID)
         }
         return WorkspaceTerminal(handle: handle, processID: reportedPID)
@@ -137,8 +142,8 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
             return (lockedState.terminals[handle], lockedState.scriptedCloseError)
         }
         if let term {
-            kill(term.processID, SIGKILL)
-            waitpid(term.processID, nil, 0)
+            kill(term.launcherProcessID, SIGKILL)
+            waitpid(term.launcherProcessID, nil, 0)
         }
         if let error {
             throw error
@@ -227,8 +232,8 @@ final class OrcaTabPassFixture {
 
         let trapTermContent = """
         #!/bin/sh
-        touch "\(trapTermMarkerURL.path)"
         trap 'exit 143' TERM
+        touch "\(trapTermMarkerURL.path)"
         while true; do
             sleep 0.05
         done
@@ -645,8 +650,8 @@ struct OrcaTabPassTests {
         #expect(report.outcome == .timedOut(after: .milliseconds(400)))
     }
 
-    @Test("Completed pass whose tab is gone afterwards stays completed (c3)")
-    func completedPassWhoseTabIsGoneStaysCompleted() async throws {
+    @Test("Completed pass whose tab is gone afterwards is external interruption (c3)")
+    func completedPassWhoseTabIsGoneIsExternalInterruption() async throws {
         let fixture = try OrcaTabPassFixture()
         defer { fixture.cleanUp() }
 
@@ -661,7 +666,10 @@ struct OrcaTabPassTests {
         )
         let report = try await dispatch.dispatch(req)
 
-        #expect(report.outcome.isCompleted)
+        guard case .crashedUnknown(.externalInterruption) = report.outcome else {
+            Issue.record("Expected external interruption, got \(report.outcome)")
+            return
+        }
         #expect(report.session == "sess-tab-1")
     }
 

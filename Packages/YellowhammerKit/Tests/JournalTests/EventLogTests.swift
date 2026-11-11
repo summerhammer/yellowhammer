@@ -66,6 +66,18 @@ func eventsFilterByType() throws {
     #expect(failures.count == 1)
 }
 
+@Test("tab interruption observations round-trip all dispatch evidence")
+func tabInterruptionObservationRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let event = JournalEvent.agentTabInterruptionObserved(
+        cardID: 17, issueID: "ORC-17", attemptID: 3, pass: .worker, engineSignalled: false,
+        tabState: "missing", loginState: "dead", receivedSignals: [2, 15]
+    )
+    try journal.append(event, act: .build, runID: RunID(), now: epoch)
+    #expect(try journal.events().first?.event == event)
+}
+
 @Test("The stored type column contains spec names")
 func storedTypeColumnsMatchSpec() throws {
     let fixture = try JournalFixture()

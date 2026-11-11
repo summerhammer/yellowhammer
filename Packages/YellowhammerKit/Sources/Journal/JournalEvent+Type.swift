@@ -196,6 +196,8 @@ extension JournalEvent {
             .agentSessionHadForeignTurns
         case .agentPassNotShownInOrca:
             .agentPassNotShownInOrca
+        case .agentTabInterruptionObserved:
+            .agentTabInterruptionObserved
         case .promptCaptureRequested:
             .promptCaptureRequested
         case .routePreflightPromptCaptureRequested:

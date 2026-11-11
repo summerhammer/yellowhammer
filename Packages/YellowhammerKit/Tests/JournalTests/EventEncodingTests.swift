@@ -53,7 +53,7 @@ func eventTypeRawValues() {
         "WaitingOnYouReplyRecorded", "WaitingOnYouReplyBanked", "HumanCardComment",
         "CardRunStep", "CheckRan", "AttemptWorkPreserved", "FailureCauseRecorded", "LaneHoleRecorded",
         "CardReclaimed", "CardReclaimDeferred", "AgentCLIProcessSpawned", "RehearsalFixtureAnswered",
-        "AgentSessionHadForeignTurns", "AgentPassNotShownInOrca",
+        "AgentSessionHadForeignTurns", "AgentPassNotShownInOrca", "AgentTabInterruptionObserved",
         "PromptCaptureRequested", "RoutePreflightPromptCaptureRequested",
         "CardCommitTrailerMissing", "CardCommitTrailersUnread", "CardReportedCommitUnresolved",
         "LeftoverProcessRecorded",

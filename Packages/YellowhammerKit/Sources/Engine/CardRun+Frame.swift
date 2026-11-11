@@ -93,6 +93,18 @@ struct CardRunFrame: Sendable {
         )
     }
 
+    func recordTabInterruption(_ report: AgentDispatchReport, attemptID: Int64, pass: RunPass) throws {
+        guard let evidence = report.tabInterruption else { return }
+        try revalidateLease()
+        try journal.append(
+            .agentTabInterruptionObserved(
+                cardID: card.id, issueID: card.issueID, attemptID: attemptID, pass: pass,
+                engineSignalled: report.engineSignalled, tabState: evidence.tabState.rawValue,
+                loginState: evidence.loginState.rawValue, receivedSignals: report.receivedSignals
+            ), act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+        )
+    }
+
     /// Records that a resumed worker pass's session held turns Yellowhammer did not write
     /// (story graph-execution/see-and-open-agent-sessions-in-orca, AC touched-session).
     func recordSessionHadForeignTurns(attemptID: Int64, round: Int, cli: String) throws {
