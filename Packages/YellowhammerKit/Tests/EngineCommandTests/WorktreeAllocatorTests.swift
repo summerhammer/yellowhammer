@@ -15,7 +15,9 @@ import Testing
 /// collision or failure was scripted for that repository or name.
 private final class FakeWorkspace: Workspace, Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     struct CreateCall: Equatable {
         let repositoryPath: String
         let name: String

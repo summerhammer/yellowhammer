@@ -21,7 +21,9 @@ let settleFeatureBranch = "yh-proj-settle"
 /// reads to see that happened.
 final class FakeSettleWorkspace: Workspace, Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     struct RemoveCall: Equatable, Sendable {
         let id: WorktreeID
         let force: Bool

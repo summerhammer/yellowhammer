@@ -14,7 +14,9 @@ import Testing
 /// resulting Worktree is checked out to a real commit rather than a plain directory.
 private final class GitBackedFakeWorkspace: Workspace, Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     private struct State {
         var nextID = 0
     }

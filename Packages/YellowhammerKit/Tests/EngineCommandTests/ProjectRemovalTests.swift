@@ -38,7 +38,9 @@ let removalBranch = FeatureBranch(rawValue: "yh-alpha-feat")
 /// test can force one removal attempt to fail and a retry to succeed.
 final class RemovalFakeWorkspace: Workspace, @unchecked Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     private struct State {
         var removeCalls: [WorktreeID] = []
         var failNext = false

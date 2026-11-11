@@ -67,7 +67,9 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
     }
 
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     func createWorktree(
         repositoryPath: String, name: String, baseBranch: String?
     ) async throws(WorkspaceError) -> WorkspaceWorktree {

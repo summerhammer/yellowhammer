@@ -123,6 +123,21 @@ public struct CLIRunner: Sendable {
         }
 
         let session = adapter.collect(end: execution.end, dispatch: dispatch)
+        let outcome = classifyOutcome(execution, launch: launch, dispatch: dispatch, adapter: adapter)
+        return CLIRunReport(
+            pid: execution.pid, end: execution.end, outcome: outcome, session: session,
+            leftovers: execution.leftovers, snapshot: execution.snapshot,
+            engineSignalled: execution.engineSignalled, receivedSignals: execution.receivedSignals,
+            tabGone: execution.tabGone
+        )
+    }
+
+    private func classifyOutcome(
+        _ execution: AgentCLIExecution,
+        launch: AgentCLILaunch,
+        dispatch: CLIDispatch,
+        adapter: some CLIAdapter
+    ) -> RunOutcome {
         var outcome: RunOutcome
         if case .exited(let status) = execution.end, status != 0,
            let refusal = adapter.usageLimit(for: dispatch) {
@@ -136,12 +151,7 @@ public struct CLIRunner: Sendable {
             )
             outcome = .crashedUnknown(.externalInterruption(detail))
         }
-        return CLIRunReport(
-            pid: execution.pid, end: execution.end, outcome: outcome, session: session,
-            leftovers: execution.leftovers, snapshot: execution.snapshot,
-            engineSignalled: execution.engineSignalled, receivedSignals: execution.receivedSignals,
-            tabGone: execution.tabGone
-        )
+        return outcome
     }
 
     static func externalInterruptionDetail(

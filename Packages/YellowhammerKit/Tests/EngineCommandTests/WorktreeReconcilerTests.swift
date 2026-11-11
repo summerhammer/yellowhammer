@@ -47,7 +47,9 @@ let reconcilerBranch = FeatureBranch(
 /// assert reconciliation never consults the Workspace Port's list — only the Journal's own records.
 final class ReconcilerFakeWorkspace: Workspace, Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     struct RemoveCall: Equatable {
         let id: WorktreeID
         let force: Bool

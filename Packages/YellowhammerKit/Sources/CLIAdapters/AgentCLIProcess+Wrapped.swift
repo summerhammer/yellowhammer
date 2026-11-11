@@ -12,6 +12,75 @@ extension AgentCLIProcess {
         tabObserver: (@Sendable () async -> Bool)? = nil,
         startLauncher: @Sendable (_ launcherURL: URL) async throws -> Void
     ) async throws -> AgentCLIExecution {
+        let prepared = try prepareWrapped(
+            launch, runDirectory: runDirectory, wrapperExecutable: wrapperExecutable
+        )
+
+        let promptWatch = await promptSource.start()
+
+        var dispatchedAtTV = timeval()
+        gettimeofday(&dispatchedAtTV, nil)
+        let dispatchedAt = ProcessStartTime(
+            seconds: UInt64(dispatchedAtTV.tv_sec), microseconds: UInt64(dispatchedAtTV.tv_usec)
+        )
+
+        do {
+            try await startLauncher(prepared.launcherURL)
+        } catch {
+            await promptWatch?.stop()
+            throw error
+        }
+
+        guard let started = await waitForStarted(at: prepared.startedURL, timeout: startTimeout) else {
+            await promptWatch?.stop()
+            let tabGone = await Self.observeTab(tabObserver)
+            let end = RunEnd.crashedUnknown(.wrapperRecordMissing("wrapper never reported a started CLI"))
+            let snapshot = RunningSnapshot(
+                dispatchedAt: dispatchedAt, processes: [], processGroups: [], sessions: []
+            )
+            return AgentCLIExecution(
+                pid: 0, processGroup: 0, end: end, leftovers: [], snapshot: snapshot,
+                engineSignalled: false, receivedSignals: [], tabGone: tabGone
+            )
+        }
+
+        onSpawn?()
+
+        let result = await waitWrapped(
+            started: started,
+            statusURL: prepared.statusURL,
+            timeout: launch.timeout,
+            dispatchedAt: dispatchedAt,
+            promptWatch: promptWatch
+        )
+        await promptWatch?.stop()
+        let tabGone = await Self.observeTab(tabObserver)
+        return AgentCLIExecution(
+            pid: started.pid,
+            processGroup: started.processGroup,
+            end: result.end,
+            leftovers: result.leftovers,
+            snapshot: result.snapshot,
+            engineSignalled: result.engineSignalled,
+            receivedSignals: result.receivedSignals,
+            tabGone: tabGone
+        )
+    }
+
+    private static func observeTab(_ tabObserver: (@Sendable () async -> Bool)?) async -> Bool? {
+        if let tabObserver {
+            await tabObserver()
+        } else {
+            nil as Bool?
+        }
+    }
+
+    /// Validates the Worktree, writes the spec and launcher, and clears stale started/status records.
+    private func prepareWrapped(
+        _ launch: AgentCLILaunch,
+        runDirectory: URL?,
+        wrapperExecutable: String?
+    ) throws -> PreparedWrappedLaunch {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: launch.worktreePath, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else {
@@ -45,64 +114,7 @@ extension AgentCLIProcess {
         } catch {
             throw AgentCLILaunchError.spawnFailed(errno: EIO, executable: resolvedWrapper)
         }
-
-        let promptWatch = await promptSource.start()
-
-        var dispatchedAtTV = timeval()
-        gettimeofday(&dispatchedAtTV, nil)
-        let dispatchedAt = ProcessStartTime(
-            seconds: UInt64(dispatchedAtTV.tv_sec), microseconds: UInt64(dispatchedAtTV.tv_usec)
-        )
-
-        do {
-            try await startLauncher(launcherURL)
-        } catch {
-            await promptWatch?.stop()
-            throw error
-        }
-
-        guard let started = await waitForStarted(at: startedURL, timeout: startTimeout) else {
-            await promptWatch?.stop()
-            let tabGone = if let tabObserver {
-                await tabObserver()
-            } else {
-                nil as Bool?
-            }
-            let end = RunEnd.crashedUnknown(.wrapperRecordMissing("wrapper never reported a started CLI"))
-            let snapshot = RunningSnapshot(
-                dispatchedAt: dispatchedAt, processes: [], processGroups: [], sessions: []
-            )
-            return AgentCLIExecution(
-                pid: 0, processGroup: 0, end: end, leftovers: [], snapshot: snapshot,
-                engineSignalled: false, receivedSignals: [], tabGone: tabGone
-            )
-        }
-
-        onSpawn?()
-
-        let result = await waitWrapped(
-            started: started,
-            statusURL: statusURL,
-            timeout: launch.timeout,
-            dispatchedAt: dispatchedAt,
-            promptWatch: promptWatch
-        )
-        await promptWatch?.stop()
-        let tabGone = if let tabObserver {
-            await tabObserver()
-        } else {
-            nil as Bool?
-        }
-        return AgentCLIExecution(
-            pid: started.pid,
-            processGroup: started.processGroup,
-            end: result.end,
-            leftovers: result.leftovers,
-            snapshot: result.snapshot,
-            engineSignalled: result.engineSignalled,
-            receivedSignals: result.receivedSignals,
-            tabGone: tabGone
-        )
+        return PreparedWrappedLaunch(launcherURL: launcherURL, startedURL: startedURL, statusURL: statusURL)
     }
 
     public func runWrapped(
@@ -145,101 +157,103 @@ extension AgentCLIProcess {
         var tracked = Set<ProcessTree.TrackedProcess>()
         var lastSnapshot: ContinuousClock.Instant?
 
-        func snapshot() -> RunningSnapshot {
-            Self.makeSnapshot(
-                leaderPID: started.pid,
-                leaderSession: started.session,
-                dispatchedAt: dispatchedAt,
-                tracked: tracked
-            )
-        }
-
         while true {
             if lastSnapshot == nil || clock.now - lastSnapshot! >= snapshotInterval {
                 tracked.formUnion(ProcessTree.descendants(of: started.pid))
                 lastSnapshot = clock.now
             }
             if !Self.isAlive(pid: started.pid, started: started) {
-                let statusRecord = await Self.readStatus(
-                    at: statusURL, timeout: statusTimeout, pollInterval: pollInterval
-                )
-                let end: RunEnd
-                if let statusRecord {
-                    if let exitStatus = statusRecord.exitStatus {
-                        end = .exited(status: exitStatus)
-                    } else if let signal = statusRecord.signal {
-                        end = .signaled(signal)
-                    } else {
-                        end = .crashedUnknown(
-                            .wrapperRecordMissing("wrapper-status.json contained neither exitStatus nor signal")
-                        )
-                    }
-                } else {
-                    end = .crashedUnknown(.wrapperRecordMissing("missing or unreadable wrapper-status.json"))
-                }
-                let leftovers = await sweepAfterExit(tracked: tracked)
-                return WaitResult(
-                    end: end,
-                    leftovers: leftovers,
-                    snapshot: snapshot(),
-                    engineSignalled: false,
-                    receivedSignals: statusRecord?.receivedSignals ?? []
+                return await finishGone(
+                    started: started, statusURL: statusURL, dispatchedAt: dispatchedAt, tracked: tracked
                 )
             }
             if let promptWatch,
                let prompt = await Self.attributedPrompt(in: promptWatch, leaderPID: started.pid, tracked: &tracked) {
-                let end = await terminate(
-                    pid: started.pid,
-                    leaderIdentity: started,
+                return await finishTerminated(
+                    started: started, statusURL: statusURL, dispatchedAt: dispatchedAt, tracked: tracked,
                     reason: .permissionPrompt(prompt.detail)
-                )
-                let statusRecord = await Self.readStatus(
-                    at: statusURL, timeout: .milliseconds(500), pollInterval: pollInterval
-                )
-                return WaitResult(
-                    end: end,
-                    leftovers: [],
-                    snapshot: snapshot(),
-                    engineSignalled: true,
-                    receivedSignals: statusRecord?.receivedSignals ?? []
                 )
             }
             if Task.isCancelled {
-                let end = await terminate(
-                    pid: started.pid,
-                    leaderIdentity: started,
+                return await finishTerminated(
+                    started: started, statusURL: statusURL, dispatchedAt: dispatchedAt, tracked: tracked,
                     reason: .aborted
-                )
-                let statusRecord = await Self.readStatus(
-                    at: statusURL, timeout: .milliseconds(500), pollInterval: pollInterval
-                )
-                return WaitResult(
-                    end: end,
-                    leftovers: [],
-                    snapshot: snapshot(),
-                    engineSignalled: true,
-                    receivedSignals: statusRecord?.receivedSignals ?? []
                 )
             }
             if clock.now - start >= timeout {
-                let end = await terminate(
-                    pid: started.pid,
-                    leaderIdentity: started,
+                return await finishTerminated(
+                    started: started, statusURL: statusURL, dispatchedAt: dispatchedAt, tracked: tracked,
                     reason: .timedOut(after: timeout)
-                )
-                let statusRecord = await Self.readStatus(
-                    at: statusURL, timeout: .milliseconds(500), pollInterval: pollInterval
-                )
-                return WaitResult(
-                    end: end,
-                    leftovers: [],
-                    snapshot: snapshot(),
-                    engineSignalled: true,
-                    receivedSignals: statusRecord?.receivedSignals ?? []
                 )
             }
             try? await Task.sleep(for: pollInterval)
         }
+    }
+
+    /// The CLI is gone: read the wrapper's status record, map it to a ``RunEnd``, and sweep.
+    private func finishGone(
+        started: PassWrapperStarted,
+        statusURL: URL,
+        dispatchedAt: ProcessStartTime,
+        tracked: Set<ProcessTree.TrackedProcess>
+    ) async -> WaitResult {
+        let statusRecord = await Self.readStatus(
+            at: statusURL, timeout: statusTimeout, pollInterval: pollInterval
+        )
+        let end = Self.runEnd(from: statusRecord)
+        let leftovers = await sweepAfterExit(tracked: tracked)
+        return WaitResult(
+            end: end,
+            leftovers: leftovers,
+            snapshot: Self.makeSnapshot(
+                leaderPID: started.pid,
+                leaderSession: started.session,
+                dispatchedAt: dispatchedAt,
+                tracked: tracked
+            ),
+            engineSignalled: false,
+            receivedSignals: statusRecord?.receivedSignals ?? []
+        )
+    }
+
+    /// The engine ends the pass (prompt, abort or timeout): terminate, then read what the wrapper saw.
+    private func finishTerminated(
+        started: PassWrapperStarted,
+        statusURL: URL,
+        dispatchedAt: ProcessStartTime,
+        tracked: Set<ProcessTree.TrackedProcess>,
+        reason: TerminationReason
+    ) async -> WaitResult {
+        let end = await terminate(pid: started.pid, leaderIdentity: started, reason: reason)
+        let statusRecord = await Self.readStatus(
+            at: statusURL, timeout: .milliseconds(500), pollInterval: pollInterval
+        )
+        return WaitResult(
+            end: end,
+            leftovers: [],
+            snapshot: Self.makeSnapshot(
+                leaderPID: started.pid,
+                leaderSession: started.session,
+                dispatchedAt: dispatchedAt,
+                tracked: tracked
+            ),
+            engineSignalled: true,
+            receivedSignals: statusRecord?.receivedSignals ?? []
+        )
+    }
+
+    private static func runEnd(from statusRecord: PassWrapperStatus?) -> RunEnd {
+        guard let statusRecord else {
+            return .crashedUnknown(.wrapperRecordMissing("missing or unreadable wrapper-status.json"))
+        }
+        if let exitStatus = statusRecord.exitStatus {
+            return .exited(status: exitStatus)
+        } else if let signal = statusRecord.signal {
+            return .signaled(signal)
+        }
+        return .crashedUnknown(
+            .wrapperRecordMissing("wrapper-status.json contained neither exitStatus nor signal")
+        )
     }
 
     private func waitForStarted(at url: URL, timeout: Duration) async -> PassWrapperStarted? {
@@ -290,4 +304,10 @@ extension AgentCLIProcess {
         guard let current = ProcessTree.identity(of: pid) else { return false }
         return current.startSeconds == started.startSeconds && current.startMicroseconds == started.startMicroseconds
     }
+}
+
+private struct PreparedWrappedLaunch {
+    let launcherURL: URL
+    let startedURL: URL
+    let statusURL: URL
 }

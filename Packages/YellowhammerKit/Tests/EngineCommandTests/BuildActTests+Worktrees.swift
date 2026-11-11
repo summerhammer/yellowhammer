@@ -15,7 +15,9 @@ import Testing
 /// `WorktreeAllocatorTests`' own `FakeWorkspace`, which is file-private there.
 final class BuildActFakeWorkspace: Workspace, Sendable {
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     struct RemoveCall: Equatable {
         let id: WorktreeID
         let force: Bool

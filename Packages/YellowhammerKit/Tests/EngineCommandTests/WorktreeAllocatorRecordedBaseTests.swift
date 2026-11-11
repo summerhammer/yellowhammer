@@ -39,7 +39,9 @@ private final class BaseHonouringWorkspace: Workspace, Sendable {
     func ignoreBase() { state.withLock { $0.ignoresBase = true } }
 
     func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
-    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID { RegistrationID(rawValue: path) }
+    func registerRepository(path: String) async throws(WorkspaceError) -> RegistrationID {
+        RegistrationID(rawValue: path)
+    }
     func worktrees(repositoryPath: String) async throws(WorkspaceError) -> [WorkspaceWorktree] { [] }
 
     func createWorktree(
