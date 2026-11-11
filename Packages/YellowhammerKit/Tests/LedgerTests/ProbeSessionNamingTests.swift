@@ -28,13 +28,13 @@ private func makeResult(
     )
 }
 
-@Test("The v5 migration is registered last and applied on a fresh open")
+@Test("The v5 migration remains registered and applied on a fresh open")
 func v5MigrationApplied() throws {
     let fixture = try LedgerFixture()
     let store = try fixture.open()
 
-    #expect(try store.appliedMigrations().last == "v5-probe-session-naming")
-    #expect(LedgerStore.migrationIdentifiers.last == "v5-probe-session-naming")
+    #expect(try store.appliedMigrations().contains("v5-probe-session-naming"))
+    #expect(LedgerStore.migrationIdentifiers.contains("v5-probe-session-naming"))
 }
 
 @Test("findingSessionNaming round-trips through record and read", arguments: allFindings)
@@ -74,7 +74,7 @@ func v4RowReadsNotRun() async throws {
     }
 
     let store = try fixture.open()
-    #expect(try store.appliedMigrations().last == "v5-probe-session-naming")
+    #expect(try store.appliedMigrations().contains("v5-probe-session-naming"))
     let latest = try #require(try store.latestProbeResult(cli: "legacy-cli"))
     #expect(latest.findingSessionNaming == .notRun)
     #expect(latest.verdict == .passed)

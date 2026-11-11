@@ -108,8 +108,8 @@ func probeRecordingSessionNamingDoesNotGate() {
 
     #expect(result.findingSessionNaming == .notRun)
     #expect(result.verdict == .passed)
-    // Nothing in the work directory explains a missing naming flag, so it is not kept for one.
-    #expect(ProbeCommand.everyFindingPassed(result))
+    // The new Orca observations were not exercised, so retain the scratch evidence.
+    #expect(!ProbeCommand.everyFindingPassed(result))
 }
 
 @Test("A failed session naming keeps the probe work directory")
@@ -141,7 +141,7 @@ func reportPrintsStateContainment() throws {
     #expect(lines[index - 1] == "session resumption: passed")
     #expect(lines[index + 1] == "session naming: passed")
     #expect(lines[index + 2] == "verdict: passed")
-    #expect(ProbeCommand.everyFindingPassed(result))
+    #expect(!ProbeCommand.everyFindingPassed(result))
 }
 
 @Test("A state containment regression is named in the printed drift line")

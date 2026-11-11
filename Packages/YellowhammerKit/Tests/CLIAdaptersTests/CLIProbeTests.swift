@@ -280,16 +280,18 @@ struct CLIProbeTests {
         }
 
         // Tab titles are probe session names
-        #expect(fakeWorkspace.createdTerminals.count == 2)
+        #expect(fakeWorkspace.createdTerminals.count == 3)
         for call in fakeWorkspace.createdTerminals {
-            #expect(call.title.hasPrefix("probe-"))
+            #expect(call.title.hasPrefix("probe-") || call.title == "YH · Probe · stub · orca-tab")
         }
 
-        // Worktree and registration removed after passing run
-        #expect(fakeWorkspace.registeredIDs.count == 1)
-        #expect(fakeWorkspace.unregisteredIDs.count == 1)
+        #expect(fakeWorkspace.closedTerminalHandles.count == fakeWorkspace.createdTerminals.count)
+
+        // Both diagnostic Worktrees and registrations removed after passing run
+        #expect(fakeWorkspace.registeredIDs.count == 2)
+        #expect(fakeWorkspace.unregisteredIDs.count == 2)
         #expect(fakeWorkspace.unregisteredIDs.first == fakeWorkspace.registeredIDs.first)
-        #expect(fakeWorkspace.removedWorktreeIDs.count == 1)
+        #expect(fakeWorkspace.removedWorktreeIDs.count == 2)
         #expect(fakeWorkspace.removedWorktreeIDs.first?.force == true)
     }
 
@@ -317,10 +319,10 @@ struct CLIProbeTests {
         #expect(reason.contains("sigterm"))
 
         // Worktree and registration removed even after a failing run
-        #expect(fakeWorkspace.registeredIDs.count == 1)
-        #expect(fakeWorkspace.unregisteredIDs.count == 1)
+        #expect(fakeWorkspace.registeredIDs.count == 2)
+        #expect(fakeWorkspace.unregisteredIDs.count == 2)
         #expect(fakeWorkspace.unregisteredIDs.first == fakeWorkspace.registeredIDs.first)
-        #expect(fakeWorkspace.removedWorktreeIDs.count == 1)
+        #expect(fakeWorkspace.removedWorktreeIDs.count == 2)
         #expect(fakeWorkspace.removedWorktreeIDs.first?.force == true)
     }
 
@@ -414,8 +416,8 @@ struct CLIProbeTests {
         #expect(reason.contains("Orca tab host not exercised: Orca terminal host unavailable"))
 
         // Worktree and registration removed
-        #expect(fakeWorkspace.unregisteredIDs.count == 1)
-        #expect(fakeWorkspace.removedWorktreeIDs.count == 1)
+        #expect(fakeWorkspace.unregisteredIDs.count == 2)
+        #expect(fakeWorkspace.removedWorktreeIDs.count == 2)
     }
 }
 

@@ -29,6 +29,8 @@ public struct ProbeResult: Equatable, Sendable {
     /// Whether the Adapter names its sessions, so Orca titles each pass by its session name (issue #800).
     /// Recorded, never gating.
     public let findingSessionNaming: ProbeFinding
+    /// Informational Orca observations; never part of route eligibility or drift.
+    public let orca: OrcaProbeFindings
     /// The Operator-facing reason a failed CLI is not offered as a route target. Required when
     /// ``verdict`` is failed. May also be non-nil on a passed verdict, to explain a non-gating
     /// finding (``findingSessionResumption``, ``findingStateContainment``, ``findingSessionNaming``) that did not pass even though
@@ -64,6 +66,7 @@ public struct ProbeResult: Equatable, Sendable {
         findingSessionResumption: ProbeFinding,
         findingStateContainment: ProbeFinding,
         findingSessionNaming: ProbeFinding = .notRun,
+        orca: OrcaProbeFindings = .init(),
         reason: String?,
         promptRunID: String? = nil
     ) {
@@ -76,6 +79,7 @@ public struct ProbeResult: Equatable, Sendable {
         self.findingProcessContainment = findingProcessContainment
         self.findingSessionResumption = findingSessionResumption
         self.findingStateContainment = findingStateContainment
+        self.orca = orca
         self.findingSessionNaming = findingSessionNaming
         self.reason = reason
         self.promptRunID = promptRunID

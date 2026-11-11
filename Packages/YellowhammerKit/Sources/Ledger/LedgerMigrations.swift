@@ -28,6 +28,11 @@ enum LedgerMigrations {
         migrator.registerMigration("v5-probe-session-naming") { db in
             try addSessionNamingColumn(db)
         }
+        migrator.registerMigration("v6-probe-orca-observations") { db in
+            try db.alter(table: "probe_result") { table in
+                table.add(column: "orca_findings", .text)
+            }
+        }
         return migrator
     }
 }

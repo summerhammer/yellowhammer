@@ -144,6 +144,8 @@ public protocol CLIAdapter: Sendable {
     /// Whether this Adapter passes ``CLIDispatch/sessionName`` to its CLI, so Orca titles each pass by it
     /// (issue #800). The Probe reports it as the session-naming finding; it never gates a pass.
     var namesSessions: Bool { get }
+    /// Observes a transcript origin marker for diagnostics only; never enables a resume check.
+    func probeForeignTurnMarker(of session: CLISession, dispatch: CLIDispatch) -> ProbeObservation
     /// The session titles the CLI recorded in its transcript for `session`, in file order, or nil when the
     /// transcript cannot be read. Only the Probe reads it, to see whether the CLI honoured the name.
     func sessionTitles(of session: CLISession, dispatch: CLIDispatch) -> [String]?
@@ -153,6 +155,9 @@ extension CLIAdapter {
     public func usageLimit(for dispatch: CLIDispatch) -> RunOutcome? { nil }
     public func foreignTurns(before dispatch: CLIDispatch) -> SessionForeignTurnsCheck { .unsupported }
     public var namesSessions: Bool { false }
+    public func probeForeignTurnMarker(of session: CLISession, dispatch: CLIDispatch) -> ProbeObservation {
+        .init(.notRun, detail: "no verified foreign-turn marker reader for \(cli); known behaviour retained")
+    }
     public func sessionTitles(of session: CLISession, dispatch: CLIDispatch) -> [String]? { nil }
 
     /// Shared refusal: every adapter validates the Route names it and accepts its effort before
