@@ -62,10 +62,7 @@ struct OrcaADEScratchTests {
         let runner = ProcessOrcaCommandRunner()
         let adapter = OrcaADEAdapter(runner: runner)
 
-        let directory = FileManager.default.temporaryDirectory.appending(
-            component: "yh-orca-terminal-scratch-\(UUID().uuidString)", directoryHint: .isDirectory
-        )
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let directory = try Self.realScratchDirectory(named: "yh-orca-terminal-scratch-\(UUID().uuidString)")
         try Self.initGitRepo(at: directory)
 
         let registerOutput = try await runner.run(["repo", "add", "--path", directory.path, "--json"])
@@ -73,6 +70,7 @@ struct OrcaADEScratchTests {
 
         var worktreeID: WorktreeID?
         var terminalHandle: TerminalHandle?
+        var siblingHandle: TerminalHandle?
 
         do {
             let name = "yh-scratch-\(UUID().uuidString.prefix(8))"
@@ -90,11 +88,21 @@ struct OrcaADEScratchTests {
             let state = try await adapter.terminal(terminal.handle)
             #expect(!state.orphaned)
 
+            let sibling = try await adapter.createTerminal(
+                worktreeID: worktree.id, title: "scratch-sibling", command: "sleep 30"
+            )
+            siblingHandle = sibling.handle
+
             try await adapter.closeTerminal(terminal.handle)
             terminalHandle = nil
+
+            try await Self.expectClosedTabGone(terminal.handle, siblingOpen: sibling.handle, adapter: adapter)
+
+            try await adapter.closeTerminal(sibling.handle)
+            siblingHandle = nil
         } catch {
-            if let terminalHandle {
-                _ = try? await adapter.closeTerminal(terminalHandle)
+            for handle in [terminalHandle, siblingHandle].compactMap(\.self) {
+                _ = try? await adapter.closeTerminal(handle)
             }
             if let worktreeID {
                 _ = try? await adapter.removeWorktree(id: worktreeID, force: true)
@@ -109,6 +117,30 @@ struct OrcaADEScratchTests {
         }
         _ = try? await runner.run(["project", "setup-delete", "--setup", repoID, "--json"])
         try? FileManager.default.removeItem(at: directory)
+    }
+
+    /// A new temporary directory, by its real path: Orca registers `/private/var/...`, not `/var/...`.
+    private static func realScratchDirectory(named name: String) throws -> URL {
+        let created = FileManager.default.temporaryDirectory.appending(component: name, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: created, withIntermediateDirectories: true)
+        let real = try #require(realpath(created.path, nil))
+        defer { free(real) }
+        return URL(fileURLWithPath: String(cString: real), isDirectory: true)
+    }
+
+    /// Issue #798: after `close --tab`, `show` reports the tab orphaned or gone, and the Worktree's
+    /// other tab is untouched.
+    private static func expectClosedTabGone(
+        _ closed: TerminalHandle, siblingOpen sibling: TerminalHandle, adapter: OrcaADEAdapter
+    ) async throws {
+        do {
+            let closedState = try await adapter.terminal(closed)
+            #expect(closedState.orphaned)
+        } catch {
+            #expect(error == .terminalNotFound(closed))
+        }
+        let siblingState = try await adapter.terminal(sibling)
+        #expect(!siblingState.orphaned)
     }
 
     private static func cleanUp(

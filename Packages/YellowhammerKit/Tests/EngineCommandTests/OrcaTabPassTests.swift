@@ -33,6 +33,7 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
         var scriptedProcessID: pid_t?
         var nextID = 1
         var scriptedCreateError: WorkspaceError?
+        var scriptedCloseError: WorkspaceError?
     }
 
     private let state: Mutex<State>
@@ -48,6 +49,12 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
 
     func scriptCreateError(_ error: WorkspaceError?) {
         state.withLock { $0.scriptedCreateError = error }
+    }
+
+    /// Makes every later `closeTerminal` fail with `error` after it has still ended the tab's login,
+    /// so a test sees only the refusal and not a leaked process.
+    func scriptCloseError(_ error: WorkspaceError?) {
+        state.withLock { $0.scriptedCloseError = error }
     }
 
     func scriptProcessID(_ pid: pid_t?) {
@@ -103,7 +110,8 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
         let (error, state) = self.state.withLock { lockedState -> (WorkspaceError?, WorkspaceTerminalState?) in
             let wasClosed = lockedState.closedHandles.contains(handle)
             lockedState.observedBeforeClose[handle] = !wasClosed
-            let error = lockedState.terminalErrors[handle]
+            // A closed tab reads as gone, the way `orca terminal show` answers for a closed handle.
+            let error = wasClosed ? WorkspaceError.terminalNotFound(handle) : lockedState.terminalErrors[handle]
             let st = lockedState.terminalStates[handle] ?? lockedState.defaultTerminalState
             return (error, st)
         }
@@ -118,13 +126,17 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
     }
 
     func closeTerminal(_ handle: TerminalHandle) async throws(WorkspaceError) {
-        let term = state.withLock { lockedState -> TerminalInfo? in
+        let (term, error) = state.withLock { lockedState -> (TerminalInfo?, WorkspaceError?) in
             lockedState.closedHandles.append(handle)
-            return lockedState.terminals[handle]
+            return (lockedState.terminals[handle], lockedState.scriptedCloseError)
         }
-        guard let term else { return }
-        kill(term.processID, SIGKILL)
-        waitpid(term.processID, nil, 0)
+        if let term {
+            kill(term.processID, SIGKILL)
+            waitpid(term.processID, nil, 0)
+        }
+        if let error {
+            throw error
+        }
     }
 
     private func spawnCommandInFreshSession(command: String) throws(WorkspaceError) -> pid_t {
@@ -152,7 +164,7 @@ final class FakeTabWorkspace: Workspace, @unchecked Sendable {
 
 // MARK: - Test Fixture
 
-private final class OrcaTabPassFixture {
+final class OrcaTabPassFixture {
     let tempDir: URL
     let worktreeDir: URL
     let runsDir: URL
@@ -535,6 +547,8 @@ struct OrcaTabPassTests {
         kill(-term.processID, SIGTERM)
 
         let report = try await task.value
+        // The engine still closes the tab the Operator closed: closing is unconditional (#798).
+        #expect(workspace.closedHandles == [termHandle])
 
         guard case .crashedUnknown(.externalInterruption(let detail)) = report.outcome else {
             Issue.record("Expected .crashedUnknown(.externalInterruption(_)), got \(report.outcome)")
