@@ -30,11 +30,6 @@ public enum PassWrapper {
         let writeFD: Int32
     }
 
-    private struct TeeSession {
-        let thread: Thread
-        let captureFD: Int32
-    }
-
     private struct StartIdentity {
         let startSeconds: UInt64
         let startMicroseconds: UInt64
@@ -87,21 +82,22 @@ public enum PassWrapper {
         try writeStartedRecord(spec: spec, childPid: childPid)
 
         let tee = startStdoutTee(readPipeFD: stdoutPipe[0], capturePath: spec.stdoutCapturePath)
-        defer {
-            if tee.captureFD >= 0 { close(tee.captureFD) }
-        }
 
         let status = waitForChildExit(childPid: childPid)
         passWrapperChildProcessGroup = 0
 
+        // The reader drains what the CLI already wrote (never to EOF: a descendant may hold the pipe open),
+        // closes the capture file, and only then is the read fd closed and the status written.
+        tee.markChildExited()
+        tee.readerDone.wait()
         close(stdoutPipe[0])
         stdoutPipe[0] = -1
-        while tee.thread.isExecuting {
-            Thread.sleep(forTimeInterval: 0.005)
-        }
 
         let receivedSignals = drainReceivedSignals(readFD: channel.readFD)
-        return try writeStatusRecord(spec: spec, status: status, receivedSignals: receivedSignals)
+        let record = try writeStatusRecord(spec: spec, status: status, receivedSignals: receivedSignals)
+        // Bounded flush of the pty forwarder; a stuck stdout never holds the pass.
+        _ = tee.forwarderDone.wait(timeout: .now() + 2)
+        return record
     }
 
     /// Atomically writes data to `destinationURL` via a temp file in the same directory and `rename`.
@@ -233,42 +229,60 @@ extension PassWrapper {
 
     // MARK: - Stdout teeing
 
-    private static func startStdoutTee(readPipeFD: Int32, capturePath: String) -> TeeSession {
+    private static func startStdoutTee(readPipeFD: Int32, capturePath: String) -> PassWrapperTeeState {
+        let state = PassWrapperTeeState()
         let captureFD = open(capturePath, O_WRONLY | O_CREAT | O_APPEND, 0o644)
-        let teeThread = Thread {
-            var buffer = [UInt8](repeating: 0, count: 4096)
-            while true {
-                let bytesRead = read(readPipeFD, &buffer, buffer.count)
-                guard bytesRead > 0 else {
-                    if bytesRead < 0 && errno == EINTR { continue }
-                    break
-                }
-                writeAll(to: captureFD, buffer: buffer, count: bytesRead)
-                writeIgnoringEPIPE(to: STDOUT_FILENO, buffer: buffer, count: bytesRead)
-            }
+
+        let reader = Thread {
+            runCaptureReader(readPipeFD: readPipeFD, captureFD: captureFD, state: state)
+            if captureFD >= 0 { close(captureFD) }
+            state.markReaderFinished()
+            state.readerDone.signal()
         }
-        teeThread.start()
-        return TeeSession(thread: teeThread, captureFD: captureFD)
+        let forwarder = Thread {
+            while let chunk = state.nextChunk() {
+                writeAll(to: STDOUT_FILENO, buffer: chunk, count: chunk.count)
+            }
+            state.forwarderDone.signal()
+        }
+        forwarder.start()
+        reader.start()
+        return state
+    }
+
+    /// Reads the pipe into the capture file only; fd 1 is the forwarder's concern.
+    private static func runCaptureReader(readPipeFD: Int32, captureFD: Int32, state: PassWrapperTeeState) {
+        var buffer = [UInt8](repeating: 0, count: 16384)
+        var drainDeadline: Date?
+        while true {
+            let exited = state.hasChildExited
+            if exited && drainDeadline == nil {
+                drainDeadline = Date().addingTimeInterval(1)
+            }
+            if let deadline = drainDeadline, Date() >= deadline { return }
+            var pollFD = pollfd(fd: readPipeFD, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&pollFD, 1, exited ? 0 : 50)
+            if ready < 0 {
+                if errno == EINTR { continue }
+                return
+            }
+            if ready == 0 {
+                if exited { return }
+                continue
+            }
+            let bytesRead = read(readPipeFD, &buffer, buffer.count)
+            if bytesRead < 0 {
+                if errno == EINTR { continue }
+                return
+            }
+            if bytesRead == 0 { return }
+            writeAll(to: captureFD, buffer: buffer, count: bytesRead)
+            state.enqueue(Array(buffer[0..<bytesRead]))
+        }
     }
 
     private static func writeAll(to fileDescriptor: Int32, buffer: [UInt8], count: Int) {
         guard fileDescriptor >= 0 else { return }
-        var offset = 0
-        while offset < count {
-            let written = buffer.withUnsafeBytes { raw in
-                write(fileDescriptor, raw.baseAddress! + offset, count - offset)
-            }
-            if written > 0 {
-                offset += written
-            } else if written < 0 && errno == EINTR {
-                continue
-            } else {
-                break
-            }
-        }
-    }
-
-    private static func writeIgnoringEPIPE(to fileDescriptor: Int32, buffer: [UInt8], count: Int) {
         var offset = 0
         while offset < count {
             let written = buffer.withUnsafeBytes { raw in

@@ -497,3 +497,143 @@ struct PassWrapperTests {
         #expect(antigravityLaunch.addedEnvironment.isEmpty)
     }
 }
+
+extension PassWrapperTests {
+    private struct TeeScenario {
+        let wrapperBin: URL
+        let dir: URL
+        let specURL: URL
+        let capturePath: String
+        let startedPath: String
+        let statusPath: String
+    }
+
+    private func makeTeeScenario(stubContent: String) throws -> TeeScenario {
+        let wrapperBin = try passWrapperChildURL()
+        let dir = try makeTemporaryDirectory()
+        let worktree = dir.appendingPathComponent("worktree")
+        let runDir = dir.appendingPathComponent("rundir")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: runDir, withIntermediateDirectories: true)
+        let stub = dir.appendingPathComponent("stub.sh")
+        try makeExecutableScript(at: stub, content: stubContent)
+        let capturePath = runDir.appendingPathComponent("stdout.log").path
+        let startedPath = runDir.appendingPathComponent("started.json").path
+        let statusPath = runDir.appendingPathComponent("status.json").path
+        let spec = PassWrapperSpec(
+            executable: stub.path,
+            argv: [],
+            worktreePath: worktree.path,
+            stdoutCapturePath: capturePath,
+            startedPath: startedPath,
+            statusPath: statusPath
+        )
+        let specURL = runDir.appendingPathComponent("spec.json")
+        try spec.write(to: specURL)
+        return TeeScenario(
+            wrapperBin: wrapperBin,
+            dir: dir,
+            specURL: specURL,
+            capturePath: capturePath,
+            startedPath: startedPath,
+            statusPath: statusPath
+        )
+    }
+
+    /// Spawns the wrapper (without waiting) with `stdoutFD` as its stdout.
+    private func spawnWrapper(scenario: TeeScenario, stdoutFD: Int32) throws -> pid_t {
+        var fileActions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&fileActions)
+        defer { posix_spawn_file_actions_destroy(&fileActions) }
+        posix_spawn_file_actions_adddup2(&fileActions, stdoutFD, 1)
+
+        var attr: posix_spawnattr_t?
+        posix_spawnattr_init(&attr)
+        defer { posix_spawnattr_destroy(&attr) }
+        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
+
+        let argv = [strdup(scenario.wrapperBin.path), strdup(scenario.specURL.path), nil]
+        let envp = ProcessInfo.processInfo.environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer {
+            for ptr in argv where ptr != nil { free(ptr) }
+            for ptr in envp where ptr != nil { free(ptr) }
+        }
+        var pid: pid_t = 0
+        let spawnResult = posix_spawn(&pid, scenario.wrapperBin.path, &fileActions, &attr, argv, envp)
+        guard spawnResult == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: spawnResult) ?? .EIO)
+        }
+        return pid
+    }
+
+    private func waitForStatus(statusPath: String, timeout: TimeInterval) -> PassWrapperStatus? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: statusPath)),
+               let record = try? JSONDecoder().decode(PassWrapperStatus.self, from: data) {
+                return record
+            }
+            usleep(10000)
+        }
+        return nil
+    }
+
+    @Test("Capture is complete and status written while the wrapper's own stdout is never read")
+    func captureCompleteWhileStdoutUnread() throws {
+        let marker = "END-MARKER"
+        let size = 1_048_576
+        let scenario = try makeTeeScenario(
+            stubContent: "head -c \(size) /dev/zero | tr '\\0' a\nprintf '\(marker)'\nexit 0"
+        )
+        defer { try? FileManager.default.removeItem(at: scenario.dir) }
+
+        var stdoutPipe: [Int32] = [-1, -1]
+        #expect(pipe(&stdoutPipe) == 0)
+        defer {
+            if stdoutPipe[0] >= 0 { close(stdoutPipe[0]) }
+            if stdoutPipe[1] >= 0 { close(stdoutPipe[1]) }
+        }
+        let wrapperPid = try spawnWrapper(scenario: scenario, stdoutFD: stdoutPipe[1])
+        close(stdoutPipe[1])
+        stdoutPipe[1] = -1
+
+        // Nobody reads stdoutPipe[0]: the forwarder blocks on a full pipe, the capture must not.
+        let record = waitForStatus(statusPath: scenario.statusPath, timeout: 10)
+        let captured = (try? Data(contentsOf: URL(fileURLWithPath: scenario.capturePath))) ?? Data()
+
+        // Release the wrapper: closing the read end makes the blocked forwarder fail with EPIPE.
+        close(stdoutPipe[0])
+        stdoutPipe[0] = -1
+        var waitStatus: Int32 = 0
+        while waitpid(wrapperPid, &waitStatus, 0) < 0 && errno == EINTR {}
+
+        #expect(record?.exitStatus == 0)
+        #expect(captured.count == size + marker.utf8.count)
+        #expect(captured.suffix(marker.utf8.count) == Data(marker.utf8))
+    }
+
+    @Test("A descendant holding stdout open does not delay the status record")
+    func statusNotDelayedByHeldStdout() throws {
+        let scenario = try makeTeeScenario(stubContent: "sleep 30 &\necho held-line\nexit 0")
+        defer { try? FileManager.default.removeItem(at: scenario.dir) }
+
+        let devNull = open("/dev/null", O_WRONLY)
+        defer { close(devNull) }
+
+        let start = Date()
+        let wrapperPid = try spawnWrapper(scenario: scenario, stdoutFD: devNull)
+        let record = waitForStatus(statusPath: scenario.statusPath, timeout: 10)
+        let elapsed = Date().timeIntervalSince(start)
+
+        let started = try? waitForStartedRecord(startedPath: scenario.startedPath)
+        if let started { kill(-started.pid, SIGKILL) }
+        var waitStatus: Int32 = 0
+        while waitpid(wrapperPid, &waitStatus, 0) < 0 && errno == EINTR {}
+
+        #expect(record?.exitStatus == 0)
+        // The engine waits only 2 s for the status record; draining to EOF would wait for the 30 s sleep.
+        #expect(elapsed < 1.5)
+        let captured = (try? String(contentsOfFile: scenario.capturePath, encoding: .utf8)) ?? ""
+        #expect(captured.contains("held-line"))
+    }
+}

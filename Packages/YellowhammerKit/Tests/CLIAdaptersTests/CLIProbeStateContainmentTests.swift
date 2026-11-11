@@ -179,7 +179,7 @@ struct CLIProbeStateContainmentTests {
         let report = try await runProbe(keychain: StubProbeKeychain(), workDirectory: workDirectory)
 
         #expect(report.unattendedDispatch == .passed)
-        for run in ["unattended", "resume", "direct-sigterm", "direct-sigkill", "state-containment"] {
+        for run in ["unattended", "resume", "sigterm", "sigkill", "state-containment"] {
             let file = workDirectory.appending(components: "runs", run, StubProbeAdapter.protectedDirectoriesFileName)
             let recorded = try String(contentsOf: file, encoding: .utf8)
             #expect(recorded.split(separator: "\n").map(String.init) == Self.protectedDirectories, "\(run)")
