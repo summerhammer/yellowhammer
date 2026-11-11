@@ -3,7 +3,8 @@ import Foundation
 
 /// The Orca ADE implementation of the Workspace Port (ADR-001).
 ///
-/// It shells out to the `orca` CLI, builds exactly the argument lists Orca ADE 1.4.203 expects,
+/// It shells out to the `orca` CLI, using the Worktree contract probed on Orca ADE 1.4.203 and the
+/// terminal contract probed on 1.4.253,
 /// decodes its JSON envelope, and translates every failure onto ``WorkspaceError``. It translates and
 /// never decides: a name collision is returned to the caller as Orca ADE reported it, not judged here.
 public struct OrcaADEAdapter: Workspace {
@@ -61,6 +62,43 @@ public struct OrcaADEAdapter: Workspace {
         let _: OrcaRemoveResultPayload = try await perform(arguments, worktreeIDForNotFound: id)
     }
 
+    public func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal {
+        let payload: OrcaTerminalResultPayload = try await perform(
+            ["terminal", "create", "--worktree", "id:\(worktreeID.rawValue)",
+             "--title", title, "--command", command, "--json"],
+            worktreeIDForNotFound: worktreeID
+        )
+        guard !payload.terminal.handle.isEmpty,
+              let pid = payload.terminal.processId, pid > 0 else {
+            throw .malformedResponse("orca terminal create returned no handle or session-leader pid")
+        }
+        return WorkspaceTerminal(handle: TerminalHandle(rawValue: payload.terminal.handle), sessionLeaderPID: pid)
+    }
+
+    public func showTerminal(handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState? {
+        let payload: OrcaTerminalResultPayload
+        do {
+            payload = try await perform(["terminal", "show", "--terminal", handle.rawValue, "--json"])
+        } catch .refused(let code, _) where code == "terminal_handle_stale" || code == "terminal_not_found" {
+            return nil
+        }
+        guard let orphaned = payload.terminal.orphaned else {
+            throw .malformedResponse("orca terminal show returned no orphaned state")
+        }
+        if let pid = payload.terminal.processId, pid <= 0 {
+            throw .malformedResponse("orca terminal show returned an invalid session-leader pid")
+        }
+        return WorkspaceTerminalState(orphaned: orphaned, sessionLeaderPID: payload.terminal.processId)
+    }
+
+    public func closeTerminal(handle: TerminalHandle) async throws(WorkspaceError) {
+        let _: OrcaTerminalCloseResultPayload = try await perform(
+            ["terminal", "close", "--terminal", handle.rawValue, "--tab", "--json"]
+        )
+    }
+
     private static func workspaceWorktree(_ payload: OrcaWorktreePayload) -> WorkspaceWorktree {
         WorkspaceWorktree(
             id: WorktreeID(rawValue: payload.id),
@@ -101,6 +139,9 @@ public struct OrcaADEAdapter: Workspace {
 
         guard envelope.ok else {
             let failure = envelope.error ?? OrcaErrorPayload(code: "unknown", message: "orca reported failure")
+            if failure.code == "runtime_unavailable" {
+                throw .unavailable(failure.message)
+            }
             if failure.code == "repo_not_found" {
                 throw .repositoryNotRegistered(path: repositoryPath ?? "")
             }
@@ -108,6 +149,10 @@ public struct OrcaADEAdapter: Workspace {
                 throw .worktreeNotFound(worktreeIDForNotFound)
             }
             throw .refused(code: failure.code, message: failure.message)
+        }
+
+        guard output.exitCode == 0 else {
+            throw .unavailable("orca exited \(output.exitCode) despite reporting success: \(output.stderr)")
         }
 
         guard let result = envelope.result else {

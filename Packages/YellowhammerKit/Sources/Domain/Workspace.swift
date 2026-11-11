@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Workspace Port (ADR-001): how Yellowhammer asks for the Worktrees it needs.
+/// The Workspace Port (ADR-001, ADR-007): Worktrees and their terminal tabs.
 ///
 /// Orca ADE owns Worktrees — it creates, places and removes them; Yellowhammer never creates, places
 /// or deletes one itself, and holds only the opaque id and path it is handed back, in the Journal.
@@ -29,6 +29,18 @@ public protocol Workspace: Sendable {
 
     /// Removes a Worktree Orca ADE holds. Removal also deletes its local branch.
     func removeWorktree(id: WorktreeID, force: Bool) async throws(WorkspaceError)
+
+    /// Creates one titled terminal in a Worktree, running `command` in its shell (ADR-007).
+    func createTerminal(
+        worktreeID: WorktreeID, title: String, command: String
+    ) async throws(WorkspaceError) -> WorkspaceTerminal
+
+    /// Returns metadata for a known terminal, or nil when its handle is no longer known.
+    /// Terminal metadata never determines a pass's completion or exit status.
+    func showTerminal(handle: TerminalHandle) async throws(WorkspaceError) -> WorkspaceTerminalState?
+
+    /// Closes only this terminal's tab, preserving the Worktree's other tabs and resume records.
+    func closeTerminal(handle: TerminalHandle) async throws(WorkspaceError)
 }
 
 /// An opaque identifier Orca ADE assigns a Worktree. Yellowhammer never parses it.

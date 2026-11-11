@@ -49,3 +49,16 @@ struct OrcaRepositoriesPayload: Decodable {
 struct OrcaRepositoryResultPayload: Decodable {
     let repo: OrcaRepositoryPayload
 }
+
+struct OrcaTerminalPayload: Decodable {
+    let handle: String
+    let orphaned: Bool?
+    let processId: Int32?
+}
+
+struct OrcaTerminalResultPayload: Decodable {
+    let terminal: OrcaTerminalPayload
+}
+
+/// Closing a tab may report `ptyKilled: false` even when it was durably removed.
+struct OrcaTerminalCloseResultPayload: Decodable {}
