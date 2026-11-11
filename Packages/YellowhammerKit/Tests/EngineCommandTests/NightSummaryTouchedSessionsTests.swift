@@ -6,12 +6,12 @@ import Foundation
 import Testing
 
 // graph-execution/see-and-open-agent-sessions-in-orca, AC touched-session:
-// the Night Summary's `**Sessions with turns Yellowhammer did not write:**` section.
+// the Night Summary's `**Worker session checks:**` section.
 
-@Suite("Night Summary: Sessions with turns Yellowhammer did not write")
+@Suite("Night Summary: Worker session checks")
 struct NightSummaryTouchedSessionsTests {
-    @Test("Two Cards' events render as one line naming each Card once in first-seen order with display identifier")
-    func twoCardsRenderOneLine() async throws {
+    @Test("Every check names its Card and Round in Journal order")
+    func twoCardsRenderTheirRounds() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
@@ -23,20 +23,26 @@ struct NightSummaryTouchedSessionsTests {
                 // Card 1 records event in round 1 and round 2
                 try journal.append(
                     .agentSessionHadForeignTurns(
-                        cardID: 1, issueID: "ENG-1", attemptID: 1, round: 1, cli: "claude"
+                        cardID: 1, issueID: "ENG-1", attemptID: 1, round: 1, cli: "claude",
+                        sessionID: "session-1", userCount: 1, assistantCount: 2,
+                        firstTimestamp: "2026-11-08T10:00:00Z"
                     ),
                     act: context.act, runID: context.runID, nightID: context.night.id
                 )
                 try journal.append(
                     .agentSessionHadForeignTurns(
-                        cardID: 1, issueID: "ENG-1", attemptID: 1, round: 2, cli: "claude"
+                        cardID: 1, issueID: "ENG-1", attemptID: 1, round: 2, cli: "claude",
+                        sessionID: "session-1", userCount: 1, assistantCount: 2,
+                        firstTimestamp: "2026-11-08T10:00:00Z"
                     ),
                     act: context.act, runID: context.runID, nightID: context.night.id
                 )
                 // Card 2 records event in round 1
                 try journal.append(
                     .agentSessionHadForeignTurns(
-                        cardID: 2, issueID: "ENG-4", attemptID: 1, round: 1, cli: "codex"
+                        cardID: 2, issueID: "ENG-4", attemptID: 1, round: 1, cli: "codex",
+                        sessionID: "session-1", userCount: 1, assistantCount: 2,
+                        firstTimestamp: "2026-11-08T10:00:00Z"
                     ),
                     act: context.act, runID: context.runID, nightID: context.night.id
                 )
@@ -46,7 +52,11 @@ struct NightSummaryTouchedSessionsTests {
 
         let lines = try NightSummary.touchedSessionLines(night: opened, journal: journal)
 
-        #expect(lines == ["`ENG-1`, `ENG-4`: resumed as usual"])
+        #expect(lines == [
+            "`ENG-1`: its session was continued outside Yellowhammer before Round 1; resumed as usual",
+            "`ENG-1`: its session was continued outside Yellowhammer before Round 2; resumed as usual",
+            "`ENG-4`: its session was continued outside Yellowhammer before Round 1; resumed as usual"
+        ])
     }
 
     @Test("A Night with no touched session events renders no lines")
@@ -81,10 +91,10 @@ struct NightSummaryTouchedSessionsTests {
         let withTouched = NightCardBlock.completed(
             night: night, projectID: journal.projectID, touchedSessions: ["`ENG-1`, `ENG-4`: resumed as usual"]
         )
-        #expect(withTouched.contains("**Sessions with turns Yellowhammer did not write:**"))
+        #expect(withTouched.contains("**Worker session checks:**"))
         #expect(withTouched.contains("`ENG-1`, `ENG-4`: resumed as usual"))
 
         let withoutTouched = NightCardBlock.completed(night: night, projectID: journal.projectID)
-        #expect(!withoutTouched.contains("**Sessions with turns Yellowhammer did not write:**"))
+        #expect(!withoutTouched.contains("**Worker session checks:**"))
     }
 }

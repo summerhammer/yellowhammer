@@ -224,12 +224,12 @@ final class ForeignTurnsDispatch: AgentDispatch, Sendable {
     private let calls = Mutex<[RunPass: Int]>([:])
     let requests = RequestLog()
     let foreignTurnsRequests = RequestLog()
-    let scriptedForeignTurns: (@Sendable (AgentDispatchRequest) -> Bool)?
+    let scriptedForeignTurns: (@Sendable (AgentDispatchRequest) async -> SessionForeignTurnsCheck)?
 
     init(
         log: CallLog? = nil,
         sequences: [RunPass: [RehearsalResultFixture]],
-        scriptedForeignTurns: (@Sendable (AgentDispatchRequest) -> Bool)? = nil
+        scriptedForeignTurns: (@Sendable (AgentDispatchRequest) async -> SessionForeignTurnsCheck)? = nil
     ) {
         self.log = log
         self.sequences = sequences
@@ -251,10 +251,10 @@ final class ForeignTurnsDispatch: AgentDispatch, Sendable {
         return AgentDispatchReport(outcome: fixture.outcome(), session: "\(request.pass.rawValue)-session-\(index)")
     }
 
-    func foreignTurns(before request: AgentDispatchRequest) async -> Bool {
+    func foreignTurns(before request: AgentDispatchRequest) async -> SessionForeignTurnsCheck {
         log?.add("foreignTurns \(request.pass.rawValue)")
         foreignTurnsRequests.add(request)
-        return scriptedForeignTurns?(request) ?? false
+        return await scriptedForeignTurns?(request) ?? .unsupported
     }
 }
 
@@ -309,8 +309,8 @@ final class NotShownInOrcaDispatch: AgentDispatch, Sendable {
         )
     }
 
-    func foreignTurns(before request: AgentDispatchRequest) async -> Bool {
-        false
+    func foreignTurns(before request: AgentDispatchRequest) async -> SessionForeignTurnsCheck {
+        .unsupported
     }
 }
 

@@ -66,7 +66,7 @@ public enum NightCardBlock {
         appendSection("Anomalies", anomalies, to: &lines)
         appendSection("Crashes and reclaims", crashesAndReclaims, to: &lines)
         appendSection("Leftover processes", leftoverProcesses, to: &lines)
-        appendSection("Sessions with turns Yellowhammer did not write", touchedSessions, to: &lines)
+        appendSection("Worker session checks", touchedSessions, to: &lines)
         appendSection("Passes not shown in Orca", passesNotShownInOrca, to: &lines)
         appendSection("Exceptions", exceptions, to: &lines)
         appendBounds(bounds, to: &lines)

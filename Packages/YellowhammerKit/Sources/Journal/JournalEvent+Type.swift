@@ -194,6 +194,8 @@ extension JournalEvent {
             .rehearsalFixtureAnswered
         case .agentSessionHadForeignTurns:
             .agentSessionHadForeignTurns
+        case .agentSessionCheckFailed:
+            .agentSessionCheckFailed
         case .agentPassNotShownInOrca:
             .agentPassNotShownInOrca
         case .agentTabInterruptionObserved:

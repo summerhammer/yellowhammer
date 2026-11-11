@@ -101,10 +101,10 @@ struct AgentDispatchForeignTurnsTests {
 
         let dispatch = fixture.makeDispatch()
         let hasForeign = await dispatch.foreignTurns(before: request)
-        #expect(hasForeign)
+        #expect(hasForeign.hasForeignTurns)
     }
 
-    @Test("Dispatch Port reports false for untouched resumed session")
+    @Test("Dispatch Port reports clean for untouched resumed session")
     func dispatchReportsFalseForUntouchedSession() async throws {
         let fixture = try Fixture.make()
         defer { fixture.cleanUp() }
@@ -121,10 +121,10 @@ struct AgentDispatchForeignTurnsTests {
 
         let dispatch = fixture.makeDispatch()
         let hasForeign = await dispatch.foreignTurns(before: request)
-        #expect(!hasForeign)
+        #expect(hasForeign == .clean)
     }
 
-    @Test("Dispatch Port reports false when request has no resume session")
+    @Test("Dispatch Port is unsupported when request has no resume session")
     func dispatchReportsFalseWithNoResumeSession() async throws {
         let fixture = try Fixture.make()
         defer { fixture.cleanUp() }
@@ -133,10 +133,10 @@ struct AgentDispatchForeignTurnsTests {
 
         let dispatch = fixture.makeDispatch()
         let hasForeign = await dispatch.foreignTurns(before: request)
-        #expect(!hasForeign)
+        #expect(hasForeign == .unsupported)
     }
 
-    @Test("Dispatch Port reports false for unregistered CLI without failing")
+    @Test("Dispatch Port is unsupported for an unregistered CLI without failing")
     func dispatchReportsFalseForUnregisteredCLI() async throws {
         let fixture = try Fixture.make()
         defer { fixture.cleanUp() }
@@ -145,10 +145,10 @@ struct AgentDispatchForeignTurnsTests {
 
         let dispatch = fixture.makeDispatch()
         let hasForeign = await dispatch.foreignTurns(before: request)
-        #expect(!hasForeign)
+        #expect(hasForeign == .unsupported)
     }
 
-    @Test("Dispatch Port reports false for Codex and Antigravity routes")
+    @Test("Dispatch Port is unsupported for Codex and Antigravity routes")
     func dispatchReportsFalseForCodexAndAntigravity() async throws {
         let fixture = try Fixture.make()
         defer { fixture.cleanUp() }
@@ -159,11 +159,11 @@ struct AgentDispatchForeignTurnsTests {
         let codexRequest = fixture.makeRequest(route: codexRoute, resumeSession: "codex-session")
         let agyRequest = fixture.makeRequest(route: agyRoute, resumeSession: "agy-session")
 
-        #expect(!(await dispatch.foreignTurns(before: codexRequest)))
-        #expect(!(await dispatch.foreignTurns(before: agyRequest)))
+        #expect(await dispatch.foreignTurns(before: codexRequest) == .unsupported)
+        #expect(await dispatch.foreignTurns(before: agyRequest) == .unsupported)
     }
 
-    @Test("RehearsalDispatch answers false for foreignTurns")
+    @Test("RehearsalDispatch leaves session checks unsupported")
     func rehearsalDispatchAnswersFalse() async throws {
         let rehearsal = RehearsalDispatch()
         let route = Route(cli: "claude", model: "sonnet", effort: "high")!
@@ -180,6 +180,6 @@ struct AgentDispatchForeignTurnsTests {
             runID: RunID(rawValue: "run-1")!, issueID: "BACK-1", attemptID: 1, route: route, pass: .worker,
             instruction: .card(instruction), worktreePath: "/wt/backend", resumeSession: "prior-session"
         )
-        #expect(!(await rehearsal.foreignTurns(before: request)))
+        #expect(await rehearsal.foreignTurns(before: request) == .unsupported)
     }
 }

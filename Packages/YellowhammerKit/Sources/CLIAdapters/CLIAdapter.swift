@@ -138,9 +138,9 @@ public protocol CLIAdapter: Sendable {
     /// Translates a recognized vendor usage-limit refusal from captured stdout. Called only for a
     /// non-zero self-exit. Unknown payloads return nil, preserving ordinary exit classification.
     func usageLimit(for dispatch: CLIDispatch) -> RunOutcome?
-    /// Returns true when a resumed session's transcript contains turns Yellowhammer did not write
+    /// Checks whether a resumed session's transcript contains turns Yellowhammer did not write
     /// (e.g. from an interactive session in Orca's history).
-    func foreignTurns(before dispatch: CLIDispatch) -> Bool
+    func foreignTurns(before dispatch: CLIDispatch) -> SessionForeignTurnsCheck
     /// Whether this Adapter passes ``CLIDispatch/sessionName`` to its CLI, so Orca titles each pass by it
     /// (issue #800). The Probe reports it as the session-naming finding; it never gates a pass.
     var namesSessions: Bool { get }
@@ -151,7 +151,7 @@ public protocol CLIAdapter: Sendable {
 
 extension CLIAdapter {
     public func usageLimit(for dispatch: CLIDispatch) -> RunOutcome? { nil }
-    public func foreignTurns(before dispatch: CLIDispatch) -> Bool { false }
+    public func foreignTurns(before dispatch: CLIDispatch) -> SessionForeignTurnsCheck { .unsupported }
     public var namesSessions: Bool { false }
     public func sessionTitles(of session: CLISession, dispatch: CLIDispatch) -> [String]? { nil }
 

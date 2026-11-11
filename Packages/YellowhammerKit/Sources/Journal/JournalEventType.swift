@@ -96,6 +96,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case agentCLIProcessSpawned = "AgentCLIProcessSpawned"
     case rehearsalFixtureAnswered = "RehearsalFixtureAnswered"
     case agentSessionHadForeignTurns = "AgentSessionHadForeignTurns"
+    case agentSessionCheckFailed = "AgentSessionCheckFailed"
     case agentPassNotShownInOrca = "AgentPassNotShownInOrca"
     case agentTabInterruptionObserved = "AgentTabInterruptionObserved"
     case promptCaptureRequested = "PromptCaptureRequested"

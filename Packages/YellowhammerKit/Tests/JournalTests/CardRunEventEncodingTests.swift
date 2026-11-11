@@ -201,7 +201,9 @@ func agentSessionHadForeignTurnsRoundTrips() throws {
         configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
     )
     let event = JournalEvent.agentSessionHadForeignTurns(
-        cardID: 42, issueID: "ENG-101", attemptID: 2, round: 1, cli: "claude"
+        cardID: 42, issueID: "ENG-101", attemptID: 2, round: 1, cli: "claude",
+        sessionID: "session-1", userCount: 1, assistantCount: 2,
+        firstTimestamp: "2026-11-08T10:00:00Z"
     )
 
     try journal.append(event, act: .build, runID: RunID(), now: Date(timeIntervalSince1970: 1_800_000_000))
@@ -216,6 +218,10 @@ func agentSessionHadForeignTurnsRoundTrips() throws {
     #expect(payload["attempt_id"] == "2")
     #expect(payload["round"] == "1")
     #expect(payload["cli"] == "claude")
+    #expect(payload["session_id"] == "session-1")
+    #expect(payload["foreign_user_count"] == "1")
+    #expect(payload["foreign_assistant_count"] == "2")
+    #expect(payload["first_foreign_timestamp"] == "2026-11-08T10:00:00Z")
     #expect(payload["operator"] == nil)
     #expect(payload["orca"] == nil)
     #expect(payload["author"] == nil)
@@ -247,4 +253,19 @@ func agentPassNotShownInOrcaRoundTrips() throws {
     #expect(payload["pass"] == "worker")
     #expect(payload["cli"] == "claude")
     #expect(payload["reason"] == "Orca was unreachable, ran unseen")
+}
+
+@Test("agentSessionCheckFailed preserves the session, Attempt, Round, and reason")
+func agentSessionCheckFailedRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let event = JournalEvent.agentSessionCheckFailed(
+        cardID: 42, issueID: "ENG-101", attemptID: 2, round: 2, cli: "claude",
+        sessionID: "session-1", reason: "session transcript is missing or unreadable"
+    )
+    try journal.append(event, act: .build, runID: RunID())
+    #expect(try journal.events(ofType: .agentSessionCheckFailed).map(\.event) == [event])
 }

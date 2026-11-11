@@ -149,13 +149,13 @@ public protocol AgentDispatch: Sendable {
 
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport
 
-    /// Returns true when a resumed request's session contains turns Yellowhammer did not write
+    /// Checks whether a resumed request's session contains turns Yellowhammer did not write
     /// (e.g. from an interactive session in Orca's history).
-    func foreignTurns(before request: AgentDispatchRequest) async -> Bool
+    func foreignTurns(before request: AgentDispatchRequest) async -> SessionForeignTurnsCheck
 }
 
 extension AgentDispatch {
     public var recordsPrompts: Bool { true }
 
-    public func foreignTurns(before request: AgentDispatchRequest) async -> Bool { false }
+    public func foreignTurns(before request: AgentDispatchRequest) async -> SessionForeignTurnsCheck { .unsupported }
 }
