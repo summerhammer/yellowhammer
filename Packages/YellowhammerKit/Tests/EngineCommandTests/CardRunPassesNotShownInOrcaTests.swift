@@ -22,7 +22,7 @@ struct CardRunPassesNotShownInOrcaTests {
         architectScript: [RehearsalResultFixture] = [.architectPlanned],
         workerScript: [RehearsalResultFixture] = [.workerCompleted],
         reviewerScript: [RehearsalResultFixture] = [.reviewerApproved],
-        notShownInOrcaReason: String?
+        notShownInOrcaReason: String?, tabInterruption: TabInterruptionEvidence? = nil
     ) -> Run {
         let log = CallLog()
         let dispatch = NotShownInOrcaDispatch(
@@ -32,7 +32,8 @@ struct CardRunPassesNotShownInOrcaTests {
                 .worker: workerScript,
                 .reviewer: reviewerScript
             ],
-            scriptedNotShownInOrca: { _ in notShownInOrcaReason }
+            scriptedNotShownInOrca: { _ in notShownInOrcaReason },
+            scriptedTabInterruption: tabInterruption
         )
         let check = RecordingCheck(log: log, results: [.declaredNone])
         let card = CardRun(
@@ -41,6 +42,39 @@ struct CardRunPassesNotShownInOrcaTests {
             resetting: RecordingAttemptResetting()
         )
         return Run(card: card, dispatch: dispatch, log: log)
+    }
+
+    @Test("Tab interruption observations are journaled with the pass and process evidence")
+    func tabInterruptionEvidenceIsJournaledForPasses() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let evidence = TabInterruptionEvidence(tabState: .present, loginState: .alive)
+        let run = makeRun(notShownInOrcaReason: nil, tabInterruption: evidence)
+
+        try await run.card.run("BACK-1", in: world)
+
+        let events = try world.journal.events(ofType: .agentTabInterruptionObserved)
+        #expect(events.count == 3)
+        let card = try world.card("BACK-1")
+        let attempt = try #require(try world.attempts("BACK-1").first)
+        let passes: [RunPass] = [.architect, .worker, .reviewer]
+        for (index, pass) in passes.enumerated() {
+            guard case .agentTabInterruptionObserved(
+                let cardID, let issueID, let attemptID, let eventPass, let engineSignalled,
+                let tabState, let loginState, let receivedSignals
+            ) = events[index].event else {
+                Issue.record("expected tab interruption observation for pass \(pass)")
+                continue
+            }
+            #expect(cardID == card.id)
+            #expect(issueID == "BACK-1")
+            #expect(attemptID == attempt.id)
+            #expect(eventPass == pass)
+            #expect(engineSignalled)
+            #expect(tabState == "present")
+            #expect(loginState == "alive")
+            #expect(receivedSignals == [15])
+        }
     }
 
     @Test("When notShownInOrca is set on dispatch reports, an event is journaled for each pass")

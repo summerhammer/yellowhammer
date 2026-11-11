@@ -53,30 +53,34 @@ public final class OrcaTabHost: Sendable {
         }
 
         /// Observes whether the terminal tab is gone before the host closes it (ADR-007 item 13).
-        public func observeTabGone() async -> Bool {
-            guard let term = self.terminal else { return false }
-            if let pid = term.processID, kill(pid, 0) != 0 {
-                return true
-            }
+        public func observeInterruptionEvidence() async -> TabInterruptionEvidence {
+            guard let term = self.terminal else { return .init(tabState: .unavailable, loginState: .unknown) }
+            let originalPID = term.processID
+            var loginState = Self.loginState(for: originalPID)
             do {
                 let state = try await workspace.terminal(term.handle)
+                loginState = Self.loginState(for: state.processID ?? originalPID)
                 if state.orphaned {
-                    return true
+                    return .init(tabState: .orphaned, loginState: loginState)
                 }
-                if let pid = state.processID ?? term.processID, kill(pid, 0) != 0 {
-                    return true
-                }
-                return false
+                return .init(tabState: .present, loginState: loginState)
             } catch {
+                loginState = Self.loginState(for: originalPID)
                 if case .terminalNotFound = error {
-                    return true
+                    return .init(tabState: .missing, loginState: loginState)
                 }
-                if let pid = term.processID, kill(pid, 0) != 0 {
-                    return true
-                }
-                return false
+                return .init(tabState: .unavailable, loginState: loginState)
             }
         }
+
+        private static func loginState(for pid: pid_t?) -> TabInterruptionEvidence.LoginState {
+            guard let pid, pid > 0 else { return .unknown }
+            let result = kill(pid, 0)
+            if result == 0 || errno == EPERM { return .alive }
+            return errno == ESRCH ? .dead : .unknown
+        }
+
+        public func observeTabGone() async -> Bool { (await observeInterruptionEvidence()).provesInterruption }
 
         /// Closes the terminal tab as a best effort, waiting for the tab's login process to exit.
         public func close() async {

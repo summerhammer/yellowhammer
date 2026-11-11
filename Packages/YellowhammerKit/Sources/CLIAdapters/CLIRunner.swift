@@ -19,6 +19,7 @@ public struct CLIRunReport: Equatable, Sendable {
     public let receivedSignals: [Int32]
     /// Whether the pass's Orca tab was observed gone after the CLI ended (nil for direct spawn).
     public let tabGone: Bool?
+    public let tabInterruption: TabInterruptionEvidence?
 
     public init(
         pid: pid_t,
@@ -29,7 +30,7 @@ public struct CLIRunReport: Equatable, Sendable {
         snapshot: RunningSnapshot,
         engineSignalled: Bool = false,
         receivedSignals: [Int32] = [],
-        tabGone: Bool? = nil
+        tabGone: Bool? = nil, tabInterruption: TabInterruptionEvidence? = nil
     ) {
         self.pid = pid
         self.end = end
@@ -40,6 +41,7 @@ public struct CLIRunReport: Equatable, Sendable {
         self.engineSignalled = engineSignalled
         self.receivedSignals = receivedSignals
         self.tabGone = tabGone
+        self.tabInterruption = tabInterruption
     }
 }
 
@@ -49,32 +51,36 @@ public struct CLIRunReport: Equatable, Sendable {
 public struct CLIRunner: Sendable {
     public typealias LauncherStarter = @Sendable (_ launcherURL: URL) async throws -> Void
     public typealias TabObserver = @Sendable () async -> Bool
+    public typealias TabEvidenceObserver = @Sendable () async -> TabInterruptionEvidence
 
     public let process: AgentCLIProcess
     public let recorder: (any DispatchPromptRecording)?
     public let now: @Sendable () -> Date
     public let launcherStarter: LauncherStarter?
     public let tabObserver: TabObserver?
+    public let tabEvidenceObserver: TabEvidenceObserver?
 
     public init(
         process: AgentCLIProcess = AgentCLIProcess(),
         recorder: (any DispatchPromptRecording)? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         launcherStarter: LauncherStarter? = nil,
-        tabObserver: TabObserver? = nil
+        tabObserver: TabObserver? = nil, tabEvidenceObserver: TabEvidenceObserver? = nil
     ) {
         self.process = process
         self.recorder = recorder
         self.now = now
         self.launcherStarter = launcherStarter
         self.tabObserver = tabObserver
+        self.tabEvidenceObserver = tabEvidenceObserver
     }
 
     public func run(
         _ dispatch: CLIDispatch,
         adapter: some CLIAdapter,
         launcherStarter: LauncherStarter? = nil,
-        tabObserver: TabObserver? = nil
+        tabObserver: TabObserver? = nil,
+        tabEvidenceObserver: TabEvidenceObserver? = nil
     ) async throws -> CLIRunReport {
         let promptRecord = capturePromptRecord(for: dispatch, adapter: adapter)
 
@@ -110,6 +116,7 @@ public struct CLIRunner: Sendable {
                     runDirectory: dispatch.runDirectory,
                     onSpawn: onSpawn,
                     tabObserver: observer,
+                    tabEvidenceObserver: tabEvidenceObserver ?? self.tabEvidenceObserver,
                     startLauncher: starter
                 )
             } else {
@@ -128,7 +135,7 @@ public struct CLIRunner: Sendable {
             pid: execution.pid, end: execution.end, outcome: outcome, session: session,
             leftovers: execution.leftovers, snapshot: execution.snapshot,
             engineSignalled: execution.engineSignalled, receivedSignals: execution.receivedSignals,
-            tabGone: execution.tabGone
+            tabGone: execution.tabGone, tabInterruption: execution.tabInterruption
         )
     }
 
@@ -145,7 +152,13 @@ public struct CLIRunner: Sendable {
         } else {
             outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: dispatch.pass)
         }
-        if !outcome.isCompleted && !execution.engineSignalled && execution.tabGone == true {
+        let engineStop: Bool = switch execution.end {
+        case .timedOut, .aborted, .promptBlocked: true
+        default: false
+        }
+        let tabProvesInterruption = execution.tabInterruption?.provesInterruption == true
+            || (execution.tabInterruption == nil && execution.tabGone == true)
+        if !engineStop, !execution.engineSignalled, tabProvesInterruption {
             let detail = Self.externalInterruptionDetail(
                 end: execution.end, receivedSignals: execution.receivedSignals
             )

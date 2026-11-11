@@ -72,6 +72,19 @@ public enum AgentDispatchOrigin: Equatable, Sendable {
     case rehearsalFixture(String)
 }
 
+/// What a tab-hosted pass observed after its CLI ended and before Orca cleanup.
+public struct TabInterruptionEvidence: Equatable, Sendable {
+    public enum TabState: String, Equatable, Sendable { case present, orphaned, missing, unavailable }
+    public enum LoginState: String, Equatable, Sendable { case alive, dead, unknown }
+    public let tabState: TabState
+    public let loginState: LoginState
+    public init(tabState: TabState, loginState: LoginState) {
+        self.tabState = tabState
+        self.loginState = loginState
+    }
+    public var provesInterruption: Bool { tabState == .orphaned || tabState == .missing || loginState == .dead }
+}
+
 /// What one dispatched pass yielded: the dual-key verdict and the opaque session to resume next, if the
 /// CLI offered one.
 public struct AgentDispatchReport: Equatable, Sendable {
@@ -90,11 +103,15 @@ public struct AgentDispatchReport: Equatable, Sendable {
     public let snapshot: RunningSnapshot?
     /// The reason a Work Card pass fell back to direct spawn rather than running in an Orca tab.
     public let notShownInOrca: String?
+    public let tabInterruption: TabInterruptionEvidence?
+    public let engineSignalled: Bool
+    public let receivedSignals: [Int32]
 
     public init(
         outcome: RunOutcome, session: String? = nil, origin: AgentDispatchOrigin = .agentCLIProcess,
         leftovers: [LeftoverProcess] = [], snapshot: RunningSnapshot? = nil,
-        notShownInOrca: String? = nil
+        notShownInOrca: String? = nil, tabInterruption: TabInterruptionEvidence? = nil,
+        engineSignalled: Bool = false, receivedSignals: [Int32] = []
     ) {
         self.outcome = outcome
         self.session = session
@@ -102,6 +119,9 @@ public struct AgentDispatchReport: Equatable, Sendable {
         self.leftovers = leftovers
         self.snapshot = snapshot
         self.notShownInOrca = notShownInOrca
+        self.tabInterruption = tabInterruption
+        self.engineSignalled = engineSignalled
+        self.receivedSignals = receivedSignals
     }
 }
 

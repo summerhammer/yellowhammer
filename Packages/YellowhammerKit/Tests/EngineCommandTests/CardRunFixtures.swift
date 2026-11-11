@@ -265,15 +265,18 @@ final class NotShownInOrcaDispatch: AgentDispatch, Sendable {
     private let calls = Mutex<[RunPass: Int]>([:])
     let requests = RequestLog()
     let scriptedNotShownInOrca: (@Sendable (AgentDispatchRequest) -> String?)?
+    let scriptedTabInterruption: TabInterruptionEvidence?
 
     init(
         log: CallLog? = nil,
         sequences: [RunPass: [RehearsalResultFixture]] = [:],
-        scriptedNotShownInOrca: (@Sendable (AgentDispatchRequest) -> String?)? = nil
+        scriptedNotShownInOrca: (@Sendable (AgentDispatchRequest) -> String?)? = nil,
+        scriptedTabInterruption: TabInterruptionEvidence? = nil
     ) {
         self.log = log
         self.sequences = sequences
         self.scriptedNotShownInOrca = scriptedNotShownInOrca
+        self.scriptedTabInterruption = scriptedTabInterruption
     }
 
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
@@ -288,7 +291,8 @@ final class NotShownInOrcaDispatch: AgentDispatch, Sendable {
                 origin: base.origin,
                 leftovers: base.leftovers,
                 snapshot: base.snapshot,
-                notShownInOrca: reason
+                notShownInOrca: reason, tabInterruption: scriptedTabInterruption,
+                engineSignalled: true, receivedSignals: [15]
             )
         }
         let index = calls.withLock { calls in
@@ -300,7 +304,8 @@ final class NotShownInOrcaDispatch: AgentDispatch, Sendable {
         return AgentDispatchReport(
             outcome: fixture.outcome(),
             session: "\(request.pass.rawValue)-session-\(index)",
-            notShownInOrca: reason
+            notShownInOrca: reason, tabInterruption: scriptedTabInterruption,
+            engineSignalled: true, receivedSignals: [15]
         )
     }
 

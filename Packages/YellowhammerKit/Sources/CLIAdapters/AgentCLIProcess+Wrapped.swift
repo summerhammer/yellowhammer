@@ -10,6 +10,7 @@ extension AgentCLIProcess {
         wrapperExecutable: String? = nil,
         onSpawn: (@Sendable () -> Void)? = nil,
         tabObserver: (@Sendable () async -> Bool)? = nil,
+        tabEvidenceObserver: (@Sendable () async -> TabInterruptionEvidence)? = nil,
         startLauncher: @Sendable (_ launcherURL: URL) async throws -> Void
     ) async throws -> AgentCLIExecution {
         let prepared = try prepareWrapped(
@@ -34,13 +35,15 @@ extension AgentCLIProcess {
         guard let started = await waitForStarted(at: prepared.startedURL, timeout: startTimeout) else {
             await promptWatch?.stop()
             let tabGone = await Self.observeTab(tabObserver)
+            let evidence = await tabEvidenceObserver?()
             let end = RunEnd.crashedUnknown(.wrapperRecordMissing("wrapper never reported a started CLI"))
             let snapshot = RunningSnapshot(
                 dispatchedAt: dispatchedAt, processes: [], processGroups: [], sessions: []
             )
             return AgentCLIExecution(
                 pid: 0, processGroup: 0, end: end, leftovers: [], snapshot: snapshot,
-                engineSignalled: false, receivedSignals: [], tabGone: tabGone
+                engineSignalled: false, receivedSignals: [], tabGone: tabGone ?? evidence?.provesInterruption,
+                tabInterruption: evidence
             )
         }
 
@@ -55,6 +58,7 @@ extension AgentCLIProcess {
         )
         await promptWatch?.stop()
         let tabGone = await Self.observeTab(tabObserver)
+        let evidence = await tabEvidenceObserver?()
         return AgentCLIExecution(
             pid: started.pid,
             processGroup: started.processGroup,
@@ -63,7 +67,7 @@ extension AgentCLIProcess {
             snapshot: result.snapshot,
             engineSignalled: result.engineSignalled,
             receivedSignals: result.receivedSignals,
-            tabGone: tabGone
+            tabGone: tabGone ?? evidence?.provesInterruption, tabInterruption: evidence
         )
     }
 
