@@ -193,7 +193,8 @@ jobs:
       # These suites spawn real process trees and assert wall-clock bounds (grace periods,
       # prompt cancellation, sweeps). On the hosted runner's few cores, sharing the process
       # with the other parallel tests can starve subprocesses past those bounds, so they
-      # run on their own, serially, after everything else.
+      # run on their own, serially, after everything else. Starting them all at once
+      # also pushes the runner past its per-user process limit (posix_spawn EAGAIN, errno 35).
       #
       # Both steps run `swift test` under `script`, a pseudo-terminal: through a plain pipe its
       # output is block-buffered and only lands when the process exits, so a hung run left an
@@ -202,7 +203,7 @@ jobs:
       - name: Run tests
         timeout-minutes: 12
         env:
-          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests|AgentModelDiscoveryProcessTests|InstallationRefreshLockProcessTests|ScheduledExecutableTests|AttemptAbortTests|EngineStopTests|GitRunnerTests|CLIProbe|PromptWatchWatchdog
+          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests|AgentModelDiscoveryProcessTests|InstallationRefreshLockProcessTests|ScheduledExecutableTests|AttemptAbortTests|EngineStopTests|GitRunnerTests|CLIProbe|PromptWatchWatchdog|OrcaTab|OrcaDirectSpawn
         run: |
           mkdir -p build/test-results
           script -q /dev/null swift test --package-path Packages/YellowhammerKit --skip-build --parallel --skip "$PROCESS_SUITES" --xunit-output build/test-results/tests.xml </dev/null 2>&1 | tee build/test-results/test.log
@@ -210,7 +211,7 @@ jobs:
       - name: Run process-timing tests
         timeout-minutes: 5
         env:
-          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests|AgentModelDiscoveryProcessTests|InstallationRefreshLockProcessTests|ScheduledExecutableTests|AttemptAbortTests|EngineStopTests|GitRunnerTests|CLIProbe|PromptWatchWatchdog
+          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests|AgentModelDiscoveryProcessTests|InstallationRefreshLockProcessTests|ScheduledExecutableTests|AttemptAbortTests|EngineStopTests|GitRunnerTests|CLIProbe|PromptWatchWatchdog|OrcaTab|OrcaDirectSpawn
         run: |
           script -q /dev/null swift test --package-path Packages/YellowhammerKit --skip-build --no-parallel --filter "$PROCESS_SUITES" --xunit-output build/test-results/process-tests.xml </dev/null 2>&1 | tee build/test-results/process-test.log
 
