@@ -222,7 +222,7 @@ struct CLIProbeTests {
 
         // Both hosts' run directories exist
         for variant in ["sigterm", "sigkill"] {
-            let directDir = workDirectory.appending(components: "runs", "direct-\(variant)")
+            let directDir = workDirectory.appending(components: "runs", variant)
             let tabDir = workDirectory.appending(components: "runs", "tab-\(variant)")
             #expect(FileManager.default.fileExists(atPath: directDir.path))
             #expect(FileManager.default.fileExists(atPath: tabDir.path))

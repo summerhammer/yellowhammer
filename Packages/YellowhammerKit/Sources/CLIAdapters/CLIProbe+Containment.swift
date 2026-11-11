@@ -17,10 +17,12 @@ extension CLIProbe {
             }
         }
 
-        var directoryPrefix: String {
+        /// The variant's run directory name. Direct spawn keeps the bare variant name it has always
+        /// had (`sigterm`, `sigkill`); only the Orca tab host's runs are prefixed.
+        func runDirectoryName(variant: String) -> String {
             switch self {
-            case .directSpawn: "direct"
-            case .orcaTab: "tab"
+            case .directSpawn: variant
+            case .orcaTab: "tab-\(variant)"
             }
         }
     }
@@ -72,15 +74,6 @@ extension CLIProbe {
         var details: [String] = []
         var registrationID: RegistrationID?
         var orcaWorktree: WorkspaceWorktree?
-        defer {
-            if let orcaWorktree {
-                _ = try? await workspace.removeWorktree(id: orcaWorktree.id, force: true)
-            }
-            if let registrationID {
-                _ = try? await workspace.unregisterRepository(id: registrationID)
-            }
-        }
-
         do {
             let regID = try await workspace.registerRepository(path: context.worktree.path)
             registrationID = regID
@@ -112,6 +105,14 @@ extension CLIProbe {
                 findings.append(.failed)
                 details.append("Orca tab host: \(error.description)")
             }
+        }
+        // Not a `defer`: an `await` in a defer body needs Swift 6.4, and CI builds with 6.3. The
+        // typed `catch` above is exhaustive, so every path reaches this cleanup.
+        if let orcaWorktree {
+            _ = try? await workspace.removeWorktree(id: orcaWorktree.id, force: true)
+        }
+        if let registrationID {
+            _ = try? await workspace.unregisterRepository(id: registrationID)
         }
         return (findings, details)
     }
@@ -233,7 +234,7 @@ extension CLIProbe {
         context: ProbeDispatchContext,
         gracePeriod: Duration
     ) async -> (ProbeFinding, String?) {
-        let runDirectory = context.runsDirectory.appendingPathComponent("\(host.directoryPrefix)-\(variant)")
+        let runDirectory = context.runsDirectory.appendingPathComponent(host.runDirectoryName(variant: variant))
         let (worktreeURL, tabSession) = resolveHost(host, variant: variant, context: context)
 
         let dispatch = context.dispatch(
