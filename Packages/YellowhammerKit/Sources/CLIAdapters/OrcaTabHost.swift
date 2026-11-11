@@ -84,26 +84,29 @@ public final class OrcaTabHost: Sendable {
 
         /// Closes the terminal tab as a best effort, waiting for the tab's login process to exit.
         public func close() async {
-            guard let term = self.terminal else { return }
-            self.terminal = nil
+            if let failure = await closeReportingFailure() {
+                FileHandle.standardError.write(Data("failed to close terminal tab: \(failure)\n".utf8))
+            }
+        }
 
+        /// The Probe retains a failed close as evidence and may retry it after fencing the CLI.
+        public func closeReportingFailure() async -> String? {
+            guard let term = self.terminal else { return nil }
+            self.terminal = nil
             let workspace = self.workspace
             let bound = self.loginWaitBound
-            await Task {
-                do {
-                    try await workspace.closeTerminal(term.handle)
-                } catch {
-                    FileHandle.standardError.write(
-                        Data("failed to close terminal tab \(term.handle): \(error)\n".utf8)
-                    )
-                }
+            let failure: String? = await Task {
+                do { try await workspace.closeTerminal(term.handle) } catch { return "\(term.handle): \(error)" }
                 if let pid = term.processID {
                     let deadline = ContinuousClock.now + bound
                     while kill(pid, 0) == 0 && ContinuousClock.now < deadline {
                         try? await Task.sleep(for: .milliseconds(20))
                     }
                 }
+                return nil
             }.value
+            if failure != nil { self.terminal = term }
+            return failure
         }
     }
 

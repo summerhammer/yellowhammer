@@ -18,6 +18,8 @@ public struct ProbeReport: Equatable, Sendable {
     /// Whether the Adapter names its sessions, so Orca titles each pass by its session name (issue #800).
     /// Recorded, never gating.
     public let sessionNaming: ProbeFinding
+    /// Informational Orca observations; never part of route eligibility or drift.
+    public let orca: OrcaProbeFindings
     /// Non-nil whenever any finding above is not ``ProbeFinding/passed``: one Operator-facing
     /// sentence per non-passed finding, joined with `"; "`.
     public let reason: String?
@@ -38,6 +40,7 @@ public struct ProbeReport: Equatable, Sendable {
         sessionResumption: ProbeFinding,
         stateContainment: ProbeFinding,
         sessionNaming: ProbeFinding,
+        orca: OrcaProbeFindings = .init(),
         reason: String?,
         workDirectory: URL,
         runID: String
@@ -50,6 +53,7 @@ public struct ProbeReport: Equatable, Sendable {
         self.processContainment = processContainment
         self.sessionResumption = sessionResumption
         self.stateContainment = stateContainment
+        self.orca = orca
         self.sessionNaming = sessionNaming
         self.reason = reason
         self.workDirectory = workDirectory

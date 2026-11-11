@@ -18,6 +18,7 @@ enum ProbeRecording {
         sessionResumption: ProbeFinding,
         stateContainment: ProbeFinding,
         sessionNaming: ProbeFinding,
+        orca: OrcaProbeFindings = .init(),
         reason: String?,
         promptRunID: String? = nil
     ) -> ProbeResult {
@@ -32,6 +33,7 @@ enum ProbeRecording {
             findingSessionResumption: sessionResumption,
             findingStateContainment: stateContainment,
             findingSessionNaming: sessionNaming,
+            orca: orca,
             reason: reason,
             promptRunID: promptRunID
         )

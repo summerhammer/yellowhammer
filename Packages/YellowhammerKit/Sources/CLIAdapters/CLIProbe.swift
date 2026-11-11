@@ -31,6 +31,7 @@ public struct CLIProbe: Sendable {
     public let protectedDirectories: [String]
     public let workspace: (any Workspace)?
     public let wrapperExecutable: String?
+    public let orcaAccess: ProbeOrcaAccess?
 
     public init(
         dispatchTimeout: Duration = .seconds(300),
@@ -42,7 +43,8 @@ public struct CLIProbe: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         protectedDirectories: [String],
         workspace: (any Workspace)? = nil,
-        wrapperExecutable: String? = nil
+        wrapperExecutable: String? = nil,
+        orcaAccess: ProbeOrcaAccess? = nil
     ) {
         self.dispatchTimeout = dispatchTimeout
         self.holdObservationTimeout = holdObservationTimeout
@@ -54,8 +56,10 @@ public struct CLIProbe: Sendable {
         self.protectedDirectories = protectedDirectories
         self.workspace = workspace
         self.wrapperExecutable = wrapperExecutable
+        self.orcaAccess = orcaAccess
     }
 
+    // swiftlint:disable function_body_length
     /// - Parameter runID: minted by the caller and stamped on every dispatch's prompt record, so the
     ///   caller can later open exactly this run's prompts.
     public func run(
@@ -106,6 +110,14 @@ public struct CLIProbe: Sendable {
             adapter: adapter, context: context, keychainAccount: reachTargets.keychainAccount
         )
 
+        let orca = await runOrcaProbe(
+            adapter: adapter, context: context, dispatchA: dispatchA, nonce: nonce,
+            directSessionName: Self.sessionName(
+                cli: adapter.cli, dispatch: sessionFindings.resumption == .notRun
+                    ? Self.unattendedSessionNameSuffix : Self.resumedSessionNameSuffix
+            )
+        )
+
         let details = [
             unattendedDetail, resultFileDetail, containmentDetail, sessionFindings.resumptionDetail,
             stateContainmentDetail, sessionFindings.namingDetail
@@ -122,11 +134,13 @@ public struct CLIProbe: Sendable {
             sessionResumption: sessionFindings.resumption,
             stateContainment: stateContainmentFinding,
             sessionNaming: sessionFindings.naming,
+            orca: orca,
             reason: reason,
             workDirectory: workDirectory,
             runID: runID
         )
     }
+    // swiftlint:enable function_body_length
 }
 
 /// What every dispatch of one probe run shares: the Route and executable under test, the Worktree

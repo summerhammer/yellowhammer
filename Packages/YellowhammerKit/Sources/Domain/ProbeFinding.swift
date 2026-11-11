@@ -1,5 +1,5 @@
 /// A finding from one probe target within a single Probe Result.
-public enum ProbeFinding: String, Sendable {
+public enum ProbeFinding: String, Codable, Sendable {
     /// The probe target passed.
     case passed
     /// The probe target failed.

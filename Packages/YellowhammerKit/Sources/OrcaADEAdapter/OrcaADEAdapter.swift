@@ -177,7 +177,7 @@ public struct OrcaADEAdapter: Workspace {
     /// ``WorkspaceError``. `repositoryPath` names the repository for a `repo_not_found` refusal;
     /// `worktreeIDForNotFound` names the Worktree for a `selector_not_found` refusal;
     /// `terminalHandleForNotFound` names the terminal handle for a `selector_not_found` refusal.
-    private func perform<Result: Decodable>(
+    func perform<Result: Decodable>(
         _ arguments: [String],
         repositoryPath: String? = nil,
         worktreeIDForNotFound: WorktreeID? = nil,

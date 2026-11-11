@@ -186,6 +186,7 @@ public final class LedgerStore: Sendable {
             findingSessionResumption: probeResult.findingSessionResumption,
             findingStateContainment: probeResult.findingStateContainment,
             findingSessionNaming: probeResult.findingSessionNaming,
+            orca: probeResult.orca,
             reason: probeResult.reason,
             promptRunID: probeResult.promptRunID
         )
@@ -197,8 +198,8 @@ public final class LedgerStore: Sendable {
                 (cli, probed_at, adapter_version, cli_version,
                  finding_result_file_on_clean_exit, finding_unattended_dispatch,
                  finding_process_containment, finding_session_resumption, finding_state_containment,
-                 finding_session_naming, verdict, reason, prompt_run_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 finding_session_naming, verdict, reason, prompt_run_id, orca_findings)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     storedResult.cli,
@@ -214,7 +215,8 @@ public final class LedgerStore: Sendable {
                     // Verdict is computed from findings; this materializes it for query efficiency.
                     storedResult.verdict.rawValue,
                     storedResult.reason,
-                    storedResult.promptRunID
+                    storedResult.promptRunID,
+                    String(data: try JSONEncoder().encode(storedResult.orca), encoding: .utf8)
                 ]
             )
         }
@@ -233,7 +235,7 @@ public final class LedgerStore: Sendable {
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
                        finding_process_containment, finding_session_resumption, finding_state_containment,
-                       finding_session_naming, verdict, reason, prompt_run_id
+                       finding_session_naming, verdict, reason, prompt_run_id, orca_findings
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -257,7 +259,7 @@ public final class LedgerStore: Sendable {
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
                        finding_process_containment, finding_session_resumption, finding_state_containment,
-                       finding_session_naming, verdict, reason, prompt_run_id
+                       finding_session_naming, verdict, reason, prompt_run_id, orca_findings
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -282,6 +284,16 @@ public final class LedgerStore: Sendable {
     }
 
     // MARK: - Private Helpers
+
+    /// Legacy rows carry no Orca observations; malformed evidence is never reported as passed.
+    private static func orcaFindings(_ row: Row) throws -> OrcaProbeFindings {
+        guard let encoded = row["orca_findings"] as? String else { return .init() }
+        do {
+            return try JSONDecoder().decode(OrcaProbeFindings.self, from: Data(encoded.utf8))
+        } catch {
+            throw LedgerError.probeResultUnreadable
+        }
+    }
 
     /// A finding column added after v1: NULL reads back `.notRun`; any other value must be a finding.
     private static func nullableFinding(_ row: Row, _ column: String) throws -> ProbeFinding {
@@ -332,6 +344,7 @@ public final class LedgerStore: Sendable {
             findingSessionResumption: findingSessionResumption,
             findingStateContainment: findingStateContainment,
             findingSessionNaming: findingSessionNaming,
+            orca: try Self.orcaFindings(row),
             reason: reason,
             promptRunID: row["prompt_run_id"] as? String
         )
