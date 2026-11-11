@@ -95,8 +95,9 @@ public enum PassWrapper {
 
         let receivedSignals = drainReceivedSignals(readFD: channel.readFD)
         let record = try writeStatusRecord(spec: spec, status: status, receivedSignals: receivedSignals)
-        // Bounded flush of the pty forwarder; a stuck stdout never holds the pass.
-        _ = tee.forwarderDone.wait(timeout: .now() + 2)
+        // Bounded flush of the tab forwarder. The status record is already written, so nothing in the
+        // engine waits on this; the bound only keeps a wedged pty from holding the wrapper forever.
+        _ = tee.forwarderDone.wait(timeout: .now() + 10)
         return record
     }
 
