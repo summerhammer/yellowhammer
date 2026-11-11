@@ -215,16 +215,19 @@ public struct AgentCLIProcess: Sendable {
     /// day, another Project's pass — never ends this run. `tracked` lags the tree by up to one
     /// `snapshotInterval`, and a tool can raise a prompt as soon as it starts, so a prompt that matches
     /// nothing tracked gets one fresh walk before it is dismissed; the blocked client is still alive.
-    private static func attributedPrompt(
-        in watch: any PromptWatching, leaderPID: pid_t, tracked: inout Set<ProcessTree.TrackedProcess>
+    static func attributedPrompt(
+        in watch: any PromptWatching, leaderPID: pid_t, tracked: inout Set<ProcessTree.TrackedProcess>,
+        expectedLeader: ProcessTree.TrackedProcess? = nil
     ) async -> PromptEvent? {
         let prompts = await watch.drain()
         guard !prompts.isEmpty else { return nil }
         func firstAttributed() -> PromptEvent? {
-            let pids = Set(tracked.map(\.pid)).union([leaderPID])
+            let pids = Set(tracked.filter { !ProcessTree.isGone($0) }.map(\.pid))
+                .union(expectedLeader.map { !ProcessTree.isGone($0) ? [$0.pid] : [] } ?? [leaderPID])
             return prompts.first { $0.clientPID.map(pids.contains) == true }
         }
         if let prompt = firstAttributed() { return prompt }
+        if let expectedLeader, ProcessTree.isGone(expectedLeader) { return nil }
         tracked.formUnion(ProcessTree.descendants(of: leaderPID))
         return firstAttributed()
     }
@@ -286,5 +289,7 @@ public struct AgentCLIProcess: Sendable {
         case aborted
         /// A macOS permission prompt was attributed to the run; the associated value is its detail.
         case permissionPrompt(String)
+        /// The terminal-owned wrapper disappeared while its CLI was still live.
+        case wrapperLost
     }
 }

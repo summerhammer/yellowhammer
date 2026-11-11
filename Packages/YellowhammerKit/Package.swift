@@ -205,7 +205,9 @@ let package = Package(
             name: "CLIAdaptersTests",
             dependencies: [
                 "CLIAdapters",
-                "Domain"
+                "Domain",
+                "Repositories",
+                "ProcessTestSupport"
             ]
         ),
         .testTarget(

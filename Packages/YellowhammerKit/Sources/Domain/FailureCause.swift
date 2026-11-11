@@ -47,6 +47,8 @@ public struct FailureCause: Equatable, Sendable {
             "terminated"
         case .signaled(let signal):
             "signaled \(signal)"
+        case .wrapperLost:
+            "terminal wrapper ending unavailable"
         case .engineStopped where cause.isPermissionPrompt:
             // Without the prompt's detail (a pid), so the same prompt recurring hashes the same (#555).
             "permission prompt"

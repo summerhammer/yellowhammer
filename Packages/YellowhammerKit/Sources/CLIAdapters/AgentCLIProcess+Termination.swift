@@ -112,7 +112,7 @@ extension AgentCLIProcess {
     /// Signals the process group of every process in `processes` currently, freshly confirmed to
     /// still be a live, identity-matched member of that group — never the exited CLI leader's own
     /// group on the strength of a stale snapshot alone.
-    private static func signalGroups(of processes: some Sequence<ProcessTree.TrackedProcess>, _ signal: Int32) {
+    static func signalGroups(of processes: some Sequence<ProcessTree.TrackedProcess>, _ signal: Int32) {
         var groups = Set<pid_t>()
         for process in processes {
             guard let current = ProcessTree.identity(of: process.pid), current == process else { continue }
@@ -139,7 +139,7 @@ extension AgentCLIProcess {
     /// Sends `signal` to every process in `processes`, by pid identity (``ProcessTree/signal``),
     /// never by process group — a tracked descendant may already have moved to a group of its
     /// own, which is exactly why it is tracked individually.
-    private static func signal(_ processes: some Sequence<ProcessTree.TrackedProcess>, _ signal: Int32) {
+    static func signal(_ processes: some Sequence<ProcessTree.TrackedProcess>, _ signal: Int32) {
         for process in processes {
             ProcessTree.signal(process, signal)
         }
@@ -150,7 +150,7 @@ extension AgentCLIProcess {
     /// in any pid not already known and SIGTERMing it at once. This is what catches a tool that
     /// spawns a fresh escaped child from inside its own SIGTERM handler: it is not in `tracked`
     /// yet when the first signal goes out, but the very next poll walks it down.
-    private static func sweepForNewDescendants(
+    static func sweepForNewDescendants(
         leaderPID: pid_t, leaderReaped: Bool, tracked: inout Set<ProcessTree.TrackedProcess>
     ) {
         var roots: [pid_t] = leaderReaped ? [] : [leaderPID]
@@ -188,6 +188,8 @@ extension AgentCLIProcess {
             .aborted(forcedKill: forcedKill)
         case .permissionPrompt(let detail):
             .promptBlocked(detail: detail, forcedKill: forcedKill)
+        case .wrapperLost:
+            .wrapperLost
         }
     }
 }

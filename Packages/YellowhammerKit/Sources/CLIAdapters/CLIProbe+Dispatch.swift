@@ -83,7 +83,7 @@ extension CLIProbe {
                 )
             case .promptBlocked(let detail, _):
                 return (.failed, "waited on a macOS permission prompt: \(detail)")
-            case .signaled, .aborted:
+            case .signaled, .wrapperLost, .aborted:
                 return (.failed, "ended unexpectedly: \(report.end)")
             }
         }

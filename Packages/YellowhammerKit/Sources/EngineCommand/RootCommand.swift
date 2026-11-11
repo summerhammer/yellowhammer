@@ -1,5 +1,6 @@
 import ArgumentParser
 import Config
+import CLIAdapters
 import Domain
 import Engine
 import Foundation
@@ -25,6 +26,12 @@ public struct RootCommand: AsyncParsableCommand {
     /// Entry point for the `yh` executable, which then needs no ArgumentParser import of its own.
     public static func execute() async {
         await main()
+    }
+
+    /// Synchronous hidden entry used by the terminal pass launcher. The fork child stays in
+    /// libc-only code until exec so it does not depend on inherited Swift runtime state.
+    public static func executePassWrapper(_ arguments: [String]) -> Int32 {
+        PassWrapper.run(arguments)
     }
 }
 

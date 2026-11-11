@@ -137,6 +137,8 @@ extension AttemptEnding {
             "terminated: \(end)"
         case .crashedUnknown(.signaled(let signal)):
             "signaled \(signal)"
+        case .crashedUnknown(.wrapperLost):
+            "no readable ending record from the terminal wrapper"
         case .crashedUnknown(.reclaimed(let reason)):
             "reclaimed: \(reason)"
         case .crashedUnknown(.engineStopped(let cause)):

@@ -6,6 +6,8 @@ public enum RunEnd: Equatable, Sendable {
     case exited(status: Int32)
     /// The CLI was ended by a signal Yellowhammer did not send (e.g. the kernel or the Operator).
     case signaled(Int32)
+    /// The externally owned terminal wrapper has no readable atomic ending record.
+    case wrapperLost
     /// Yellowhammer ended the run because `timeout` elapsed: SIGTERM to the group, the grace
     /// window, then SIGKILL if `forcedKill`.
     case timedOut(after: Duration, forcedKill: Bool)
@@ -25,6 +27,8 @@ extension RunEnd: CustomStringConvertible {
             "exited(\(status))"
         case .signaled(let signal):
             "signaled(\(signal))"
+        case .wrapperLost:
+            "wrapperLost"
         case .timedOut(let after, let forcedKill):
             "timedOut(after: \(after), forcedKill: \(forcedKill))"
         case .aborted(let forcedKill):
@@ -47,6 +51,8 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     case terminated(RunEnd)
     /// A signal Yellowhammer did not send ended the process.
     case signaled(Int32)
+    /// No readable wrapper ending is available; no CLI status is attributable.
+    case wrapperLost
     /// A later Act reclaimed a dead run's expired Card Lease and found no way to read the real
     /// outcome — no schema-valid result file of the dead run's last pass, and no `failed(exit status)`
     /// step recorded either (loop-state/reclaim-an-expired-lease, P8.10). `String` is a short,
@@ -168,6 +174,8 @@ extension RunOutcome {
             .failed(exitStatus: status)
         case .signaled(let signal):
             .crashedUnknown(.signaled(signal))
+        case .wrapperLost:
+            .crashedUnknown(.wrapperLost)
         case .timedOut(let after, _):
             .timedOut(after: after)
         case .aborted:
