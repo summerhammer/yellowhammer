@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.1](https://github.com/summerhammer/yellowhammer/compare/v0.37.0...v0.37.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **orca:** select a repository by its real path, as Orca stores it ([dc6fb55](https://github.com/summerhammer/yellowhammer/commit/dc6fb55213bfecb61ba2d1e391eff234ba976bb1))
+
 ## [0.37.0](https://github.com/summerhammer/yellowhammer/compare/v0.36.0...v0.37.0) (2026-11-11)
 
 
