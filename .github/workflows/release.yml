@@ -28,6 +28,10 @@ on:
   push:
     branches:
       - main
+  # A manual retrigger for a push whose run GitHub created but never queued (it then
+  # refuses cancel, force-cancel and rerun). release-please reads every commit since the
+  # last release, so a dispatched run on main does what the stuck one would have done.
+  workflow_dispatch:
 
 permissions:
   contents: read
