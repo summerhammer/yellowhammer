@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.37.0](https://github.com/summerhammer/yellowhammer/compare/v0.36.0...v0.37.0) (2026-11-11)
+
+
+### Features
+
+* **engine:** confirm interruptions from disappeared Orca tabs ([9410560](https://github.com/summerhammer/yellowhammer/commit/9410560a21418d1e29da6b5a9c1858cfbc987e61))
+* **engine:** record foreign turns before resuming Claude sessions ([d037418](https://github.com/summerhammer/yellowhammer/commit/d03741899d7edbeca176d6eea41bbf9866663e79))
+* **graph-execution:** Add the pass launcher and the hidden yh pass-wrapper that runs the CLI as its own session leader ([5410764](https://github.com/summerhammer/yellowhammer/commit/5410764c43810ebaf81e62c1bf1bdcb570c54365))
+* **graph-execution:** Classify a confirmed external interruption of a tab pass as Crashed-Unknown ([4b79036](https://github.com/summerhammer/yellowhammer/commit/4b790367fe5d7035683d86cc64c66274ca854c48))
+* **graph-execution:** Detect turns Yellowhammer did not write in a resumed claude session ([9c443f1](https://github.com/summerhammer/yellowhammer/commit/9c443f1af663e7016603ef8b7ce72c248caaab7e))
+* **graph-execution:** Give the Workspace Port terminal create, show and close operations ([433ef7a](https://github.com/summerhammer/yellowhammer/commit/433ef7a1b3944c8193cb28635efde857b6bef83b))
+* **graph-execution:** Journal a pass not shown in Orca and name its Card in the Night Summary ([3c36007](https://github.com/summerhammer/yellowhammer/commit/3c360079ca54fd15487260d478329b3c503ee2cc))
+* **graph-execution:** Journal a touched worker session and name its Card in the Night Summary ([034e323](https://github.com/summerhammer/yellowhammer/commit/034e323c831d9ea2d9d293bf7ef5d3b51dc1ae9e))
+* **graph-execution:** Name each Work Card pass that ran unseen when Orca was unreachable ([d884be7](https://github.com/summerhammer/yellowhammer/commit/d884be7781abdd274efb751ebdccb2361515587b))
+* **graph-execution:** Name every agent CLI session Yellowhammer runs ([e946a90](https://github.com/summerhammer/yellowhammer/commit/e946a9096f6ea1c8fa06f6603888505e911eb3e8))
+* **graph-execution:** Run architect, worker and reviewer passes in their own Orca tab and close it after the pass ([8b44990](https://github.com/summerhammer/yellowhammer/commit/8b449901fdc64733b6826676f0c4c5c0fee71678))
+* **graph-execution:** Supervise a wrapper-launched pass by the identity the wrapper reports ([3f1edef](https://github.com/summerhammer/yellowhammer/commit/3f1edef8cd926526e0fd67bbb1fd444fde356141))
+* **probe:** record Orca session visibility findings ([88cb1c1](https://github.com/summerhammer/yellowhammer/commit/88cb1c193bf68ec6d8b295b19c037cf908569836))
+* **routing:** Probe containment on both the direct-spawn and the Orca tab launch path ([9d4784d](https://github.com/summerhammer/yellowhammer/commit/9d4784d6cd12172f26247896ef6af46c3d74eb06))
+* **routing:** Report in the Probe whether an Adapter names its sessions ([752e8c2](https://github.com/summerhammer/yellowhammer/commit/752e8c2f60398fa755c7795514d97ca58ead6d83))
+
+
+### Bug Fixes
+
+* **graph-execution:** Give the pass wrapper's tab flush ten seconds ([0f341f8](https://github.com/summerhammer/yellowhammer/commit/0f341f8e0fc6229b7b5c1fb458223e2ab8a34753))
+* **graph-execution:** Keep the pass wrapper's capture file complete when its terminal is slow ([76b7c24](https://github.com/summerhammer/yellowhammer/commit/76b7c24076ad796b5a6fce00b0a162db6a079ad7))
+* **graph-execution:** Pass every existing direct-spawn test unchanged ([4b9ab11](https://github.com/summerhammer/yellowhammer/commit/4b9ab11c123f4c906ec09c2918c0d1fe8f37eb48))
+* **graph-execution:** Quote the launcher path typed into a Work Card pass's Orca tab ([cfcf44d](https://github.com/summerhammer/yellowhammer/commit/cfcf44d8d8c5dfe273bc450efd878019a23d1b08)), closes [#797](https://github.com/summerhammer/yellowhammer/issues/797)
+* **graph-execution:** Resolve the claude transcript root from the dispatch environment ([ab9c71f](https://github.com/summerhammer/yellowhammer/commit/ab9c71f1aa80d15671234790049e889c0b58b7e1))
+* **orca:** read a stale terminal handle as gone and refuse unsafe pids ([0e82c48](https://github.com/summerhammer/yellowhammer/commit/0e82c48e11e28efc3c80dab815f26eaed25cb702)), closes [#795](https://github.com/summerhammer/yellowhammer/issues/795)
+
 ## [0.36.0](https://github.com/summerhammer/yellowhammer/compare/v0.35.0...v0.36.0) (2026-11-08)
 
 
