@@ -17,6 +17,7 @@ extension NightCardMaintenance {
         )
         let findings = try authoringLines(night: night)
         let cardLines = try NightSummary.cardLines(night: night, journal: journal)
+        let completedOutside = try NightSummary.completedOutsideYellowhammerLines(night: night, journal: journal)
         let dispositionLines = try NightSummary.dispositionLines(night: night, journal: journal)
         let pullRequestLines = try NightSummary.pullRequestLines(night: night, journal: journal)
         let answerLines = try NightSummary.answerLines(night: night, journal: journal)
@@ -45,8 +46,8 @@ extension NightCardMaintenance {
         for compaction in ladder {
             let rendered = NightCardBlock.completed(
                 night: night, projectID: journal.projectID, verdictLine: verdict, failureLines: failureLines,
-                authoringFindings: findings,
-                cardLines: cardLines, dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
+                authoringFindings: findings, cardLines: cardLines, completedOutsideYellowhammer: completedOutside,
+                dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
                 answerLines: answerLines, anomalies: anomalies, crashesAndReclaims: crashesAndReclaims,
                 leftoverProcesses: leftoverProcesses, touchedSessions: touchedSessions,
                 passesNotShownInOrca: passesNotShownInOrca,

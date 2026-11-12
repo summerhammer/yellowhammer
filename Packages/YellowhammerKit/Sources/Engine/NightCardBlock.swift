@@ -32,12 +32,13 @@ public enum NightCardBlock {
     /// The block a Night Card is completed with: the same header, when it was completed, the Night
     /// Summary (roadmap P12.1) — a constant-time `**Verdict:**` line, then, while any exist, the `**Failures:**`
     /// (one Failure Notice per unrecovered Act failure, with a pointer to the failures stated below; never
-    /// compacted), the quiet authoring findings this Night recorded (P9.1), the Cards touched this Night and their
-    /// Dispositions, pull requests, answers banked on landed Cards, and the Waiting on You anomalies
-    /// the Delta Read found.
+    /// compacted), the quiet authoring findings this Night recorded (P9.1), the Cards touched this Night,
+    /// any Work Cards completed outside Yellowhammer, and their Dispositions, pull requests, answers banked on
+    /// landed Cards, and the Waiting on You anomalies the Delta Read found.
     public static func completed(
         night: NightRecord, projectID: ProjectID, verdictLine: String = defaultVerdictLine,
         failureLines: [String] = [], authoringFindings: [String] = [], cardLines: [String] = [],
+        completedOutsideYellowhammer: [String] = [],
         dispositionLines: [String] = [],
         pullRequestLines: [String] = [], answerLines: [String] = [], anomalies: [String] = [],
         crashesAndReclaims: [String] = [], leftoverProcesses: [String] = [],
@@ -60,6 +61,7 @@ public enum NightCardBlock {
         appendSection("Failures", failureLines, to: &lines)
         appendAuthoringFindings(authoringFindings, to: &lines)
         appendSection("Cards", cardLines, to: &lines)
+        appendSection("Completed outside Yellowhammer", completedOutsideYellowhammer, to: &lines)
         appendSection("Dispositions", dispositionLines, to: &lines)
         appendSection("Pull requests", pullRequestLines, to: &lines)
         appendSection("Answers on landed Cards", answerLines, to: &lines)

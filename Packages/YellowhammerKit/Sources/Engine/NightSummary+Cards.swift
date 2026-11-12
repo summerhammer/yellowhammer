@@ -28,8 +28,9 @@ extension NightSummary {
         return try touchedCards(events: events, journal: journal).map { card in
             let name = cardName(card)
             let attempts = touchedAttemptIDs(cardID: card.id, events: events).count
-            guard attempts > 0 else { return "\(name) — \(card.state.rawValue) · no Attempt this Night." }
-            return "\(name) — \(card.state.rawValue) · \(attempts) Attempt\(attempts == 1 ? "" : "s") this Night " +
+            let state = try cardStateText(card: card, journal: journal)
+            guard attempts > 0 else { return "\(name) — \(state) · no Attempt this Night." }
+            return "\(name) — \(state) · \(attempts) Attempt\(attempts == 1 ? "" : "s") this Night " +
                 "— see the Journal."
         }
     }
@@ -39,8 +40,9 @@ extension NightSummary {
     ) throws -> String {
         let name = cardName(card)
         let attemptIDs = touchedAttemptIDs(cardID: card.id, events: events)
+        let state = try cardStateText(card: card, journal: journal)
         guard !attemptIDs.isEmpty else {
-            return "\(name) — \(card.state.rawValue) · no Attempt this Night."
+            return "\(name) — \(state) · no Attempt this Night."
         }
         let history = try journal.attemptHistory(cardID: card.id)
         // Built from the events already read: `nightEvents` is read once per section, by design.
@@ -54,7 +56,11 @@ extension NightSummary {
         let attempts = history.attempts.enumerated().filter { attemptIDs.contains($0.element.id) }
             .sorted { $0.element.id < $1.element.id }
             .map { attemptSummary(ordinal: $0.offset + 1, $0.element, checkRuns: cardRuns) }
-        return "\(name) — \(card.state.rawValue) · " + attempts.joined(separator: " · ")
+        return "\(name) — \(state) · " + attempts.joined(separator: " · ")
+    }
+
+    private static func cardStateText(card: CardRecord, journal: JournalStore) throws -> String {
+        try journal.isOperatorDone(cardID: card.id) ? "Done (done by the Operator)" : card.state.rawValue
     }
 
     /// Attempt ids named by this Card's `attemptEnded`, `routeRetried` or `checkRan` events this Night.
