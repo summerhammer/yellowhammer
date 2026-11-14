@@ -134,6 +134,11 @@ struct OrcaTabCloseTests {
 
         let claude = fixture.tempDir.appending(component: "claude")
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: claude.path)
+        // A bare copy of a platform binary keeps Apple's platform signature, which is invalid at the new
+        // path: the kernel kills it with SIGKILL (Code Signature Invalid) a fraction of a second after it
+        // starts, so under load it was dead before the fences ran. An ad-hoc signature keeps it running,
+        // and a copy (not a `#!` script, which reads as its interpreter) keeps its command name `claude`.
+        try Self.adHocSign(claude)
         let reopened = try SpawnedChild.spawn(
             executable: claude.path, arguments: ["30"], currentDirectory: fixture.worktreeDir, newSession: true
         )
@@ -160,6 +165,17 @@ struct OrcaTabCloseTests {
         }
         #expect(fenced.map(\.pid) == [reopened.pid])
         #expect(await reopened.waitForExit(timeout: .seconds(5)) == .signalled(SIGKILL))
+    }
+
+    private static func adHocSign(_ executable: URL) throws {
+        let codesign = Process()
+        codesign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        codesign.arguments = ["--force", "--sign", "-", executable.path]
+        codesign.standardOutput = FileHandle.nullDevice
+        codesign.standardError = FileHandle.nullDevice
+        try codesign.run()
+        codesign.waitUntilExit()
+        try #require(codesign.terminationStatus == 0, "codesign failed to re-sign \(executable.path)")
     }
 
     private static func waitUntilHolds(_ worktreePath: String, pid: pid_t) async throws {
