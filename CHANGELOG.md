@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.38.0](https://github.com/summerhammer/yellowhammer/compare/v0.37.1...v0.38.0) (2026-11-14)
+
+
+### Features
+
+* **engine:** Show the done by the Operator marker on the Feature's member list ([f2b17bb](https://github.com/summerhammer/yellowhammer/commit/f2b17bb0d0ea5872d3178518235be05f592c4b51))
+* **morning-report:** Name Operator Done Work Cards under Completed outside Yellowhammer in the Night Summary ([16cb420](https://github.com/summerhammer/yellowhammer/commit/16cb420bbbb5bae27e1ea1bcfa01f90fb78766db))
+
 ## [0.37.1](https://github.com/summerhammer/yellowhammer/compare/v0.37.0...v0.37.1) (2026-11-11)
 
 
