@@ -15,9 +15,9 @@ public struct FeatureRollUpBlock {
     /// The block as the Feature Issue's later rewrites can render it at its largest for these members, so a
     /// description can be measured at authoring against the room those rewrites need. Each member takes the
     /// longest closed-vocabulary state, reason and marker wording its line can have (a Blocked Card with the
-    /// longest Block Reason, a Waiting on You Card with the longest Waiting Reason, a banked answer, and
-    /// "adopted from" for an adopted Card), with the longest of the running and closed sentences and a
-    /// conflict and a no-pull-request note for every repository. `prototypes` supply each member's title,
+    /// longest Block Reason, a Waiting on You Card with the longest Waiting Reason, a banked answer,
+    /// "adopted from" for an adopted Card, and "done by the Operator" for a Done Card), with the longest of
+    /// the running and closed sentences and a conflict and a no-pull-request note for every repository. `prototypes` supply each member's title,
     /// issue id, repository and adoption; their state is replaced. Free text it cannot know is left out: a
     /// title the board later gives a Card that has none here, and the issue id Linear will assign to a
     /// new Card (its drafted title stands in for it, as the block names a titled Card by title).
@@ -39,6 +39,7 @@ public struct FeatureRollUpBlock {
         let done = members.map { member in
             var member = member
             member.state = .done
+            member.doneByOperator = true
             return member
         }
         let verification = FeatureRollUp(
@@ -66,6 +67,7 @@ public struct FeatureRollUpBlock {
             member.waitingReason = nil
             member.blockReason = nil
             member.markers = [.bankedAnswer]
+            member.doneByOperator = true
             switch state {
             case .blocked:
                 variants += BlockReason.allCases.map { reason in
@@ -187,12 +189,16 @@ public struct FeatureRollUpBlock {
         return ""
     }
 
-    /// Adopted first, then banked answer — the order this brief specifies. ``FeatureMemberMarker/shelved``
-    /// is never rendered here: the `#### Shelved` group it names is the marker.
+    /// Adopted first, then "done by the Operator" (a Done Card only), then banked answer — the order this
+    /// brief specifies. ``FeatureMemberMarker/shelved`` is never rendered here: the `#### Shelved` group it
+    /// names is the marker.
     private func markerSuffix(_ card: RollUpMember) -> String {
         var suffix = ""
         if let previousFeatureIssueID = card.adoptedFromFeatureIssueID {
             suffix += " · adopted from `\(previousFeatureIssueID)`"
+        }
+        if card.state == .done && card.doneByOperator {
+            suffix += " · done by the Operator"
         }
         if card.markers.contains(.bankedAnswer) {
             suffix += " · banked answer waiting"

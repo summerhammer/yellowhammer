@@ -42,6 +42,10 @@ public struct RollUpMember: Equatable, Sendable {
     /// The previous Feature Issue this Card was adopted from, nil when not adopted. Carried separately
     /// from `markers` because it holds data (roadmap P12.3).
     public var adoptedFromFeatureIssueID: String?
+    /// Whether this Card's latest move into Done is the Operator's: from the Journal's Operator Done
+    /// record (the `.cardOperatorDone` event), not a read-time marker. Carried apart from `markers`, like
+    /// `adoptedFromFeatureIssueID`; rendered only when the Card is Done.
+    public var doneByOperator: Bool
 
     public init(
         issueID: String,
@@ -52,7 +56,8 @@ public struct RollUpMember: Equatable, Sendable {
         waitingReason: WaitingReason? = nil,
         blockReason: String? = nil,
         markers: Set<FeatureMemberMarker> = [],
-        adoptedFromFeatureIssueID: String? = nil
+        adoptedFromFeatureIssueID: String? = nil,
+        doneByOperator: Bool = false
     ) {
         self.issueID = issueID
         self.title = title
@@ -63,6 +68,7 @@ public struct RollUpMember: Equatable, Sendable {
         self.blockReason = blockReason
         self.markers = markers
         self.adoptedFromFeatureIssueID = adoptedFromFeatureIssueID
+        self.doneByOperator = doneByOperator
     }
 
     /// This Card's title, or nil when the Journal has not recorded a non-empty one — the caller falls

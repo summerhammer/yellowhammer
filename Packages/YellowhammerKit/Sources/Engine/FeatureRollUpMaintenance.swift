@@ -175,21 +175,22 @@ public struct FeatureRollUpMaintenance: Sendable {
     // MARK: - Rendering and posting
 
     /// The Cycle's Cards as ``RollUpMember``s: markers from ``FeatureMemberMarkers``, adoption from the
-    /// latest `cardAdopted` event landing each Card in `feature`. A removed Card (trashed, or archived
-    /// while in play; OQ142) is left out entirely: it is no member of the Roll-up, neither a lane Card
-    /// nor in the Shelved group.
+    /// latest `cardAdopted` event landing each Card in `feature`, and whether the Operator's Done record
+    /// (`isOperatorDone`) stands for it. A removed Card (trashed, or archived while in play; OQ142) is left
+    /// out entirely: it is no member of the Roll-up, neither a lane Card nor in the Shelved group.
     private static func members(
         feature: FeatureRecord, cycleID: Int64, journal: JournalStore
     ) throws -> [RollUpMember] {
         let cards = try journal.cards(cycleID: cycleID).filter { !$0.isRemovedFromBoard }
         let markers = try FeatureMemberMarkers.derive(cycleID: cycleID, journal: journal)
         let adoptions = try latestAdoptions(newFeatureIssueID: feature.issueID, journal: journal)
-        return cards.map { card in
+        return try cards.map { card in
             RollUpMember(
                 issueID: card.issueID, title: card.title, repository: card.repository,
                 authoredOrder: card.authoredOrder, state: card.state, waitingReason: card.waitingReason,
                 blockReason: card.blockReason, markers: markers[card.id] ?? [],
-                adoptedFromFeatureIssueID: adoptions[card.id]
+                adoptedFromFeatureIssueID: adoptions[card.id],
+                doneByOperator: try journal.isOperatorDone(cardID: card.id)
             )
         }
     }

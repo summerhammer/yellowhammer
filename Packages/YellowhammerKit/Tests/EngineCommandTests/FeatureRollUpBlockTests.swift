@@ -11,11 +11,11 @@ struct FeatureRollUpBlockTests {
     private func member(
         _ issueID: String, title: String? = nil, repo: String, order: Int, state: CardState,
         waitingReason: WaitingReason? = nil, blockReason: String? = nil,
-        markers: Set<FeatureMemberMarker> = [], adoptedFrom: String? = nil
+        markers: Set<FeatureMemberMarker> = [], adoptedFrom: String? = nil, doneByOperator: Bool = false
     ) -> RollUpMember {
         RollUpMember(issueID: issueID, title: title, repository: repo, authoredOrder: order, state: state,
                      waitingReason: waitingReason, blockReason: blockReason, markers: markers,
-                     adoptedFromFeatureIssueID: adoptedFrom)
+                     adoptedFromFeatureIssueID: adoptedFrom, doneByOperator: doneByOperator)
     }
 
     private func noMerge() -> MergedFraction { MergedFraction(mergedCount: 0, totalCount: 0) }
@@ -247,5 +247,65 @@ struct FeatureRollUpBlockTests {
         let largest = FeatureRollUpBlock.largestRendering(of: members, repositories: ["backend", "web"])
         #expect(largest.contains("clauses unmet"))
         #expect(largest.contains("clauses not checked"))
+    }
+
+    // MARK: - Done by the Operator
+
+    private func render(_ members: [RollUpMember]) -> String {
+        FeatureRollUpBlock(rollUp: FeatureRollUp(
+            members: members, lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(),
+            issueStanding: .authoring
+        )).render()
+    }
+
+    @Test("A Done member the Operator moved renders ' · done by the Operator'")
+    func operatorDoneMemberRendersMarker() {
+        let rendered = render([member("B-1", title: "Build it", repo: "backend", order: 0, state: .done,
+                                      doneByOperator: true)])
+        #expect(rendered.contains("\n- Build it — Done · done by the Operator\n")
+            || rendered.hasSuffix("\n- Build it — Done · done by the Operator"))
+    }
+
+    @Test("Adopted, then done by the Operator, then banked answer, in that order")
+    func operatorDoneMarkerOrder() {
+        let adopted = render([member("B-1", title: "Build it", repo: "backend", order: 0, state: .done,
+                                     adoptedFrom: "F-0", doneByOperator: true)])
+        #expect(adopted.contains("- Build it — Done · adopted from `F-0` · done by the Operator"))
+        let banked = render([member("B-1", title: "Build it", repo: "backend", order: 0, state: .done,
+                                    markers: [.bankedAnswer], adoptedFrom: "F-0", doneByOperator: true)])
+        #expect(banked.contains(
+            "- Build it — Done · adopted from `F-0` · done by the Operator · banked answer waiting"
+        ))
+    }
+
+    @Test("A plain Done member has no marker")
+    func plainDoneMemberHasNoMarker() {
+        let rendered = render([member("B-1", title: "Build it", repo: "backend", order: 0, state: .done)])
+        #expect(rendered.hasSuffix("- Build it — Done"))
+        #expect(!rendered.contains("done by the Operator"))
+    }
+
+    @Test("doneByOperator on a member that is not Done renders nothing")
+    func operatorDoneOnlyRendersWhenDone() {
+        for state in [CardState.inProgress, .blocked, .todo, .waitingOnYou, .shelved] {
+            let rendered = render([member("B-1", repo: "backend", order: 0, state: state, doneByOperator: true)])
+            #expect(!rendered.contains("done by the Operator"))
+        }
+    }
+
+    @Test("The Operator Done marker changes only the member line's suffix")
+    func operatorDoneChangesOnlyTheSuffix() {
+        let with = render([member("B-1", repo: "backend", order: 0, state: .done, doneByOperator: true)])
+        let without = render([member("B-1", repo: "backend", order: 0, state: .done)])
+        #expect(with.replacingOccurrences(of: " · done by the Operator", with: "") == without)
+    }
+
+    @Test("largestRendering is at least the Done, adopted, Operator Done render")
+    func largestRenderingCoversOperatorDone() {
+        let prototype = member("B-1", title: "Build it", repo: "backend", order: 0, state: .todo, adoptedFrom: "F-0")
+        let doneRender = render([member("B-1", title: "Build it", repo: "backend", order: 0, state: .done,
+                                        adoptedFrom: "F-0", doneByOperator: true)])
+        let largest = FeatureRollUpBlock.largestRendering(of: [prototype], repositories: ["backend"])
+        #expect(largest.utf16.count >= doneRender.utf16.count)
     }
 }
