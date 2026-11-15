@@ -25,6 +25,13 @@ public enum BoardError: Error, Equatable, Sendable {
     case unreadableResponse(String)
 }
 
+extension BoardError {
+    /// How an `unreachable` message opens when this Mac itself is offline (OQ159 (b)): the adapter writes
+    /// it for a transport failure that means no network at all, and ``description`` then names the Mac,
+    /// not the board. The failure stays `unreachable`, so it still counts toward the consecutive-halt rule.
+    public static let noNetworkConnection = "this Mac has no network connection"
+}
+
 extension BoardError: CustomStringConvertible {
     public var description: String {
         switch self {
@@ -43,7 +50,11 @@ extension BoardError: CustomStringConvertible {
         case .refused(let message):
             "the board refused the request: \(message)"
         case .unreachable(let message, _):
-            "the board could not be reached: \(message)"
+            if message.hasPrefix(Self.noNetworkConnection) {
+                message
+            } else {
+                "the board could not be reached: \(message)"
+            }
         case .unreadableResponse(let message):
             "the board's response could not be read: \(message)"
         }

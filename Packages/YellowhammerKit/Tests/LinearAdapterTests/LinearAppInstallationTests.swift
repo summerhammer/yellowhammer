@@ -109,6 +109,33 @@ struct LinearAppInstallationTests {
         #expect(identity.workspaceURLKey == "acme")
     }
 
+    @Test("Offline installation calls name this Mac and stay unreachable",
+          arguments: [false, true], [URLError.Code.notConnectedToInternet, .networkConnectionLost])
+    func offlineInstallation(confirm: Bool, code: URLError.Code) async throws {
+        let transport = StubHTTPTransport([.failure(code)])
+        do {
+            if confirm {
+                let tokens = LinearTokenPair(
+                    accessToken: "access-1", refreshToken: "refresh-1", expiresAt: .distantFuture
+                )
+                _ = try await LinearAppInstallation.confirm(tokens: tokens, transport: transport)
+            } else {
+                _ = try await LinearAppInstallation.exchange(
+                    code: "auth-code", verifier: "the-verifier",
+                    redirectURI: LinearAppInstallation.redirectURI(forPort: 44837), transport: transport
+                )
+            }
+            Issue.record("expected a throw")
+        } catch {
+            guard case .unreachable = error else {
+                Issue.record("expected unreachable, got \(error)")
+                return
+            }
+            #expect(error.description == "this Mac has no network connection (\(code.rawValue))")
+            #expect(!error.description.contains("could not be reached"))
+        }
+    }
+
     @Test("Neither token ever appears in a description, even after a failure")
     func tokensNeverLeak() async throws {
         let pair = LinearTokenPair(

@@ -159,16 +159,38 @@ struct LinearFailureTests {
         #expect(message.contains("INVALID_INPUT"))
     }
 
-    @Test("A transport error is unreachable", arguments: [false, true])
-    func transportError(atTokenEndpoint: Bool) async throws {
+    @Test(
+        "An offline Mac is unreachable and says this Mac has no network connection (OQ159 (b))",
+        arguments: [false, true], [URLError.Code.notConnectedToInternet, .networkConnectionLost]
+    )
+    func offlineTransportError(atTokenEndpoint: Bool, code: URLError.Code) async throws {
         let replies: [StubHTTPTransport.Reply] = atTokenEndpoint
-            ? [.failure(.notConnectedToInternet)]
-            : [Fixture.token(), .failure(.timedOut)]
+            ? [.failure(code)]
+            : [Fixture.token(), .failure(code)]
         let error = try await failure(replies)
-        guard case .unreachable = error else {
+        guard case .unreachable(let message, _) = error else {
             Issue.record("expected unreachable, got \(error)")
             return
         }
+        #expect(message == "this Mac has no network connection (\(code.rawValue))")
+        #expect(error.description.contains("this Mac has no network connection"))
+        #expect(!error.description.contains("could not be reached"))
+    }
+
+    @Test("Any other transport error is unreachable and still says Linear could not be reached",
+          arguments: [false, true])
+    func transportError(atTokenEndpoint: Bool) async throws {
+        let replies: [StubHTTPTransport.Reply] = atTokenEndpoint
+            ? [.failure(.timedOut)]
+            : [Fixture.token(), .failure(.timedOut)]
+        let error = try await failure(replies)
+        guard case .unreachable(let message, _) = error else {
+            Issue.record("expected unreachable, got \(error)")
+            return
+        }
+        #expect(message.hasPrefix("Linear could not be reached"))
+        #expect(error.description == "the board could not be reached: \(message)")
+        #expect(!error.description.contains("no network connection"))
     }
 
     @Test("Malformed JSON is unreadableResponse", arguments: [false, true])

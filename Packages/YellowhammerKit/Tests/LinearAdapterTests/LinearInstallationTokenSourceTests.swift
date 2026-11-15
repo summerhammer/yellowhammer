@@ -288,23 +288,37 @@ struct TokenRefreshRecordTests {
         #expect(refusal.message.contains("invalid_client: Client authentication failed"))
     }
 
-    @Test("A transport failure records `refused` with no status")
-    func transportFailureHasNoStatus() async throws {
+    @Test("An offline token refresh stays unreachable and names this Mac",
+          arguments: [URLError.Code.notConnectedToInternet, .networkConnectionLost])
+    func offlineRefreshNamesThisMac(code: URLError.Code) async throws {
         let clock = ManualClock()
         let state = Self.state(secondsFromNow: 60, clock: clock)
         let log = AppInstallationTokenRefreshLog(installation: Self.label)
-        let transport = StubHTTPTransport([.failure(.notConnectedToInternet)])
+        let transport = StubHTTPTransport([.failure(code)])
         let source = LinearInstallationTokenSource(
             store: state.store(), transport: transport, clock: clock.read, refreshLog: log
         )
 
-        _ = try? await source.token()
+        var thrown: (any Error)?
+        do {
+            _ = try await source.token()
+        } catch {
+            thrown = error
+        }
 
+        // An offline Mac's refresh says so (OQ159 (b)) and is still unreachable.
+        let boardError = try #require(thrown as? BoardError)
+        guard case .unreachable = boardError else {
+            Issue.record("expected unreachable, got \(boardError)")
+            return
+        }
+        #expect(String(describing: boardError) == "this Mac has no network connection (\(code.rawValue))")
         guard case .unreachable(let message)? = log.drain().first?.outcome else {
             Issue.record("expected unreachable")
             return
         }
-        #expect(message.contains("could not be reached"))
+        #expect(message.contains("this Mac has no network connection"))
+        #expect(!message.contains("could not be reached"))
     }
 
     @Test("A 2xx with an unreadable body records `notStored`, not a refusal")

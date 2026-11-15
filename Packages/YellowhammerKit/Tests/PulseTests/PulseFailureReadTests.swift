@@ -23,6 +23,23 @@ private func openFailureNight(_ journal: JournalStore) throws -> (nightID: Int64
     return (opening.night.id, run)
 }
 
+@Test("An offline Act failure keeps the Mac's network wording in Pulse Health")
+func offlineActFailureHealth() throws {
+    let fixture = FailureFixture()
+    let journal = try fixture.open()
+    let opening = try openFailureNight(journal)
+    let error = BoardError.unreachable("\(BoardError.noNetworkConnection) (-1009)")
+    try journal.append(
+        .actIncomplete(reason: String(describing: error)), act: .build, runID: opening.run,
+        nightID: opening.nightID, now: epoch
+    )
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch)
+    let flag = try #require(pulse.health?.first { $0.kind == .actFailure })
+    #expect(flag.detail == "build: this Mac has no network connection (-1009)")
+    #expect(!flag.detail.contains("could not be reached"))
+}
+
 @Test("A later successful run of the same Act in the Night recovers its failure")
 func failedActRecovery() throws {
     let fixture = FailureFixture()

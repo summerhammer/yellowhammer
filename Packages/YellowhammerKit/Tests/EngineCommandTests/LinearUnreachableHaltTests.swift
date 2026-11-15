@@ -141,6 +141,46 @@ struct LinearUnreachableHaltTests {
         #expect(await scene.haltedComments().count == 4)
     }
 
+    @Test("An offline Mac counts the same, and the Journal, the notice and Health say it has no network (OQ159 (b))")
+    func offlineMacCountsAndSaysSo() async throws {
+        let scene = try await OutageScene()
+        let offline = BoardError.unreachable("\(BoardError.noNetworkConnection) (-1009)")
+        #expect(offline.isLinearUnreachable)
+
+        await scene.act { _ in throw offline }
+        #expect(scene.recorder.notifications.isEmpty, "the 1st offline halt posts nothing")
+        #expect(try scene.journal.events(ofType: .linearUnreachableHalted).count == 1)
+
+        await scene.act { _ in throw offline }
+        #expect(scene.recorder.notifications.count == 1, "the 2nd consecutive offline halt posts")
+        #expect(try scene.journal.events(ofType: .linearUnreachableHalted).count == 2)
+        let notice = try #require(scene.recorder.notifications.first)
+        guard case .halted(let reason) = notice.event else {
+            Issue.record("expected .halted, got \(notice.event)")
+            return
+        }
+        #expect(reason.contains("this Mac has no network connection"))
+        #expect(!reason.contains("could not be reached"))
+
+        let incomplete = try scene.journal.events(ofType: .actIncomplete)
+        #expect(incomplete.count == 2)
+        for record in incomplete {
+            guard case .actIncomplete(let reason) = record.event else {
+                Issue.record("expected .actIncomplete, got \(record.event)")
+                continue
+            }
+            #expect(reason == "this Mac has no network connection (-1009)")
+        }
+
+        // The Health Act-failure row reads the same reason.
+        let rows = ActFailures(events: try scene.journal.events()).all.map(\.detail)
+        #expect(!rows.isEmpty)
+        for row in rows {
+            #expect(row.contains("this Mac has no network connection"), "\(row)")
+            #expect(!row.contains("could not be reached"), "\(row)")
+        }
+    }
+
     @Test("A halt that wraps the unreachable board in a Delta Read error counts the same")
     func deltaReadWrapperCounts() async throws {
         let scene = try await OutageScene()

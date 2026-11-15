@@ -10,10 +10,18 @@ struct LinearFailure {
     /// The Installation's access and refresh tokens, once obtained.
     var secrets: [String]
 
+    /// A transport failure. When this Mac itself has no network (OQ159 (b)), the message says so instead
+    /// of blaming Linear, and keeps the URL error code for diagnosis; it is `unreachable` either way.
     func transport(_ error: any Error) -> BoardError {
+        if let urlError = error as? URLError, Self.offlineCodes.contains(urlError.code) {
+            return .unreachable(scrub("\(BoardError.noNetworkConnection) (\(urlError.code.rawValue))"))
+        }
         let reason = (error as? URLError).map { "\($0.code)" } ?? String(describing: type(of: error))
         return .unreachable(scrub("Linear could not be reached (\(reason))"))
     }
+
+    /// The URL errors that mean this Mac is offline, not that Linear is down.
+    private static let offlineCodes: Set<URLError.Code> = [.notConnectedToInternet, .networkConnectionLost]
 
     func unreadable(_ error: any Error) -> BoardError {
         let reason: String
