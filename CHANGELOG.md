@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.0](https://github.com/summerhammer/yellowhammer/compare/v0.38.0...v0.39.0) (2026-11-15)
+
+
+### Features
+
+* **morning-report:** Say "this Mac has no network connection" when an offline Mac halts on Linear ([8925ec7](https://github.com/summerhammer/yellowhammer/commit/8925ec7e1aa0729b98c124fa22d70b54fa0185b3))
+
 ## [0.38.0](https://github.com/summerhammer/yellowhammer/compare/v0.37.1...v0.38.0) (2026-11-14)
 
 
