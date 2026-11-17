@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.40.0](https://github.com/summerhammer/yellowhammer/compare/v0.39.0...v0.40.0) (2026-11-17)
+
+
+### Features
+
+* **app:** Flag a local Exception Notification that never posted in Health ([5a95913](https://github.com/summerhammer/yellowhammer/commit/5a9591381ff337c95ed025afba9597ea46539c4f))
+* **doctor:** Warn in yh doctor and Health when a power source lets the Mac sleep ([9e6561f](https://github.com/summerhammer/yellowhammer/commit/9e6561f2338c0a17e6c90309c9e882dfc2d976df))
+
 ## [0.39.0](https://github.com/summerhammer/yellowhammer/compare/v0.38.0...v0.39.0) (2026-11-15)
 
 
