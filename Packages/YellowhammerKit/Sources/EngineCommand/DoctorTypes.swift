@@ -11,6 +11,7 @@ enum DoctorCheck: String, CaseIterable, Sendable {
     case launchd
     case orphans
     case orca
+    case power
 }
 
 /// One finding's severity. A `failure` is what makes `yh doctor`/`yh validate` exit non-zero; a

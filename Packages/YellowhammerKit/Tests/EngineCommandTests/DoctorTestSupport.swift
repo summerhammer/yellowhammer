@@ -53,7 +53,8 @@ func makeDoctor(
     runningExecutablePath: String = "/opt/yellowhammer/yh",
     setupTimePATH: String? = "/usr/bin:/bin",
     fileExists: @escaping (String) -> Bool = { $0 == "/opt/yellowhammer/yh" || $0 == "/opt/yh" },
-    keychainAccess: any KeychainAccessReading = FakeKeychainAccess()
+    keychainAccess: any KeychainAccessReading = FakeKeychainAccess(),
+    powerSettings: any PowerSettingsReading = FakePowerSettings()
 ) -> Doctor {
     Doctor(
         configurationDirectory: directory.url,
@@ -80,7 +81,8 @@ func makeDoctor(
         setupTimePATH: setupTimePATH,
         repoint: repoint,
         fileExists: fileExists,
-        keychainAccess: keychainAccess
+        keychainAccess: keychainAccess,
+        powerSettings: powerSettings
     )
 }
 
@@ -114,4 +116,13 @@ struct FakeKeychainAccess: KeychainAccessReading {
     func report(for reference: CredentialReference) -> KeychainAccessReport {
         reports[reference.rawValue] ?? .absent
     }
+}
+
+/// Answers the power check from a fixed list; by default every source never sleeps. Never runs `pmset`.
+struct FakePowerSettings: PowerSettingsReading {
+    var timers: [PowerSourceSleep]? = [
+        PowerSourceSleep(source: "on battery", minutes: 0), PowerSourceSleep(source: "on AC power", minutes: 0)
+    ]
+
+    func sleepTimers() async -> [PowerSourceSleep]? { timers }
 }

@@ -10,6 +10,7 @@ extension PulseFixtures {
         .appInstallationRevoked: "The Linear workspace revoked the Board Connection.",
         .codeHostingConnectionRefused: "Code Hosting Connection github: GitHub rejected the token.",
         .probeFailure: "codex failed its Probe: exit status 127.",
+        .powerSettings: "on battery this Mac sleeps after 1 min; a Night needs it awake",
         .actFailure: "build · main: Worktree allocation failed.",
         .boardProvisioningFailure: "The board is missing a provisioned label",
         .undeliveredBoardWrites: "Linear not updated",

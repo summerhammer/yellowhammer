@@ -186,7 +186,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         switch kind {
         case .staleOperatorIdentity, .appInstallationRevoked, .boardProvisioningFailure: .linearWorkspaces
         case .codeHostingConnectionRefused: .codeHosting
-        case .probeFailure, .actFailure, .undeliveredBoardWrites, .routeExcluded, .usageLimited,
+        case .probeFailure, .powerSettings, .actFailure, .undeliveredBoardWrites, .routeExcluded, .usageLimited,
              .recurringFailureCause, .commitTrailersUnread, .leftoverProcesses, .managedBlockOverBudget,
              .expiredCardLeasesSwept: .settings
         }
@@ -198,6 +198,8 @@ public enum HealthFlagKind: String, CaseIterable, Sendable {
     case appInstallationRevoked = "Board Connection revoked"
     case codeHostingConnectionRefused = "Code Hosting Connection refused"
     case probeFailure = "probe failure"
+    /// `yh doctor`'s `power` warning: a power source lets the Mac sleep. Machine-wide, like a probe failure.
+    case powerSettings = "power settings"
     case boardProvisioningFailure = "board provisioning failure"
     case actFailure = "Act failure"
     case undeliveredBoardWrites = "undelivered Board writes"

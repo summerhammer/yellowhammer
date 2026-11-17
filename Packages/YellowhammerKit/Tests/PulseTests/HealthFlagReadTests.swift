@@ -201,3 +201,19 @@ func boardRepairActFailures() {
     #expect(!HealthFlag(kind: .actFailure, detail: "build: Linear authorization was refused").canRepairBoard)
     #expect(!HealthFlag(kind: .probeFailure, detail: refusal).canRepairBoard)
 }
+
+@Test("A power warning with no projects is a Health flag on any Project; a pass row gives none")
+func powerWarningIsMachineWide() throws {
+    let message = "on battery this Mac sleeps after 1 min; a Night needs it awake"
+    let output = doctorOutput([
+        Finding("power", "on battery", "warning", message),
+        Finding("power", "power settings", "pass", "this Mac never sleeps")
+    ])
+
+    let flags = try #require(HealthFlag.read(doctorOutput: output, project: demo))
+
+    #expect(flags.map(\.kind) == [.powerSettings])
+    #expect(flags.first?.detail == message)
+    #expect(flags.first?.destination == .settings)
+    #expect(HealthFlagKind.powerSettings.rawValue == "power settings")
+}

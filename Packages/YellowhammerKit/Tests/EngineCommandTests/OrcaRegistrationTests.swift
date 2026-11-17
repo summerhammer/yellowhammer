@@ -73,15 +73,15 @@ struct OrcaRegistrationTests {
         #expect(loaded.allSatisfy { $0.contains("beta") })
     }
 
-    @Test("Check 8 is last, accepts --check orca, and emits scoped JSON failures with a remedy")
+    @Test("Check 8 is last but for power, accepts --check orca, and emits scoped JSON failures with a remedy")
     func doctor() async throws {
         let directory = ConfigurationDirectory()
         try seed(directory)
         try directory.writeValidProjectFile(id: "beta", repoPath: "/repos/beta")
         let command = try DoctorCommand.parse(["--check", "orca", "--project", "alpha", "--json"])
         try command.validate()
-        #expect(DoctorCheck.allCases.count == 9)
-        #expect(DoctorCheck.allCases.last == .orca)
+        #expect(DoctorCheck.allCases.count == 10)
+        #expect(DoctorCheck.allCases.dropLast().last == .orca)
         let workspace = RegistrationWorkspace(paths: ["/repos/backend/../backend/"])
         let findings = await makeDoctor(
             directory: directory, workspace: workspace, checks: [.orca], projectFilter: ProjectID(rawValue: "alpha")!

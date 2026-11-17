@@ -12,11 +12,13 @@ extension HealthFlag {
     }
 
     /// The flags `project`'s Health group shows: stale Operator identity, Board Connection revoked, refused
-    /// Code Hosting Connection, board provisioning failures, and probe failures, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
+    /// Code Hosting Connection, board provisioning failures, probe failures, and power settings, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
     /// app invents no wording.
     ///
     /// - Probe failures have no installation scope (Agent CLIs are machine-wide), so they appear on every
     ///   Project.
+    /// - A `power` warning is machine-scoped too (no `projects`), so it appears on every Project; a passing
+    ///   `power` row gives no flag.
     /// - The two installation flags and the Code Hosting Connection flag appear only when the row's `projects`
     ///   contains `project`: they are the flags of the installation or connection this Project selected,
     ///   never of one only other Projects use.
@@ -31,7 +33,7 @@ extension HealthFlag {
 
     private static func flag(for row: DoctorFindingRow, project: ProjectID) -> HealthFlag? {
         guard let kind = kind(of: row) else { return nil }
-        if kind != .probeFailure, row.projects?.contains(project.rawValue) != true {
+        if kind != .probeFailure, kind != .powerSettings, row.projects?.contains(project.rawValue) != true {
             return nil
         }
         return HealthFlag(kind: kind, detail: row.message)
@@ -57,6 +59,8 @@ extension HealthFlag {
             .codeHostingConnectionRefused
         case ("probes", _, "failure"):
             .probeFailure
+        case ("power", _, "warning"):
+            .powerSettings
         default:
             nil
         }

@@ -41,6 +41,8 @@ struct Doctor {
     var fileExists: (String) -> Bool = ExecutableFile.isRunnable
     /// Reads the ACL of the Keychain items the keychain check inspects; attributes only, never the secret.
     var keychainAccess: any KeychainAccessReading = KeychainAccessReader()
+    /// Reads every power source's `sleep` timer for the power check.
+    var powerSettings: any PowerSettingsReading = PmsetPowerSettings()
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
@@ -84,19 +86,28 @@ struct Doctor {
         if checks.contains(.keychain) {
             findings += runKeychainCheck(configuration: configuration)
         }
+        findings += await runHostChecks(configuration: configuration)
+        let kept = keptFindings(findings)
+        printSummary(kept)
+        return kept
+    }
+
+    /// The checks about this Mac rather than a service, in order: `launchd`, orphans, Orca ADE, then power.
+    private func runHostChecks(configuration: Configuration) async -> [DoctorFinding] {
+        var findings: [DoctorFinding] = []
         if checks.contains(.launchd) {
             findings += await runLaunchdCheck(configuration: configuration)
         }
         if checks.contains(.orphans) {
             findings += await runOrphansCheck(configuration: configuration)
         }
-
         if checks.contains(.orca) {
             findings += await runOrcaCheck(configuration: configuration)
         }
-        let kept = keptFindings(findings)
-        printSummary(kept)
-        return kept
+        if checks.contains(.power) {
+            findings += await runPowerCheck()
+        }
+        return findings
     }
 
     /// `--project` matches a valid Project by id, or an invalid one by id when known or by its
