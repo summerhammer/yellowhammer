@@ -97,6 +97,8 @@ extension JournalEvent {
                 notification: try reader.require("notification"),
                 reason: try reader.require("reason")
             )
+        case .notificationPosted:
+            .notificationPosted(notification: try reader.require("notification"))
         case .worktreeNameCollision:
             .worktreeNameCollision(
                 repository: try reader.require("repository"),

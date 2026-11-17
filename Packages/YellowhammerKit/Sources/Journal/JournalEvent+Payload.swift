@@ -94,6 +94,8 @@ extension JournalEvent {
             ["issue_id": issueID, "length": String(length), "budget": String(budget)]
         case .notificationDeliveryFailed(let notification, let reason):
             ["notification": notification, "reason": reason]
+        case .notificationPosted(let notification):
+            ["notification": notification]
         case .worktreeNameCollision(let repository, let requested, let reported):
             ["repository": repository, "requested": requested, "reported": reported]
         case .boardScopeUnresolved(let steps):

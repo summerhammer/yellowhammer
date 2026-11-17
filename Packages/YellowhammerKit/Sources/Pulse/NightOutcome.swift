@@ -62,6 +62,14 @@ public struct NightOutcome: Equatable, Sendable {
         public var occurrence: Occurrence
     }
 
+    /// One notification kind whose latest post of the Night failed. `occurrence` counts the failures since the
+    /// kind last posted; `reason` is the latest failure's.
+    public struct UndeliveredNotification: Equatable, Sendable {
+        public var notification: String
+        public var reason: String
+        public var occurrence: Occurrence
+    }
+
     /// A kind of finding with no Card of its own: how often, and what it named (Cards, commands or Issues).
     public struct Note: Equatable, Sendable {
         public var details: [String]
@@ -93,6 +101,8 @@ public struct NightOutcome: Equatable, Sendable {
     public internal(set) var overBudgetBlocks: Note?
     /// `occurrence.count` is the total of Cards reclaimed.
     public internal(set) var sweptCardLeases: Note?
+    /// Kinds whose latest `NotificationDeliveryFailed` has no `NotificationPosted` after it, by first failure.
+    public internal(set) var undeliveredNotifications: [UndeliveredNotification] = []
 
     /// `events` are the Night's own, in Journal order. `cardNames` maps a Card's row id to its display identifier;
     /// `issueNames` maps an issue id to one (for Managed Blocks); `attemptRoutes` maps an Attempt's id to its Route's

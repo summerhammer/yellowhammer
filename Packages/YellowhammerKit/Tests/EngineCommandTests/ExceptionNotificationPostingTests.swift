@@ -205,6 +205,8 @@ struct ExceptionNotificationPostingTests {
             return notification == "halted"
         }
         #expect(haltedFailures.count == 1)
+        // A failed post records only the failure, never a posted event.
+        #expect(try journal.events(ofType: .notificationPosted).isEmpty)
     }
 
     @Test("A halted Act with no Night Card posts .haltedUnrecorded (OQ71)")
@@ -239,6 +241,8 @@ struct ExceptionNotificationPostingTests {
         // notification itself posts.
         let deliveryFailures = try journal.events(ofType: .notificationDeliveryFailed)
         #expect(deliveryFailures.isEmpty)
+        let postedEvents = try journal.events(ofType: .notificationPosted).map(\.event)
+        #expect(postedEvents == [.notificationPosted(notification: "halted")])
     }
 
     @Test("A halted comment write that is aborted or permanently failed also posts .haltedUnrecorded (OQ71)")

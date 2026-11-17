@@ -107,7 +107,10 @@ struct BoardScopePreflightTests {
         let records = try journal.events()
         #expect(
             records.map(\.type)
-                == [.nightOpened, .actStarted, .linearReached, .boardScopeUnresolved, .actIncomplete]
+                == [
+                    .nightOpened, .actStarted, .linearReached, .boardScopeUnresolved, .actIncomplete,
+                    .notificationPosted
+                ]
         )
         let recorded = try #require(records.first { $0.type == .boardScopeUnresolved })
         guard case .boardScopeUnresolved(let steps) = recorded.event else {

@@ -28,6 +28,7 @@ extension NightOutcome {
         var excluded: [String: ExcludedRoute] = [:]
         var excludedAttempts: Set<Int64> = []
         var causes: [String: RecurringCause] = [:]
+        var undelivered: [String: UndeliveredNotification] = [:]
 
         init(names: NightOutcomeNames, recovered: Set<Int64>) {
             self.names = names
@@ -174,6 +175,9 @@ extension NightOutcome {
             }.values)
             result.usageLimits = limits.values.sorted { $0.occurrence.firstEventID < $1.occurrence.firstEventID }
             result.excludedRoutes = excluded.values.sorted { $0.occurrence.firstEventID < $1.occurrence.firstEventID }
+            result.undeliveredNotifications = undelivered.values.sorted {
+                $0.occurrence.firstEventID < $1.occurrence.firstEventID
+            }
             result.recurringCauses = causes.values.sorted { $0.occurrence.firstEventID < $1.occurrence.firstEventID }
             return result
         }

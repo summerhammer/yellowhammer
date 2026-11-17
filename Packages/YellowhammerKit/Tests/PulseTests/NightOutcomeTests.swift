@@ -51,6 +51,54 @@ private func standing(
     NightStanding(outcome: outcome, mode: mode, isClosed: closed)
 }
 
+private func failedPost(_ kind: String, _ reason: String = "notifications denied") -> JournalEvent {
+    .notificationDeliveryFailed(notification: kind, reason: reason)
+}
+
+private func posted(_ kind: String) -> JournalEvent { .notificationPosted(notification: kind) }
+
+private func undeliveredFlags(_ events: [JournalEvent]) -> [HealthFlag] {
+    HealthFlag.nightFlags(fold(events), nightID: nightID).filter { $0.kind == .notificationNotDelivered }
+}
+
+@Test("A failed halted notification is a Health flag naming the kind and the reason")
+func undeliveredNotificationFlag() {
+    let flags = undeliveredFlags([failedPost("halted")])
+    #expect(flags.count == 1)
+    #expect(flags.first?.detail == "halted notification did not post: notifications denied")
+    #expect(flags.first?.occurrenceCount == 1)
+    #expect(flags.first?.lastOccurredAt == epoch.addingTimeInterval(60))
+    #expect(flags.first?.fixLink == .nightAccount(nightID, at: epoch.addingTimeInterval(60)))
+    #expect(flags.first?.destination == .settings)
+}
+
+@Test("A later post of the same kind clears the flag; a failure after a post raises it")
+func undeliveredNotificationClearsAndReopens() {
+    #expect(undeliveredFlags([failedPost("halted"), posted("halted")]).isEmpty)
+    #expect(undeliveredFlags([posted("halted"), failedPost("halted")]).count == 1)
+}
+
+@Test("A post of another kind does not clear a kind's flag; each failed kind has its own")
+func undeliveredNotificationIsPerKind() {
+    let flags = undeliveredFlags([failedPost("halted"), posted("closed")])
+    #expect(flags.map(\.detail) == ["halted notification did not post: notifications denied"])
+    let closed = undeliveredFlags([failedPost("closed")])
+    #expect(closed.map(\.detail) == ["closed notification did not post: notifications denied"])
+    let both = undeliveredFlags([failedPost("closed"), failedPost("halted")])
+    #expect(both.count == 2)
+    #expect(both.first?.detail.hasPrefix("closed") == true)
+}
+
+@Test("The count is the failures since the kind's last post")
+func undeliveredNotificationCountsSinceLastPost() {
+    let flags = undeliveredFlags([
+        failedPost("halted", "a"), failedPost("halted", "b"), posted("halted"), failedPost("halted", "c")
+    ])
+    #expect(flags.count == 1)
+    #expect(flags.first?.occurrenceCount == 1)
+    #expect(flags.first?.detail == "halted notification did not post: c")
+}
+
 @Test("Rounds-exhausted Attempts read per Card, counted, with the Night's first and last time")
 func foldRoundsExhausted() {
     let outcome = fold([ended(406, .roundsExhausted), ended(407, .success), ended(406, .roundsExhausted)])

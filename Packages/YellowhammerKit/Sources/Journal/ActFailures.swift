@@ -218,7 +218,7 @@ private struct Recovery: Sendable {
     /// because the board-scope check appends it before it refuses an unresolved scope, so it proves nothing.
     private static let preflight: Set<JournalEventType> = [
         .actStarted, .linearReached, .boardScopeUnresolved, .actIncomplete, .actStoodDown,
-        .linearAuthorizationHalted, .linearUnreachableHalted, .notificationDeliveryFailed
+        .linearAuthorizationHalted, .linearUnreachableHalted, .notificationDeliveryFailed, .notificationPosted
     ]
 
     private static func checkpoint(

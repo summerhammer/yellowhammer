@@ -599,6 +599,40 @@ struct NightSummaryRecoveryByCauseTests {
         #expect(lines == ["1 Act failed (the board scope is unresolved), recovered 14:28"])
     }
 
+    @Test("A later run whose only extra event is a posted notification does not recover a board-scope halt")
+    func postedNotificationIsNotGettingPastPreflight() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        let first = try seededInstant("2026-10-08T14:00:00Z")
+        let runA = RunID()
+        try journal.append(.actStarted, act: .author, runID: runA, nightID: night.id, now: first)
+        try journal.append(
+            .boardScopeUnresolved(steps: "no Linear project"), act: .author, runID: runA, nightID: night.id,
+            now: first.addingTimeInterval(1)
+        )
+        try journal.append(
+            .actIncomplete(reason: "\(ActFailureCause.boardScopePrefix): no Linear project"),
+            act: .author, runID: runA, nightID: night.id, now: first.addingTimeInterval(2)
+        )
+        let second = try seededInstant("2026-10-08T14:28:00Z")
+        let runB = RunID()
+        try journal.append(.actStarted, act: .author, runID: runB, nightID: night.id, now: second)
+        try journal.append(
+            .notificationPosted(notification: "halted"), act: .author, runID: runB, nightID: night.id,
+            now: second.addingTimeInterval(1)
+        )
+        try journal.append(
+            .actIncomplete(reason: "other"), act: .author, runID: runB, nightID: night.id,
+            now: second.addingTimeInterval(2)
+        )
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
+        #expect(!lines.contains { $0.contains("recovered") })
+    }
+
     @Test("A later run that fails the same way recovers nothing")
     func sameCauseLaterFailureRecoversNothing() async throws {
         let fixture = try NightCardJournalFixture()

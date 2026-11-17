@@ -206,6 +206,15 @@ struct NightAccountFailureWordingTests {
         }
     }
 
+    @Test("A posted notification is worded plainly and is not a problem")
+    func notificationPostedIsNotAProblem() {
+        let words = failureEntry(.notificationPosted(notification: "halted"))
+        #expect(words.headline == "A notification was posted")
+        #expect(words.detail == "halted")
+        #expect(!words.isProblem)
+        #expect(words.failedAct == nil)
+    }
+
     @Test("A failed pull request read names the repository and its reason, and is not a failure (#714)")
     func pullRequestReadFailed() {
         let words = failureEntry(.pullRequestReadFailed(repository: "backend", reason: .rateLimited))

@@ -20,7 +20,8 @@ extension PulseFixtures {
         .commitTrailersUnread: "2 commits unread on YH-406",
         .leftoverProcesses: "1 process left running: node",
         .managedBlockOverBudget: "1 Managed Block over the description budget: YH-406",
-        .expiredCardLeasesSwept: "2 Cards reclaimed"
+        .expiredCardLeasesSwept: "2 Cards reclaimed",
+        .notificationNotDelivered: "halted notification did not post: notifications denied"
     ]
 
     /// The Night of 2026-10-31: one Card back in Todo after two Attempts rounds-exhausted on two Routes and four

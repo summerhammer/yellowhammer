@@ -67,6 +67,8 @@ extension JournalEvent {
             .managedBlockOverBudget
         case .notificationDeliveryFailed:
             .notificationDeliveryFailed
+        case .notificationPosted:
+            .notificationPosted
         case .worktreeNameCollision:
             .worktreeNameCollision
         case .boardScopeUnresolved:

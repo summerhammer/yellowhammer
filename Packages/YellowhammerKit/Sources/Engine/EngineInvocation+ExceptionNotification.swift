@@ -279,6 +279,9 @@ extension EngineInvocation {
     func notify(_ event: ExceptionNotification.Event, notification: String, night: NightRecord) async {
         do {
             try await notifier.post(ExceptionNotification(project: journal.projectID, event: event))
+            _ = try? journal.append(
+                .notificationPosted(notification: notification), act: act, runID: runID, nightID: night.id
+            )
         } catch {
             recordDeliveryFailure(notification: notification, reason: String(describing: error), night: night)
         }

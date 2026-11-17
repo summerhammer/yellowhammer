@@ -84,6 +84,12 @@ extension NightWording {
         }
     }
 
+    /// A local notification that posted: plain, and no problem.
+    func notificationPosted(_ event: JournalEvent) -> NightWords? {
+        guard case .notificationPosted(let notification) = event else { return nil }
+        return NightWords(headline: "A notification was posted", detail: notification)
+    }
+
     /// A Delta Read that stopped before its last page (the request cap) and moved no cursor.
     func incompleteRead(_ event: JournalEvent) -> NightWords? {
         guard case .deltaReadIncomplete(_, let reason) = event else { return nil }

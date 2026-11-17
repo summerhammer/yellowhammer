@@ -18,6 +18,18 @@ extension NightOutcome.Fold {
                 &outcome.sweptCardLeases, record, details: reclaimed.map { names.cards[$0] ?? String($0) },
                 count: reclaimed.count
             )
+        case .notificationDeliveryFailed(let notification, let reason):
+            if var existing = undelivered[notification] {
+                existing.reason = reason
+                existing.occurrence.add(record)
+                undelivered[notification] = existing
+            } else {
+                undelivered[notification] = NightOutcome.UndeliveredNotification(
+                    notification: notification, reason: reason, occurrence: Occurrence(record)
+                )
+            }
+        case .notificationPosted(let notification):
+            undelivered[notification] = nil
         default:
             break
         }

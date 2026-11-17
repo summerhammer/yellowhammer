@@ -246,7 +246,7 @@ struct NightWording {
 
     func words(for event: JournalEvent) -> NightWords {
         lifecycle(event) ?? night(event) ?? infrastructure(event) ?? infrastructureFailures(event) ?? cards(event)
-            ?? incompleteRead(event) ?? authoring(event) ?? landing(event)
+            ?? incompleteRead(event) ?? notificationPosted(event) ?? authoring(event) ?? landing(event)
             ?? NightWords(headline: NightAccount.plainName(of: event.type))
     }
 }

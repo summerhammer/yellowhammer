@@ -188,7 +188,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         case .codeHostingConnectionRefused: .codeHosting
         case .probeFailure, .powerSettings, .actFailure, .undeliveredBoardWrites, .routeExcluded, .usageLimited,
              .recurringFailureCause, .commitTrailersUnread, .leftoverProcesses, .managedBlockOverBudget,
-             .expiredCardLeasesSwept: .settings
+             .expiredCardLeasesSwept, .notificationNotDelivered: .settings
         }
     }
 }
@@ -211,4 +211,6 @@ public enum HealthFlagKind: String, CaseIterable, Sendable {
     case leftoverProcesses = "leftover processes"
     case managedBlockOverBudget = "managed block over budget"
     case expiredCardLeasesSwept = "expired Card Leases swept"
+    /// The Night's latest local notification of a kind failed to post and none of that kind has posted since.
+    case notificationNotDelivered = "notification not delivered"
 }

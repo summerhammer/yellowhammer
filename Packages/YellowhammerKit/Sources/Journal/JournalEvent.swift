@@ -155,6 +155,9 @@ public enum JournalEvent: Equatable, Sendable {
     /// A local notification delivery failed. Not retried within the Act; a Linear-unreachable halted
     /// notice that failed to post is posted again by the next halted Act of the same outage.
     case notificationDeliveryFailed(notification: String, reason: String)
+    /// A local notification was posted. Best-effort and inert: it clears an earlier delivery failure of the
+    /// same kind for Health, and is no Night Card line, failure, recovery or progress.
+    case notificationPosted(notification: String)
     /// Orca ADE reported a branch for a requested Worktree that Yellowhammer does not accept; the build
     /// Act halted. `requested` is the branch Yellowhammer expected (the recorded Feature Branch when one is
     /// recorded, else the requested Worktree name); `reported` is what Orca ADE made.

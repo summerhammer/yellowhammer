@@ -27,7 +27,13 @@ extension HealthFlag {
                 $0.occurrence, nightID
             )
         }
-        return flags + noteFlags(outcome, nightID: nightID)
+        flags += noteFlags(outcome, nightID: nightID)
+        return flags + outcome.undeliveredNotifications.map {
+            nightFlag(
+                .notificationNotDelivered, "\($0.notification) notification did not post: \($0.reason)",
+                $0.occurrence, nightID
+            )
+        }
     }
 
     private static func nightFlag(

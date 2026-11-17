@@ -40,7 +40,7 @@ func eventTypeRawValues() {
         "ManagedBlockInputImported", "ManagedBlockInputInvalid", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
         "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "NightCardCompletionDeferred",
-        "BoardWriteFailed", "OutboxGroupRolledBack",
+        "BoardWriteFailed", "OutboxGroupRolledBack", "NotificationPosted",
         "CardShelved", "CardReopened", "CardOperatorDone", "CardRestated", "CardRemovedFromBoard",
         "CardRestoredToBoard", "AuthoringInvariantBroken", "DeltaReadCompleted", "DeltaReadIncomplete",
         "CardStateTransitioned", "WaitingOnYouUnbacked",
@@ -366,6 +366,18 @@ func notificationDeliveryFailedRoundTrips() throws {
     }
     #expect(notif == "build_complete")
     #expect(reason == "User disabled")
+}
+
+@Test("notificationPosted event round-trips")
+func notificationPostedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    try journal.append(.notificationPosted(notification: "halted"), act: .build, runID: RunID(), now: epoch)
+    let records = try journal.events()
+
+    #expect(records.map(\.event) == [.notificationPosted(notification: "halted")])
+    #expect(records.first?.type == .notificationPosted)
 }
 
 @Test("worktreeNameCollision event round-trips")
